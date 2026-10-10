@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "prepare-widget": "node scripts/copy-widget.mjs",
-    "dev": "next dev -p 4176",
+    "dev": "next dev --webpack -p 4176",
     "build": "npm run prepare-widget && next build --webpack",
     "start": "next start -p 4176"
   },
