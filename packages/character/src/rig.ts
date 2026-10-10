@@ -87,6 +87,7 @@ export const PROP_IDS = [
   'sunglasses',
   'deckchair',
   'balloon',
+  'paddle',
 ] as const;
 export type PropId = (typeof PROP_IDS)[number];
 
@@ -284,6 +285,63 @@ export function toBodyFrame(rig: SunnyRig, point: Vec2): Vec2 {
   return {
     x: (dx * Math.cos(a) - dy * Math.sin(a)) / sx,
     y: (dx * Math.sin(a) + dy * Math.cos(a)) / sy,
+  };
+}
+
+/**
+ * How far a ray may stretch when it is used as an arm. Past roughly this the ray
+ * is longer than the viewBox is wide, which stops being a pose and becomes a
+ * line ruled across the picture.
+ */
+const ARM_MAX_LENGTH_SCALE = 3.5;
+
+/**
+ * The ray-to-arm morph: point a ray at a target and stretch it until its tip is
+ * there.
+ *
+ * §5.2 lists "ray-to-arm morph" among the rig's controls, and this is that
+ * control as arithmetic rather than as one sequence's private geometry. A ray is
+ * a triangle whose base always sits at `RAY.baseRadius` from the body centre, so
+ * aiming it is exactly two numbers: the angle from the ray's own direction to the
+ * target, and the length scale that puts the tip on it.
+ *
+ * **The base does not move**, which is the whole difference between an arm and an
+ * object parked near the body: the ray stays attached at the silhouette and grows
+ * outward from it. A target nearer than the base radius is unreachable, and the
+ * ray collapses to its shortest legal length rather than turning inside out.
+ *
+ * `rotation` is left un-normalised on purpose -- the pose vocabulary adds
+ * rotations freely (see `play-run`) and a caller that wrapped this one would be
+ * the only place in the rig that did.
+ */
+export function armTo(ray: RayRig, target: Vec2): RayRig {
+  const distance = Math.hypot(target.x, target.y);
+  // The rig's angles are clockwise from straight up; a point at (x, y) with y
+  // down is at atan2(x, -y) in that convention.
+  const angleDeg = (Math.atan2(target.x, -target.y) * 180) / Math.PI;
+  const reach = RAY.tipRadius + RAY.apexCompensation - RAY.baseRadius;
+  return {
+    ...ray,
+    rotation: angleDeg - ray.angleDeg,
+    lengthScale: Math.min(ARM_MAX_LENGTH_SCALE, Math.max(0, (distance - RAY.baseRadius) / reach)),
+    offset: { x: 0, y: 0 },
+    visible: true,
+  };
+}
+
+/**
+ * Where a ray's tip lands, in the body frame. The counterpart of `armTo`: a test
+ * asserts `rayTip(armTo(ray, target))` is `target`, which is the only way the
+ * morph's claim ("the tip is there") can be checked rather than believed.
+ */
+export function rayTip(ray: RayRig): Vec2 {
+  const a = ((ray.angleDeg + ray.rotation) * Math.PI) / 180;
+  const reach =
+    RAY.baseRadius +
+    (RAY.tipRadius + RAY.apexCompensation - RAY.baseRadius) * Math.max(0, ray.lengthScale);
+  return {
+    x: Math.sin(a) * reach + ray.offset.x,
+    y: -Math.cos(a) * reach + ray.offset.y,
   };
 }
 

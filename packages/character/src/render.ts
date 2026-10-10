@@ -304,6 +304,22 @@ const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?
     filled: true,
     surface: true,
   },
+  // A ping-pong bat, held upright: the blade, then a short handle. Authored tall
+  // rather than wide -- the second prop that is, after the deckchair's scenery --
+  // because the ball has to meet the blade's *face*, and A09's rules decide
+  // whether it did by comparing y against the bat's half-length. The bat is
+  // `surface`-painted for the reason the balloon is: it is an object with an
+  // inside, and a black silhouette at the end of a ray would read as another ray.
+  // Its half-length is the number the rules are told (see `@sunny/games`), so
+  // lengthening the blade here without changing `PADDLE_HALF` there would put the
+  // bounce either inside the bat or short of it.
+  paddle: {
+    d:
+      'M-7-17H7A1.6 1.6 0 0 1 8.6-15.4V7.4A1.6 1.6 0 0 1 7 9H-7A1.6 1.6 0 0 1-8.6 7.4V-15.4A1.6 1.6 0 0 1-7-17Z' +
+      'M-3.4 9H3.4V14A3.4 3.4 0 0 1-3.4 14Z',
+    filled: true,
+    surface: true,
+  },
 };
 
 function renderProp(prop: PropRig, paint: Paint): string {

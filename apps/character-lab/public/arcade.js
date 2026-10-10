@@ -183,6 +183,15 @@
     };
   }
 
+  // packages/games/src/ping-pong.ts
+  var WALL_TOP = 26;
+  var WALL_BOTTOM = 174;
+  var PADDLE_HALF = 17;
+  var MAX_BOUNCE_DEG = 62;
+  var MAX_BOUNCE_RAD = MAX_BOUNCE_DEG * Math.PI / 180;
+  var PADDLE_LOW = WALL_TOP + PADDLE_HALF;
+  var PADDLE_HIGH = WALL_BOTTOM - PADDLE_HALF;
+
   // apps/character-lab/src/arcade.ts
   var TICK_MS = 110;
   function mount(container, reactions) {

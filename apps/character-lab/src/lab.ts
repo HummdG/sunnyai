@@ -14,6 +14,7 @@ import { defaultRig, renderSunny, SUNNY_THEME, type SunnyRig } from '@sunny/char
 import type { Reactions } from './arcade.js';
 import { el } from './dom.js';
 import { gamePanel, type GamePanel } from './game.js';
+import { pongPanel, type PongPanel } from './pong.js';
 
 /**
  * The animation playground.
@@ -366,6 +367,8 @@ let stageLabel: HTMLElement | null = null;
 let animator = new SunnyAnimator(defaultRig(), { intensity: 'balanced' });
 /** A06's board. Null until `start()` has built it. */
 let board: GamePanel | null = null;
+/** A09's table. Null until `start()` has built it. */
+let table: PongPanel | null = null;
 
 function renderBigStage(): void {
   if (!stageSvg) return;
@@ -635,6 +638,17 @@ export function start(): void {
     redraw: () => renderBigStage(),
   });
   document.getElementById('game')!.append(board.element);
+
+  // A09's table, on the same clock and for the same reason -- but with a fixed
+  // step, because the ball covers a fixed distance per tick and a ball that moved
+  // by the frame's own delta would slow down when the page did.
+  table = pongPanel({
+    animator: () => animator,
+    now: () => state.t,
+    redraw: () => renderBigStage(),
+  });
+  document.getElementById('pong')!.append(table.element);
+
   buildArcade();
 
   document.getElementById('controls')!.append(controls());
@@ -689,6 +703,7 @@ export function start(): void {
     // Before the frame, so a move Sunny makes and the thinking she did on the
     // way to it are drawn in the same tick as the clock that caused them.
     board?.tick(state.t);
+    table?.tick(state.t);
     frame();
   };
   requestAnimationFrame(tick);

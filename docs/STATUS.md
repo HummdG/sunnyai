@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **535 tests across 15 files**,
+public marketing site are built, tested and green: **559 tests across 16 files**,
 a real fidelity comparison
-against the supplied artwork, **20 committed visual baselines** of the character
+against the supplied artwork, **21 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
-and **39 browser end-to-end checks** — including an axe accessibility pass — over
+and **42 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
 host page, and on the marketing site, which runs the real widget and the real
 character rather than pictures of them. The
@@ -31,20 +31,20 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                                                                                     | Result                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                  |
-| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                   |
-| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                  |
-| Unit / contract / visual tests | `npm run test`                                                                              | **535 passed (15 files)**                                                                    |
-| Browser end-to-end             | `npm run test:e2e`                                                                          | **39 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
-| Widget bundle                  | `npm run build:widget`                                                                      | 125.1 kB — **34.7 kB gzipped**                                                               |
-| Character lab bundle           | `npm run build:lab`                                                                         | 108.9 kB, plus the lazily-loaded arcade chunk at 11.6 kB (A08)                               |
-| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                              |
-| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                        |
-| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                           |
-| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                          |
-| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **22 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces     |
+| Check                          | Command                                                                                     | Result                                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                                                            |
+| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                                                             |
+| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                            |
+| Unit / contract / visual tests | `npm run test`                                                                              | **559 passed (16 files)**                                                                                                              |
+| Browser end-to-end             | `npm run test:e2e`                                                                          | **42 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                           |
+| Widget bundle                  | `npm run build:widget`                                                                      | 125.3 kB — **34.8 kB gzipped**                                                                                                         |
+| Character lab bundle           | `npm run build:lab`                                                                         | 126.1 kB, plus the lazily-loaded arcade chunk at 11.8 kB (A08)                                                                         |
+| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                                                                        |
+| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                                                                  |
+| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                                                                     |
+| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                    |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **23 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09), are byte-identical to the ones Linux produces |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -720,11 +720,11 @@ not been designed.
 | ------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Formatting / lint              | **done**, in CI and locally                                                                        |
 | Typecheck                      | **done**                                                                                           |
-| Unit tests                     | **done** — 535 across 15 files                                                                     |
+| Unit tests                     | **done** — 559 across 16 files                                                                     |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
-| E2E (Playwright)               | **done** — 39 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
-| Visual snapshots               | **done** — 20 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
+| E2E (Playwright)               | **done** — 42 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
+| Visual snapshots               | **done** — 21 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
 | Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
 | Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
 | Terraform validation           | **written, never executed**                                                                        |
@@ -862,6 +862,15 @@ properly rather than sketched.
    to, which a browser check proves by watching the network, and its collision is
    one lookup on a grid of integers rather than a pixel overlap. Its rules joined
    `@sunny/games` and forced that package's exports into one namespace per game,
-   so A09's ping pong is an addition rather than a collision. What remains of P11
-   is what the gate does not cover: A09–A18, two more games and the seasonal
-   cosmetics, none of which are blocked on anything outside this repository.
+   so A09's ping pong is an addition rather than a collision. **A09 is done**
+   (D-24), and it is the row where the plan's first phrase hid a rig control: its
+   "paddle from ray" is the ray-to-arm morph §5.2 lists and the character did not
+   have — `armTo` aims one of her eight rays and stretches it until its tip is at
+   the bat, which is where the `paddle` prop hangs. Its rally joined
+   `@sunny/games` and a test that plays a game to a winner found a real defect the
+   unit tests could not: a bat that always met the ball dead centre returned it
+   dead level, and two such bats rallied forever without scoring, so she now aims
+   every return at the side of the court the opponent's bat is not on. What
+   remains of P11 is what the gate does not cover: A10–A18, one more game and the
+   seasonal cosmetics, none of which are blocked on anything outside this
+   repository.

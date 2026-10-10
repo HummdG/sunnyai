@@ -435,3 +435,100 @@ test('drives the arcade from the keyboard, and the score answers a hit', async (
   await expect(page.locator(arcadeSlot)).toHaveAttribute('data-status', 'playing');
   await expect(page.locator(`${arcadeField} .arcade-cell[data-occupant="ship"]`)).toHaveCount(1);
 });
+
+/**
+ * A09, played rather than asserted.
+ *
+ * The rules are proved in `packages/games` and the ray-to-arm morph is proved by
+ * arithmetic in `packages/character` (`rayTip(armTo(ray, target))` is `target`,
+ * from any of the eight rays). Neither of those is a claim about a page, and the
+ * three words of the row are three claims about a page:
+ *
+ * - *paddle from ray* -- the bat on screen is the `paddle` prop the renderer
+ *   draws, which only exists because a ray was morphed to carry it;
+ * - *rally* -- the ball keeps coming back, which on a page means a moving ball
+ *   and a rising rally count rather than a promise;
+ * - *optional user control* -- the keyboard takes the right bat over and hands it
+ *   back, and until it does the rally runs by itself.
+ */
+
+const table = '#pong .pong';
+const tableRead = (page: Page, key: string): Promise<string | null> =>
+  page.locator(table).getAttribute(`data-${key}`);
+const ballAt = async (page: Page): Promise<string> => (await tableRead(page, 'ball')) ?? '';
+
+test('puts the bat on the end of a ray, and rallies with it', async ({ page }) => {
+  await page.goto(LAB_URL);
+
+  await expect(page.locator('#pong .pong-court')).toHaveCount(1);
+  const bat = page.locator('#pong .pong-bat');
+  await expect(bat).toHaveCount(1);
+
+  // Sunny's own bat is not a rectangle on the page: it is a prop the rig draws,
+  // and it is a prop that exists only because a ray was aimed at the bat's centre
+  // and stretched until its tip was there.
+  const paddle = page.locator('#pong [data-prop="paddle"]');
+  await expect(paddle).toHaveCount(1);
+
+  // The arm moves: her prop is not parked, it is playing. Read from the painted
+  // rectangle rather than from an attribute this file worked out.
+  const propY = () =>
+    page.evaluate(() => {
+      const node = document.querySelector('#pong [data-prop="paddle"]');
+      if (!node) return null;
+      return (node as SVGGraphicsElement).getBoundingClientRect().y;
+    });
+  const first = await propY();
+  await expect
+    .poll(async () => Math.abs((await propY())! - first!), { timeout: 10_000 })
+    .toBeGreaterThan(2);
+
+  // A rally: the ball crosses the court and is returned, so the count of returns
+  // goes up. That is the difference between a rally and a ball that slides once.
+  await expect
+    .poll(async () => Number(await tableRead(page, 'hits')), { timeout: 20_000 })
+    .toBeGreaterThan(0);
+
+  const moving = await ballAt(page);
+  await expect.poll(ballAt.bind(null, page), { timeout: 10_000 }).not.toBe(moving);
+});
+
+test('takes the right bat over on the first key, and hands it back', async ({ page }) => {
+  await page.goto(LAB_URL);
+  await expect(page.locator(table)).toHaveAttribute('data-controlled', 'sunny');
+
+  // The keys belong to the panel. A visitor reading the catalogue is not playing,
+  // and a document-level handler would move the bat from anywhere on the page.
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator(table)).toHaveAttribute('data-controlled', 'sunny');
+
+  await page.locator('#pong .pong-surface').focus();
+  await page.keyboard.down('ArrowDown');
+  await expect(page.locator(table)).toHaveAttribute('data-controlled', 'right');
+  await page.keyboard.up('ArrowDown');
+
+  // Hers stays hers: she goes on playing the left end while the visitor plays the
+  // right, which is what makes the take-over a take-over rather than a swap.
+  const before = await tableRead(page, 'hits');
+  await expect
+    .poll(async () => Number(await tableRead(page, 'hits')), { timeout: 20_000 })
+    .toBeGreaterThan(Number(before));
+
+  await page.locator('#pong .btn', { hasText: 'Hand back to Sunny' }).click();
+  await expect(page.locator(table)).toHaveAttribute('data-controlled', 'sunny');
+  // The button stops offering what has already happened.
+  await expect(page.locator('#pong .btn', { hasText: 'Hand back to Sunny' })).toBeDisabled();
+});
+
+test('starts a fresh rally with the score cleared', async ({ page }) => {
+  await page.goto(LAB_URL);
+  await expect
+    .poll(async () => Number(await tableRead(page, 'hits')), { timeout: 20_000 })
+    .toBeGreaterThan(0);
+
+  await page.locator('#pong .btn', { hasText: 'New rally' }).click();
+
+  await expect(page.locator(table)).toHaveAttribute('data-score', '0-0');
+  await expect(page.locator(table)).toHaveAttribute('data-hits', '0');
+  await expect(page.locator(table)).toHaveAttribute('data-status', 'playing');
+});

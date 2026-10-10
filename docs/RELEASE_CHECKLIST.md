@@ -27,25 +27,28 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **535 passing across 15 files**
+- [ ] `npm run test` — currently **559 passing across 16 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
         network boundary_
-  - [ ] visual snapshots — **20 committed PNG baselines** of the character,
+  - [ ] visual snapshots — **21 committed PNG baselines** of the character,
         compared byte for byte. Aimed at the rig rather than at a page, for the
         reason in D-16: a page screenshot differs by operating system and the
-        test gets deleted. Regenerate with `npm run test:visual:update` only
-        after looking at what moved.
+        test gets deleted. Twenty are states the engine produces; the
+        twenty-first, the paddle on the end of a ray (A09, D-24), is posed by
+        hand, because the ray-to-arm morph is a rig control no machine event
+        reaches. Regenerate with `npm run test:visual:update` only after looking
+        at what moved.
   - [ ] re-run the visual suite under Linux (`node:22-bookworm`, `npm ci`, then
         `npx vitest run tests/visual`) whenever a baseline moves. That is the
         machine CI will use, and the whole reason the baselines are PNGs
         committed rather than a screenshot test is the claim that they are
         platform-independent — which is only a claim until it is re-checked
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **125.1 kB (34.7 kB gzipped)**, lab 108.9 kB,
-      arcade 11.6 kB. The lab now has a **second entry point** (A08, D-23): the
-      arcade is a separate 11.6 kB file the page fetches only when the visitor
+      release. Last known: widget **125.3 kB (34.8 kB gzipped)**, lab 126.1 kB,
+      arcade 11.8 kB. The lab now has a **second entry point** (A08, D-23): the
+      arcade is a separate 11.8 kB file the page fetches only when the visitor
       asks for it, so any release that measures "the lab" must measure both, and
       a release where the arcade has crept back into `lab.js` is a regression
       against the plan's own word for that row. All three have grown since the
@@ -53,7 +56,10 @@ Run `npm run verify` — it chains the first four.
       more moments of animation library (A04's break and A05's balloon and burst,
       D-20 and D-21), the lab by the eight
       sequence variants those add to its grid and, latterly, by the tic-tac-toe
-      board and the rules it imports (A06, D-22). None has a budget yet. Nothing
+      board and the ping pong table and the rules they import (A06 and A09, D-22
+      and D-24). The widget's own figure is unchanged by A09 — the rally is a lab
+      surface and ships no code to a customer — so its growth is the two moments
+      above and nothing more. None has a budget yet. Nothing
       about either number is alarming at this size, but a figure nobody
       re-measures becomes a figure nobody can trust, so the next release should
       set the budget rather than only re-read the number.
@@ -63,7 +69,7 @@ Run `npm run verify` — it chains the first four.
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **39 passing**
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **42 passing**
       in Chromium, over the plain-HTML demo, the two host fixtures, the marketing
       site and the character lab
   - [ ] requires `npm run test:e2e:install` once per machine; a release

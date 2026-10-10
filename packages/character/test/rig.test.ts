@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cloneRig, defaultRig, toBodyFrame, toViewBox } from '../src/index.js';
+import { armTo, cloneRig, defaultRig, rayTip, toBodyFrame, toViewBox } from '../src/index.js';
 import { renderSunny } from '../src/render.js';
 import type { SunnyRig, Vec2 } from '../src/index.js';
 
@@ -108,5 +108,71 @@ describe('the body frame', () => {
     toViewBox(rig, { x: 3, y: 4 });
     toBodyFrame(rig, { x: 3, y: 4 });
     expect(rig).toEqual(before);
+  });
+});
+
+describe('the ray-to-arm morph', () => {
+  const rayAt = (index: number) => defaultRig().rays[index]!;
+
+  it('puts the tip on the target, which is the whole of the claim', () => {
+    // The tip is read back out of `rayTip`, which is the renderer's own
+    // arithmetic for where a ray ends. Checking against a second copy of the
+    // angle maths here would pass for a morph that pointed somewhere else.
+    const targets: Vec2[] = [
+      { x: 66, y: 0 },
+      { x: 66, y: 30 },
+      { x: 0, y: -66 },
+      { x: -50, y: 60 },
+    ];
+    for (const target of targets) {
+      const tip = rayTip(armTo(rayAt(2), target));
+      expect(tip.x, `x for ${target.x},${target.y}`).toBeCloseTo(target.x, 6);
+      expect(tip.y, `y for ${target.x},${target.y}`).toBeCloseTo(target.y, 6);
+    }
+  });
+
+  it('is a property of the ray it is handed, not of one particular ray', () => {
+    // The eight rays point in eight directions; the morph has to work from any
+    // of them, or "ray-to-arm" is really "the third ray, twice".
+    for (let index = 0; index < defaultRig().rays.length; index++) {
+      const target = { x: index % 2 === 0 ? 55 : -55, y: index % 4 < 2 ? 25 : -25 };
+      const tip = rayTip(armTo(rayAt(index), target));
+      expect(tip.x, `ray ${index}`).toBeCloseTo(target.x, 6);
+      expect(tip.y, `ray ${index}`).toBeCloseTo(target.y, 6);
+    }
+  });
+
+  it('leaves the ray attached to the body, whatever it is pointed at', () => {
+    // The base is the ray's own anchor at the silhouette. A morph that moved it
+    // would be an object parked beside the character rather than an arm.
+    for (const target of [
+      { x: 200, y: 200 },
+      { x: -120, y: 40 },
+    ]) {
+      const morphed = armTo(rayAt(2), target);
+      expect(morphed.offset).toEqual({ x: 0, y: 0 });
+      expect(morphed.visible).toBe(true);
+      // The base stays at the ray radius in the aim direction, which is what
+      // "attached at the silhouette" means as a number.
+      expect(morphed.angleDeg + morphed.rotation).toBeCloseTo(
+        (Math.atan2(target.x, -target.y) * 180) / Math.PI,
+        6,
+      );
+    }
+  });
+
+  it('collapses rather than turning inside out when the target is too close', () => {
+    const morphed = armTo(rayAt(2), { x: 4, y: 0 });
+    expect(morphed.lengthScale).toBe(0);
+    // At zero length the tip is at the base, just outside the body -- never
+    // inside it, and never on the far side of the target.
+    const tip = rayTip(morphed);
+    expect(Math.hypot(tip.x, tip.y)).toBeGreaterThan(46);
+  });
+
+  it('refuses to stretch further than the picture can hold', () => {
+    const morphed = armTo(rayAt(2), { x: 9000, y: 0 });
+    expect(morphed.lengthScale).toBeLessThan(6);
+    expect(Number.isFinite(rayTip(morphed).x)).toBe(true);
   });
 });

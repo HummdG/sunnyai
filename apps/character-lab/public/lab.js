@@ -367,6 +367,27 @@
       y: (dx * Math.sin(a) + dy * Math.cos(a)) / sy
     };
   }
+  var ARM_MAX_LENGTH_SCALE = 3.5;
+  function armTo(ray, target) {
+    const distance = Math.hypot(target.x, target.y);
+    const angleDeg = Math.atan2(target.x, -target.y) * 180 / Math.PI;
+    const reach = RAY.tipRadius + RAY.apexCompensation - RAY.baseRadius;
+    return {
+      ...ray,
+      rotation: angleDeg - ray.angleDeg,
+      lengthScale: Math.min(ARM_MAX_LENGTH_SCALE, Math.max(0, (distance - RAY.baseRadius) / reach)),
+      offset: { x: 0, y: 0 },
+      visible: true
+    };
+  }
+  function rayTip(ray) {
+    const a = (ray.angleDeg + ray.rotation) * Math.PI / 180;
+    const reach = RAY.baseRadius + (RAY.tipRadius + RAY.apexCompensation - RAY.baseRadius) * Math.max(0, ray.lengthScale);
+    return {
+      x: Math.sin(a) * reach + ray.offset.x,
+      y: -Math.cos(a) * reach + ray.offset.y
+    };
+  }
 
   // packages/character/src/render.ts
   var add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
@@ -577,6 +598,20 @@
         // The envelope: round at the top, tapering to the neck.
         "M0-15.4C7.9-15.4 13.6-9.4 13.6-2.2 13.6 6.4 7.2 13.6 3.4 16.6L-3.4 16.6C-7.2 13.6-13.6 6.4-13.6-2.2-13.6-9.4-7.9-15.4 0-15.4ZM-3.4 15.4H3.4L1.6 19.6H-1.6Z"
       ),
+      filled: true,
+      surface: true
+    },
+    // A ping-pong bat, held upright: the blade, then a short handle. Authored tall
+    // rather than wide -- the second prop that is, after the deckchair's scenery --
+    // because the ball has to meet the blade's *face*, and A09's rules decide
+    // whether it did by comparing y against the bat's half-length. The bat is
+    // `surface`-painted for the reason the balloon is: it is an object with an
+    // inside, and a black silhouette at the end of a ray would read as another ray.
+    // Its half-length is the number the rules are told (see `@sunny/games`), so
+    // lengthening the blade here without changing `PADDLE_HALF` there would put the
+    // bounce either inside the bat or short of it.
+    paddle: {
+      d: "M-7-17H7A1.6 1.6 0 0 1 8.6-15.4V7.4A1.6 1.6 0 0 1 7 9H-7A1.6 1.6 0 0 1-8.6 7.4V-15.4A1.6 1.6 0 0 1-7-17ZM-3.4 9H3.4V14A3.4 3.4 0 0 1-3.4 14Z",
       filled: true,
       surface: true
     }
@@ -1498,17 +1533,17 @@
     pose: (base, t) => {
       const r = cloneRig(base);
       const env = bump(t);
-      const step = Math.floor(t * 2) % 2 === 0 ? 1 : -1;
+      const step2 = Math.floor(t * 2) % 2 === 0 ? 1 : -1;
       const hop = bump(t * 2 % 1) * env;
-      r.x = base.x + step * hop * 5;
+      r.x = base.x + step2 * hop * 5;
       r.y = base.y - hop * 3.5;
       r.squash = -hop * 0.05;
       r.stretch = hop * 0.04;
-      r.faceTilt = step * hop * 5;
+      r.faceTilt = step2 * hop * 5;
       r.smile.depth = base.smile.depth * (1 + hop * 0.18);
-      r.eyes.left.gaze = { x: step * hop * 0.45, y: 0.1 };
+      r.eyes.left.gaze = { x: step2 * hop * 0.45, y: 0.1 };
       r.eyes.right.gaze = { ...r.eyes.left.gaze };
-      for (const ray of r.rays) ray.rotation = step * hop * 5;
+      for (const ray of r.rays) ray.rotation = step2 * hop * 5;
       return r;
     }
   };
@@ -1820,7 +1855,7 @@
   };
   function popPose(base, t, anchor, extra) {
     const r = cloneRig(base);
-    const centre = anchor ? anchor.point : toViewBox(base, BALLOON_HOVER);
+    const centre2 = anchor ? anchor.point : toViewBox(base, BALLOON_HOVER);
     const jolt = bump(t / 0.35) * extra.jolt;
     r.y = base.y - jolt * 2.4;
     r.squash = jolt * 0.07;
@@ -1846,8 +1881,8 @@
       const dist = out * extra.reach * (0.72 + 0.28 * (i % 3 / 2));
       const radians = angle * Math.PI / 180;
       const local = toBodyFrame(r, {
-        x: centre.x + Math.sin(radians) * dist,
-        y: centre.y - Math.cos(radians) * dist
+        x: centre2.x + Math.sin(radians) * dist,
+        y: centre2.y - Math.cos(radians) * dist
       });
       props.push({
         id: "sparkle",
@@ -2608,13 +2643,222 @@
   var FIELD_ROWS = 12;
   var SHIP_ROW = FIELD_ROWS - 1;
 
+  // packages/games/src/ping-pong.ts
+  var ping_pong_exports = {};
+  __export(ping_pong_exports, {
+    BALL_RADIUS: () => BALL_RADIUS,
+    BALL_STEP: () => BALL_STEP,
+    COURT_HEIGHT: () => COURT_HEIGHT,
+    COURT_WIDTH: () => COURT_WIDTH,
+    MAX_BALL_STEP: () => MAX_BALL_STEP,
+    PADDLE_HALF: () => PADDLE_HALF,
+    PADDLE_HALF_WIDTH: () => PADDLE_HALF_WIDTH,
+    PADDLE_KICK: () => PADDLE_KICK,
+    PADDLE_LEFT_X: () => PADDLE_LEFT_X,
+    PADDLE_RIGHT_X: () => PADDLE_RIGHT_X,
+    PADDLE_SPEED: () => PADDLE_SPEED,
+    STEP_GAIN: () => STEP_GAIN,
+    WALL_BOTTOM: () => WALL_BOTTOM,
+    WALL_TOP: () => WALL_TOP,
+    WIN_SCORE: () => WIN_SCORE,
+    ballSpeed: () => ballSpeed,
+    facePlane: () => facePlane,
+    leader: () => leader,
+    movePaddle: () => movePaddle,
+    moveVisitor: () => moveVisitor,
+    newGame: () => newGame2,
+    step: () => step,
+    sunnyBatY: () => sunnyBatY,
+    sunnyTarget: () => sunnyTarget,
+    takeOver: () => takeOver
+  });
+  var COURT_WIDTH = 200;
+  var COURT_HEIGHT = 200;
+  var WALL_TOP = 26;
+  var WALL_BOTTOM = 174;
+  var PADDLE_LEFT_X = 40;
+  var PADDLE_RIGHT_X = 160;
+  var PADDLE_HALF_WIDTH = 9;
+  var PADDLE_HALF = 17;
+  var BALL_RADIUS = 5;
+  var BALL_STEP = 2.2;
+  var MAX_BALL_STEP = 4.6;
+  var STEP_GAIN = 1.05;
+  var PADDLE_SPEED = 2.9;
+  var PADDLE_KICK = 5;
+  var MAX_BOUNCE_DEG = 62;
+  var MAX_BOUNCE_RAD = MAX_BOUNCE_DEG * Math.PI / 180;
+  var PADDLE_LOW = WALL_TOP + PADDLE_HALF;
+  var PADDLE_HIGH = WALL_BOTTOM - PADDLE_HALF;
+  var WIN_SCORE = 5;
+  var other2 = (side) => side === "left" ? "right" : "left";
+  function facePlane(side) {
+    return side === "left" ? PADDLE_LEFT_X + PADDLE_HALF_WIDTH + BALL_RADIUS : PADDLE_RIGHT_X - PADDLE_HALF_WIDTH - BALL_RADIUS;
+  }
+  function backWall(side) {
+    return side === "left" ? 4 : COURT_WIDTH - 4;
+  }
+  var clamp = (v, low, high) => v < low ? low : v > high ? high : v;
+  function serve(toward, random) {
+    const angle = (random() - 0.5) * 0.7;
+    const step2 = BALL_STEP;
+    const sign = toward === "right" ? 1 : -1;
+    return {
+      x: COURT_WIDTH / 2,
+      y: COURT_HEIGHT / 2,
+      vx: Math.cos(angle) * step2 * sign,
+      vy: Math.sin(angle) * step2
+    };
+  }
+  function newGame2(random = Math.random) {
+    return {
+      ball: serve("left", random),
+      paddles: { left: centre(), right: centre() },
+      score: { left: 0, right: 0 },
+      hits: 0,
+      controlled: null,
+      status: "playing",
+      steps: 0,
+      lastPoint: null
+    };
+  }
+  var centre = () => ({ y: COURT_HEIGHT / 2 });
+  function movePaddle(paddle, dy) {
+    return { y: clamp(paddle.y + dy, PADDLE_LOW, PADDLE_HIGH) };
+  }
+  function takeOver(game, side) {
+    return game.controlled === side ? game : { ...game, controlled: side };
+  }
+  function moveVisitor(game, dy) {
+    if (game.status !== "playing") return game;
+    const side = "right";
+    return {
+      ...game,
+      controlled: side,
+      paddles: { ...game.paddles, [side]: movePaddle(game.paddles[side], dy) }
+    };
+  }
+  function sunnyTarget(game, side) {
+    const incoming = side === "left" ? game.ball.vx < 0 : game.ball.vx > 0;
+    if (!incoming) return COURT_HEIGHT / 2;
+    const ticksToArrive = Math.abs((facePlane(side) - game.ball.x) / game.ball.vx);
+    const predicted = game.ball.y + game.ball.vy * ticksToArrive;
+    const span = PADDLE_HIGH - PADDLE_LOW;
+    const period = span * 2;
+    let reflected = ((predicted - PADDLE_LOW) % period + period) % period;
+    if (reflected > span) reflected = period - reflected;
+    return PADDLE_LOW + reflected;
+  }
+  function sunnyBatY(game, side) {
+    const crossing = sunnyTarget(game, side);
+    const incoming = side === "left" ? game.ball.vx < 0 : game.ball.vx > 0;
+    if (!incoming) return crossing;
+    const opponentY = game.paddles[other2(side)].y;
+    const middle = (PADDLE_LOW + PADDLE_HIGH) / 2;
+    const aim = opponentY < middle ? PADDLE_HIGH : PADDLE_LOW;
+    const span = Math.abs(facePlane(other2(side)) - facePlane(side));
+    const angle = clamp(Math.atan2(aim - crossing, span), -MAX_BOUNCE_RAD, MAX_BOUNCE_RAD);
+    const offset = angle / MAX_BOUNCE_RAD;
+    return clamp(crossing - offset * (PADDLE_HALF + BALL_RADIUS), PADDLE_LOW, PADDLE_HIGH);
+  }
+  function track(paddle, target) {
+    const delta = target - paddle.y;
+    if (Math.abs(delta) <= PADDLE_SPEED) return { y: target };
+    return movePaddle(paddle, Math.sign(delta) * PADDLE_SPEED);
+  }
+  function bounce(ball, paddle, side) {
+    const offset = clamp((ball.y - paddle.y) / (PADDLE_HALF + BALL_RADIUS), -1, 1);
+    const step2 = Math.min(MAX_BALL_STEP, Math.hypot(ball.vx, ball.vy) * STEP_GAIN);
+    const angle = offset * MAX_BOUNCE_DEG * Math.PI / 180;
+    const outward = side === "left" ? 1 : -1;
+    return {
+      x: facePlane(side),
+      y: ball.y,
+      vx: Math.cos(angle) * step2 * outward,
+      vy: Math.sin(angle) * step2
+    };
+  }
+  function step(game, random = Math.random) {
+    if (game.status !== "playing") return game;
+    const steps = game.steps + 1;
+    let paddles = game.paddles;
+    for (const side of ["left", "right"]) {
+      if (side === "right" && game.controlled === "right") continue;
+      paddles = { ...paddles, [side]: track(paddles[side], sunnyBatY(game, side)) };
+    }
+    const before = game.ball;
+    const ball = {
+      x: before.x + before.vx,
+      y: before.y + before.vy,
+      vx: before.vx,
+      vy: before.vy
+    };
+    let vy = ball.vy;
+    let y = ball.y;
+    if (y - BALL_RADIUS < WALL_TOP && vy < 0) {
+      y = WALL_TOP + BALL_RADIUS;
+      vy = -vy;
+    } else if (y + BALL_RADIUS > WALL_BOTTOM && vy > 0) {
+      y = WALL_BOTTOM - BALL_RADIUS;
+      vy = -vy;
+    }
+    let next = { x: ball.x, y, vx: ball.vx, vy };
+    let hits = game.hits;
+    for (const side of ["left", "right"]) {
+      const plane = facePlane(side);
+      const crossed = side === "left" ? before.x >= plane && ball.x < plane : before.x <= plane && ball.x > plane;
+      if (!crossed) continue;
+      const paddle = paddles[side];
+      if (Math.abs(next.y - paddle.y) > PADDLE_HALF + BALL_RADIUS) continue;
+      next = bounce(next, paddle, side);
+      hits += 1;
+    }
+    for (const side of ["left", "right"]) {
+      const scored = side === "left" ? next.x < backWall("left") : next.x > backWall("right");
+      if (!scored) continue;
+      const conceded = side;
+      const winner = other2(conceded);
+      const score = { ...game.score, [winner]: game.score[winner] + 1 };
+      const over = score[winner] >= WIN_SCORE;
+      if (over) {
+        return {
+          ...game,
+          ball: next,
+          paddles,
+          score,
+          hits,
+          status: "over",
+          steps,
+          lastPoint: winner
+        };
+      }
+      return {
+        ...game,
+        ball: serve(conceded, random),
+        paddles,
+        score,
+        hits: 0,
+        steps,
+        lastPoint: winner
+      };
+    }
+    return { ...game, ball: next, paddles, hits, steps };
+  }
+  function leader(game) {
+    if (game.score.left === game.score.right) return null;
+    return game.score.left > game.score.right ? "left" : "right";
+  }
+  function ballSpeed(game) {
+    return Math.hypot(game.ball.vx, game.ball.vy);
+  }
+
   // apps/character-lab/src/game.ts
-  var { CELLS: CELLS2, isLegal: isLegal2, move: move2, newGame: newGame2, sunnyMove: sunnyMove2 } = tic_tac_toe_exports;
+  var { CELLS: CELLS2, isLegal: isLegal2, move: move2, newGame: newGame3, sunnyMove: sunnyMove2 } = tic_tac_toe_exports;
   var HUMAN = "X";
   var SUNNY = "O";
   var THINK_MS = 700;
   function gamePanel(host2) {
-    let game = newGame2(HUMAN);
+    let game = newGame3(HUMAN);
     let dueAt = null;
     let lastSeen = 0;
     const status = el("p", { class: "game-status" });
@@ -2689,7 +2933,7 @@
       else settle();
     }
     function start2() {
-      game = newGame2(HUMAN);
+      game = newGame3(HUMAN);
       dueAt = null;
       host2.animator().dispatch({ type: "play_started" }, host2.now());
       render();
@@ -2711,6 +2955,177 @@
         return true;
       }
     };
+  }
+
+  // apps/character-lab/src/pong.ts
+  var STEP_MS = 16;
+  var MAX_CATCHUP = STEP_MS * 6;
+  var SVG_WIDTH = 308;
+  var SVG_HEIGHT = 200;
+  var COURT_X = 106;
+  var CHAR_X = 62;
+  var CHAR_Y = 100;
+  var CHAR_SCALE = 0.8;
+  var ARM_RAY = 2;
+  function pongPanel(host2) {
+    let game = ping_pong_exports.newGame();
+    let owed = 0;
+    let last = null;
+    const held = /* @__PURE__ */ new Set();
+    const scene = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    scene.setAttribute("viewBox", `0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`);
+    scene.setAttribute("role", "img");
+    scene.setAttribute("aria-label", "Sunny at a ping pong table, mid-rally");
+    const surface = el("div", { class: "pong-surface", tabindex: "0", role: "application" });
+    surface.setAttribute("aria-label", "Ping pong: the up and down arrows move your bat");
+    surface.append(scene);
+    const message = el("p", { class: "game-status", "data-readout": "status" });
+    const leftScore = el("span", { class: "mono", "data-readout": "sunny" });
+    const rightScore = el("span", { class: "mono", "data-readout": "you" });
+    const rally = el("span", { class: "mono", "data-readout": "rally" });
+    const up = el("button", { class: "btn small", type: "button", text: "\u25B2", "data-key": "up" });
+    const down = el("button", { class: "btn small", type: "button", text: "\u25BC", "data-key": "down" });
+    const take = el("button", { class: "btn small", type: "button", text: "Hand back to Sunny" });
+    const again = el("button", { class: "btn small", type: "button", text: "New rally" });
+    up.addEventListener("click", () => move3(-ping_pong_exports.PADDLE_KICK));
+    down.addEventListener("click", () => move3(ping_pong_exports.PADDLE_KICK));
+    take.addEventListener("click", () => {
+      game = ping_pong_exports.takeOver(game, null);
+      draw();
+    });
+    again.addEventListener("click", () => restart());
+    const keys = (event, down2) => {
+      if (event.key === "ArrowUp" || event.key === "w" || event.key === "W") {
+        if (down2) held.add("up");
+        else held.delete("up");
+      } else if (event.key === "ArrowDown" || event.key === "s" || event.key === "S") {
+        if (down2) held.add("down");
+        else held.delete("down");
+      } else {
+        return;
+      }
+      event.preventDefault();
+    };
+    surface.addEventListener("keydown", (event) => keys(event, true));
+    surface.addEventListener("keyup", (event) => keys(event, false));
+    surface.addEventListener("blur", () => held.clear());
+    const element = el("div", { class: "pong" }, [
+      surface,
+      el("div", { class: "pong-side" }, [
+        message,
+        el("div", { class: "arcade-readout" }, [
+          labelled("Sunny", leftScore),
+          labelled("You", rightScore),
+          labelled("Rally", rally)
+        ]),
+        el("div", { class: "btn-row" }, [up, down, take, again]),
+        el("p", {
+          class: "note",
+          text: 'Arrow keys or W and S move the bat, and the first press is what takes it over \u2014 until then Sunny plays both ends, which is the whole of "optional". She aims her returns at the side of the court your bat is not on; her one weakness is that she predicts in a straight line, so a ball that bounces off a wall on its way in arrives where she is not.'
+        })
+      ])
+    ]);
+    function move3(dy) {
+      game = ping_pong_exports.moveVisitor(game, dy);
+      draw();
+    }
+    function restart() {
+      game = ping_pong_exports.newGame();
+      owed = 0;
+      held.clear();
+      host2.animator().dispatch({ type: "play_started" }, host2.now());
+      draw();
+      host2.redraw();
+    }
+    function poseRig() {
+      const rig = defaultRig();
+      rig.x = CHAR_X;
+      rig.y = CHAR_Y;
+      rig.scale = CHAR_SCALE;
+      const target = {
+        x: (COURT_X + ping_pong_exports.PADDLE_LEFT_X - CHAR_X) / CHAR_SCALE,
+        y: (game.paddles.left.y - CHAR_Y) / CHAR_SCALE
+      };
+      const arm = armTo(rig.rays[ARM_RAY], target);
+      rig.rays[ARM_RAY] = arm;
+      const tip = rayTip(arm);
+      rig.props = [
+        { id: "paddle", x: tip.x, y: tip.y, rotation: 0, scale: 1 / CHAR_SCALE, opacity: 1 }
+      ];
+      return rig;
+    }
+    function draw() {
+      const at = (x) => COURT_X + x;
+      const bat = game.paddles.right;
+      const over = game.score.left >= ping_pong_exports.WIN_SCORE || game.score.right >= ping_pong_exports.WIN_SCORE;
+      scene.innerHTML = [
+        // The table, and then the part of it the ball can actually be in. The walls
+        // are the edges of the second rect rather than lines drawn near them,
+        // because the ball's edge meets the wall and a wall that is not where the
+        // bounce happens is a lie about the rules.
+        `<rect class="pong-court" x="${COURT_X}" y="1" width="${ping_pong_exports.COURT_WIDTH}" height="${ping_pong_exports.COURT_HEIGHT - 2}" rx="16"/>`,
+        `<rect class="pong-field" x="${at(0)}" y="${ping_pong_exports.WALL_TOP}" width="${ping_pong_exports.COURT_WIDTH}" height="${ping_pong_exports.WALL_BOTTOM - ping_pong_exports.WALL_TOP}"/>`,
+        renderSunny(poseRig(), { title: "Sunny at the table", uniqueIds: true }),
+        `<line class="pong-wall" x1="${at(0)}" y1="${ping_pong_exports.WALL_TOP}" x2="${at(ping_pong_exports.COURT_WIDTH)}" y2="${ping_pong_exports.WALL_TOP}"/>`,
+        `<line class="pong-wall" x1="${at(0)}" y1="${ping_pong_exports.WALL_BOTTOM}" x2="${at(ping_pong_exports.COURT_WIDTH)}" y2="${ping_pong_exports.WALL_BOTTOM}"/>`,
+        `<line class="pong-centre" x1="${at(ping_pong_exports.COURT_WIDTH / 2)}" y1="${ping_pong_exports.WALL_TOP}" x2="${at(ping_pong_exports.COURT_WIDTH / 2)}" y2="${ping_pong_exports.WALL_BOTTOM}"/>`,
+        // Only the right bat is drawn: Sunny's is the paddle on the end of her arm.
+        `<rect class="pong-bat" x="${at(ping_pong_exports.PADDLE_RIGHT_X - ping_pong_exports.PADDLE_HALF_WIDTH)}" y="${bat.y - ping_pong_exports.PADDLE_HALF}" width="${ping_pong_exports.PADDLE_HALF_WIDTH * 2}" height="${ping_pong_exports.PADDLE_HALF * 2}" rx="3"/>`,
+        `<circle class="pong-ball" cx="${at(game.ball.x)}" cy="${game.ball.y}" r="${ping_pong_exports.BALL_RADIUS}"/>`
+      ].join("");
+      leftScore.textContent = String(game.score.left);
+      rightScore.textContent = String(game.score.right);
+      rally.textContent = String(game.hits);
+      message.textContent = over ? game.score.left >= ping_pong_exports.WIN_SCORE ? "Sunny took the game. New rally?" : "You took the game. New rally?" : game.controlled === "right" ? "Your bat. Arrow keys or W and S." : "Sunny is playing both ends \u2014 press a key to take the right bat.";
+      take.disabled = game.controlled !== "right";
+      element.dataset.status = game.status;
+      element.dataset.score = `${game.score.left}-${game.score.right}`;
+      element.dataset.hits = String(game.hits);
+      element.dataset.controlled = game.controlled ?? "sunny";
+      element.dataset.steps = String(game.steps);
+      element.dataset.ball = `${game.ball.x.toFixed(1)},${game.ball.y.toFixed(1)}`;
+      element.dataset.speed = ping_pong_exports.ballSpeed(game).toFixed(2);
+    }
+    host2.animator().dispatch({ type: "play_started" }, host2.now());
+    draw();
+    host2.redraw();
+    return {
+      element,
+      tick(now) {
+        if (last === null || now < last) {
+          last = now;
+          owed = 0;
+        }
+        owed += now - last;
+        last = now;
+        if (game.status !== "playing") {
+          owed = 0;
+          return false;
+        }
+        owed = Math.min(owed, MAX_CATCHUP);
+        let moved = false;
+        while (owed >= STEP_MS) {
+          owed -= STEP_MS;
+          moved = true;
+          const direction = (held.has("down") ? 1 : 0) - (held.has("up") ? 1 : 0);
+          if (direction !== 0) game = ping_pong_exports.moveVisitor(game, direction * ping_pong_exports.PADDLE_SPEED);
+          const before = game.score.left + game.score.right;
+          game = ping_pong_exports.step(game);
+          if (game.score.left + game.score.right > before) {
+            host2.animator().dispatch({ type: game.lastPoint === "left" ? "impress" : "celebrate" }, now);
+            host2.redraw();
+          }
+        }
+        if (moved) draw();
+        return moved;
+      }
+    };
+  }
+  function labelled(label, control) {
+    return el("label", { class: "field" }, [
+      el("span", { class: "field-label", text: label }),
+      control
+    ]);
   }
 
   // apps/character-lab/src/lab.ts
@@ -2923,6 +3338,7 @@
   var stageLabel = null;
   var animator = new SunnyAnimator(defaultRig(), { intensity: "balanced" });
   var board = null;
+  var table = null;
   function renderBigStage() {
     if (!stageSvg) return;
     const rig = animator.frame(state.t, {
@@ -2995,13 +3411,13 @@
     });
     return el("div", { class: "controls" }, [
       playButton,
-      labelled("Speed", speed, speedLabel),
-      labelled("Intensity", intensity),
-      labelled("Zoom", zoom),
+      labelled2("Speed", speed, speedLabel),
+      labelled2("Intensity", intensity),
+      labelled2("Zoom", zoom),
       el("label", { class: "check" }, [reduced, el("span", { text: "prefers-reduced-motion" })])
     ]);
   }
-  function labelled(label, control, suffix) {
+  function labelled2(label, control, suffix) {
     return el("label", { class: "field" }, [
       el("span", { class: "field-label", text: label }),
       control,
@@ -3089,7 +3505,7 @@
       return button;
     });
     return el("div", { class: "scrubber" }, [
-      labelled("Sequence", picker),
+      labelled2("Sequence", picker),
       el("div", { class: "scrub-row" }, [scrubInput, scrubLabel = el("span", { class: "mono" })]),
       el("div", { class: "btn-row" }, [
         el("span", { class: "field-label", text: "machine events" }),
@@ -3146,6 +3562,12 @@
       redraw: () => renderBigStage()
     });
     document.getElementById("game").append(board.element);
+    table = pongPanel({
+      animator: () => animator,
+      now: () => state.t,
+      redraw: () => renderBigStage()
+    });
+    document.getElementById("pong").append(table.element);
     buildArcade();
     document.getElementById("controls").append(controls());
     document.getElementById("scrubber").append(scrubber());
@@ -3186,6 +3608,7 @@
         renderScrubber();
       }
       board?.tick(state.t);
+      table?.tick(state.t);
       frame();
     };
     requestAnimationFrame(tick);

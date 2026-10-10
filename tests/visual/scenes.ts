@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Resvg } from '@resvg/resvg-js';
 import { SunnyAnimator, type Intensity, type MachineEvent } from '@sunny/animation-engine';
-import { defaultRig, renderSunny } from '@sunny/character';
+import { armTo, defaultRig, rayTip, renderSunny, type SunnyRig } from '@sunny/character';
 
 /** The edge length of every baseline, in pixels. */
 export const SIZE = 256;
@@ -30,6 +30,23 @@ export interface Scene {
   at: number;
   intensity?: Intensity;
   reducedMotion?: boolean;
+  /**
+   * A last edit to the rig the animator produced, for the parts of the character
+   * the machine cannot reach.
+   *
+   * Every other scene here is a *state*: an event goes in and the rig comes out,
+   * which is the whole contract between the engine and the renderer. The paddle
+   * is not a state. It is the game's, asked for by a rally rather than by the
+   * conversation (A09), and the ray-to-arm morph that carries it is a rig control
+   * the catalogue never uses -- so there is no event to send that would produce
+   * one, and a baseline for it has to pose the rig.
+   *
+   * That makes this the one scene whose image is not something the product draws
+   * on its own. It is still worth having: the `paddle` prop is a painting, and a
+   * painting that has never been looked at is the thing this suite exists to
+   * catch.
+   */
+  pose?: (rig: SunnyRig) => SunnyRig;
 }
 
 /**
@@ -159,6 +176,24 @@ export const SCENES: readonly Scene[] = [
     at: 2_400,
     reducedMotion: true,
   },
+  // The paddle, held on the end of a ray (A09). The morph aims one of the eight
+  // rays at a point and stretches it until its tip is there; the prop hangs off
+  // the tip. Nothing about the character's own state changes, which is why this
+  // is the one scene posed by hand rather than driven by an event -- and the
+  // target is inside the viewBox on purpose, because the arm of a character
+  // reaching past the edge of the picture is a second, different bug.
+  {
+    name: 'paddle-from-ray',
+    events: [],
+    pose: (rig) => {
+      const arm = armTo(rig.rays[2]!, { x: 86, y: -22 });
+      const tip = rayTip(arm);
+      rig.rays[2] = arm;
+      rig.props = [{ id: 'paddle', x: tip.x, y: tip.y, rotation: 0, scale: 1, opacity: 1 }];
+      return rig;
+    },
+    at: 0,
+  },
 ];
 
 /** The frame cadence the widget runs at, and therefore the one used here. */
@@ -218,7 +253,7 @@ export function rigFor(scene: Scene) {
   runDue(scene.at);
   result = animator.frame(scene.at, context);
 
-  return result.rig;
+  return scene.pose ? scene.pose(result.rig) : result.rig;
 }
 
 /** The scene's SVG, as the renderer emits it. */

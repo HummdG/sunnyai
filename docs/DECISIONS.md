@@ -1050,3 +1050,102 @@ from the keyboard with the score answering a hit. The lab is a developer surface
 and the axe suite covers the widget rather than the lab, which is the status A06
 left it in; the arcade's keyboard path is at least asserted by a test rather than
 described in prose.
+
+## D-24. A09's paddle is a ray morph, and the rally that had no end
+
+The plan's row is "Ping pong | Paddle from ray, rally, optional user control |
+Working interaction". Three phrases, three different pieces of work — and the
+first one settles a word the earlier rows got to skate over: **"ray" is one of
+Sunny's own eight sun rays, not a pointer ray.** A09 is not asking for a
+cursor-driven paddle. It is asking for one of the character's rays to _become_ an
+arm holding one, which is the rig control §5.2 names as "ray-to-arm morph".
+
+**The morph is a control the catalogue had a name for and no operation for.**
+§5.2 lists "independent ray transforms" and "ray-to-arm morph" as separate
+controls. The first existed (`toBodyFrame` and the per-ray offsets); the second
+did not. `armTo(ray, target)` is the second: it aims a ray at a point in the
+body frame and scales it until `rayTip` lands there. It is a pure function of a
+ray and a target — no state, no animation — because an arm that reached its
+target over time would be a sequence, and a rally cannot be a sequence:
+`Sequence.pose(base, t)` is pure in `t`, and a ball's position is not a function
+of anything except the game that has been played.
+
+**Which is the whole reason the rally lives in the lab rather than in the
+engine.** A06 answered this for the board — state that outlives a frame lives in
+the host, and the engine contributes only reactions — and A09 is the same answer
+with a clock attached. `packages/games/src/ping-pong.ts` owns the ball, the
+bounces, the score and the aiming and imports nothing; `apps/character-lab/src/pong.ts`
+owns pixels and the clock and imports those rules rather than restating them. The
+engine gained no new mode, exactly as D-22 predicted, and no new event either:
+the two events a rally can reach — `impress` when she takes a point, `celebrate`
+when the visitor does — already existed.
+
+**The clock is the stage's, on a fixed step, which is the opposite of A08's
+answer and does not contradict it.** The arcade took its own
+`requestAnimationFrame` because "an arcade game _is_ its tick". A rally is also
+its tick — the ball moves a fixed _distance_ per step — but the lab's debug
+slider pauses and scrubs the stage clock, and a rally that ignored the scrubber
+would be the one thing on the page the debugger could not reach. So the rally
+runs on `state.t` like A06's board, and pays for it with an accumulator: owed
+time is banked and spent in fixed 16 ms ticks, so the ball's speed does not
+become a function of the frame rate, and a slow frame is a few ticks rather than
+a lost one. Owed ticks are capped at six, so a backgrounded tab is found where it
+was left instead of with the rally already lost. The two rows differ because the
+arcade has no consumer of its clock and the rally does.
+
+**The paddle is a prop at the tip, authored to the rules' own half-length.**
+`paddle` is the third way `PROP_PATHS` paints — `surface: true`, an object with
+an ink outline around the theme surface colour, which is what the deckchair
+needed and what a bat wants too. It is drawn at `rayTip(arm)` in the body frame
+with an inverse scale, so it comes out at the court's own size; and
+`PADDLE_HALF = 17` is the bat's half-length in _court_ units that the prop is
+authored to, which is why a return lands on the bat's edge rather than inside it
+or short of it. One number, shared by the rules and the painting on purpose: a
+bat drawn a little too long would make the game quietly easier and nothing would
+say so.
+
+**The defect that had to be found before there was a game.** The first version
+had Sunny put her bat exactly where she predicted the ball would cross, which is
+what a player does — and it produced a rally that never ended. The bounce angle
+comes only from _where on the bat_ the ball lands, so a bat whose centre is
+always exactly at the crossing point returns a perfectly level ball; two such
+bats rally forever in a dead straight line, touching neither wall and reaching
+no score. A 20,000-tick trace of every seed gave the same picture: 946
+consecutive hits and 0-0. That is not a rally, it is a metronome, and the row
+asks for a rally. It was caught by a test that plays a game to a winner, which
+is the only kind of test that could have caught it — a unit test of the
+prediction passes on the naive version, because the prediction is correct.
+
+The fix is that she **plays the ball rather than blocking it**: `sunnyBatY` sends
+every return to the side of the court the other bat is _not_ on, which she does
+by meeting the ball off-centre — placing her bat `offset` bat-radii away from the
+crossing point, which is exactly the tolerance the return test allows, so the bat
+still covers the ball. The rally picks up an angle, then a wall bounce, then a
+mistake. `sunnyTarget` (the prediction, which is her one weakness — it is linear
+and blind to the walls) and `sunnyBatY` (the aim) are kept as two exported
+functions precisely so that a test about one does not have to unpick the other.
+After the fix every seed plays a real game: rallies of 24 to 242 hits, wall
+bounces, and a 5-1 / 0-5 / 5-4 spread of endings.
+
+**"Optional user control" is one keypress, and the assertion is the press.** The
+rally runs with nobody at the keyboard — Sunny plays both ends — which is what
+makes the control optional rather than required. The first arrow key takes the
+right bat over (`moveVisitor` does it implicitly), "Hand back to Sunny" returns
+it, and the bat inherits its position rather than jumping under the visitor's
+hand. The browser check presses a key on an unfocused page and asserts the game
+is still hers, then focuses the table and presses it again and asserts it is not
+— because "the first key takes it over" is only true if the _second_ one is what
+the visitor expected, and a panel that took the bat over on a stray keypress
+would be the opposite of optional.
+
+**What is checked where.** The rules — the crossing collision, the speed-up, the
+scoring, the aiming, and a game played to a winner — are 18 unit tests in
+`packages/games`. The morph is 5 in `packages/character`: the tip lands on the
+target for all eight rays, the ray stays attached to the body, and a target too
+close or too far collapses or caps rather than turning the ray inside out. Three
+browser tests in the lab prove the three things only a browser can: that the
+prop is a ray tip that moves, that the rally's `hits` rises where it can be seen,
+and that the keyboard takes the bat over and hands it back. The `paddle`
+painting is the one prop no machine event can reach — there is no event to send
+that produces an arm — so its visual baseline is the one scene in the suite that
+is _posed by hand_ rather than driven by an event, and the scene file says so.

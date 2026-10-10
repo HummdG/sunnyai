@@ -287,6 +287,66 @@
         display: none;
       }
 
+      .pong {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: auto 1fr;
+        align-items: start;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px;
+        background: var(--panel);
+      }
+      @media (max-width: 760px) {
+        .pong {
+          grid-template-columns: 1fr;
+        }
+      }
+      .pong-surface {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        /* The game answers the keyboard, so it has to say where the keyboard is
+           pointing -- and only when the visitor got there by keyboard. */
+        outline-offset: 3px;
+      }
+      .pong-surface:focus-visible {
+        outline: 2px solid var(--orange);
+      }
+      .pong-surface svg {
+        display: block;
+        width: min(100%, 620px);
+        height: auto;
+      }
+      .pong-court {
+        fill: #fff;
+        stroke: var(--line);
+        stroke-width: 2;
+      }
+      .pong-field {
+        fill: color-mix(in srgb, var(--orange) 7%, #fff);
+      }
+      .pong-wall {
+        stroke: color-mix(in srgb, var(--orange) 45%, #fff);
+        stroke-width: 2;
+      }
+      .pong-centre {
+        stroke: var(--line);
+        stroke-width: 2;
+        stroke-dasharray: 6 8;
+      }
+      .pong-bat {
+        fill: var(--ink);
+      }
+      .pong-ball {
+        fill: var(--orange);
+      }
+      .pong-side {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+
       .scrubber {
         display: grid;
         gap: 14px;
@@ -464,6 +524,17 @@
       them rather than by a copy of them. She shows off when a game starts, thinks on her turn, and takes a moment when
       it ends. She is a heuristic rather than a solver: a perfect opponent can never be beaten, and a game you cannot
       win is not a game.
+    </p>
+
+    <h2>Play ping pong</h2>
+    <div id="pong"></div>
+    <p class="lede" style="margin-top: 10px">
+      A09's row is <em>paddle from ray, rally, optional user control</em>. The paddle is the one of Sunny's eight rays
+      that has been aimed at her bat and stretched until its tip is there — the rig control §5.2 calls a ray-to-arm
+      morph — and the bat is a prop hanging off that tip. The rally is <span class="mono">@sunny/games</span>, not a
+      copy of it, and the keys are optional: she plays both ends until you press one. She aims every return at the side
+      of the court your bat is not on, and she loses points the way a player does — she predicts in a straight line and
+      a ball that bounces off a wall arrives somewhere else.
     </p>
 
     <h2>The arcade</h2>

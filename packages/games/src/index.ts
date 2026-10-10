@@ -8,8 +8,9 @@
  * would put a name on the public API that the module itself does not use.
  *
  * So each game gets a namespace, and the names inside it are the names the game
- * chose. `ticTacToe.replay(...)` says which game it is replaying, and the next
- * game (A09's ping pong) will add a third without reopening this decision.
+ * chose. `ticTacToe.replay(...)` says which game it is replaying, and `pingPong`
+ * added the third without reopening this decision.
  */
 export * as ticTacToe from './tic-tac-toe.js';
 export * as invaders from './invaders.js';
+export * as pingPong from './ping-pong.js';
