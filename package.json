@@ -36,12 +36,14 @@
     "verify:all": "npm run verify && npm run build:widget && npm run build:widget-demo-react && npm run build:widget-demo-next && npm run build:marketing && npm run test:e2e",
     "render:samples": "npm run render -w @sunny/character",
     "build:marketing": "npm run build -w @sunny/marketing",
-    "build:tokens": "npm run build:tokens -w @sunny/ui"
+    "build:tokens": "npm run build:tokens -w @sunny/ui",
+    "test:visual:update": "tsx scripts/update-visual-baselines.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.64.0",
+    "@resvg/resvg-js": "2.6.2",
     "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",

@@ -20,7 +20,14 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts'],
+    include: [
+      'packages/*/test/**/*.test.ts',
+      'apps/*/test/**/*.test.ts',
+      // The character's rendered output, compared against committed PNGs. Listed
+      // separately from the two above because it is the one suite whose subject
+      // is an image rather than an assertion about behaviour.
+      'tests/visual/**/*.test.ts',
+    ],
     // The Playwright suite in tests/e2e is run by `npm run test:e2e`, not here.
     exclude: ['**/node_modules/**', 'tests/e2e/**'],
     environment: 'node',
