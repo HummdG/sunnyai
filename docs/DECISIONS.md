@@ -136,8 +136,8 @@ candidate options that touches nothing outside this directory and commits to
 nothing outward-facing.
 
 **What is still open, and still needs the user:** this repository has **no
-remote**, and **nothing has been pushed anywhere**. The original concern stands
-unchanged —
+remote**, and **none of its history has been pushed anywhere**. The original
+concern stands unchanged —
 
 `C:\Work\Arkalith\SunScanV2` is a repository with remote
 `https://github.com/HummdG/sunny.git` — a repo **named `sunny`** holding
