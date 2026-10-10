@@ -386,3 +386,42 @@ meant, and it looks like two launchers stacked on each other.
 Both are pinned in the browser suite: one test asserts the host's parent is
 `BODY` on the plain demo page, and five drive the widget through a React page
 under `StrictMode`, a re-render, and an unmount-and-remount.
+
+## D-14. Framework hosts are supported, and Next 16 is the floor for a Next site
+
+**Status: decided and built** (2026-10-10). Recorded because the version of a
+framework is a security decision here, not a preference.
+
+The plan asks for plain-HTML, React and Next.js host fixtures before the widget's
+embed story can be called done, on the reasoning that a widget which works in one
+host shape is not evidence that it works in another. Both framework fixtures now
+exist (`apps/widget-demo-react`, `apps/widget-demo-next`) and all 21 browser
+checks pass.
+
+**The version is load-bearing.** `next@15.5.27` — the version installed first,
+because it was the current release — pulls in a `postcss` carrying a
+high-severity advisory. `npm audit --audit-level=high` had been clean at **0
+vulnerabilities** and the CI security job fails precisely on that command, so
+accepting it would have meant quietly accepting that the gate only holds while
+the repository has no framework in it. `next@16.4.0` is where npm reports the
+fix; the audit is clean again. A future contributor who downgrades Next for a
+convenience will fail the security job, and should — the reason is written down
+rather than inferred from a version number.
+
+Two smaller decisions came out of building the fixture, and both are about what
+the fixture is _for_:
+
+- **`next start` on a production build, not `next dev`.** A dev server hides
+  hydration and hoisting behind different defaults, and the whole point of this
+  fixture is the hoisting. Costing a build in CI is the trade being made.
+- **The bundle is copied into `public/` rather than fetched from the demo
+  origin.** Serving it same-origin keeps the fixture's infrastructure out of the
+  test: when a Next check fails, the widget is the suspect, not the network
+  between two servers. The copy script refuses to run without a built bundle, so
+  the fixture cannot pass against a `dist` that no longer exists.
+
+What this does **not** settle is where the product surfaces go. `apps/marketing`
+(P3) and `apps/dashboard` (P10) are still unbuilt, and the plan still calls them
+Next.js sites. What has changed is that this is no longer an assumption: the
+widget's behaviour under Next, under both supported integrations and under
+client-side routing, is now a tested fact rather than a hope.

@@ -42,8 +42,9 @@ Run `npm run verify` — it chains the first four.
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **17 passing**
-      in Chromium, over the plain-HTML demo and the React host fixture
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **21 passing**
+      in Chromium, over the plain-HTML demo, the React fixture and the Next.js
+      fixture
   - [ ] requires `npm run test:e2e:install` once per machine; a release
         that skipped it has never driven the embed snippet in a browser
   - [ ] axe fails the run at `serious` and above. Passing it is a floor, not a
@@ -55,6 +56,9 @@ Run `npm run verify` — it chains the first four.
   - [ ] the React page is the one that catches a host-framework break
         (D-13). It is also the only fixture that exercises `StrictMode`, so
         dropping it would leave the double-mount path untested
+  - [ ] the Next.js fixture is the only one that runs the widget in a
+        production framework build, through `next/script`, and across
+        client-side routing (D-14)
 - [ ] Dependency and security scanning — **the commands have been run and pass**;
       the CI _job_ has still never executed
   - [ ] `npm audit --audit-level=high` → **0 vulnerabilities**

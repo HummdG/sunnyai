@@ -14,8 +14,9 @@ blockers below are stated first and in full.
 The character rig, the animation engine and the API's first vertical slice are
 built, tested and green: **280 tests across 9 files**, a real fidelity comparison
 against the supplied artwork, **26/26 API smoke checks** against a running server,
-and **17 browser end-to-end checks** — including an axe accessibility pass — over
-the widget mounted by its own embed snippet and in a React host page. The
+and **21 browser end-to-end checks** — including an axe accessibility pass — over
+the widget mounted by its own embed snippet, in a React host page, and in a
+Next.js host page. The
 assistant itself **has never answered a prompt**, because there is no model
 credential in this environment — the deployment correctly refuses instead of
 simulating. Terraform exists and has
@@ -27,19 +28,19 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                              | Result                                                                   |
-| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------ |
-| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                              |
-| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                               |
-| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)              |
-| Unit / contract / visual tests | `npm run test`                       | **280 passed (9 files)**                                                 |
-| Browser end-to-end             | `npm run verify:all`                 | **17 passed** (Chromium, two real host pages, real API, real shadow DOM) |
-| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                           |
-| Character lab bundle           | `npm run build`                      | 65.0 kB                                                                  |
-| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                          |
-| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                                    |
-| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                       |
-| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)      |
+| Check                          | Command                              | Result                                                                     |
+| ------------------------------ | ------------------------------------ | -------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                                |
+| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                                 |
+| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                |
+| Unit / contract / visual tests | `npm run test`                       | **280 passed (9 files)**                                                   |
+| Browser end-to-end             | `npm run verify:all`                 | **21 passed** (Chromium, three real host pages, real API, real shadow DOM) |
+| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                             |
+| Character lab bundle           | `npm run build`                      | 65.0 kB                                                                    |
+| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                            |
+| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                                      |
+| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                         |
+| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)        |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -88,6 +89,12 @@ first real finding should not be the one that matters.
   live widget, a route-change unmount and remount that must not leave two, opening
   from host-page state through `window.sunny`, and no console error across the
   whole lifecycle.
+- **Browser, Next.js host** (`tests/e2e/next-host.spec.ts`) — the same widget in a
+  production `next build` served by `next start`, through both integrations an
+  integrator would choose between: the documented snippet pasted in unchanged, and
+  `next/script`, which creates the element after hydration rather than during the
+  server render. Plus client-side routing between the two routes, which exercises
+  the dedupe rule through a router instead of a hand-removed tag.
 
 ### Fixed in this session
 
@@ -145,6 +152,15 @@ first real finding should not be the one that matters.
   entries on `window.sunny`. `boot()` now skips a public id that is already in the
   document (D-13). Two widgets on one page remain supported; two of the _same_
   widget was never what anyone meant.
+
+- **Adding Next.js broke the security gate.** `next@15.5.27` depends on a
+  `postcss` with a high-severity advisory (unguarded `</style>` in stringified
+  output, and arbitrary `.map` reads via an attacker-controlled
+  `sourceMappingURL`). `npm audit --audit-level=high` had been clean, and the CI
+  security job fails the build on exactly that command — so the version of the
+  framework was a decision about whether the gate still means anything, not a
+  detail. The fixture runs on **Next 16**, which is where npm reports the fix,
+  and the audit is back to **0 vulnerabilities** (D-14).
 
 - **`POST /v1/qualification/answer` now exists**, and records the answer without
   inventing dialogue. The obvious implementation was to append a synthetic user
@@ -314,26 +330,26 @@ belongs to a different codebase. **This needs a decision from the user** — see
 `packages/ui`, `packages/solar-rules` and `packages/sunscan-adapter` are
 `package.json`-only stubs. `apps/dashboard` and `apps/marketing` do not exist.
 `tests/security` and `tests/visual` are empty directories. (`tests/e2e` is not —
-it holds the Playwright suites.) The plan's own design note calls for a Next.js
-marketing site and dashboard; nothing in the repository uses a framework yet
-except the new React host fixture, which is a test page rather than a product
-surface, so that decision is still open.
+it holds the Playwright suites.) The plan calls for those two apps to be Next.js
+sites. Next 16 is now in the repository and the widget is tested under it
+(D-14), so the framework is no longer a guess — what remains is building the
+surfaces themselves, which is the largest piece of unblocked work left.
 
 ### 9. Section 12's required checks, honestly accounted
 
-| Required check                 | State                                                                                    |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| Formatting / lint              | **done**, in CI and locally                                                              |
-| Typecheck                      | **done**                                                                                 |
-| Unit tests                     | **done** — 280                                                                           |
-| Contract tests                 | **done** — Zod schemas exercised through the routes                                      |
-| Integration tests              | **partial** — the API is exercised in-process, not across a network                      |
-| E2E (Playwright)               | **done** — 17 checks in Chromium against two real host pages, the API and the shadow DOM |
-| Visual snapshots               | **done** as Vitest snapshots; not pixel-diffed against the reference in CI               |
-| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                           |
-| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                           |
-| Terraform validation           | **written, never executed**                                                              |
-| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                               |
+| Required check                 | State                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| Formatting / lint              | **done**, in CI and locally                                                                |
+| Typecheck                      | **done**                                                                                   |
+| Unit tests                     | **done** — 280                                                                             |
+| Contract tests                 | **done** — Zod schemas exercised through the routes                                        |
+| Integration tests              | **partial** — the API is exercised in-process, not across a network                        |
+| E2E (Playwright)               | **done** — 21 checks in Chromium against three real host pages, the API and the shadow DOM |
+| Visual snapshots               | **done** as Vitest snapshots; not pixel-diffed against the reference in CI                 |
+| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                             |
+| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                             |
+| Terraform validation           | **written, never executed**                                                                |
+| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                                 |
 
 Two honest footnotes on the rows above. The axe pass is a floor: it finds a
 missing label, a contrast failure or a role-less dialog, and it cannot tell you
@@ -413,13 +429,13 @@ properly rather than sketched.
    contract (item 5) or a model credential (item 2) — each of which turns a
    mocked or refusing surface into a real one.
 
-7. **The product surfaces the plan names do not exist yet**, and these are the
-   largest pieces of remaining work that need nothing from outside the
+7. **The product surfaces the plan names do not exist yet**, and this is now the
+   largest piece of remaining work that needs nothing from outside the
    repository: `apps/marketing` (plan P3, whose exit gate is a visual regression
-   and a Lighthouse/accessibility baseline) and `apps/dashboard` (plan P10). Both
-   are written as Next.js sites in the plan, and nothing in this repository uses
-   a framework yet — the React host fixture added this session is a test page,
-   not a product surface. Choosing that stack is a real decision, not an
-   implementation detail, and it is the next thing worth deciding deliberately.
-   The React fixture does at least mean the widget's behaviour under a framework
-   is now a settled question rather than an assumption.
+   and a Lighthouse/accessibility baseline) and `apps/dashboard` (plan P10).
+   The framework question is settled rather than open — the plan says Next.js,
+   the widget is now tested under Next 16 in two integrations (D-14), and the
+   repository already carries the dependency. What remains is the surfaces
+   themselves, and `apps/marketing` comes first because `apps/dashboard` is
+   behind `GET /v1/dashboard/metrics`, which is a product decision before it is
+   a route.
