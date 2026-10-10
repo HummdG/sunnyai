@@ -108,6 +108,26 @@ export class Scheduler {
     this.#active = this.#active.filter((a) => a.sequence.id !== id);
   }
 
+  /**
+   * Forget everything that is playing, including the ambient floor.
+   *
+   * A requested sequence expires on its own clock, which starts when it is
+   * *asked for* rather than when it is first drawn. So a moment can be queued
+   * behind a longer, higher-priority one for its whole life and never be seen:
+   * the celebration asked for while a 2.6 s charging panel plays is drawn on no
+   * frame at all. That is the priority system working -- the alternative is a
+   * moment landing late, detached from its cause -- but it means a caller that
+   * wants an independent, isolated encounter with a moment has to clear the
+   * stage first rather than hope the last one has finished. The animation lab's
+   * gallery is exactly that caller: every `Play` is a fresh question, so a
+   * previous demo must not be the answer.
+   */
+  clear(): void {
+    this.#active = [];
+    this.#floor = null;
+    this.#floorGroup = null;
+  }
+
   /** Resume the sequence a state change interrupted, if it qualifies. */
   private settled(instance: Instance, now: number): boolean {
     const { sequence, startedAt } = instance;
@@ -132,9 +152,7 @@ export class Scheduler {
     this.#intensity = ctx.paused ? 'off' : ctx.intensity;
 
     if (ctx.paused || ctx.hidden) {
-      this.#active = [];
-      this.#floor = null;
-      this.#floorGroup = null;
+      this.clear();
       return { rig: base, sequenceId: null, yields: [] };
     }
 

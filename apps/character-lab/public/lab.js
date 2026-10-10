@@ -793,14 +793,21 @@
   var eureka = {
     id: "thinking-eureka",
     group: "eureka",
-    priority: PRIORITY.success,
+    priority: PRIORITY.chat + 20,
     duration: 1500,
     canInterrupt: true,
     loop: false,
     intensity: "balanced",
     assets: ["question-mark", "sparkle"],
-    reducedMotionFallback: "celebrate-still",
-    states: ["thinking", "celebrating", "speaking"],
+    // The eureka has a still of its own. Pointing at the celebration's was a
+    // copy-paste that would have shown a reduced-motion visitor a different
+    // moment from the one they asked for.
+    reducedMotionFallback: "eureka-still",
+    // `celebrating` is deliberately absent. It was there, and it meant a eureka
+    // still in flight outranked the celebration that arrived while it played --
+    // a real success being buried, which is the failure the celebration tests
+    // exist to prevent. An idea landing and a job well done are different beats.
+    states: ["thinking", "speaking"],
     pose: (base, t) => {
       const r = cloneRig(base);
       const flare = t < 0.45 ? 0 : ease((t - 0.45) / 0.55);
@@ -843,14 +850,18 @@
   var eurekaStill = {
     id: "eureka-still",
     group: "eureka",
-    priority: PRIORITY.success,
+    // Matches the full eureka: a floor is about how much motion a tenant allows,
+    // and both variants are the same moment. Left below it, a tenant who turned
+    // the dial down would lose the eureka to the ambient layer instead of seeing
+    // a still one.
+    priority: PRIORITY.chat + 20,
     duration: 1100,
     canInterrupt: true,
     loop: false,
     intensity: "minimal",
     assets: ["sparkle"],
     reducedMotionFallback: null,
-    states: ["thinking", "celebrating", "speaking"],
+    states: ["thinking", "speaking"],
     pose: (base, t) => {
       const r = cloneRig(base);
       const a = bump(t);
@@ -1470,6 +1481,25 @@
     cancel(id) {
       this.#active = this.#active.filter((a) => a.sequence.id !== id);
     }
+    /**
+     * Forget everything that is playing, including the ambient floor.
+     *
+     * A requested sequence expires on its own clock, which starts when it is
+     * *asked for* rather than when it is first drawn. So a moment can be queued
+     * behind a longer, higher-priority one for its whole life and never be seen:
+     * the celebration asked for while a 2.6 s charging panel plays is drawn on no
+     * frame at all. That is the priority system working -- the alternative is a
+     * moment landing late, detached from its cause -- but it means a caller that
+     * wants an independent, isolated encounter with a moment has to clear the
+     * stage first rather than hope the last one has finished. The animation lab's
+     * gallery is exactly that caller: every `Play` is a fresh question, so a
+     * previous demo must not be the answer.
+     */
+    clear() {
+      this.#active = [];
+      this.#floor = null;
+      this.#floorGroup = null;
+    }
     /** Resume the sequence a state change interrupted, if it qualifies. */
     settled(instance, now) {
       const { sequence, startedAt } = instance;
@@ -1491,9 +1521,7 @@
       this.#reducedMotion = ctx.reducedMotion || ctx.lowPower;
       this.#intensity = ctx.paused ? "off" : ctx.intensity;
       if (ctx.paused || ctx.hidden) {
-        this.#active = [];
-        this.#floor = null;
-        this.#floorGroup = null;
+        this.clear();
         return { rig: base, sequenceId: null, yields: [] };
       }
       this.#active = this.#active.filter(
@@ -1533,6 +1561,117 @@
       return bestInGroup(group, "playful")?.priority ?? PRIORITY.idle;
     }
   };
+
+  // packages/animation-engine/src/catalogue.ts
+  var CATALOGUE = [
+    {
+      group: "blink",
+      name: "Blink",
+      description: "A reflex: the eyes close for a moment and open again, on a seeded cadence.",
+      category: "reflex",
+      asked: "engine",
+      askedBy: "the animator\u2019s own blink timer"
+    },
+    {
+      group: "idle",
+      name: "Resting",
+      description: "Breathing and glancing around at nothing in particular. Deliberately sparse.",
+      category: "ambient",
+      asked: "engine",
+      askedBy: "the ambient layer of the idle and relaxing states"
+    },
+    {
+      group: "listen",
+      name: "Listening",
+      description: "A small perk of attention when the visitor arrives or starts typing.",
+      category: "conversation",
+      asked: "nobody",
+      note: "`attention` requests `open`, and the listening state\u2019s ambient layer is the idle group, so nothing ever asks for the perk. Either the listening state\u2019s ambient should be this group, or `attention` should request both."
+    },
+    {
+      group: "think",
+      name: "Thinking",
+      description: "The rays turn while the answer is being worked out.",
+      category: "conversation",
+      asked: "engine",
+      askedBy: "the ambient layer of the thinking state"
+    },
+    {
+      group: "eureka",
+      name: "Eureka",
+      description: "The answer arrives: a question mark turns into a spark.",
+      category: "conversation",
+      asked: "engine",
+      askedBy: "`speaking_started` when it follows thinking"
+    },
+    {
+      group: "speak",
+      name: "Speaking",
+      description: "A gentle pulse while the answer streams in, so the character is never still while it is the one talking.",
+      category: "conversation",
+      asked: "engine",
+      askedBy: "the ambient layer of the speaking state"
+    },
+    {
+      group: "guide",
+      name: "Pointing",
+      description: "Sunny points at the part of the host page the answer refers to.",
+      category: "conversation",
+      asked: "engine",
+      askedBy: "`guiding_started`"
+    },
+    {
+      group: "charge",
+      name: "Charging a panel",
+      description: "A solar panel unfolds, a beam of sunlight lands on it and the battery fills.",
+      category: "conversation",
+      asked: "nobody",
+      note: "A12, and one of the plan\u2019s five flagship sequences. Nothing requests the group: it belongs to the solar-education moment, and no tool or stream event has been wired to it yet."
+    },
+    {
+      group: "open",
+      name: "The bubble opens",
+      description: "The launcher bubbles open into the panel, and Sunny settles into the header.",
+      category: "conversation",
+      asked: "engine",
+      askedBy: "`attention`"
+    },
+    {
+      group: "celebrate",
+      name: "Celebration",
+      description: "Something went well for the visitor, and Sunny enjoys it.",
+      category: "reaction",
+      asked: "engine",
+      askedBy: "`celebrate`"
+    },
+    {
+      group: "cool",
+      name: "Sunglasses",
+      description: "Sunny has done something well and knows it. The shades come out.",
+      category: "reaction",
+      asked: "engine",
+      askedBy: "`impress`"
+    },
+    {
+      group: "confused",
+      name: "Confusion",
+      description: "A question landed badly, or the answer is genuinely uncertain.",
+      category: "reaction",
+      asked: "engine",
+      askedBy: "`confused`"
+    },
+    {
+      group: "error",
+      name: "Something went wrong",
+      description: "The turn failed. A sweat drop, a deflate, and a recovery back to rest.",
+      category: "reaction",
+      asked: "engine",
+      askedBy: "`turn_failed`"
+    }
+  ];
+  var UNREACHABLE_GROUPS = CATALOGUE.filter(
+    (entry) => entry.asked === "nobody"
+  ).map((entry) => entry.group);
 
   // packages/animation-engine/src/engine.ts
   var BLINK_MIN_MS = 2600;
@@ -1575,6 +1714,7 @@
      * vocabulary the application compiled in.
      */
     dispatch(event, now) {
+      const previous = this.machine.state;
       const result = this.machine.send(event, now);
       if (!result.changed) return;
       switch (event.type) {
@@ -1596,6 +1736,9 @@
         case "attention":
           this.scheduler.request("open", result.state, now);
           break;
+        case "speaking_started":
+          if (previous === "thinking") this.scheduler.request("eureka", result.state, now);
+          break;
         default:
           break;
       }
@@ -1603,6 +1746,16 @@
     /** Play a named moment now, e.g. the charging sequence a tool call triggers. */
     play(group, now) {
       return this.scheduler.request(group, this.machine.state, now);
+    }
+    /**
+     * Stop everything that is playing and let the next frame start clean.
+     *
+     * For a surface that asks for moments out of any context -- the lab's gallery,
+     * where each button is a separate demonstration -- rather than one that is
+     * following a conversation, where the previous moment is part of the story.
+     */
+    reset() {
+      this.scheduler.clear();
     }
     /** Run one frame. `now` is monotonic milliseconds. */
     frame(now, ctx = {}) {
@@ -1742,6 +1895,84 @@
       );
     }
     renderBigStage();
+    const drawn = animator.lastFrame?.sequenceId;
+    const liveGroup = drawn ? groupOfSequence.get(drawn) : void 0;
+    for (const moment of moments) {
+      const live = moment.group === liveGroup;
+      moment.node.classList.toggle("live", live);
+      if (live) moment.node.dataset.drawn = "1";
+    }
+  }
+  var moments = [];
+  var groupOfSequence = new Map(SEQUENCES.map((s) => [s.id, s.group]));
+  var ROUTE = {
+    listen: ["attention"],
+    think: ["turn_started"],
+    // The answer arriving: `speaking_started` out of thinking is what the engine
+    // itself reads as the eureka, so the gallery only has to set the scene.
+    eureka: ["turn_started", "speaking_started"],
+    speak: ["speaking_started"],
+    guide: ["guiding_started"],
+    confused: ["confused"],
+    // `turn_failed` is not accepted from rest, so the error has to be reached the
+    // way it really happens: a turn that started and then failed.
+    error: ["turn_started", "turn_failed"]
+  };
+  function buildCatalogue() {
+    const host2 = document.getElementById("catalogue-card");
+    moments = CATALOGUE.map((entry) => {
+      const route = ROUTE[entry.group] ?? [];
+      const button = el("button", {
+        class: "btn small",
+        type: "button",
+        text: "Play",
+        title: route.length === 0 ? "Plays from the resting state" : `Goes idle \u2192 ${route.join(" \u2192 ")}`
+      });
+      button.addEventListener("click", () => {
+        for (const moment of moments) delete moment.node.dataset.drawn;
+        animator.reset();
+        animator.dispatch({ type: "idle" }, state.t);
+        for (const type of route) animator.dispatch({ type }, state.t);
+        animator.play(entry.group, state.t);
+        const best = bestInGroup(entry.group, state.intensity);
+        if (best) {
+          state.scrubSource = best.id;
+          state.scrubLength = best.duration;
+        }
+        renderScrubber();
+        renderBigStage();
+      });
+      const node = el(
+        "div",
+        { class: entry.asked === "engine" ? "moment" : "moment unwired", "data-group": entry.group },
+        [
+          el("div", { class: "moment-head" }, [
+            el("span", { class: "moment-name", text: entry.name }),
+            el("span", { class: "moment-cat", text: entry.category })
+          ]),
+          el("div", { class: "moment-desc", text: entry.description }),
+          el("div", { class: "moment-foot" }, [
+            el("span", {
+              class: "moment-asked",
+              // The backticks read well in the source and badly on a page.
+              text: entry.askedBy ? `asked by ${entry.askedBy.replace(/`/g, "")}` : "no caller yet"
+            }),
+            button
+          ]),
+          ...entry.note ? [el("div", { class: "moment-why", text: entry.note })] : []
+        ]
+      );
+      host2.append(node);
+      return { group: entry.group, node, button };
+    });
+    refreshCatalogue();
+  }
+  function refreshCatalogue() {
+    for (const moment of moments) {
+      const best = bestInGroup(moment.group, state.intensity);
+      moment.button.disabled = best === null;
+      moment.button.textContent = best ? `Play \xB7 ${best.id}` : `hidden at ${state.intensity}`;
+    }
   }
   var stageSvg = null;
   var stageLabel = null;
@@ -1928,10 +2159,12 @@
       if (Number(scrubInput.value) > state.scrubLength) scrubInput.value = String(state.scrubLength);
     }
     if (scrubLabel) scrubLabel.textContent = `${state.t.toFixed(0)} / ${state.scrubLength} ms`;
+    refreshCatalogue();
   }
   function start() {
     host = document.getElementById("grid");
     buildGrid();
+    buildCatalogue();
     const stage = document.getElementById("stage");
     stageSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     stageSvg.setAttribute("viewBox", "0 0 200 200");
@@ -1973,8 +2206,8 @@
       last = now;
       if (state.playing) {
         state.t += dt * state.speed;
-        if (state.t > state.scrubLength) state.t = 0;
-        if (scrubInput) scrubInput.value = String(state.t);
+        if (state.t > state.scrubLength && animator.scheduler.active.length === 0) state.t = 0;
+        if (scrubInput) scrubInput.value = String(Math.min(state.t, state.scrubLength));
         renderScrubber();
       }
       frame();

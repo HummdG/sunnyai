@@ -352,4 +352,24 @@ describe('SunnyAnimator', () => {
     a.dispatch({ type: 'speaking_started' }, 200);
     expect(a.frame(260, { reducedMotion: true }).sequenceId).toBe('eureka-still');
   });
+
+  it('drops a moment that is outranked for its whole life, until reset ends it', () => {
+    // A requested sequence expires on its own clock -- from the request, not
+    // from the first frame that draws it -- so one queued behind a longer,
+    // higher-priority moment is never drawn at all rather than being shown late.
+    // That is the priority system working, but it happens in silence, and the
+    // animation lab's gallery is a caller that needs the opposite: each click is
+    // a separate demonstration, so it clears the stage first.
+    const a = new SunnyAnimator(defaultRig(), { seed: 4 });
+    a.play('charge', 0); // 2.6 s, in the chat band
+    a.play('celebrate', 0); // success band: never wins while the panel plays
+
+    for (let i = 1; i <= 140; i++) a.frame((i * 1000) / 30);
+    // Past the celebration's own 1.4 s, and it was never drawn once.
+    expect(a.lastFrame?.sequenceId).not.toMatch(/^celebrate/);
+
+    a.reset();
+    a.play('celebrate', 4_700);
+    expect(a.frame(4_700).sequenceId).toMatch(/^celebrate/);
+  });
 });

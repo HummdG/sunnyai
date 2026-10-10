@@ -117,6 +117,17 @@ export class SunnyAnimator {
     return this.scheduler.request(group, this.machine.state, now);
   }
 
+  /**
+   * Stop everything that is playing and let the next frame start clean.
+   *
+   * For a surface that asks for moments out of any context -- the lab's gallery,
+   * where each button is a separate demonstration -- rather than one that is
+   * following a conversation, where the previous moment is part of the story.
+   */
+  reset(): void {
+    this.scheduler.clear();
+  }
+
   /** Run one frame. `now` is monotonic milliseconds. */
   frame(now: number, ctx: Partial<EngineContext> = {}): RenderResult {
     const context: EngineContext = {

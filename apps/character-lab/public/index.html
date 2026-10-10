@@ -209,6 +209,71 @@
         color: var(--muted);
       }
 
+      #catalogue-card {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      }
+      .moment {
+        display: grid;
+        gap: 6px;
+        align-content: start;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+      }
+      /* Lit while this moment is the one the scheduler is drawing, so "playable"
+         is something you watch happen rather than something you are told. */
+      .moment.live {
+        border-color: var(--orange);
+        box-shadow: 0 0 0 3px rgb(255 121 0 / 14%);
+      }
+      .moment-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .moment-name {
+        font-weight: 600;
+      }
+      .moment-cat {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .moment-desc {
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .moment-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 2px;
+      }
+      .moment-asked {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .moment.unwired {
+        border-style: dashed;
+        background: #fffdf9;
+      }
+      .moment.unwired .moment-asked {
+        color: var(--orange);
+      }
+      .moment-why {
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--muted);
+        border-left: 2px solid color-mix(in srgb, var(--orange) 40%, transparent);
+        padding-left: 8px;
+      }
+
       #theme-swatch {
         display: flex;
         flex-wrap: wrap;
@@ -254,6 +319,15 @@
     <p class="lede" style="margin-top: 10px">
       Each button asks the scheduler for a <em>moment</em>, not a variant, and the tenant's intensity setting picks the
       strength. That is what stops an intensity setting from silently deleting a behaviour.
+    </p>
+
+    <h2>The catalogue</h2>
+    <div id="catalogue-card"></div>
+    <p class="lede" style="margin-top: 10px">
+      Every moment Sunny has, named for a person rather than for the engine. <em>Play</em> asks the scheduler for the
+      moment — the same call the widget makes — and the card lights up while it is the one on screen, so what the
+      catalogue claims and what the engine draws can be compared by eye. A dashed card is a moment
+      <strong>nothing asks for</strong>: it is implemented and tested, and no event or tool reaches it.
     </p>
 
     <h2>Scrub a sequence</h2>

@@ -19,6 +19,7 @@ const DEMO_PORT = Number(process.env.DEMO_PORT ?? 4173);
 const REACT_PORT = Number(process.env.REACT_PORT ?? 4174);
 const NEXT_PORT = Number(process.env.NEXT_PORT ?? 4175);
 const MARKETING_PORT = Number(process.env.MARKETING_PORT ?? 4176);
+const LAB_PORT = Number(process.env.LAB_PORT ?? 4180);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -129,6 +130,18 @@ export default defineConfig({
       },
       reuseExistingServer: false,
       timeout: 240_000,
+    },
+    {
+      // The character lab, rebuilt first for the same reason as the widget: it
+      // serves a committed bundle, and a stale artefact reads exactly like a
+      // passing test. It is the only surface where the animation catalogue is
+      // something a person can click, so it is where "every catalogued moment is
+      // playable" stops being a claim in a document and becomes a browser check.
+      command: `npm run build:lab && npx tsx apps/character-lab/serve.ts --port ${LAB_PORT}`,
+      url: `http://127.0.0.1:${LAB_PORT}/`,
+      env: { PORT: String(LAB_PORT) },
+      reuseExistingServer: false,
+      timeout: 120_000,
     },
   ],
 });
