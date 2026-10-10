@@ -108,12 +108,15 @@ property of the artwork, not a defect.
 
 ### 2.2 Props
 
-`packages/character/src/rig.ts` defines a closed list of five props — `PROP_IDS =
-['question-mark', 'sparkle', 'sweat-drop', 'battery', 'sunglasses']` — each with an
-authored SVG path in `render.ts`. These were **authored, not measured**. The plan's
-animation backlog (§5.3) names many props that have **no artwork yet**: deckchair,
-balloon, tic-tac-toe grid, skateboard, ice-cream, Rubik's/impossible cube, ping-pong
-paddle, and a folding solar panel or phone.
+`packages/character/src/rig.ts` defines a closed list of six props — `PROP_IDS =
+['question-mark', 'sparkle', 'sweat-drop', 'battery', 'sunglasses', 'deckchair']`
+— each with an authored SVG path in `render.ts`. These were **authored, not
+measured**, with one exception worth knowing about: the deckchair is the only prop
+authored in the _body's_ frame rather than in a small frame of its own, because
+furniture has to be sized against the body that sits in it (D-20). The plan's
+animation backlog (§5.3) still names many props that have **no artwork yet**:
+balloon, tic-tac-toe grid, skateboard, ice-cream, Rubik's/impossible cube,
+ping-pong paddle, and a folding solar panel or phone.
 
 ---
 

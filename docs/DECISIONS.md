@@ -722,3 +722,90 @@ would have shown a standing character with slightly lowered brows. The scene's
 content changed with this commit regardless, so the capture time was re-chosen
 by looking at the frames -- which is how `scenes.ts` says the times were chosen
 in the first place.
+
+## D-20. A04 wants a prop that is furniture, and a state that was borrowed
+
+`dismissed` moved the machine into `relaxing` and, like `playing` before D-19,
+the state borrowed the idle layer -- so closing the chat changed the panel and
+nothing else. A04 is the plan's fourth moment: "chair unfolds, shades, relax",
+"stops immediately on user interaction".
+
+**The prop needed a third way of being drawn.** Props had two: an ink stroke,
+which is right for a _mark_ (a question mark, the temple of a pair of glasses),
+and a solid ink mass, which is right for a small _sign_ (a sparkle). Neither can
+draw an **object**, because the character's own language is a black outline
+around a flat fill: a chair drawn as a silhouette reads as a hole cut in the
+scene, and a chair drawn in hairlines disappears at launcher size -- and the
+launcher is exactly where this moment is seen, since the panel has just closed.
+So `PROP_PATHS` gained `surface: true`, which draws an ink outline around the
+theme's `highlight` colour. It is a third _painting_, not a third prop: it reads
+the existing theme, so a tenant on the purple preset gets a lilac chair, and the
+test asserts that rather than restating the hex.
+
+**The deckchair is the only prop authored in the body frame.** Every other prop
+is authored in a small frame about the origin so that `scale` is a plain
+multiplier. Furniture cannot be: a body with a 47-unit radius has to sit _in_
+the chair, so the chair has to be drawn against the body's own coordinates. That
+is what produced the one geometric constraint worth recording: a straight back
+that leans up-left and is anchored under the body **must** cross the silhouette,
+because a circle bulges further at shoulder height than any chord of it can.
+Only a vertical back or a tangent one clears her. The back panel is therefore
+the tangent -- centre-line distance ~50 against a radius of 47.26, about 2.7
+units of clearance -- and that tangent happens to fall out as a ~30 degree
+recline, which is a deckchair's angle rather than a compromise. The geometry
+chose the pose.
+
+**The chair is planted; she is not.** A prop's transform is applied inside the
+body's frame, so a prop inherits the body's motion -- including the breath. The
+chair is given back the exact inverse of the transform her body was given in
+order to sit down: the root rotation is negated and the root translation is
+rotated by it before being negated, about the same origin the artwork is
+authored against. Her breath is cancelled with it rather than left on the chair,
+because a chair standing on the ground does not rise and fall while the person in
+it breathes -- so the chair's origin does not move at all across the whole hold,
+which a test asserts to six decimal places. That is a stronger claim than any
+single snapshot could make, and it is the one that fails if someone later
+simplifies the three lines into two negations.
+
+**The break is a finite event, not a loop, and not the ambient layer.** A loop
+would replay the unfold every cycle, and a loop that began already deployed
+would pop the chair into existence on frame one; the state's ambient cannot hold
+the pose instead, because the scheduler never retires the floor instance and the
+ambient is required to loop. So the chair arrives by unfolding and leaves by
+folding: the moment is one arc whose last tenth narrates her getting up, and the
+idle layer is what shows underneath for the rest of the state. That is the same
+shape as A07's play moves, and it is why A04's "stops immediately on user
+interaction" is structural rather than tuned -- any event that moves the machine
+out of `relaxing` retires the instance on the next frame.
+
+**A held blink is not a closed eye.** The first render of the seated pose put a
+black slab across her face. `renderEye` computes `scaleY = scaleY * (1 - closed *
+0.94)` and then fills the eye path with ink, so `closed = 0.92` -- a perfectly
+good reflex blink -- flattens the eye into a solid bar, which at 512 px is the
+width of a moustache. A held pose needs a squint (0.62), not a blink, and the
+shades at the stronger settings are lenses _filled_ with ink anyway, so the
+squint is what carries the `minimal` setting. The block comment in `sequences.ts`
+says so, so the next person does not re-derive it.
+
+**Three new baselines, and the existing thirteen did not move.** `relaxing`,
+`relaxing-playful` and `relaxing-reduced-motion` were added to the PNG suite;
+that no existing baseline changed is the evidence that the artwork change is
+additive rather than a global re-render. `relaxing-reduced-motion` is byte
+identical to `celebrating-off` and `celebrating-reduced-motion` -- all three show
+the resting pose -- so the suite's coincidence guard now names three scenes that
+are _supposed_ to coincide, which is the guard doing its job: any other pair
+coinciding still fails, and the pair that used to coincide for the wrong reason
+(`relaxing` and the resting pose) was the bug this moment fixed.
+
+**Two smaller things the work turned up.**
+
+- The `relaxing` exemption in the sequences test's state-coverage check is gone.
+  It was written when no sequence declared the state; an exemption that outlives
+  the gap it was written for is how a state goes silently empty a second time,
+  so the check is now unconditional.
+- Reduced motion is a per-frame fact, not a construction-time option:
+  `Scheduler.update` assigns `#reducedMotion = ctx.reducedMotion || ctx.lowPower`
+  on every frame, so a test that passes the preference to the animator's
+  constructor gets the unmodified sequence. The relax tests pass it with the
+  frame, which is what the widget does, since it re-reads the media query as the
+  visitor's preference can change while the page is open.

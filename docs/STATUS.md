@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **379 tests across 12 files**,
+public marketing site are built, tested and green: **412 tests across 12 files**,
 a real fidelity comparison
-against the supplied artwork, **14 committed visual baselines** of the character
+against the supplied artwork, **17 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
-and **30 browser end-to-end checks** — including an axe accessibility pass — over
+and **33 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
 host page, and on the marketing site, which runs the real widget and the real
 character rather than pictures of them. The
@@ -36,15 +36,15 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                  |
 | Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                   |
 | Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                  |
-| Unit / contract / visual tests | `npm run test`                                                                              | **379 passed (12 files)**                                                                    |
+| Unit / contract / visual tests | `npm run test`                                                                              | **412 passed (12 files)**                                                                    |
 | Browser end-to-end             | `npm run verify:all`                                                                        | **33 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
-| Widget bundle                  | `npm run build`                                                                             | 112.1 kB — **30.8 kB gzipped**                                                               |
-| Character lab bundle           | `npm run build`                                                                             | 65.0 kB                                                                                      |
+| Widget bundle                  | `npm run build:widget`                                                                      | 119.8 kB — **33.1 kB gzipped**                                                               |
+| Character lab bundle           | `npm run build:lab`                                                                         | 86.0 kB                                                                                      |
 | API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                              |
 | Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                        |
 | Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                           |
 | Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                          |
-| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **16 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces     |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **19 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces     |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -62,9 +62,11 @@ first real finding should not be the one that matters.
 
 ### What the tests actually cover
 
-- **Character** (`packages/character`, 14 tests) — determinism, byte-identical
-  replay, SVG accessibility, the closed prop vocabulary, gradient rules, and a
-  deep-frozen snapshot of the canonical pose.
+- **Character** (`packages/character`, 16 tests) — determinism, byte-identical
+  replay, SVG accessibility, the closed prop vocabulary, the three ways a prop
+  can be painted (a mark, a sign, and an object drawn in the theme's own surface
+  colour, which re-tints per tenant preset), gradient rules, and a deep-frozen
+  snapshot of the canonical pose.
 - **Animation engine** (`packages/animation-engine`, Vitest snapshots) —
   every sequence exercised across its motion, purity, no mutation of the base
   rig, every group resolved at every intensity, and that every declared
@@ -78,12 +80,16 @@ first real finding should not be the one that matters.
   D-19): three short moves in one group, so two can never collide, asked for by
   `play_started` — which until now moved the machine and changed no pixel,
   because the playing state borrowed the resting layer and had no behaviour of
-  its own.
-- **Visual regression** (`tests/visual`, 16 tests) — fourteen scenarios, one per
+  its own. Plus **the break** (A04, D-20): four variants of one moment asked for
+  by `dismissed`, the same defect in the same shape — closing the chat changed the
+  panel and nothing else — closed with a deckchair that unfolds, holds and folds
+  away, and a test that the chair's own origin does not move while she breathes.
+- **Visual regression** (`tests/visual`, 19 tests) — seventeen scenarios, one per
   visually distinct state plus the intensity extremes, the reduced-motion
-  fallback and the playful play move, each rasterised and compared byte for byte
-  against a committed PNG. Aimed at the character rather than at a page, for the
-  reason in D-16, and re-verified on Linux `resvg` whenever a baseline moves.
+  fallbacks and the two moments where the setting changes the moment rather than
+  its strength, each rasterised and compared byte for byte against a committed
+  PNG. Aimed at the character rather than at a page, for the reason in D-16, and
+  re-verified on Linux `resvg` whenever a baseline moves.
 - **API** (`apps/api`) — config and capability reporting, the SSE contract,
   session tokens, tenant isolation, tool dispatch, lead capture (including that a
   submission without consent writes nothing, and that the caller cannot name the
@@ -126,13 +132,59 @@ first real finding should not be the one that matters.
   which is the only surface where the catalogue is something a person can click.
   Every catalogued moment is asserted to be listed under its catalogue name and
   description, the moments nothing asks for are asserted to be marked rather than
-  hidden, and **every moment is played**: the spec clicks `Play` on all fourteen
+  hidden, and **every moment is played**: the spec clicks `Play` on all fifteen
   and waits for the page to record that it drew each one. It is the half of P11's
   gate that a unit test cannot reach, and it found three things (D-18) — including
   a moment that was dropped rather than deferred, and a bug in the lab's own
   preview clock that made a working moment look broken.
 
-### Fixed in this session (A07: the play moves)
+### Fixed in this session (A04: the deckchair)
+
+The increment was the plan's fourth moment — "chair unfolds, shades, relax",
+"stops immediately on user interaction" — and it turned out to be the same defect
+as A07, one state along:
+
+- **`dismissed` moved the machine into `relaxing`, which borrowed the idle
+  layer.** Closing the chat changed the panel and nothing else, so the one moment
+  the launcher is alone on screen was the one moment Sunny did nothing (D-20).
+  It is the second state found with no behaviour of its own, and both were found
+  the same way: by rendering the state and looking at it.
+- **The prop vocabulary gained a third painting, because furniture is not a
+  mark.** An ink stroke draws a mark and an ink mass draws a small sign; neither
+  can draw an _object_, because the character's own language is a black outline
+  around a flat fill. `surface: true` is that outline around the theme's highlight
+  colour, so a tenant on the purple preset gets a lilac deckchair, and the test
+  asserts the re-tint rather than the hex.
+- **The first render put a black slab across her face.** A held blink is not a
+  closed eye: `renderEye` fills the eye path with ink, so `closed = 0.92` flattens
+  the eye into a bar that is legible as a blink at 72 px and reads as a moustache
+  at 512 px. A squint (0.62) carries the pose instead. This was found by rendering
+  the frames large and looking at them, which is the only way it could have been
+  found.
+- **The chair would have inherited her body motion.** Props are drawn in the
+  body's frame, so the deckchair had to be given the exact inverse of the
+  transform her body was given to sit down — including the rotation of the
+  translation, which is why the correction is not two negations — and no breath,
+  because a chair on the ground does not rise and fall with the person in it. The
+  test measures the chair's origin to six decimal places rather than trusting a
+  snapshot.
+- **The break is a finite event rather than a loop, and that is a decision rather
+  than a limitation that was not noticed.** A loop replays the unfold every cycle
+  or pops the chair in on frame one, and the state's ambient cannot hold the pose
+  because the ambient has to loop. So the chair arrives and leaves, the idle layer
+  shows underneath afterwards, and A04's "stops immediately on user interaction"
+  falls out of the state check rather than out of a tuned duration.
+- **Three new baselines; the existing fourteen did not move.** That no committed
+  PNG changed is the evidence the artwork change is additive, and the suite's own
+  coincidence guard now names three scenes that are _supposed_ to be identical
+  (all three showing the resting pose) — which is the guard catching the exact
+  shape of the bug that was fixed, since `relaxing` used to coincide with rest for
+  the wrong reason.
+- **The widget bundle grew 30.8 → 33.1 kB gzipped** with this and A07's moves.
+  Worth stating rather than discovering: the engine travels inside the widget, so
+  an animation is paid for by every host page.
+
+### Fixed in the previous session (A07: the play moves)
 
 The increment started as "add the three play animations" and turned into
 "A07 asks for a state that had no behaviour", which is the more useful shape:
@@ -462,19 +514,19 @@ not been designed.
 
 ### 9. Section 12's required checks, honestly accounted
 
-| Required check                 | State                                                                                      |
-| ------------------------------ | ------------------------------------------------------------------------------------------ |
-| Formatting / lint              | **done**, in CI and locally                                                                |
-| Typecheck                      | **done**                                                                                   |
-| Unit tests                     | **done** — 280                                                                             |
-| Contract tests                 | **done** — Zod schemas exercised through the routes                                        |
-| Integration tests              | **partial** — the API is exercised in-process, not across a network                        |
-| E2E (Playwright)               | **done** — 21 checks in Chromium against three real host pages, the API and the shadow DOM |
-| Visual snapshots               | **done** as Vitest snapshots; not pixel-diffed against the reference in CI                 |
-| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                             |
-| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                             |
-| Terraform validation           | **written, never executed**                                                                |
-| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                                 |
+| Required check                 | State                                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Formatting / lint              | **done**, in CI and locally                                                                        |
+| Typecheck                      | **done**                                                                                           |
+| Unit tests                     | **done** — 412                                                                                     |
+| Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
+| Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
+| E2E (Playwright)               | **done** — 33 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
+| Visual snapshots               | **done** — 17 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
+| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
+| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
+| Terraform validation           | **written, never executed**                                                                        |
+| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                                         |
 
 Two honest footnotes on the rows above. The axe pass is a floor: it finds a
 missing label, a contrast failure or a role-less dialog, and it cannot tell you
@@ -565,7 +617,7 @@ properly rather than sketched.
    baseline", and it is **better than half met but not met**: axe passes at
    `serious` and above; the hero's motion, its canonical colour and its use of
    the real widget are all asserted in a browser; and the character now has
-   fourteen committed visual baselines (D-16). What is still missing is the
+   seventeen committed visual baselines (D-16). What is still missing is the
    _performance_ half — there is no Lighthouse run and no Core Web Vitals figure,
    so nothing has measured how fast the page is. Page-level screenshots are
    deliberately not used as the visual regression, for the operating-system
@@ -583,11 +635,18 @@ properly rather than sketched.
    demonstrated in a browser as well as proven by test. The lab grew a gallery
    built from `CATALOGUE`, with a route per moment so that the eight moments
    unreachable from rest can be demonstrated rather than appearing broken, and a
-   Playwright spec clicks all fourteen and waits for the page to record that it
+   Playwright spec clicks all fifteen and waits for the page to record that it
    drew each one (D-18). **A07 is now done** (D-19): the playing state had no
    behaviour of its own — `play_started` moved the machine and changed no pixel —
    so it gained three short moves, one per intensity, which is also how A07's "no
-   animation collisions" holds without timing anything. What remains of P11 is
-   what the gate does not cover: A05, A06, A08–A18, the three games and the
+   animation collisions" holds without timing anything. **A04 is done too**
+   (D-20): `dismissed` moved the machine into `relaxing` and the state borrowed
+   the idle layer in exactly the same way, so it gained a deckchair that unfolds,
+   holds with her in it, and folds away — which needed a third way of painting a
+   prop, because the character's first two cannot draw an object. What remains of
+   P11 is what the gate does not cover: A05, A06, A08–A18, the three games and the
    seasonal cosmetics, none of which are blocked on anything outside this
-   repository.
+   repository. A05 needs something the engine does not have yet — pointer and
+   touch input into a frame — and the three games (A06, A08, A09) need state that
+   outlives a single frame, which is the open question ADR-001 leaves: whether a
+   `playing` subsystem owns it or the host does.

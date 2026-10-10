@@ -27,21 +27,27 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **379 passing across 12 files**
+- [ ] `npm run test` — currently **412 passing across 12 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
         network boundary_
-  - [ ] visual snapshots — **14 committed PNG baselines** of the character,
+  - [ ] visual snapshots — **17 committed PNG baselines** of the character,
         compared byte for byte. Aimed at the rig rather than at a page, for the
         reason in D-16: a page screenshot differs by operating system and the
         test gets deleted. Regenerate with `npm run test:visual:update` only
         after looking at what moved.
+  - [ ] re-run the visual suite under Linux (`node:22-bookworm`, `npm ci`, then
+        `npx vitest run tests/visual`) whenever a baseline moves. That is the
+        machine CI will use, and the whole reason the baselines are PNGs
+        committed rather than a screenshot test is the claim that they are
+        platform-independent — which is only a claim until it is re-checked
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **117.3 kB (32.3 kB gzipped)**, lab 80.9 kB.
+      release. Last known: widget **119.8 kB (33.1 kB gzipped)**, lab 86.0 kB.
       Both have grown since the figures this line used to carry (112.1 kB and
-      65.0 kB): the widget by the marketing site's use of it, the lab by the
-      catalogue gallery, and neither has a budget yet. Nothing about either
+      65.0 kB): the widget by the marketing site's use of it and by two moments
+      of animation library (A07's moves and A04's break, D-19 and D-20), the lab
+      by the catalogue gallery. Neither has a budget yet. Nothing about either
       number is alarming at this size, but a figure nobody re-measures becomes a
       figure nobody can trust, so the next release should set the budget rather
       than only re-read the number.
@@ -158,10 +164,12 @@ Run `npm run verify` — it chains the first four.
 ## 5. Accessibility and reduced motion
 
 - [ ] `Intensity = Off` still renders a complete, recognisable character
-      (only `idle-still` and `guiding-still` resolve; everything else is `null`,
-      and that is intended)
+      (only the stills resolve — `idle-still`, `guiding-still`,
+      `speaking-still`, `play-still` and `relax-still`; everything else is
+      `null`, and that is intended)
 - [ ] Every sequence's `reducedMotionFallback` is honoured — a test asserts every
-      one exists, but confirm the fallback is actually _used_, not merely defined
+      one exists, and the `relaxing-reduced-motion` baseline is the fallback
+      actually being _used_ rather than merely defined (D-20)
 - [ ] The widget is keyboard-reachable and the conversation is reachable by a
       screen reader
 - [ ] Colour contrast on the chat surface, not just the character
@@ -201,7 +209,8 @@ Run `npm run verify` — it chains the first four.
 - [ ] **SunScan has no finance/APR calculators and no grants logic.** A tool
       named `calculate_approved_estimate` has nothing to call. Either build it or
       remove the promise.
-- [ ] The dashboard and marketing apps do not exist.
+- [ ] The dashboard does not exist. The marketing site does (D-15) — it builds
+      and it is served locally, but it is not deployed anywhere.
 - [ ] Animation runs at **30 FPS**, not the plan's ~60 (D-7). Re-measure on a
       real mid-range device before launch.
 - [ ] Multi-tenant retrieval isolation rests on a **Preview** ACL feature with no
