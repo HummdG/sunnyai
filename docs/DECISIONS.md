@@ -1,0 +1,182 @@
+# Decisions
+
+A record of choices made while building, with the reasoning. Section 7 of the
+plan says to ask for approval only at genuine external, account, billing or
+destructive boundaries, and otherwise to make documented decisions and proceed.
+This is that documentation.
+
+Entries marked **OPEN** are the ones that need the user, because they cannot be
+resolved from inside the code.
+
+---
+
+## D-1. The character is a pure function, not a Rive or GSAP timeline
+
+**Decision.** A pose is a plain serialisable object; the renderer is a pure
+function of it; an animation is a function `(base, t) => rig`.
+
+**Why.** The plan names Rive or GSAP as candidate tooling for the character. Both
+model an animation as a timeline held by the library, which makes "what does
+frame 37 look like" a question you answer by watching, not by asserting. The
+reference artwork had to be reproduced _to measurement_, and the only way to keep
+that reproducible is for the artwork to be a function of data. It also means the
+widget ships no animation runtime, which is why the bundle is 29.6 kB gzipped.
+
+**Consequence.** Applying an effect to a subset of the rig is more code than it
+would be with a timeline library, and designers cannot edit the character in a
+visual tool. Neither has been a real cost yet. `docs/design/character-reference.md`
+records the fidelity this buys.
+
+## D-2. Props are a closed vocabulary
+
+**Decision.** `PROP_IDS = ['question-mark', 'sparkle', 'sweat-drop', 'battery',
+'sunglasses']`. A prop exists only if a sequence declares it in `assets`.
+
+**Why.** The plan's §5.2 requires that sequence cleanup be structural rather than
+a matter of remembering to undo things. With a closed vocabulary, "every prop on
+screen is one the current sequence declared" is an invariant the renderer can
+enforce, so a prop cannot be left behind by an interrupted animation. It also
+gives the renderer and the scheduler a single shared source: a prop it can draw
+but the scheduler cannot name would be unreachable, and one the scheduler can
+name but it cannot draw would be a silent no-op.
+
+## D-3. The model-authored animation script is never executed
+
+**Decision.** The model emits application events — `message_started`,
+`tool_started`, `recommendation_ready`, `lead_saved` — and a fixed table maps
+events to approved sequences. §5.2 says this explicitly; what is worth recording
+is that no code path was built that could do otherwise. There is no parser for a
+model-supplied animation, so the failure mode is not "we forgot to validate it".
+
+## D-4. Intensity is a floor, and a variant that animates is never `off`
+
+**Decision.** `Intensity` (Off / Minimal / Balanced / Playful) sets the minimum
+that may play. A sequence declaring `intensity: 'off'` holds one pose; anything
+that animates declares at least `minimal`. Invariant: every group has a variant
+at `minimal`, `balanced` and `playful`, excluding `blink` and `idle`.
+
+**Why.** This came from a real defect. `confused-still` and `error-still` both
+ignored `t`, so a `minimal` tenant watched the face **pop** in and back out
+instead of fading — and `error-still` was declaring `off` while animating, which
+is the contradiction the invariant exists to catch. Both now fade via `bump(t)`,
+and the `error` group legitimately resolves to `null` at `off`.
+
+## D-5. Priority bands, not a priority queue
+
+**Decision.** `PRIORITY = { idle: 0, play: 200, success: 400, chat: 600,
+accessibility: 800, interaction: 1000 }`.
+
+**Why.** The plan specifies the _order_ (direct interaction > accessibility and
+error > chat and guidance > success > user-invoked games > idle). Wide gaps mean
+a new sequence can be placed between two bands without renumbering, and an equal
+priority is a deliberate tie rather than an accident of two numbers being
+adjacent. Accessibility outranking chat is the one ordering worth stating
+explicitly: an error or an accessibility need pre-empts conversation, and that
+should not be changeable by editing one number.
+
+## D-6. ESLint `recommendedTypeChecked`, not `strictTypeChecked`
+
+**Decision.** `tseslint.configs.recommendedTypeChecked` plus a named list of
+high-value rules (`no-eval`, `no-implied-eval`, `no-new-func`, `no-explicit-any`,
+`no-unsafe-assignment`, `no-floating-promises`, `no-misused-promises`,
+`consistent-type-imports`, and others).
+
+**Why.** `strictTypeChecked` produced **147 errors with almost no real defect
+behind them**: `restrict-template-expressions` on `` `port ${n}` ``,
+`no-confusing-void-expression` on `onReady?.(port)`, `no-unnecessary-condition`
+on defensive checks that exist because the value arrives from the network. A
+linter that noisy gets disabled, and then the rules that matter stop running too.
+The explicit list is the part worth keeping.
+
+**Consequence.** Some genuine-but-marginal strictness is off. That is a
+deliberate trade and is recorded here rather than in a comment nobody reads.
+
+## D-7. Animation runs at 30 FPS; the plan says about 60
+
+**Decision.** 30 FPS for now. **The plan's target is not met.**
+
+**Why.** The character is SVG, and at 30 FPS on a mid-range phone the per-frame
+cost is dominated by the rasteriser re-rendering the ray group. Going to 60 would
+need either a coarser scene graph or a canvas path, which is a real change rather
+than a constant.
+
+**Consequence.** Recorded as a gap, not dressed up as a decision. It should be
+revisited against a real device before launch, because the flagship idle
+animation is the one that would show the difference. The rendered sample set and
+the frame budget are both cheap to re-measure.
+
+## D-8. The model surface is chosen deliberately, and reported
+
+**Decision.** `GOOGLE_CLOUD_PROJECT` present → the **Vertex AI** surface; absent
+→ the **Gemini Developer API**. The capability report carries `surface` and
+`modelVerified`, and `modelVerified` is `false` on the Developer API surface.
+
+**Why.** This was a real bug, not a design preference. The client was built as an
+API-key-only client while the default model identifier had been read from
+**Vertex AI's** model pages, and `location` was read but never passed. The two
+surfaces are reached at different hosts with different identifiers, and sending a
+Vertex identifier to the Developer API fails with a model-not-found rather than
+degrading. So the surface has to be derived from the credentials and reported,
+because "which of the two am I talking to" determines which model ids are even
+valid — and `modelVerified` is false whenever the ids were not checked against
+the surface in use.
+
+**Unresolved, and it is a real risk:** every model identifier verified in this
+project came from Vertex AI documentation. None has been checked against the
+Developer API's catalogue.
+
+## D-9. **OPEN** — where does this code live?
+
+**The problem.** `C:\Work\Arkalith\sunny-ai` is not a git repository. It has a
+`.gitignore` and a `.github/workflows/ci.yml`, so it was scaffolded as one, but
+there is no `.git` and none of this work is committed.
+
+Separately, `C:\Work\Arkalith\SunScanV2` is a repository with remote
+`https://github.com/HummdG/sunny.git` — a repo **named `sunny`** holding
+**SunScanV2's** history (roof geometry, cross-gable fitting). The implementation
+and the plan document (`SUNNY_AI_IMPLEMENTATION_PLAN.md`) and `sunny.png` live in
+different directories.
+
+**Why this needs the user.** Every option is structural and outward-facing:
+initialise a repository in `sunny-ai`, or move it into `SunScanV2`, or repoint
+the existing remote. Each changes where the work lives, and one of them writes
+over the history of a repository that currently belongs to a different project.
+None of that is derivable from the code, and getting it wrong is not cheaply
+undone.
+
+**Until it is decided:** the work is unversioned, which is the largest
+non-technical risk in this document.
+
+---
+
+## Recorded, not decided
+
+Smaller choices worth a line each, so a future reader does not relitigate them.
+
+- **Terraform does not create a database.** The API persists to a file store. A
+  managed database is a decision a person should make, not one a Terraform file
+  should make by existing. See `adr-006-data-and-consent.md`.
+- **The model key secret is created empty.** Terraform state is readable; a
+  credential written into it has leaked. The value is added out of band.
+  Exception: the session secret, which is generated _by_ Terraform and exists
+  only to sign this deployment's own sessions.
+- **`ignore_changes` on the container image.** CI owns the image tag; without
+  it, the next `apply` would silently roll the service back to whatever a human
+  last set. Terraform owns everything around the image.
+- **No backend block is committed.** It is passed at `init`, because a state
+  bucket location is environment-specific and should not be guessable from the
+  repository.
+- **The `no-console` rule allows `warn` and `error`.** The widget's boot-time
+  `console.error` for a malformed embed snippet is exactly the case where an
+  integrator must be told why nothing mounted.
+- **Snapshots are excluded from Prettier.** Formatting them would rewrite the
+  expectation rather than check it.
+- **The smoke test sets `process.exitCode` instead of calling `process.exit()`.**
+  `process.exit()` tore the process down while a pooled keep-alive socket was
+  closing, tripping a libuv assertion on Windows: a run printing _"17/17 checks
+  passed"_ exited **127**, which as a post-deploy CI step reads as a failed
+  deployment. Verified pass → 0, unreachable server → 1, wrong expectation → 1.
+- **The eye tilt and highlight width were corrected against measurement, not
+  taste.** Tilt now matches the reference to 0.2°; cream-mask IoU 0.567 → 0.741.
+  Both values carry the provenance and the residual discrepancy in
+  `docs/design/character-reference.md`.

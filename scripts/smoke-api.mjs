@@ -1,0 +1,231 @@
+#!/usr/bin/env node
+/**
+ * End-to-end smoke test against a running API.
+ *
+ * Deliberately dependency-free and assertion-based rather than a printf dump:
+ * its exit code is the signal, so it can run as the last CI step after a deploy
+ * and page someone when the deployed service is not actually serving.
+ *
+ *   node scripts/smoke-api.mjs [baseUrl]
+ *
+ * Environment:
+ *   BASE                       base URL, default http://127.0.0.1:8787
+ *   SMOKE_EXPECT_CHAT=1        also require the assistant to answer, not just
+ *                              to be reachable. Without this the script passes
+ *                              on a deployment that reports chat unavailable,
+ *                              which is the honest state of an un-keyed install.
+ */
+
+const base = (process.argv[2] ?? process.env.BASE ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+const expectChat = process.env.SMOKE_EXPECT_CHAT === '1';
+
+const PUBLIC_ID = process.env.SMOKE_PUBLIC_ID ?? 'w_demo000001';
+const ORIGIN = process.env.SMOKE_ORIGIN ?? 'http://localhost:4173';
+
+let failures = 0;
+let checks = 0;
+
+function check(label, condition, detail = '') {
+  checks += 1;
+  if (condition) {
+    console.log(`  ok   ${label}`);
+  } else {
+    failures += 1;
+    console.error(`  FAIL ${label}${detail ? ` — ${detail}` : ''}`);
+  }
+}
+
+async function call(path, init) {
+  const response = await fetch(`${base}${path}`, init);
+  const text = await response.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = undefined;
+  }
+  return { status: response.status, json, text, headers: response.headers };
+}
+
+async function main() {
+  console.log(`smoke: ${base}\n`);
+
+  // ── health ────────────────────────────────────────────────────────────────
+  const health = await call('/healthz');
+  check('GET /healthz is 200', health.status === 200, `got ${health.status}`);
+  check('health report names its capabilities', Boolean(health.json?.capabilities));
+  const chatAvailable = health.json?.capabilities?.chat?.available === true;
+  console.log(`  ..   chat available: ${chatAvailable}`);
+  if (!chatAvailable) {
+    console.log(`  ..   reason: ${health.json?.capabilities?.chat?.reason}`);
+  }
+
+  // ── public config ─────────────────────────────────────────────────────────
+  const config = await call(`/v1/widget/config/${PUBLIC_ID}`);
+  check('GET widget config is 200', config.status === 200, `got ${config.status}`);
+  check('config carries the tenant branding', typeof config.json?.companyName === 'string');
+  check(
+    'config never leaks the SunScan slug or an internal tenant id',
+    !config.text.includes('sunscan') && !config.text.includes('t_demo'),
+  );
+
+  const unknown = await call('/v1/widget/config/w_doesnotexist');
+  check('an unknown widget id is 404', unknown.status === 404, `got ${unknown.status}`);
+  check('the error uses the shared envelope', unknown.json?.error?.code === 'not_found');
+
+  // ── session ───────────────────────────────────────────────────────────────
+  const session = await call('/v1/widget/session', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ publicId: PUBLIC_ID, origin: ORIGIN }),
+  });
+  check('POST widget session is 200', session.status === 200, `got ${session.status}`);
+  const token = session.json?.sessionToken;
+  const sessionId = session.json?.sessionId;
+  check('session returns a token', typeof token === 'string' && token.length > 20);
+  check('a new session is not reported as resumed', session.json?.resumed === false);
+
+  const resumed = await call('/v1/widget/session', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ publicId: PUBLIC_ID, origin: ORIGIN, sessionToken: token }),
+  });
+  check('presenting a token back resumes the same session', resumed.json?.sessionId === sessionId);
+
+  const forged = await call('/v1/widget/session', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ publicId: PUBLIC_ID, origin: ORIGIN, sessionToken: `${token}x` }),
+  });
+  check(
+    "a tampered token does not resume anyone else's session",
+    forged.json?.sessionId !== sessionId,
+  );
+
+  // ── authorisation ─────────────────────────────────────────────────────────
+  const unauthed = await call('/v1/chat/stream', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId, clientMessageId: 'c1', text: 'hello' }),
+  });
+  check('chat without a token is 401', unauthed.status === 401, `got ${unauthed.status}`);
+
+  const wrongSession = await call('/v1/chat/stream', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionId: 'sess_someoneelse', clientMessageId: 'c1', text: 'hello' }),
+  });
+  check(
+    'a valid token for a different session is refused',
+    wrongSession.status === 403,
+    `got ${wrongSession.status}`,
+  );
+
+  const tooLong = await call('/v1/chat/stream', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionId, clientMessageId: 'c1', text: 'x'.repeat(4001) }),
+  });
+  check('an over-long message is rejected', tooLong.status === 400, `got ${tooLong.status}`);
+
+  // ── chat ──────────────────────────────────────────────────────────────────
+  const chat = await call('/v1/chat/stream', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      sessionId,
+      clientMessageId: 'c1',
+      text: 'How much could I save with solar?',
+    }),
+  });
+
+  if (!chatAvailable) {
+    check(
+      'chat refuses rather than simulating when unconfigured',
+      chat.status === 403,
+      `expected 403 not_enabled, got ${chat.status}`,
+    );
+    check('the refusal names the missing configuration', chat.json?.error?.code === 'not_enabled');
+    console.log('\n  ..   chat is unconfigured on this deployment; skipping the live turn.');
+  } else {
+    check(
+      'chat streams as SSE',
+      chat.headers.get('content-type')?.includes('text/event-stream') === true,
+    );
+    const events = chat.text
+      .split('\n')
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => {
+        try {
+          return JSON.parse(line.slice(6));
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    check('the stream produced events', events.length > 0);
+    check('the stream starts a message', events[0]?.type === 'message_started');
+    check('the stream ends with done', events.at(-1)?.type === 'done');
+    const text = events
+      .filter((e) => e.type === 'text_delta')
+      .map((e) => e.text)
+      .join('');
+    check('the assistant produced text', text.length > 0);
+    console.log(`  ..   assistant said: ${text.slice(0, 160).replace(/\n/g, ' ')}…`);
+
+    // ── persistence ─────────────────────────────────────────────────────────
+    const conversation = await call('/v1/conversation', {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    check('the conversation is readable afterwards', conversation.status === 200);
+    check(
+      'both halves of the turn were persisted',
+      conversation.json?.turns?.length >= 2,
+      `got ${conversation.json?.turns?.length ?? 0} turns`,
+    );
+    check(
+      "the visitor's message is in the transcript",
+      conversation.json?.turns?.some((t) => t.role === 'user' && t.text.includes('save')),
+    );
+
+    // Idempotency: replaying the same clientMessageId must not duplicate the turn.
+    const before = conversation.json?.turns?.length ?? 0;
+    await call('/v1/chat/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        sessionId,
+        clientMessageId: 'c1',
+        text: 'How much could I save with solar?',
+      }),
+    });
+    const after = await call('/v1/conversation', { headers: { authorization: `Bearer ${token}` } });
+    check(
+      'a retried message does not duplicate the transcript',
+      (after.json?.turns?.length ?? 0) === before + 2,
+      `went from ${before} to ${after.json?.turns?.length}`,
+    );
+  }
+
+  if (expectChat && !chatAvailable) {
+    failures += 1;
+    console.error('\n  FAIL SMOKE_EXPECT_CHAT=1 but the assistant is unconfigured');
+  }
+
+  console.log(`\n${checks - failures}/${checks} checks passed`);
+  // Set the code and fall out of `main`, rather than calling process.exit().
+  //
+  // That distinction was worth 127 exit codes. `fetch` pools keep-alive sockets,
+  // and process.exit() tears the process down while one is still closing. On
+  // Windows libuv then hits `!(handle->flags & UV_HANDLE_CLOSING)` in
+  // win/async.c and aborts -- so a run that printed "17/17 checks passed" still
+  // exited non-zero, which as the last CI step after a deploy reads as a failed
+  // deployment. Letting the loop drain closes the pool in its own time and the
+  // process exits with the code set here.
+  process.exitCode = failures === 0 ? 0 : 1;
+}
+
+main().catch((error) => {
+  console.error(`smoke: could not reach ${base} — ${error.message}`);
+  process.exitCode = 1;
+});

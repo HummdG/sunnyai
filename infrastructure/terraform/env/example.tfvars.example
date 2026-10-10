@@ -1,0 +1,24 @@
+# Copy to `env/<environment>.tfvars` and fill in. Do not commit the copy: it
+# names a real project, and the values differ per environment by definition.
+
+project_id  = "your-gcp-project"
+region      = "europe-west2"
+environment = "staging"
+
+# The exact artifact to run. Name a digest where you can: a tag can be moved
+# under you, and then the same Terraform state describes two different builds.
+api_image = "europe-west2-docker.pkg.dev/your-gcp-project/sunny-staging/sunny-api:0.1.0"
+
+# Every origin that is allowed to open a widget session. The API refuses to boot
+# in production with this empty, so an incomplete list is a loud failure rather
+# than an open door.
+allowed_origins = [
+  "https://staging.example.com",
+]
+
+# Leave 0 to scale to zero. Raise it when the cold start on a visitor's first
+# turn costs more than the idle instance does.
+api_min_instances = 0
+
+# The ceiling that protects the budget.
+api_max_instances = 4

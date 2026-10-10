@@ -1,0 +1,235 @@
+import { appendFile, mkdir, readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
+/**
+ * Persistence, behind an interface.
+ *
+ * The first vertical slice writes newline-delimited JSON to disk. That is a real
+ * store -- conversations survive a restart and can be read back -- but it is not
+ * the production store, and the interface exists so the swap to Firestore is a
+ * new implementation of these two methods rather than a rewrite of the routes.
+ *
+ * Two properties are load-bearing and must survive that swap:
+ *   - appends are idempotent on `clientMessageId`, so a retried request cannot
+ *     double-post a visitor's message into the transcript;
+ *   - every record carries `tenantId`, and reads are scoped by it. A store that
+ *     can return another tenant's transcript is a cross-tenant leak, so the
+ *     scoping belongs in the interface rather than in every caller.
+ */
+
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  text: string;
+  at: string;
+  /** Present on user turns: the client's idempotency key. */
+  clientMessageId?: string;
+  /** Tool calls the assistant made while producing this turn. */
+  tools?: string[];
+  /**
+   * Qualification answers known at the end of this turn, as structured data.
+   *
+   * Recorded here rather than re-derived from the assistant's prose: parsing a
+   * sentence back into an answer is how a resumed session ends up re-asking a
+   * question, or worse, recording the wrong one.
+   */
+  answers?: Record<string, string>;
+}
+
+export interface Conversation {
+  id: string;
+  tenantId: string;
+  sessionId: string;
+  turns: ConversationTurn[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadRecord {
+  id: string;
+  tenantId: string;
+  sessionId: string;
+  conversationId: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  postcode: string | null;
+  summary: string;
+  score: number | null;
+  createdAt: string;
+}
+
+export interface AppendResult {
+  conversation: Conversation;
+  /** False when the turn was already present and nothing was written. */
+  appended: boolean;
+}
+
+export interface Store {
+  readonly kind: string;
+  getConversation(tenantId: string, sessionId: string): Promise<Conversation | null>;
+  appendTurn(tenantId: string, sessionId: string, turn: ConversationTurn): Promise<AppendResult>;
+  saveLead(lead: LeadRecord): Promise<LeadRecord>;
+  listLeads(tenantId: string, limit?: number): Promise<LeadRecord[]>;
+  /** Diagnostics for `/healthz`; must never throw. */
+  health(): Promise<{ ok: boolean; detail: string }>;
+}
+
+export function newId(prefix: string): string {
+  // `crypto.randomUUID` is available on every supported Node. The prefix makes
+  // an id recognisable in a log or a support ticket without a lookup table.
+  return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
+}
+
+/** A store backed by one append-only file per collection, under `dataDir`. */
+export class FileStore implements Store {
+  readonly kind = 'file-jsonl';
+  #dir: string;
+  #conversationCache = new Map<string, Conversation>();
+  #leads: LeadRecord[] = [];
+  #loaded = false;
+
+  constructor(dataDir: string) {
+    this.#dir = dataDir;
+  }
+
+  async #ensure(): Promise<void> {
+    if (this.#loaded) return;
+    await mkdir(this.#dir, { recursive: true });
+    await this.#loadLeads();
+    this.#loaded = true;
+  }
+
+  /**
+   * One file per tenant, with sessions as lines inside it. Partitioning by
+   * tenant rather than by session is what makes the cross-tenant read in
+   * `#readConversations` impossible to get wrong: the file boundary *is* the
+   * tenant boundary.
+   */
+  #conversationFile(tenantId: string): string {
+    // Both ids are constrained by the contract schemas (no slashes, no dots),
+    // so they are safe as path segments; the encode is belt and braces.
+    return join(this.#dir, 'conversations', `${encodeURIComponent(tenantId)}.jsonl`);
+  }
+
+  async getConversation(tenantId: string, sessionId: string): Promise<Conversation | null> {
+    await this.#ensure();
+    const cached = this.#conversationCache.get(`${tenantId}:${sessionId}`);
+    if (cached) return cached;
+    const all = await this.#readConversations(tenantId);
+    const found = all.find((c) => c.sessionId === sessionId) ?? null;
+    if (found) this.#conversationCache.set(`${tenantId}:${sessionId}`, found);
+    return found;
+  }
+
+  async appendTurn(
+    tenantId: string,
+    sessionId: string,
+    turn: ConversationTurn,
+  ): Promise<AppendResult> {
+    await this.#ensure();
+    const existing = await this.getConversation(tenantId, sessionId);
+
+    // Idempotency: a retried POST with the same clientMessageId is a no-op. The
+    // alternative -- trusting the network -- means a flaky connection silently
+    // duplicates the visitor's question in the transcript.
+    if (
+      turn.clientMessageId !== undefined &&
+      existing?.turns.some((t) => t.clientMessageId === turn.clientMessageId)
+    ) {
+      return { conversation: existing, appended: false };
+    }
+
+    const now = new Date().toISOString();
+    const conversation: Conversation = existing
+      ? { ...existing, turns: [...existing.turns, turn], updatedAt: now }
+      : {
+          id: newId('conv'),
+          tenantId,
+          sessionId,
+          turns: [turn],
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    await mkdir(join(this.#dir, 'conversations'), { recursive: true });
+    await appendFile(this.#conversationFile(tenantId), `${JSON.stringify(conversation)}\n`, 'utf8');
+    this.#conversationCache.set(`${tenantId}:${sessionId}`, conversation);
+    return { conversation, appended: true };
+  }
+
+  async saveLead(lead: LeadRecord): Promise<LeadRecord> {
+    await this.#ensure();
+    await mkdir(join(this.#dir, 'leads'), { recursive: true });
+    await appendFile(
+      join(this.#dir, 'leads', `${encodeURIComponent(lead.tenantId)}.jsonl`),
+      `${JSON.stringify(lead)}\n`,
+      'utf8',
+    );
+    this.#leads.push(lead);
+    return lead;
+  }
+
+  async listLeads(tenantId: string, limit = 50): Promise<LeadRecord[]> {
+    await this.#ensure();
+    return this.#leads
+      .filter((l) => l.tenantId === tenantId)
+      .slice(-limit)
+      .reverse();
+  }
+
+  async health(): Promise<{ ok: boolean; detail: string }> {
+    try {
+      await mkdir(this.#dir, { recursive: true });
+      return { ok: true, detail: `writing to ${this.#dir}` };
+    } catch (error) {
+      return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /** The last write wins, so re-reading a file replays it and keeps the tail. */
+  async #readConversations(tenantId: string): Promise<Conversation[]> {
+    const dir = join(this.#dir, 'conversations');
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return [];
+    }
+    const file = `${encodeURIComponent(tenantId)}.jsonl`;
+    if (!names.includes(file)) return [];
+    const raw = await readFile(join(dir, file), 'utf8');
+    const bySession = new Map<string, Conversation>();
+    for (const line of raw.split('\n')) {
+      if (line.trim() === '') continue;
+      try {
+        const parsed = JSON.parse(line) as Conversation;
+        // Defensive: a file written by another tenant id must never be served.
+        if (parsed.tenantId !== tenantId) continue;
+        bySession.set(parsed.sessionId, parsed);
+      } catch {
+        // A truncated final line is what a crash mid-append looks like. Skip it
+        // rather than failing the whole read.
+      }
+    }
+    return [...bySession.values()];
+  }
+
+  async #loadLeads(): Promise<void> {
+    const dir = join(this.#dir, 'leads');
+    try {
+      for (const name of await readdir(dir)) {
+        const raw = await readFile(join(dir, name), 'utf8');
+        for (const line of raw.split('\n')) {
+          if (line.trim() === '') continue;
+          try {
+            this.#leads.push(JSON.parse(line) as LeadRecord);
+          } catch {
+            /* skip a torn line */
+          }
+        }
+      }
+    } catch {
+      /* no leads yet */
+    }
+  }
+}

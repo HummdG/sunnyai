@@ -1,0 +1,157 @@
+# Release checklist
+
+For a human to work through before Sunny is exposed to real visitors. It is
+written to be usable as-is, including the parts that will fail today — several
+items are currently red, and each one says what is red and why.
+
+Nothing in this list substitutes for reading `docs/STATUS.md`, which is where the
+current state actually lives. This is the _procedure_; that is the _position_.
+
+## 0. Do not ship the following, regardless of what else is green
+
+- [ ] **A deployment where chat is unconfigured is not a release.** `GET /healthz`
+      must report `chat.available: true`, with a `surface` and `modelVerified`.
+      An unconfigured deployment refuses rather than simulating, which is
+      correct behaviour and is _not_ a working product.
+- [ ] **No unversioned release.** The work is currently outside version control
+      entirely — see `docs/DECISIONS.md`, D-9. A release cannot be identified,
+      reproduced or rolled back until that is fixed.
+- [ ] **No release while `modelVerified` is false** without a recorded decision,
+      because on the Developer API surface the model identifiers have not been
+      checked against that surface's catalogue (D-8).
+
+## 1. Automated gates (plan §12)
+
+Run `npm run verify` — it chains the first four.
+
+- [ ] `npm run format:check` — Prettier, clean
+- [ ] `npm run lint` — ESLint, type-aware, clean
+- [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
+- [ ] `npm run test` — currently **206 passing across 6 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
+      a network boundary_ - [ ] visual snapshots — Vitest snapshots only; **not** pixel-diffed against
+      the reference artwork in CI
+- [ ] `npm run build` — record both bundle sizes and compare against the last
+      release. Last known: widget **109.4 kB (29.6 kB gzipped)**, lab 65.0 kB
+- [ ] `npm run smoke` — against a **running** deployment - [ ] exits **0**, not 127 (the exit-code bug is fixed; confirm it stays
+      fixed, because a gate that always fails gets deleted, and one that
+      always passes is worse) - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
+      turn is actually exercised instead of skipped
+- [ ] E2E (Playwright) — **absent.** Dependencies not installed. A release
+      without it means the embed path has never been driven by a browser.
+- [ ] Accessibility (axe) — **absent.** The renderer does derive `aria-hidden`
+      vs `role="img"` correctly and never emits a title assistive technology
+      cannot reach, but nothing automatically checks the page around it.
+- [ ] Dependency and security scanning — **written, never executed.** The CI job
+      also greps for credential-shaped strings (`AIza…`, `BEGIN … PRIVATE KEY`,
+      `sk-…`) and fails the build on a hit. Run it at least once before trusting
+      it.
+- [ ] Terraform `fmt -check`, `init -backend=false`, `validate` — **written,
+      never executed**; no `terraform`, `tofu` or `gcloud` binary is installed in
+      the development environment.
+- [ ] Character fidelity re-measured against `sunny.png`:
+      `scripts/compare-reference.py`. Last known: ink 0.4828, cream 0.7412. A
+      regression here is a silent one — nothing else would catch it.
+
+## 2. Credentials and configuration
+
+- [ ] `GEMINI_API_KEY` set in Secret Manager, added **out of band** so it never
+      enters Terraform state:
+      `printf '%s' "$GEMINI_API_KEY" | gcloud secrets versions add … --data-file=-`
+- [ ] `GOOGLE_CLOUD_PROJECT` set — this is what selects the Vertex surface rather
+      than the Developer API, and therefore which model identifiers are valid
+- [ ] Session secret present and not the development default. Production
+      **refuses to boot** on `DEV_SECRET`; that refusal is the feature.
+- [ ] `SUNNY_ALLOWED_ORIGINS` set to an explicit list. Production refuses an
+      empty list rather than defaulting to permissive.
+- [ ] **Decide the escalation model.** `gemini-2.5-pro` is GA and **retires
+      2026-10-20**; the successor is preview-only. This must be decided and
+      tested, not inherited.
+- [ ] Confirm the chosen model ids against the surface **actually in use**. Every
+      id verified in this project came from Vertex AI documentation and none has
+      been checked against the Developer API catalogue.
+
+## 3. Infrastructure
+
+- [ ] State bucket bootstrapped by hand — Terraform cannot create the bucket
+      holding its own state
+- [ ] `terraform init` with explicit `-backend-config`; no backend is committed
+- [ ] `terraform plan` reviewed by a person. The configuration has **never been
+      applied**
+- [ ] `env/<environment>.tfvars` exists and is **not** committed
+- [ ] `deletion_protection` on for production
+- [ ] Terraform service account can read its two secrets and nothing else
+- [ ] **Cloud Run SSE timeouts set explicitly.** Default request timeout is
+      300 s, maximum 3600 s. A long conversation will be cut at the default, and
+      that will look like a broken assistant rather than a timeout.
+- [ ] Confirm no proxy or load balancer buffers the streamed response. ADR-002
+      flags this; it is not something to discover after go-live.
+
+## 4. Behaviour under failure
+
+- [ ] Chat unconfigured → refuses with `not_enabled`, does **not** answer
+      plausibly
+- [ ] Model call fails mid-stream → the visitor sees an error state, not a
+      silent stop. Check this against a revoked key, not a mock.
+- [ ] Tool call the deployment did not declare → dropped, never executed
+- [ ] Lead save fails → the visitor is told, and the conversation is not silently
+      lost
+- [ ] A tampered session token does not resume another session (covered by
+      smoke)
+- [ ] An internal tenant id and the SunScan slug never appear in a public
+      response (covered by smoke)
+- [ ] **Decide Model Armor's failure posture — open or closed.** It is
+      undocumented, so it is currently neither. Silence here is a safety
+      decision made by omission.
+
+## 5. Accessibility and reduced motion
+
+- [ ] `Intensity = Off` still renders a complete, recognisable character
+      (only `idle-still` and `guiding-still` resolve; everything else is `null`,
+      and that is intended)
+- [ ] Every sequence's `reducedMotionFallback` is honoured — a test asserts every
+      one exists, but confirm the fallback is actually _used_, not merely defined
+- [ ] The widget is keyboard-reachable and the conversation is reachable by a
+      screen reader
+- [ ] Colour contrast on the chat surface, not just the character
+
+## 6. Observability
+
+- [ ] Something reads `/healthz` and alerts on it. **Nothing does yet.** Until
+      something does, a dead model key is a silent failure — the deployment looks
+      healthy and refuses every conversation.
+- [ ] Errors are captured somewhere a human will see them
+- [ ] Token usage and cost per conversation are recorded
+- [ ] A dashboard exists for `GET /v1/dashboard/metrics` — the route is not built
+
+## 7. Rollback
+
+- [ ] The previous image tag is known and pinned
+- [ ] Rollback is **one step** and has been rehearsed. Note that `ignore_changes`
+      on the container image means Terraform will not roll the image back for
+      you — CI owns the tag (D-9 and the Terraform README).
+- [ ] Session invalidation on rollback is understood: rotating the session secret
+      signs everyone out, which is the correct response to a bad release and the
+      wrong response to a cosmetic one.
+- [ ] Lead data written by a bad release is recoverable — it is currently a file
+      store, so "rollback" includes "what happened to the file".
+
+## 8. Known scope gaps to state plainly, not to discover
+
+- [ ] **4 of the plan's 14 API routes exist.** Qualification, catalogue,
+      recommendations, assessments, dashboard metrics, knowledge ingestion,
+      Drive integration and billing are **not implemented**. Do not describe the
+      product as having them.
+- [ ] **There is no SunScan integration.** No SunScan endpoint has ever been
+      called from this code. `packages/sunscan-adapter` is a stub, and SunScan
+      has no unified error envelope, so the adapter must translate per route.
+- [ ] **SunScan has no finance/APR calculators and no grants logic.** A tool
+      named `calculate_approved_estimate` has nothing to call. Either build it or
+      remove the promise.
+- [ ] The dashboard and marketing apps do not exist.
+- [ ] Animation runs at **30 FPS**, not the plan's ~60 (D-7). Re-measure on a
+      real mid-range device before launch.
+- [ ] Multi-tenant retrieval isolation rests on a **Preview** ACL feature with no
+      documented absolute guarantee (ADR-004).
+- [ ] Deploying a TypeScript ADK agent to Agent Runtime is **undocumented**
+      (ADR-003).
+- [ ] Firebase App Check caps at **250 domains**, which bounds tenant scale.

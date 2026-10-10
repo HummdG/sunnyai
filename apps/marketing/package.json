@@ -1,0 +1,16 @@
+{
+  "name": "@sunny/marketing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sunny.ai public marketing site",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@sunny/animation-engine": "*",
+    "@sunny/character": "*",
+    "@sunny/ui": "*"
+  }
+}

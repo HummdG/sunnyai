@@ -1,0 +1,20 @@
+{
+  "name": "@sunny/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sunny.ai Cloud Run API: widget sessions, chat streaming, tenancy",
+  "type": "module",
+  "main": "./src/server.ts",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.28.0",
+    "@sunny/contracts": "*",
+    "fastify": "^5.12.5"
+  }
+}

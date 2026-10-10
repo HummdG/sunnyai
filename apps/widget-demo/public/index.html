@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Northwind Solar — the widget demo</title>
+    <meta
+      name="description"
+      content="A stand-in for a customer's page, used to exercise the Sunny widget end to end."
+    />
+    <style>
+      :root {
+        --brand: #1d4ed8;
+        --ink: #171717;
+        --muted: #6b7280;
+        --paper: #ffffff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          16px/1.6 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      header {
+        padding: 18px 24px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        position: sticky;
+        top: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        z-index: 10;
+      }
+      header strong {
+        font-size: 18px;
+      }
+      nav {
+        margin-left: auto;
+        display: flex;
+        gap: 18px;
+        font-size: 14px;
+      }
+      nav a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav a:hover {
+        color: var(--ink);
+      }
+
+      main {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 40px 24px 120px;
+      }
+      h1 {
+        font-size: clamp(28px, 5vw, 44px);
+        line-height: 1.15;
+        margin: 0 0 16px;
+      }
+      h2 {
+        font-size: 22px;
+        margin: 48px 0 12px;
+      }
+      .lede {
+        font-size: 19px;
+        color: var(--muted);
+        max-width: 62ch;
+      }
+      .grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        margin-top: 20px;
+      }
+      .card {
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 20px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14.5px;
+      }
+      .cta {
+        display: inline-block;
+        margin-top: 24px;
+        background: var(--brand);
+        color: #fff;
+        padding: 13px 22px;
+        border-radius: 11px;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      form {
+        display: grid;
+        gap: 12px;
+        max-width: 460px;
+        margin-top: 16px;
+      }
+      label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      input,
+      textarea {
+        font: inherit;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        width: 100%;
+      }
+      footer {
+        border-top: 1px solid #e5e7eb;
+        padding: 28px 24px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      /* The widget ships its own styles inside a shadow root; the host page's
+         only involvement is this marker, which is how a landmark is named. */
+      [data-sunny-highlight] {
+        outline: 3px solid #ff7900;
+        outline-offset: 4px;
+        border-radius: 8px;
+        transition: outline-color 200ms ease;
+      }
+
+      .setup {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 18px;
+        margin-top: 20px;
+      }
+      .setup pre {
+        margin: 10px 0 0;
+        overflow-x: auto;
+        font-size: 13px;
+        background: #111827;
+        color: #e5e7eb;
+        padding: 14px;
+        border-radius: 9px;
+      }
+      .note {
+        font-size: 13.5px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      #api-status {
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Northwind Solar</strong>
+      <nav>
+        <a href="#pricing">Pricing</a>
+        <a href="#case-studies">Case studies</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>Solar that pays for itself, on your roof.</h1>
+      <p class="lede">
+        This is a stand-in for one of our installers' sites. It exists so the Sunny widget can be exercised exactly as
+        it will be in production: same embed snippet, same shadow DOM, same page landmarks, same cross-origin API calls.
+      </p>
+
+      <a class="cta" href="#contact">Get a quote</a>
+
+      <h2>Why homeowners choose us</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Surveyed, not guessed</h3>
+          <p>Every quote is based on your actual roof, not a postcode average.</p>
+        </div>
+        <div class="card">
+          <h3>MCS certified</h3>
+          <p>Installed by accredited engineers, warrantied for 25 years.</p>
+        </div>
+        <div class="card">
+          <h3>Honest about payback</h3>
+          <p>If the numbers do not work for your roof, we will tell you.</p>
+        </div>
+      </div>
+
+      <h2>An installer's own copy, not ours</h2>
+      <p>
+        The widget pulls its name, colour and greeting from the API, so the same bundle serves every installer. Nothing
+        about the tenant — its slug, its internal id — is in this page's source.
+      </p>
+      <div class="setup">
+        <strong>How this page loads it</strong>
+        <pre>
+&lt;script
+  src="http://localhost:4173/sunny-widget.js"
+  data-widget-id="w_demo000001"
+  data-api-url="http://localhost:8787"
+  async&gt;
+&lt;/script&gt;</pre>
+        <p class="note">API reachable: <span id="api-status">checking…</span></p>
+      </div>
+
+      <h2 id="pricing">Pricing</h2>
+      <p>
+        Sunny can point at this section. Ask it what a system costs and it will highlight the relevant part of the page
+        rather than describing where to look.
+      </p>
+
+      <h2 id="case-studies">Case studies</h2>
+      <p>
+        A four-bedroom semi in Leeds, 12 panels, south-facing: 3.9 kWp and an eight-year payback on our own modelling.
+        Ask Sunny how your roof compares.
+      </p>
+
+      <h2 id="contact">Get a quote</h2>
+      <form
+        id="quote-form"
+        data-sunny-landmark="quote-form"
+        onsubmit="
+          event.preventDefault();
+          alert('Demo form.');
+        "
+      >
+        <div>
+          <label for="name">Name</label>
+          <input id="name" name="name" autocomplete="name" />
+        </div>
+        <div>
+          <label for="postcode">Postcode</label>
+          <input id="postcode" name="postcode" autocomplete="postal-code" />
+        </div>
+        <div>
+          <label for="notes">Anything we should know?</label>
+          <textarea id="notes" name="notes" rows="3"></textarea>
+        </div>
+        <button class="cta" type="submit" style="border: 0; cursor: pointer">Request a survey</button>
+      </form>
+    </main>
+
+    <footer>A demonstration page for Sunny. Not a real installer.</footer>
+
+    <!--
+      The embed snippet, exactly as a customer would paste it. Two attributes and
+      a script tag; no build step, no framework, no global configuration object.
+    -->
+    <script src="/sunny-widget.js" data-widget-id="w_demo000001" data-api-url="http://localhost:8787" async></script>
+    <script>
+      // Purely for the demo's own status line: it tells whoever is looking at
+      // this page whether the API behind the widget is actually up.
+      fetch('http://localhost:8787/healthz')
+        .then((r) => r.json())
+        .then((h) => {
+          const chat = h?.capabilities?.chat;
+          document.getElementById('api-status').textContent = chat?.available
+            ? `yes — chat live on ${chat.model}`
+            : `no — the assistant is unconfigured (${chat?.reason ?? 'unknown'})`;
+        })
+        .catch(() => {
+          document.getElementById('api-status').textContent = 'no — the API is not running';
+        });
+    </script>
+  </body>
+</html>

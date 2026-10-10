@@ -1,0 +1,33 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+.cache/
+coverage/
+test-results/
+playwright-report/
+*.log
+.env
+.env.local
+.env.*.local
+.venv/
+__pycache__/
+*.pyc
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+
+# Local secret material — never commit
+*.pem
+*.key
+service-account*.json
+credentials.json
+
+# Character render output
+packages/character/out/

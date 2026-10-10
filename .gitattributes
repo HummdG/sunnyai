@@ -1,0 +1,3 @@
+# Normalise line endings: store LF in the repository, check out LF.
+# Git detects binary files automatically and leaves them untouched.
+* text=auto eol=lf

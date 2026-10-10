@@ -1,0 +1,19 @@
+{
+  "name": "@sunny/widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The embeddable Sunny widget: one async script, Shadow DOM isolated",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@sunny/animation-engine": "*",
+    "@sunny/character": "*",
+    "@sunny/contracts": "*"
+  }
+}

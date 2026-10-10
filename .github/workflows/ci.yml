@@ -1,0 +1,128 @@
+name: CI
+
+# The checks in plan §12, in the order that fails fastest and cheapest first.
+# Nothing here needs a Google credential: a CI run that requires a live model key
+# is a CI run that cannot gate a pull request, so the model path is covered by
+# the scripted provider and the live path is covered by `npm run smoke`, which a
+# human runs against a real deployment.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A new push to the same branch makes the previous run's result irrelevant.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit, contract and integration tests
+        run: npm run test
+
+      - name: Build the widget bundle
+        run: npm run build
+
+      # The bundle has a size budget enforced inside its own build script, but a
+      # visitor on a slow connection feels every kilobyte, so the number is
+      # printed on every run to make a slow creep visible in the log.
+      - name: Report bundle size
+        run: |
+          set -euo pipefail
+          raw=$(wc -c < packages/widget/dist/sunny-widget.js)
+          gz=$(gzip -9 -c packages/widget/dist/sunny-widget.js | wc -c)
+          echo "widget bundle: ${raw} bytes raw, ${gz} bytes gzipped"
+          {
+            echo "### Widget bundle"
+            echo ""
+            echo "| raw | gzipped |"
+            echo "|---|---|"
+            echo "| ${raw} B | ${gz} B |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Job permissions are the default (read). The API needs no cloud credentials
+  # to be typechecked, linted or tested, and this job is deliberately not given
+  # an identity that could deploy anything.
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+        working-directory: infrastructure/terraform
+
+      # `validate` needs `init -backend=false`: the real backend is a GCS bucket
+      # in the project being deployed to, which CI has no access to and should
+      # not need. Nothing is planned or applied here.
+      - name: Init without a backend
+        run: terraform init -backend=false -input=false
+        working-directory: infrastructure/terraform
+
+      - name: Validate
+        run: terraform validate -no-color
+        working-directory: infrastructure/terraform
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # `--audit-level=high` rather than the default: a moderate advisory in a
+      # dev-only dependency should not block a release, but a high one should.
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      # A committed credential is the one failure that cannot be fixed by a
+      # later commit, so it is checked on every push rather than on a schedule.
+      - name: No committed secrets
+        run: |
+          set -euo pipefail
+          if git grep -nEI '(AIza[0-9A-Za-z_-]{35}|-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9]{20,})' -- \
+              ':!package-lock.json' ':!docs/**' ':!**/*.md'; then
+            echo "::error::A credential-looking string is committed. Rotate it and remove it from history."
+            exit 1
+          fi
+          echo "No credential-looking strings found."

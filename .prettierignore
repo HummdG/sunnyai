@@ -1,0 +1,21 @@
+node_modules
+dist
+out
+coverage
+.data
+.data-*
+
+# Snapshots are generated and their exact bytes are the assertion. Formatting
+# them would rewrite the expectation rather than the code.
+**/__snapshots__/**
+
+# The reference artwork and any image the docs embed.
+*.png
+*.jpg
+*.svg
+package-lock.json
+*.min.js
+*.min.css
+apps/character-lab/public/lab.js
+apps/character-lab/public/lab.js.map
+packages/widget/dist

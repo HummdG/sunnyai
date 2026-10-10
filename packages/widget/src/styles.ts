@@ -1,0 +1,201 @@
+/**
+ * The widget's stylesheet, as a string.
+ *
+ * Inlined into a `<style>` inside the shadow root rather than shipped as a
+ * separate file: the widget is embedded on other people's sites, and a second
+ * network request is a second thing that can fail or be blocked. It also means
+ * the bundle is genuinely one file, which is the promise the embed snippet makes.
+ *
+ * Every selector is scoped by the shadow boundary, so nothing here can reach the
+ * host page and nothing on the host page can reach in. The one thing that does
+ * cross is a CSS custom property, which is deliberate: it is the supported way
+ * for a host to theme the widget.
+ */
+export function styles(): string {
+  return `
+:host {
+  --sunny-orange: #FF7900;
+  --sunny-orange-deep: #FF6500;
+  --sunny-orange-soft: #FFB066;
+  --sunny-pale: #FFF1E5;
+  --sunny-warm-white: #FFFCF8;
+  --sunny-ink: #171717;
+  --sunny-muted: #727272;
+  --sunny-radius: 18px;
+  --sunny-shadow: 0 12px 32px rgba(23, 23, 23, 0.18);
+
+  /* The host may override the accent, and only the accent. */
+  --sunny-accent: var(--sunny-primary-color, var(--sunny-orange));
+
+  all: initial;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--sunny-ink);
+  position: fixed;
+  z-index: 2147483000;
+  inset: auto 20px 20px auto;
+  display: block;
+  line-height: 1.45;
+}
+
+:host([data-position="bottom-left"]) { inset: auto auto 20px 20px; }
+:host([data-position="top-right"]) { inset: 20px 20px auto auto; }
+:host([data-position="top-left"]) { inset: 20px auto auto 20px; }
+
+* { box-sizing: border-box; }
+
+.sunny-root { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
+:host([data-position="bottom-left"]) .sunny-root,
+:host([data-position="top-left"]) .sunny-root { align-items: flex-start; }
+
+/* ── the launcher ───────────────────────────────────────────────────────── */
+
+.launcher {
+  width: 72px; height: 72px; border: 0; padding: 0; cursor: pointer;
+  border-radius: 50%; background: transparent;
+  transition: transform 180ms cubic-bezier(.2,.9,.3,1.2);
+  /* Blocked until we know whether to animate; without this the character
+     flashes at its base pose before the first frame lands. */
+  visibility: hidden;
+}
+.launcher.ready { visibility: visible; }
+.launcher:hover { transform: scale(1.06); }
+.launcher:focus-visible { outline: 3px solid var(--sunny-accent); outline-offset: 4px; }
+.launcher svg { width: 100%; height: 100%; display: block; }
+
+.launcher .badge {
+  position: absolute; top: 2px; right: 2px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--sunny-accent);
+  border: 2px solid var(--sunny-warm-white);
+}
+
+/* ── the panel ──────────────────────────────────────────────────────────── */
+
+.panel {
+  width: min(384px, calc(100vw - 40px));
+  height: min(560px, calc(100vh - 140px));
+  background: var(--sunny-warm-white);
+  border-radius: var(--sunny-radius);
+  box-shadow: var(--sunny-shadow);
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid rgba(23, 23, 23, 0.08);
+  transform-origin: bottom right;
+}
+:host([data-position="bottom-left"]) .panel { transform-origin: bottom left; }
+:host([data-position="top-right"]) .panel { transform-origin: top right; }
+:host([data-position="top-left"]) .panel { transform-origin: top left; }
+
+/* The opening animation is a scale from the launcher with a brief overshoot.
+   The character's own compression plays inside it; the two are deliberately
+   short (240 ms here, 420 ms in the rig) so the pair lands under 650 ms. */
+.panel.opening { animation: sunny-open 240ms cubic-bezier(.2,.9,.3,1.15) both; }
+.panel.closing { animation: sunny-open 160ms ease-in reverse both; }
+@keyframes sunny-open {
+  from { opacity: 0; transform: scale(.72) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.panel[hidden] { display: none; }
+
+.header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; background: var(--sunny-pale);
+  border-bottom: 1px solid rgba(23,23,23,.07); flex: 0 0 auto;
+}
+.header .avatar { width: 38px; height: 38px; flex: 0 0 38px; }
+.header .titles { flex: 1 1 auto; min-width: 0; }
+.header .name { font-weight: 650; font-size: 14px; }
+.header .tagline { font-size: 12px; color: var(--sunny-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header button {
+  border: 0; background: transparent; cursor: pointer; color: var(--sunny-muted);
+  width: 30px; height: 30px; border-radius: 8px; font-size: 17px; line-height: 1;
+}
+.header button:hover { background: rgba(23,23,23,.06); color: var(--sunny-ink); }
+.header button:focus-visible { outline: 2px solid var(--sunny-accent); }
+
+/* ── the transcript ─────────────────────────────────────────────────────── */
+
+.log {
+  flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain;
+  padding: 16px 14px; display: flex; flex-direction: column; gap: 10px;
+  scrollbar-width: thin;
+}
+.log:focus-visible { outline: 2px solid var(--sunny-accent); outline-offset: -4px; }
+
+.turn { max-width: 86%; padding: 9px 12px; border-radius: 14px; font-size: 14px;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.turn.user { align-self: flex-end; background: var(--sunny-accent); color: #fff;
+  border-bottom-right-radius: 5px; }
+.turn.assistant { align-self: flex-start; background: #fff;
+  border: 1px solid rgba(23,23,23,.08); border-bottom-left-radius: 5px; }
+.turn.system { align-self: center; font-size: 12.5px; color: var(--sunny-muted);
+  background: transparent; text-align: center; max-width: 100%; }
+.turn.error { align-self: stretch; max-width: 100%; font-size: 13px;
+  color: #8a1c1c; background: #fff2f0; border: 1px solid #ffd9d2; }
+
+.typing { display: inline-flex; gap: 3px; align-items: center; height: 1em; }
+.typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--sunny-muted);
+  animation: sunny-typing 1.1s infinite ease-in-out; display: block; }
+.typing i:nth-child(2) { animation-delay: .16s; }
+.typing i:nth-child(3) { animation-delay: .32s; }
+@keyframes sunny-typing { 0%,60%,100% { opacity:.3; transform: translateY(0); }
+  30% { opacity:1; transform: translateY(-3px); } }
+
+/* ── suggestions and composer ───────────────────────────────────────────── */
+
+.suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
+.suggestions button {
+  font: inherit; font-size: 12.5px; cursor: pointer;
+  border: 1px solid var(--sunny-orange-soft); background: var(--sunny-pale);
+  color: var(--sunny-orange-deep); border-radius: 999px; padding: 5px 11px;
+}
+.suggestions button:hover { background: var(--sunny-orange-soft); color: #fff; }
+.suggestions button:focus-visible { outline: 2px solid var(--sunny-accent); }
+
+.composer { display: flex; gap: 8px; padding: 10px 12px 12px;
+  border-top: 1px solid rgba(23,23,23,.07); background: var(--sunny-warm-white); }
+.composer textarea {
+  flex: 1 1 auto; resize: none; font: inherit; font-size: 14px;
+  border: 1px solid rgba(23,23,23,.16); border-radius: 12px;
+  padding: 9px 11px; max-height: 108px; background: #fff; color: inherit;
+}
+.composer textarea:focus { outline: 2px solid var(--sunny-accent); outline-offset: -1px;
+  border-color: transparent; }
+.composer button {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; border: 0;
+  background: var(--sunny-accent); color: #fff; cursor: pointer; font-size: 16px;
+  align-self: flex-end;
+}
+.composer button:disabled { opacity: .45; cursor: not-allowed; }
+.composer button:focus-visible { outline: 2px solid var(--sunny-ink); outline-offset: 2px; }
+
+.footnote { font-size: 11px; color: var(--sunny-muted); text-align: center;
+  padding: 0 12px 10px; background: var(--sunny-warm-white); }
+.footnote a { color: inherit; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Page actions get a transient outline on the host element the assistant
+   pointed at. Applied by the widget adding an attribute, styled by the host's
+   own stylesheet if it wants to; this is the fallback. */
+@media (prefers-reduced-motion: reduce) {
+  .launcher, .panel, .panel.opening, .panel.closing { animation: none !important;
+    transition: none !important; }
+  .typing i { animation: none; opacity: .6; }
+}
+
+@media (max-width: 420px) {
+  :host { inset: auto 12px 12px auto; }
+  .panel { width: calc(100vw - 24px); height: min(70vh, 520px); }
+  .launcher { width: 60px; height: 60px; }
+}
+`;
+}
+
+/** Styles for the highlight the widget applies to a host-page element. */
+export function pageActionStyleAttribute(): string {
+  return 'data-sunny-highlight';
+}

@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noEmit": true,
+    "paths": {
+      "@sunny/contracts": ["./packages/contracts/src/index.ts"],
+      "@sunny/character": ["./packages/character/src/index.ts"],
+      "@sunny/animation-engine": ["./packages/animation-engine/src/index.ts"],
+      "@sunny/ui": ["./packages/ui/src/index.ts"],
+      "@sunny/solar-rules": ["./packages/solar-rules/src/index.ts"],
+      "@sunny/sunscan-adapter": ["./packages/sunscan-adapter/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "packages/*/scripts/**/*.ts",
+    "apps/*/src/**/*.ts",
+    "apps/*/test/**/*.ts",
+    "apps/*/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}

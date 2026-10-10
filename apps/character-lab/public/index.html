@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sunny — animation lab</title>
+    <style>
+      :root {
+        --ink: #171717;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --paper: #ffffff;
+        --panel: #fafafa;
+        --orange: #ff7900;
+        --zoom: 1;
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px clamp(16px, 4vw, 48px) 64px;
+        font:
+          15px/1.55 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 40px 0 12px;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 0 0 8px;
+        max-width: 78ch;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+      }
+
+      .stage-wrap {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: minmax(240px, 340px) 1fr;
+        align-items: start;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px;
+        background: var(--panel);
+      }
+      @media (max-width: 760px) {
+        .stage-wrap {
+          grid-template-columns: 1fr;
+        }
+      }
+      #stage {
+        display: grid;
+        justify-items: center;
+        gap: 10px;
+      }
+      #stage svg {
+        width: calc(260px * var(--zoom));
+        height: auto;
+      }
+      .stage-label {
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .controls {
+        display: grid;
+        gap: 14px;
+      }
+      .field {
+        display: grid;
+        gap: 5px;
+      }
+      .field-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+      }
+      .controls input[type='range'],
+      .scrubber input[type='range'] {
+        width: 100%;
+        accent-color: var(--orange);
+      }
+      select,
+      input[type='range'] {
+        font: inherit;
+      }
+      select {
+        padding: 7px 9px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #fff;
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .btn {
+        font: inherit;
+        font-weight: 600;
+        padding: 9px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        cursor: pointer;
+      }
+      .btn:hover {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+      }
+      .btn.small {
+        padding: 6px 10px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .btn.ghost {
+        border-style: dashed;
+        color: var(--muted);
+      }
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .scrubber {
+        display: grid;
+        gap: 14px;
+      }
+      .scrub-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .event-log {
+        min-height: 20px;
+        color: var(--orange);
+        font-family: ui-monospace, monospace;
+        font-size: 12.5px;
+      }
+
+      #grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+      }
+      .card {
+        display: grid;
+        gap: 8px;
+        justify-items: center;
+        padding: 14px 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+        cursor: pointer;
+        font: inherit;
+        text-align: center;
+      }
+      .card:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+      }
+      .card-art {
+        display: grid;
+        place-items: center;
+      }
+      .card-art svg {
+        width: calc(112px * var(--zoom));
+        height: auto;
+      }
+      .card-art.ineligible {
+        opacity: 0.28;
+      }
+      .card-art.has-props::after {
+        content: 'props';
+        display: block;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--orange);
+      }
+      .card-id {
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+      .card-note {
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+
+      #theme-swatch {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .swatch {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .swatch-chip {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        border: 1px solid rgb(0 0 0 / 10%);
+      }
+
+      .note {
+        border-left: 3px solid var(--orange);
+        padding: 2px 0 2px 14px;
+        color: var(--muted);
+        max-width: 82ch;
+        margin-top: 22px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sunny — animation lab</h1>
+    <p class="lede">
+      Every sequence in the build, driven by the real engine. This page exists to answer the one question a unit test
+      cannot: does the character still look like the reference artwork when it moves? What is on screen here is the same
+      <span class="mono">frame(t)</span> call the widget makes, so nothing here is a re-implementation.
+    </p>
+
+    <h2>The character</h2>
+    <div class="stage-wrap">
+      <div id="stage"></div>
+      <div id="controls"></div>
+    </div>
+
+    <h2>Flagship moments</h2>
+    <div id="flagships"></div>
+    <p class="lede" style="margin-top: 10px">
+      Each button asks the scheduler for a <em>moment</em>, not a variant, and the tenant's intensity setting picks the
+      strength. That is what stops an intensity setting from silently deleting a behaviour.
+    </p>
+
+    <h2>Scrub a sequence</h2>
+    <div id="scrubber"></div>
+
+    <h2>Every sequence</h2>
+    <div id="grid"></div>
+    <p class="note">
+      Greyed cards are sequences above the currently selected intensity. They are dimmed rather than hidden so that an
+      intensity can never quietly remove a behaviour from the build without someone noticing here.
+    </p>
+
+    <h2>Theme</h2>
+    <div id="theme-swatch"></div>
+    <p class="note">
+      The ink and highlight are deliberately constant across presets: a tenant may choose the body colour, but the face
+      has to stay legible on whatever they choose.
+    </p>
+
+    <script src="/lab.js"></script>
+  </body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "name": "sunny-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sunny.ai \u00e2\u20ac\u201d multi-tenant AI assistant platform for solar installers",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "npm run build:widget && npm run build:lab",
+    "build:widget": "node packages/widget/scripts/build.mjs",
+    "build:lab": "node apps/character-lab/scripts/build.mjs",
+    "dev:api": "tsx watch apps/api/src/main.ts",
+    "dev:widget-demo": "tsx apps/widget-demo/serve.ts",
+    "dev:lab": "tsx apps/character-lab/serve.ts",
+    "dev:marketing": "npm run dev -w @sunny/marketing",
+    "smoke": "node scripts/smoke-api.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "render:samples": "npm run render -w @sunny/character"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
+  }
+}
