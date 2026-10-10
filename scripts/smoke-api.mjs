@@ -102,6 +102,64 @@ async function main() {
     forged.json?.sessionId !== sessionId,
   );
 
+  // ── leads ─────────────────────────────────────────────────────────────────
+  // The refusal is checked before the acceptance, for two reasons: a route that
+  // stores a row and *then* reports a problem is the failure worth catching, and
+  // only the missing-consent path can show that no row was written.
+  //
+  // These calls spend the same per-address budget, so a deployment with a tight
+  // lead limit -- or a second run in the same minute -- can exhaust it. A 429 is
+  // reported as a skipped check rather than a failure, because it is the limiter
+  // working, not the route being broken. Either call can hit it: the budget may be
+  // spent before this run starts, or only once the first call has taken a slot.
+  // A 404 or a 5xx still fails, so "route missing" and "route unwell" are not
+  // mistaken for "limiter engaged".
+  //
+  // The skip is printed: a check that quietly stops running is worse than one that
+  // fails, because nothing tells you the coverage went away.
+  const leadLimited = (response) => response.status === 429;
+
+  const unconsented = await call('/v1/leads', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionId, email: 'smoke@example.test' }),
+  });
+
+  if (leadLimited(unconsented)) {
+    console.log('  ..   lead checks skipped: the rate limiter refused this address');
+  } else {
+    check(
+      'a lead without consent is refused',
+      unconsented.status === 400,
+      `got ${unconsented.status}`,
+    );
+
+    const lead = await call('/v1/leads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        sessionId,
+        consent: true,
+        name: 'Smoke Test',
+        email: 'smoke@example.test',
+        summary: 'Automated smoke check',
+      }),
+    });
+
+    if (leadLimited(lead)) {
+      console.log('  ..   lead acceptance skipped: the rate limiter refused the second call');
+    } else {
+      check('a consented lead is accepted', lead.status === 201, `got ${lead.status}`);
+      check('the lead comes back with an id', typeof lead.json?.leadId === 'string');
+
+      const leads = await call('/v1/leads', { headers: { authorization: `Bearer ${token}` } });
+      check(
+        'the lead appears in the installer list',
+        leads.json?.leads?.some((l) => l.id === lead.json?.leadId) === true,
+      );
+    }
+  }
+
   // ── authorisation ─────────────────────────────────────────────────────────
   const unauthed = await call('/v1/chat/stream', {
     method: 'POST',

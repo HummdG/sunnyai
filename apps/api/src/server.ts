@@ -2,6 +2,7 @@ import {
   ApiError,
   badRequestFromZod,
   chatRequestSchema,
+  leadRequestSchema,
   publicWidgetIdSchema,
   sessionRequestSchema,
   STATUS_FOR_CODE,
@@ -363,7 +364,65 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     };
   });
 
-  // ─── leads (installer-facing; the dashboard will authenticate this) ────────
+  // ─── leads ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Lead creation from a host page, as opposed to `create_lead` inside a turn.
+   *
+   * The consent rule is the same one the tool enforces, and for the same reason:
+   * it is the visitor's agreement that makes holding the record legitimate, so it
+   * is checked here rather than assumed from the shape of a form.
+   */
+  app.post('/v1/leads', async (request, reply) => {
+    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
+    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
+
+    // Limited per address like session creation: this is an unauthenticated-looking
+    // endpoint (the token is anonymous) that writes durable rows, which is exactly
+    // what a spam script looks for.
+    enforceRateLimit(
+      request,
+      reply,
+      'leads',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.leads,
+    );
+
+    const body = leadRequestSchema.safeParse(request.body);
+    if (!body.success) throw badRequestFromZod(body.error);
+    if (body.data.sessionId !== claims.sessionId) {
+      throw new ApiError('forbidden', 'That session token is for a different session.');
+    }
+
+    const tenant = tenants.all.find((t) => t.id === claims.tenantId);
+    if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
+
+    const existing = await store.getConversation(claims.tenantId, claims.sessionId);
+    const lead = await store.saveLead({
+      id: newId('lead'),
+      // From the verified token, never from the request body: a caller who could
+      // name the tenant could file a lead against another installer.
+      tenantId: claims.tenantId,
+      sessionId: claims.sessionId,
+      conversationId: existing?.id ?? null,
+      name: body.data.name ?? null,
+      email: body.data.email ?? null,
+      phone: body.data.phone ?? null,
+      postcode: body.data.postcode ?? null,
+      summary: body.data.summary ?? 'Enquiry from the website assistant',
+      // No score. Producing one would mean inventing a qualification model, and a
+      // number the installer cannot interpret is worse than a blank.
+      score: null,
+      createdAt: new Date(now()).toISOString(),
+    });
+
+    reply.code(201);
+    return { leadId: lead.id, createdAt: lead.createdAt };
+  });
 
   app.get('/v1/leads', async (request) => {
     const claims = verifySessionToken(bearer(request), config.sessionSecret, now());

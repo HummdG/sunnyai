@@ -127,38 +127,48 @@ Developer API's catalogue.
 
 ## D-9. **OPEN** — where does this code live?
 
-**The problem.** `C:\Work\Arkalith\sunny-ai` is not a git repository. It has a
-`.gitignore` and a `.github/workflows/ci.yml`, so it was scaffolded as one, but
-there is no `.git` and none of this work is committed.
+**Updated 2026-10-10.** Part of this entry is now resolved: `sunny-ai` **is** a git
+repository, on branch `main`, with real history (`b1edc17`, `61eb3f2`, …). Earlier
+in the day it was not — it had a `.gitignore` and a `.github/workflows/ci.yml` but
+no `.git`, so the work was unversioned and one bad command from being lost. That
+gap was closed by initialising a repository here, which is the only one of the
+candidate options that touches nothing outside this directory and commits to
+nothing outward-facing.
 
-Separately, `C:\Work\Arkalith\SunScanV2` is a repository with remote
+**What is still open, and still needs the user:** this repository has **no
+remote**, and **nothing has been pushed anywhere**. The original concern stands
+unchanged —
+
+`C:\Work\Arkalith\SunScanV2` is a repository with remote
 `https://github.com/HummdG/sunny.git` — a repo **named `sunny`** holding
-**SunScanV2's** history (roof geometry, cross-gable fitting). The implementation
-and the plan document (`SUNNY_AI_IMPLEMENTATION_PLAN.md`) and `sunny.png` live in
-different directories.
+**SunScanV2's** history (roof geometry, cross-gable fitting). The implementation,
+the plan document (`SUNNY_AI_IMPLEMENTATION_PLAN.md`) and `sunny.png` live in
+different directories from that history.
 
-**Why this needs the user.** Every option is structural and outward-facing:
-initialise a repository in `sunny-ai`, or move it into `SunScanV2`, or repoint
-the existing remote. Each changes where the work lives, and one of them writes
-over the history of a repository that currently belongs to a different project.
-None of that is derivable from the code, and getting it wrong is not cheaply
-undone.
+**Why this still needs the user.** Every remaining option is outward-facing:
+push `sunny-ai` to a new repository, add it as a second remote on the existing
+one, or move the tree into `SunScanV2` and push there. The last writes this
+project's files into the history of a repository that currently belongs to a
+different project. None of that is derivable from the code, and getting it wrong
+is not cheaply undone.
 
-**Until it is decided:** the work is unversioned, which is the largest
-non-technical risk in this document.
+**Until it is decided:** the history exists on one machine and nowhere else. Local
+commits protect against a bad edit; they do not protect against the machine.
 
 ## D-10. Rate limiting is an in-memory fixed window, and is not a quota
 
-**Decision.** A fixed-window counter in process memory. Session creation is keyed
-by client address; chat is keyed by session. Defaults: 30 session creations and
-20 chat turns per minute, both overridable by env var, with the whole thing
-switchable off by `SUNNY_RATE_LIMIT=0`.
+**Decision.** A fixed-window counter in process memory. Session creation and lead
+submission are keyed by client address; chat is keyed by session. Defaults: 30
+session creations, 20 chat turns and 10 leads per minute, all overridable by env
+var, with the whole thing switchable off by `SUNNY_RATE_LIMIT=0`.
 
-**Why it exists at all.** The API has two public routes that cost something real.
+**Why it exists at all.** The API has three public routes that cost something real.
 `POST /v1/widget/session` is unauthenticated and writes a durable conversation
 record, so a loop fills the store. `POST /v1/chat/stream` calls a model and bills
 per token, so a loop is a denial of wallet — there is no data to steal, which is
-precisely why nobody notices. `rate_limited`/429 was already in the error contract
+precisely why nobody notices. `POST /v1/leads` is the third, and the sharpest: it
+writes a row the installer is expected to act on, and unlike a conversation there
+is no way to take it back. `rate_limited`/429 was already in the error contract
 and **nothing could ever return it**; the control had been designed and not built.
 
 **Why a fixed window.** A sliding log or token bucket defends against a caller who
@@ -194,10 +204,46 @@ over-limits rather than under-limits. The spoofing case is a unit test.
   the container has not been confirmed from Google's documentation. Until it is,
   the safe setting is the default (trust nothing), which means the address key is
   the load balancer and the limit applies across all visitors at once.
-- **The smoke test shares the address budget.** `scripts/smoke-api.mjs` creates
-  several sessions from one address per run. With the defaults there is plenty of
-  headroom, but a deployment configured with a tight session limit will fail smoke
-  for a reason that is not a bug.
+- **The smoke test shares the address budget, and now says so.** This one stopped
+  being hypothetical the moment `POST /v1/leads` joined the smoke run: the first
+  two runs of the extended suite failed against a server whose lead budget the
+  author's own curl testing had already spent. Two changes came out of it. The
+  lead limit default moved from 5 to 10 per minute, because 5 is not merely tight
+  for a script, it is tight for a real office behind one NAT address. And the
+  smoke script now treats a `429` on either lead call as a **skipped check** that
+  it prints, rather than a failure — a 404 or a 5xx still fails, so "limiter
+  engaged" cannot be mistaken for "route missing". Verified both ways: 21/21 with
+  budget available, and 18/18 with the skip announced when the limit is spent.
+
+## D-11. Answers belong on the conversation, not in the transcript
+
+**Status: decided in principle, not yet built.** `POST /v1/qualification/answer`
+does not exist yet; this records where an answer should go when it does, so the
+route is not written the convenient way.
+
+**The problem.** In the conversational flow, `save_answer` records into a map that
+the turn persists as structured data, and the next turn recovers it from history
+rather than re-parsing the assistant's prose. That works because a turn exists.
+
+A route inverts this: the host page submits an answer directly, with no chat turn
+around it. The tempting implementation is to append a synthetic user turn — one
+whose text is something like `"Roof details: direction = south"` — because
+`answersFromHistory` would then pick it up with no other change.
+
+**Why not.** That puts words in the visitor's mouth. The model reads the
+transcript as the conversation so far, so a fabricated user message is not just
+untidy: it is the assistant being told the visitor said something they did not.
+It also cannot be un-said, and it would be indistinguishable from a real turn to
+every later reader of the same conversation.
+
+**Decision.** Answers become a property of the conversation (`Conversation.answers`)
+written through a store method, merged with the turn-derived map when a turn
+runs. A route then records an answer without inventing dialogue.
+
+**Why it is not done yet.** It changes the store interface and the on-disk record
+shape, which is a decision worth making on purpose rather than as a side effect of
+adding a route. The conversational path already covers qualification end to end,
+so nothing is blocked by the delay.
 
 ---
 

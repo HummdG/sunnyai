@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine and the API's first vertical slice are
-built, tested and green: **236 tests across 7 files**, a real fidelity comparison
-against the supplied artwork, and **17/17 API smoke checks** against a running
+built, tested and green: **243 tests across 7 files**, a real fidelity comparison
+against the supplied artwork, and **21/21 API smoke checks** against a running
 server. The assistant itself **has never answered a prompt**, because there is no
 model credential in this environment — the deployment correctly refuses instead
-of simulating. Terraform exists and has never been run. Three of the plan's
+of simulating. Terraform exists and has never been run. Four of the plan's
 fourteen API routes exist. Nothing has been deployed anywhere. Sunny is not
 reachable by any customer, and by the plan's own standard it must not be
 described as working until it is.
@@ -30,10 +30,10 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`         | _All matched files use Prettier code style_                         |
 | Lint                           | `npm run lint`                 | clean (ESLint, type-aware)                                          |
 | Types                          | `npm run typecheck`            | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)         |
-| Unit / contract / visual tests | `npm run test`                 | **236 passed (7 files)**                                            |
+| Unit / contract / visual tests | `npm run test`                 | **243 passed (7 files)**                                            |
 | Widget bundle                  | `npm run build`                | 109.4 kB — **29.6 kB gzipped**                                      |
 | Character lab bundle           | `npm run build`                | 65.0 kB                                                             |
-| API smoke                      | `npm run smoke`                | **17/17 checks passed, exit 0**                                     |
+| API smoke                      | `npm run smoke`                | **21/21 checks passed, exit 0**                                     |
 | Character fidelity             | `scripts/compare-reference.py` | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`) |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
@@ -48,14 +48,25 @@ Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
   rig, every group resolved at every intensity, and that every declared
   `reducedMotionFallback` exists.
 - **API** (`apps/api`) — config and capability reporting, the SSE contract,
-  session tokens, tenant isolation, tool dispatch, rate limiting (both the
-  counter and the address resolution it keys on, including the case where a
-  caller forges `X-Forwarded-For`), and the persistence layer.
+  session tokens, tenant isolation, tool dispatch, lead capture (including that a
+  submission without consent writes nothing, and that the caller cannot name the
+  tenant it is filed against), rate limiting (both the counter and the address
+  resolution it keys on, including the case where a caller forges
+  `X-Forwarded-For`), and the persistence layer.
 - **Contracts** (`packages/contracts`) — the Zod schemas that are the single
   source of truth for the wire format.
 
 ### Fixed in this session
 
+- **`POST /v1/leads` now exists**, closing one of the two routes this document
+  had falsely claimed was built. It reuses the `create_lead` rules rather than
+  re-deciding them: consent must be exactly `true`, the tenant comes from the
+  verified token rather than the body, and a lead with neither an email nor a
+  phone is refused at the point the visitor can still fix it. Verified end to end
+  — `201` with a `lead_…` id, and the row readable back from the installer's
+  list. The route is rate limited per address, because it is the one unauthenticated
+  write a visitor cannot undo. See D-11 for the sibling route that is deliberately
+  _not_ built yet.
 - **The API had no rate limiting at all.** `rate_limited`/429 existed in the
   error contract and nothing could ever return it. `POST /v1/widget/session` is
   unauthenticated and writes a conversation record; `POST /v1/chat/stream` calls
@@ -118,20 +129,22 @@ installed in this environment. The CI job that runs `fmt -check` and
 on GitHub in a form CI can see (see blocker 7). Treat the infrastructure as a
 description of intent that compiles, not as infrastructure known to work.
 
-### 4. Three of the plan's fourteen API routes exist
+### 4. Four of the plan's fourteen API routes exist
 
 Implemented: `POST /v1/widget/session`, `POST /v1/chat/stream`,
-`GET /v1/widget/config/:publicId`, plus `GET /healthz`, `GET /v1/conversation`
-and `GET /v1/leads` (none of those three is in the plan's list).
+`GET /v1/widget/config/:publicId`, `POST /v1/leads`, plus `GET /healthz`,
+`GET /v1/conversation` and `GET /v1/leads` (none of those three is in the plan's
+list).
 
 **Corrected on 2026-10-10:** this section previously claimed `POST /v1/leads` was
-implemented. It is not. `app.get('/v1/leads', …)` exists and nothing else on that
-path, so the count is **three**, not four. Creating a lead happens through the
-`create_lead` tool in the conversation, which is a real path, but the plan's route
-does not exist.
+implemented. It was not — only `app.get('/v1/leads', …)` existed, so the count was
+**three**. The claim was wrong when written, and was fixed by correcting the count
+rather than by hurrying out a route to make the sentence true. `POST /v1/leads`
+now exists and the count is **four**. Creating a lead also still happens through
+the `create_lead` tool in the conversation; the two paths write the same record.
 
 Absent, each with nothing behind it: `POST /v1/qualification/answer`,
-`POST /v1/leads`, `GET /v1/catalog/products`, `POST /v1/recommendations`,
+`GET /v1/catalog/products`, `POST /v1/recommendations`,
 `POST /v1/sunscan/assessments`, `GET /v1/sunscan/assessments/:id`,
 `GET /v1/dashboard/metrics`, `POST /v1/knowledge/sources`,
 `GET /v1/knowledge/jobs/:id`,
@@ -153,6 +166,15 @@ Findings that matter to anyone planning the integration:
   shapes — so the adapter must translate per route rather than assume a format.
 - The finance/APR calculators and the grants logic the plan refers to are
   **not present** in SunScan. `calculate_approved_estimate` has nothing to call.
+- **The catalogue, recommendation and estimate tools are deliberately refusing,
+  not merely unimplemented.** `search_catalogue`, `recommend_packages` and
+  `calculate_approved_estimate` all return a refusal with a reason, and the
+  reasoning is written into the code: the installer's prices are the installer's
+  commercial data, and two different prices for the same roof is worse than no
+  price. So "make the widget able to recommend" is not a matter of writing the
+  route — it is blocked on the integration, and doing it any other way would mean
+  inventing commercial data. This is the right design and it is worth stating
+  plainly, because the obvious next task looks like a build item and is not one.
 
 ### 6. Platform capabilities that are preview, capped, or undocumented
 
@@ -238,6 +260,23 @@ properly rather than sketched.
 3. **Choose the escalation model** before 2026-10-20 (blocker 2).
 4. Run the CI job at least once, so Terraform and the security scan stop being
    unexecuted code.
-5. Build the catalogue and recommendation routes (blocker 4) — the widget's
-   usefulness is limited more by having nothing to recommend than by anything in
-   the conversation itself.
+5. **Connect the SunScan adapter** (blocker 5). This replaces an earlier version
+   of this item that said to "build the catalogue and recommendation routes" —
+   that was wrong, and worth correcting rather than quietly dropping. The
+   catalogue and recommendation tools already exist and **deliberately refuse to
+   answer**, on the reasoning that the installer's prices are the installer's
+   data and that one product receiving two different prices is worse than no
+   price at all. Building a catalogue here would mean inventing commercial data,
+   which the plan forbids and which the existing design argues against in
+   comments. The gap is not a missing route; it is a missing integration. The
+   widget is genuinely less useful without it, but the fix is a SunScan contract
+   and credentials, not more code in this repository.
+6. **`POST /v1/qualification/answer`** — the last of the plan's routes that does
+   **not** depend on SunScan data. It reuses the question set and its option
+   validation, which already exist. `POST /v1/leads`, the item that used to sit
+   here alongside it, is **done** (see "Fixed in this session"). The caveat found
+   while scoping this one is recorded in `docs/DECISIONS.md` D-11: an answer given
+   to the route needs somewhere to live that is not the chat transcript, so the
+   route wants a first-class answers map on the conversation rather than a
+   synthetic turn. That is a small schema decision, not a large one, but it should
+   be made deliberately rather than as a side effect of adding a route.

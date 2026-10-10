@@ -67,6 +67,11 @@ export interface RateLimitConfig {
     session: RateLimitRule;
     /** Per session. Authenticated, and spends model tokens. */
     chat: RateLimitRule;
+    /**
+     * Per client address. Writes a durable lead row, which is the thing a spam
+     * script wants, and is the one write a visitor cannot undo.
+     */
+    leads: RateLimitRule;
   };
   maxKeys: number;
 }
@@ -148,6 +153,14 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       chat: {
         limit: Number(env('SUNNY_RL_CHAT_LIMIT') ?? 20),
         windowMs: Number(env('SUNNY_RL_CHAT_WINDOW_MS') ?? 60_000),
+      },
+      // Tighter than the others, but not one-a-minute: several people can share
+      // one address (an office, a mobile carrier's NAT), and refusing the second
+      // genuine enquiry of the minute costs a lead. Ten stops a script without
+      // standing in a real visitor's way.
+      leads: {
+        limit: Number(env('SUNNY_RL_LEADS_LIMIT') ?? 10),
+        windowMs: Number(env('SUNNY_RL_LEADS_WINDOW_MS') ?? 60_000),
       },
     },
     maxKeys: Number(env('SUNNY_RL_MAX_KEYS') ?? 10_000),

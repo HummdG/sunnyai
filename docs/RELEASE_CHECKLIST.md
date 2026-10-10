@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **236 passing across 7 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
+- [ ] `npm run test` — currently **243 passing across 7 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
       a network boundary_ - [ ] visual snapshots — Vitest snapshots only; **not** pixel-diffed against
       the reference artwork in CI
 - [ ] `npm run build` — record both bundle sizes and compare against the last
@@ -105,7 +105,10 @@ Run `npm run verify` — it chains the first four.
       against Google's documentation.
 - [ ] Rate limits are high enough that `npm run smoke` passes from one address —
       a smoke failure caused by the limiter is worse than no limiter, because it
-      teaches whoever runs the gate to ignore it.
+      teaches whoever runs the gate to ignore it. The leads limit is the tight one
+      (10/min by default) and the smoke run spends three of those, so a deployment
+      set below about 3 will make the lead checks announce themselves as skipped.
+      That is reported, not silent, but it is still lost coverage.
 - [ ] Confirm a visitor who hits a limit sees something humane, not a bare 429.
       `retry-after` is set; nothing in the widget currently reads it.
 - [ ] Tool call the deployment did not declare → dropped, never executed
@@ -153,10 +156,12 @@ Run `npm run verify` — it chains the first four.
 
 ## 8. Known scope gaps to state plainly, not to discover
 
-- [ ] **3 of the plan's 14 API routes exist.** Qualification, lead creation by
-      route, catalogue, recommendations, assessments, dashboard metrics, knowledge
-      ingestion, Drive integration and billing are **not implemented**. Do not
-      describe the product as having them.
+- [ ] **4 of the plan's 14 API routes exist.** Qualification, catalogue,
+      recommendations, assessments, dashboard metrics, knowledge ingestion, Drive
+      integration and billing are **not implemented**. Lead creation by route
+      **is** implemented, and the conversational `create_lead` tool also exists;
+      the two write the same record. Do not describe the product as having the
+      rest.
 - [ ] **There is no SunScan integration.** No SunScan endpoint has ever been
       called from this code. `packages/sunscan-adapter` is a stub, and SunScan
       has no unified error envelope, so the adapter must translate per route.

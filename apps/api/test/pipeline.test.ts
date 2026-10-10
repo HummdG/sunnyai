@@ -93,6 +93,7 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
       rules: {
         session: { limit: 100_000, windowMs: 60_000 },
         chat: { limit: 100_000, windowMs: 60_000 },
+        leads: { limit: 100_000, windowMs: 60_000 },
       },
       maxKeys: 10_000,
     },
@@ -481,6 +482,7 @@ describe('rate limiting', () => {
   function limitedConfig(overrides: {
     session?: number;
     chat?: number;
+    leads?: number;
     enabled?: boolean;
   }): ServerConfig {
     return makeConfig({
@@ -490,6 +492,7 @@ describe('rate limiting', () => {
         rules: {
           session: { limit: overrides.session ?? 100_000, windowMs: 60_000 },
           chat: { limit: overrides.chat ?? 100_000, windowMs: 60_000 },
+          leads: { limit: overrides.leads ?? 100_000, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },
@@ -600,5 +603,166 @@ describe('rate limiting', () => {
       payload: { sessionId, clientMessageId: 'c1', text: 'hello' },
     });
     expect(allowed.statusCode).toBe(200);
+  });
+});
+
+/**
+ * Lead creation from a host page.
+ *
+ * The interesting properties are not "it saves a row". They are that a caller
+ * cannot file a lead without consent, cannot file one for a tenant it does not
+ * belong to, and cannot file one with no way to contact anybody -- each of which
+ * turns a successful-looking 201 into a record the installer cannot lawfully
+ * hold or act on.
+ */
+describe('POST /v1/leads', () => {
+  it('saves a consented lead and returns its id', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, consent: true, name: 'Sam', email: 'sam@example.test' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { leadId } = response.json<{ leadId: string }>();
+    expect(leadId).toMatch(/^lead_/);
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const { leads } = listed.json<{ leads: Array<{ id: string; email: string | null }> }>();
+    expect(leads.map((l) => l.id)).toContain(leadId);
+    expect(leads.find((l) => l.id === leadId)?.email).toBe('sam@example.test');
+  });
+
+  it('refuses a lead with no consent', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    for (const payload of [
+      { sessionId, email: 'sam@example.test' },
+      { sessionId, consent: false, email: 'sam@example.test' },
+    ]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/leads',
+        headers: { authorization: `Bearer ${token}` },
+        payload,
+      });
+      expect(response.statusCode).toBe(400);
+    }
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    // Nothing was written, which is the part that matters: a 400 that still
+    // stored the row would be the worst of both.
+    expect(listed.json<{ leads: unknown[] }>().leads).toHaveLength(0);
+  });
+
+  it('refuses a lead nobody can be contacted about', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, consent: true, name: 'Sam' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(
+      response.json<{ error: { details?: Record<string, string> } }>().error.details,
+    ).toBeTruthy();
+  });
+
+  it('refuses a token for another session', async () => {
+    const { app } = await h();
+    const { token } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId: 'sess_someoneelse', consent: true, email: 'sam@example.test' },
+    });
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('refuses an unauthenticated submission', async () => {
+    const { app } = await h();
+    const { sessionId } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      payload: { sessionId, consent: true, email: 'sam@example.test' },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('does not let the caller choose the tenant', async () => {
+    // The tenant comes from the verified token. A body field naming one must be
+    // ignored, or a caller could file a lead against another installer.
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        sessionId,
+        consent: true,
+        email: 'sam@example.test',
+        tenantId: 't_someoneelse',
+      },
+    });
+    expect(response.statusCode).toBe(201);
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    // Visible to our own tenant, which it would not be if another id had won.
+    expect(listed.json<{ leads: unknown[] }>().leads).toHaveLength(1);
+  });
+
+  it('stops a script filing leads in a loop', async () => {
+    const config = makeConfig({
+      rateLimit: {
+        enabled: true,
+        trustProxyHops: 0,
+        rules: {
+          session: { limit: 100_000, windowMs: 60_000 },
+          chat: { limit: 100_000, windowMs: 60_000 },
+          leads: { limit: 2, windowMs: 60_000 },
+        },
+        maxKeys: 10_000,
+      },
+    });
+    const { app } = await h(undefined, config);
+    const { sessionId, token } = await openSession(app);
+
+    const submit = (n: number) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/leads',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { sessionId, consent: true, email: `sam${n}@example.test` },
+      });
+
+    expect((await submit(1)).statusCode).toBe(201);
+    expect((await submit(2)).statusCode).toBe(201);
+    expect((await submit(3)).statusCode).toBe(429);
   });
 });

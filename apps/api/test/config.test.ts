@@ -176,6 +176,7 @@ describe('rate limit configuration', () => {
         rules: {
           session: { limit: 30, windowMs: 60_000 },
           chat: { limit: 20, windowMs: 60_000 },
+          leads: { limit: 5, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },
