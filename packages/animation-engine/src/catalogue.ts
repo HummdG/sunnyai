@@ -18,7 +18,7 @@ import { GROUPS, SEQUENCES } from './sequences.js';
  *
  * It is also where the honest answer to "is this reachable?" lives. A group
  * exists because the engine has a variant for it; whether anything ever *asks*
- * for it is a separate fact, and one that had never been written down. Three
+ * for it is a separate fact, and one that had never been written down. Two
  * moments turned out to have no caller at all -- see `asked`.
  */
 
@@ -107,16 +107,10 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
   {
     group: 'eureka',
     name: 'Eureka',
-    description: 'The idea lands: a question mark turns into a spark.',
+    description: 'The answer arrives: a question mark turns into a spark.',
     category: 'conversation',
-    asked: 'nobody',
-    note:
-      'Two independent reasons this never reaches the screen. Nothing requests the group: the ' +
-      'machine goes `thinking` -> `speaking` on `speaking_started`, and that event requests ' +
-      'nothing. And at priority 400 the sequence is outranked by the ambient layer in two of ' +
-      'the three states it declares -- `thinking-whirr` in thinking and `speaking-pulse` in ' +
-      'speaking -- so it would only ever be seen while celebrating, which is not where an idea ' +
-      'arrives.',
+    asked: 'engine',
+    askedBy: '`speaking_started` when it follows thinking',
   },
   {
     group: 'speak',

@@ -73,6 +73,7 @@ export class SunnyAnimator {
    * vocabulary the application compiled in.
    */
   dispatch(event: MachineEvent, now: number): void {
+    const previous = this.machine.state;
     const result = this.machine.send(event, now);
     if (!result.changed) return;
 
@@ -98,6 +99,13 @@ export class SunnyAnimator {
         break;
       case 'attention':
         this.scheduler.request('open', result.state, now);
+        break;
+      case 'speaking_started':
+        // Coming out of thinking, the first token is the answer arriving, which
+        // is the eureka's whole reason to exist. From anywhere else -- a host
+        // that streams a greeting, a resumed turn -- there is no idea to land,
+        // and asking for one would put a spark over an answer nobody worked out.
+        if (previous === 'thinking') this.scheduler.request('eureka', result.state, now);
         break;
       default:
         break;

@@ -110,7 +110,7 @@ describe('the animation catalogue', () => {
   it('lists exactly the moments nothing asks for, so the gap cannot grow quietly', () => {
     // Not a failure -- a statement of fact, asserted so that wiring one up, or
     // letting another one rot, both show up as a diff rather than as silence.
-    expect([...UNREACHABLE_GROUPS].sort()).toEqual(['charge', 'eureka', 'listen']);
+    expect([...UNREACHABLE_GROUPS].sort()).toEqual(['charge', 'listen']);
   });
 
   describe.each(CATALOGUE)('$group ($name)', (entry) => {

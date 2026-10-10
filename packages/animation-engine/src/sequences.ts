@@ -226,18 +226,32 @@ const thinkingStill: Sequence = {
  * A02's payoff. A question mark pops over one shoulder, snaps to a tick, the
  * rays flare and the body springs. Short, because a eureka that outstays its
  * welcome is worse than no eureka.
+ *
+ * It sits *inside* the chat band but above the ambient conversation layer, and
+ * that is deliberate rather than a rounding: the eureka is the answer arriving,
+ * so it has to be able to interrupt the very thing that plays while Sunny works
+ * the answer out. At the success band it lost every frame of its own `thinking`
+ * and `speaking` states to `thinking-whirr` and `speaking-pulse` -- requestable,
+ * eligible, and never once drawn.
  */
 const eureka: Sequence = {
   id: 'thinking-eureka',
   group: 'eureka',
-  priority: PRIORITY.success,
+  priority: PRIORITY.chat + 20,
   duration: 1500,
   canInterrupt: true,
   loop: false,
   intensity: 'balanced',
   assets: ['question-mark', 'sparkle'],
-  reducedMotionFallback: 'celebrate-still',
-  states: ['thinking', 'celebrating', 'speaking'],
+  // The eureka has a still of its own. Pointing at the celebration's was a
+  // copy-paste that would have shown a reduced-motion visitor a different
+  // moment from the one they asked for.
+  reducedMotionFallback: 'eureka-still',
+  // `celebrating` is deliberately absent. It was there, and it meant a eureka
+  // still in flight outranked the celebration that arrived while it played --
+  // a real success being buried, which is the failure the celebration tests
+  // exist to prevent. An idea landing and a job well done are different beats.
+  states: ['thinking', 'speaking'],
   pose: (base, t) => {
     const r = cloneRig(base);
     // 0.0-0.45 hold the question mark; 0.45 onward, the flare.
@@ -289,14 +303,18 @@ const eureka: Sequence = {
 const eurekaStill: Sequence = {
   id: 'eureka-still',
   group: 'eureka',
-  priority: PRIORITY.success,
+  // Matches the full eureka: a floor is about how much motion a tenant allows,
+  // and both variants are the same moment. Left below it, a tenant who turned
+  // the dial down would lose the eureka to the ambient layer instead of seeing
+  // a still one.
+  priority: PRIORITY.chat + 20,
   duration: 1100,
   canInterrupt: true,
   loop: false,
   intensity: 'minimal',
   assets: ['sparkle'],
   reducedMotionFallback: null,
-  states: ['thinking', 'celebrating', 'speaking'],
+  states: ['thinking', 'speaking'],
   pose: (base, t) => {
     const r = cloneRig(base);
     const a = bump(t);

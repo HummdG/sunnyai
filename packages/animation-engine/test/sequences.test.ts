@@ -321,4 +321,35 @@ describe('SunnyAnimator', () => {
     const later = a.frame(1_500).rig;
     expect(later).not.toEqual(early);
   });
+
+  it('lands the eureka when the answer arrives', () => {
+    // `thinking` -> `speaking` is the answer arriving, which is the eureka's
+    // entire reason to exist. It has to beat the ambient speaking pulse to be
+    // seen at all, which is why the group sits inside the chat band but above
+    // it -- at the success band it lost every frame of its own states.
+    const a = new SunnyAnimator(defaultRig(), { seed: 4 });
+    a.dispatch({ type: 'turn_started' }, 0);
+    expect(SEQUENCE_BY_ID.get(a.frame(100).sequenceId!)?.group).toBe('think');
+
+    a.dispatch({ type: 'speaking_started' }, 200);
+    expect(SEQUENCE_BY_ID.get(a.frame(260).sequenceId!)?.group).toBe('eureka');
+  });
+
+  it('does not invent a eureka for an answer nobody worked out', () => {
+    // A host that streams a greeting, or a turn resumed from history, goes
+    // straight to speaking. Nothing was worked out, so there is no idea to land,
+    // and a spark here would be the character lying about its own state.
+    const a = new SunnyAnimator(defaultRig(), { seed: 4 });
+    a.dispatch({ type: 'speaking_started' }, 0);
+    expect(SEQUENCE_BY_ID.get(a.frame(60).sequenceId!)?.group).not.toBe('eureka');
+  });
+
+  it('gives a reduced-motion visitor the eureka rather than somebody else’s still', () => {
+    // The fallback pointed at `celebrate-still`, so a visitor who had asked for
+    // less motion got a different moment from the one they asked for.
+    const a = new SunnyAnimator(defaultRig(), { seed: 4, reducedMotion: true });
+    a.dispatch({ type: 'turn_started' }, 0);
+    a.dispatch({ type: 'speaking_started' }, 200);
+    expect(a.frame(260, { reducedMotion: true }).sequenceId).toBe('eureka-still');
+  });
 });
