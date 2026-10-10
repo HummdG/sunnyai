@@ -27,20 +27,31 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **258 passing across 7 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
-      a network boundary_ - [ ] visual snapshots — Vitest snapshots only; **not** pixel-diffed against
-      the reference artwork in CI
+- [ ] `npm run test` — currently **280 passing across 9 files**
+  - [ ] unit
+  - [ ] contract (Zod schemas exercised through the routes)
+  - [ ] integration — _partial: the API is exercised in-process, not across a
+        network boundary_
+  - [ ] visual snapshots — Vitest snapshots only; **not** pixel-diffed against
+        the reference artwork in CI
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **109.4 kB (29.6 kB gzipped)**, lab 65.0 kB
-- [ ] `npm run smoke` — against a **running** deployment - [ ] exits **0**, not 127 (the exit-code bug is fixed; confirm it stays
-      fixed, because a gate that always fails gets deleted, and one that
-      always passes is worse) - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
-      turn is actually exercised instead of skipped
-- [ ] E2E (Playwright) — **absent.** Dependencies not installed. A release
-      without it means the embed path has never been driven by a browser.
-- [ ] Accessibility (axe) — **absent.** The renderer does derive `aria-hidden`
-      vs `role="img"` correctly and never emits a title assistive technology
-      cannot reach, but nothing automatically checks the page around it.
+      release. Last known: widget **112.1 kB (30.8 kB gzipped)**, lab 65.0 kB
+- [ ] `npm run smoke` — against a **running** deployment
+  - [ ] exits **0**, not 127 (the exit-code bug is fixed; confirm it stays
+        fixed, because a gate that always fails gets deleted, and one that
+        always passes is worse)
+  - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
+        turn is actually exercised instead of skipped
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **11 passing**
+      in Chromium
+  - [ ] requires `npm run test:e2e:install` once per machine; a release
+        that skipped it has never driven the embed snippet in a browser
+  - [ ] axe fails the run at `serious` and above. Passing it is a floor, not a
+        clean bill of health: it cannot judge whether the assistant is
+        understandable or the focus order sensible
+  - [ ] the visitor's own chat bubble is **not** covered here — it needs a
+        model credential to exist. Its colour is asserted directly instead
+        (D-12), so removing that assertion would silently drop the coverage
 - [ ] Dependency and security scanning — **written, never executed.** The CI job
       also greps for credential-shaped strings (`AIza…`, `BEGIN … PRIVATE KEY`,
       `sk-…`) and fails the build on a hit. Run it at least once before trusting

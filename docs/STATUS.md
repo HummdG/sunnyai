@@ -12,14 +12,15 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine and the API's first vertical slice are
-built, tested and green: **258 tests across 7 files**, a real fidelity comparison
-against the supplied artwork, and **26/26 API smoke checks** against a running
-server. The assistant itself **has never answered a prompt**, because there is no
-model credential in this environment — the deployment correctly refuses instead
-of simulating. Terraform exists and has never been run. Five of the plan's
-fourteen API routes exist. Nothing has been deployed anywhere. Sunny is not
-reachable by any customer, and by the plan's own standard it must not be
-described as working until it is.
+built, tested and green: **280 tests across 9 files**, a real fidelity comparison
+against the supplied artwork, **26/26 API smoke checks** against a running server,
+and **11 browser end-to-end checks** — including an axe accessibility pass — over
+the widget mounted by its own embed snippet. The assistant itself **has never
+answered a prompt**, because there is no model credential in this environment —
+the deployment correctly refuses instead of simulating. Terraform exists and has
+never been run. Five of the plan's fourteen API routes exist. Nothing has been
+deployed anywhere. Sunny is not reachable by any customer, and by the plan's own
+standard it must not be described as working until it is.
 
 ## Verified in this session
 
@@ -30,13 +31,19 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`         | _All matched files use Prettier code style_                         |
 | Lint                           | `npm run lint`                 | clean (ESLint, type-aware)                                          |
 | Types                          | `npm run typecheck`            | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)         |
-| Unit / contract / visual tests | `npm run test`                 | **258 passed (7 files)**                                            |
-| Widget bundle                  | `npm run build`                | 109.4 kB — **29.6 kB gzipped**                                      |
+| Unit / contract / visual tests | `npm run test`                 | **280 passed (9 files)**                                            |
+| Browser end-to-end             | `npm run verify:all`           | **11 passed** (Chromium, real page, real API, real shadow DOM)      |
+| Widget bundle                  | `npm run build`                | 112.1 kB — **30.8 kB gzipped**                                      |
 | Character lab bundle           | `npm run build`                | 65.0 kB                                                             |
 | API smoke                      | `npm run smoke`                | **26/26 checks passed, exit 0**                                     |
 | Character fidelity             | `scripts/compare-reference.py` | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`) |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
+
+`npm run verify` is the fast gate (format, lint, types, unit); `npm run verify:all`
+adds the widget build and the browser suite. They are separate because the browser
+suite needs a downloaded Chromium (`npm run test:e2e:install`), and a gate that
+cannot run on a fresh checkout is a gate people learn to skip.
 
 ### What the tests actually cover
 
@@ -57,8 +64,54 @@ Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
   `X-Forwarded-For`), and the persistence layer.
 - **Contracts** (`packages/contracts`) — the Zod schemas that are the single
   source of truth for the wire format.
+- **Widget** (`packages/widget`) — the embed snippet's attributes and which wins,
+  and the colour maths that keeps an arbitrary tenant brand legible.
+- **Browser** (`tests/e2e`, Playwright + axe) — the widget mounted from its own
+  snippet inside a shadow root, named from the API rather than the page, leaking
+  no tenant internals, openable and closable from the keyboard, exposing the
+  documented `window.sunny` handle, and audited by axe in three states (closed,
+  open, and open with the composer enabled — the last because axe skips disabled
+  controls, so the send button's contrast is only checked when it is live).
 
 ### Fixed in this session
+
+- **The demo page had never actually loaded the widget.** The bundle was mounted
+  under the URL `/sunny-widget.js`, but `serveStatic` treats a mount's prefix as a
+  directory and strips it before resolving — so an exact match left an empty
+  remainder, which means `index.html`, which does not exist in `packages/widget/dist`.
+  The request fell through to the catch-all and 404'd. The page an integrator is
+  told to copy from shipped an embed snippet that mounted nothing; nothing in the
+  unit suite could see it, because no browser had ever fetched the file.
+- **`data-api-url` was parsed and then discarded.** `optionsFromScript` computed
+  `configured ?? script.src` and then used `new URL(script.src).origin` regardless,
+  so every request went to whichever origin served the JavaScript. That is correct
+  in exactly one deployment — the demo, where the bundle and the API share a host —
+  and wrong in the case the attribute exists for: a bundle on a CDN calling an API
+  elsewhere. The end-to-end suite caught it as two 404s against the demo server's
+  own origin. Now pinned by six unit tests, including the CDN shape.
+- **The widget's default brand colour failed WCAG AA.** The suggestion chips were
+  `#FF6500` on `#FFF1E5` — 2.66:1 against the required 4.5:1 — and the visitor's
+  own chat bubbles were white on the brand fill, 2.64:1, which is worse because it
+  is the visitor's own words. This was not a tenant's mistake: it is the palette
+  the widget ships with. The readable tone is now derived from the brand colour at
+  mount (D-12), so it is correct for every installers' colour rather than for the
+  one that happens to be orange.
+- **Importing the widget module ran DOM side effects.** The auto-mount at the
+  bottom of `index.ts` reached for `document` unconditionally, so a test importing
+  it for `optionsFromScript` died with `ReferenceError: document is not defined`,
+  and so would any bundler or SSR pass that evaluated the file. Guarded now, which
+  also makes the intent explicit: mount when there is a document to mount into.
+- **The lint config could not type root config files.** `playwright.config.ts` was
+  linted without a TypeScript project, so every import typed as `any` and it
+  reported seven _unsafe member access_ errors that described the missing project
+  rather than the file. Root config files are now named in `tsconfig.json`, which
+  fixes the lint errors and gets them typechecked by `tsc --noEmit` as well.
+- **The smoke test's runtime data was committed.** `.data-smoke/` — a conversation
+  transcript and a captured lead, appended to on every run — had been tracked since
+  the leads increment. It is not sensitive (the address is `smoke@example.test`),
+  but the installer dashboard reads leads, so a committed one is a phantom enquiry
+  in history, and every smoke run dirtied the working tree. Now ignored, along with
+  the browser suite's `.data-e2e/`.
 
 - **`POST /v1/qualification/answer` now exists**, and records the answer without
   inventing dialogue. The obvious implementation was to append a synthetic user
@@ -235,15 +288,33 @@ belongs to a different codebase. **This needs a decision from the user** — see
 | ------------------------------ | -------------------------------------------------------------------------- |
 | Formatting / lint              | **done**, in CI and locally                                                |
 | Typecheck                      | **done**                                                                   |
-| Unit tests                     | **done** — 206                                                             |
+| Unit tests                     | **done** — 280                                                             |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                        |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network        |
-| E2E (Playwright)               | **absent** — dependencies not installed                                    |
+| E2E (Playwright)               | **done** — 11 checks in Chromium against the real page, API and shadow DOM |
 | Visual snapshots               | **done** as Vitest snapshots; not pixel-diffed against the reference in CI |
-| Accessibility (axe)            | **absent**                                                                 |
+| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above             |
 | Dependency / security scanning | **written, never executed** — the CI job has not run once                  |
 | Terraform validation           | **written, never executed**                                                |
 | Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                 |
+
+Two honest footnotes on the rows above. The axe pass is a floor: it finds a
+missing label, a contrast failure or a role-less dialog, and it cannot tell you
+whether the assistant is any good, whether the focus order makes sense, or whether
+the motion is tolerable — none of which a machine can check. And the browser
+suite audits the states reachable without a model key, which is why the visitor's
+own chat bubble is covered by a direct colour assertion rather than by a rendered
+message (D-12 records why).
+
+### Known, and deliberately not fixed
+
+- **Fastify deprecates `disableRequestLogging`** (`FSTDEP023`, removed in
+  `fastify@6`), which the server set to suppress per-request logging under test.
+  The replacement is the `logController` option. It has not been changed here
+  because that option governs whether requests carrying a bearer token are logged,
+  and nothing in the suite would notice if the replacement were wired wrong in the
+  quiet direction. It is correct on the installed Fastify (5.12.5) and is worth
+  doing as its own change, with a test, rather than as a footnote in this one.
 
 ## What is genuinely solid
 

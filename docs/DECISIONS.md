@@ -299,3 +299,46 @@ Smaller choices worth a line each, so a future reader does not relitigate them.
   taste.** Tilt now matches the reference to 0.2°; cream-mask IoU 0.567 → 0.741.
   Both values carry the provenance and the residual discrepancy in
   `docs/design/character-reference.md`.
+
+## D-12. The readable tone of the brand colour is computed, not chosen
+
+**Status: decided and built** (2026-10-10). Recorded because the widget's
+accessibility depends on a colour we do not control.
+
+The browser audit failed the widget's own default palette. The suggestion chips
+were `#FF6500` on `#FFF1E5`, a contrast ratio of **2.66:1** against the 4.5:1
+WCAG AA asks for body text. The visitor's own chat bubbles were white on the
+brand fill, **2.64:1** — worse, because that is the visitor reading back their own
+words. The send button was the same pair, and axe had not reported it only because
+the button is `disabled` until there is text and axe skips disabled controls.
+
+None of that is a tenant's mistake. `#FF7900` is the colour the widget ships with.
+
+**The options.** Darken the shipped palette by hand. Or drop the brand colour from
+anywhere it carries text, using it only as a decorative fill. Or derive the tone
+from the colour at runtime.
+
+**Decided: derive it.** A hand-picked darker orange fixes the demo and nothing
+else — a tenant who picks `#00C2FF` or `#FFE600` is back to square one, and there
+is no palette we can ship that is safe against colours we have never seen.
+Removing the brand from text would fix it too, and would take the installer's
+colour out of the interface almost entirely, which is the opposite of the
+promise that the widget looks like their site.
+
+So `legibleInk(color, backgrounds)` walks the colour's HSL lightness down in 2%
+steps until it clears 4.5:1 against every background it will sit on, keeping hue
+and saturation. A brand that already passes is returned **unchanged**, so a tenant
+who chose a deep navy gets their exact navy; the function is a floor, not a
+colour-picker. An unparseable colour is returned untouched rather than replaced,
+so a typo in a tenant's config stays visible as their typo.
+
+The result is written to `--sunny-accent-ink` in the shadow root at mount and used
+for the three places the accent carries text. `--sunny-accent` still holds the
+brand colour unchanged for decoration — the focus rings, the launcher.
+
+Two consequences worth stating. The audit now checks the accent directly rather
+than through a rendered chat bubble, because a bubble cannot be produced without
+a model credential and the widget correctly refuses to invent one; a unit test
+proves the maths, and the browser test proves the widget applied it. And the
+palette the widget ships with is now measurably correct rather than assumed to be,
+which is the more useful outcome of the whole exercise.
