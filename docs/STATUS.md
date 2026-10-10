@@ -276,6 +276,13 @@ every test stays green:
   starving the page of frames, which is the failure mode recorded for this
   machine. With them killed the test takes 10.4 s of its 30 s. Worth knowing
   before blaming an arcade for a slow catalogue.
+- **Nothing visual moved, and the container says so.** The suite's rasteriser is
+  the character's, and A08 draws page cells rather than rig frames, so the
+  expectation was that the baselines would be untouched — but "nothing should
+  have moved" is exactly the claim the Linux run exists to test rather than to
+  assume. The committed tree in `node:22-bookworm` installed from its lockfile
+  and produced **22/22** byte-identical PNGs. No new workspace this time, so
+  `npm ci` had nothing new to refuse.
 
 ### Fixed in the previous session (A05: the balloon)
 
