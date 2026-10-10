@@ -92,10 +92,11 @@ jobs:
       # The demo pages serve built bundles, so they have to exist first. Both are
       # built explicitly here so that a build failure is reported as a build
       # failure, rather than surfacing as a browser test that cannot find a file.
-      - name: Build the widget and the React host fixture
+      - name: Build the widget and the host fixtures
         run: |
           npm run build:widget
           npm run build:widget-demo-react
+          npm run build:widget-demo-next
 
       # `playwright.config.ts` starts the API and the demo page itself, so there
       # is no orchestration here: no service containers, no waiting, no ports.

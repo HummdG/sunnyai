@@ -26,11 +26,18 @@ export default tseslint.config(
       '**/dist/**',
       '**/out/**',
       '**/.data*/**',
+      // Next's build output. Without this, `next build` puts several hundred
+      // generated files in front of ESLint and every one of them is a
+      // parse-or-unsafe-access error that describes the code Next emitted.
+      '**/.next/**',
       'apps/character-lab/public/**',
       // The React fixture's bundle, built next to the page that loads it. It is
       // gitignored, so this only matters for a developer who has just built it;
       // without the ignore, `npm run lint` fails on a generated file.
       'apps/widget-demo-react/public/**',
+      // The same bundle, copied here for the Next fixture. Twice on purpose:
+      // these are the two origins the widget has been tested against.
+      'apps/widget-demo-next/public/**',
       'packages/widget/dist/**',
       '**/*.d.ts',
       // Linting the lint config itself buys nothing, and the file belongs to no

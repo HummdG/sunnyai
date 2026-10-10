@@ -24,14 +24,16 @@
     "build:widget": "node packages/widget/scripts/build.mjs",
     "build:lab": "node apps/character-lab/scripts/build.mjs",
     "build:widget-demo-react": "npm run build -w @sunny/widget-demo-react",
+    "build:widget-demo-next": "npm run build -w @sunny/widget-demo-next",
     "dev:api": "tsx watch apps/api/src/main.ts",
     "dev:widget-demo": "tsx apps/widget-demo/serve.ts",
     "dev:widget-demo-react": "tsx apps/widget-demo-react/serve.ts",
+    "dev:widget-demo-next": "npm run dev -w @sunny/widget-demo-next",
     "dev:lab": "tsx apps/character-lab/serve.ts",
     "dev:marketing": "npm run dev -w @sunny/marketing",
     "smoke": "node scripts/smoke-api.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
-    "verify:all": "npm run verify && npm run build:widget && npm run build:widget-demo-react && npm run test:e2e",
+    "verify:all": "npm run verify && npm run build:widget && npm run build:widget-demo-react && npm run build:widget-demo-next && npm run test:e2e",
     "render:samples": "npm run render -w @sunny/character"
   },
   "devDependencies": {

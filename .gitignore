@@ -47,3 +47,7 @@ packages/character/out/
 # and rebuilt by the Playwright server before the fixture is served.
 apps/widget-demo-react/public/app.js
 apps/widget-demo-react/public/app.js.map
+
+# Written by `next build`, and the build is a prerequisite for serving the
+# fixture either way. Committing it would add a file to every Next upgrade diff.
+apps/widget-demo-next/next-env.d.ts

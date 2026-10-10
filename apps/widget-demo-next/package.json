@@ -1,0 +1,22 @@
+{
+  "name": "@sunny/widget-demo-next",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Next.js host page for the widget, because the plan asks for one and Next hoists scripts itself",
+  "type": "module",
+  "scripts": {
+    "prepare-widget": "node scripts/copy-widget.mjs",
+    "dev": "npm run prepare-widget && next dev -p 4175",
+    "build": "npm run prepare-widget && next build",
+    "start": "next start -p 4175"
+  },
+  "dependencies": {
+    "next": "^16.4.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
+  }
+}

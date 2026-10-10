@@ -1,0 +1,6 @@
+# The widget bundle, copied here by `scripts/copy-widget.mjs` so Next can serve
+# it the way an integrator's own site would. Excluded by a local ignore rather
+# than a rule in the root .gitignore so that the directory itself stays in the
+# repository and the fixture does not need `mkdir` before it can build.
+sunny-widget.js
+sunny-widget.js.map

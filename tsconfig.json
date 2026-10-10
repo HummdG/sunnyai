@@ -44,5 +44,10 @@
     "scripts/**/*.ts",
     "tests/**/*.ts",
     "*.config.ts"
-  ]
+  ],
+  // The Next.js fixture brings its own tsconfig, because Next needs `jsx:
+  // preserve` and generates route types of its own. Without this it is caught
+  // twice -- once by `apps/*/*.ts`, which matches its generated `next-env.d.ts`
+  // and checks it against settings Next does not use.
+  "exclude": ["node_modules", "apps/widget-demo-next"]
 }

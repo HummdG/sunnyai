@@ -17,6 +17,7 @@ import { defineConfig, devices } from '@playwright/test';
 const API_PORT = Number(process.env.API_PORT ?? 8787);
 const DEMO_PORT = Number(process.env.DEMO_PORT ?? 4173);
 const REACT_PORT = Number(process.env.REACT_PORT ?? 4174);
+const NEXT_PORT = Number(process.env.NEXT_PORT ?? 4175);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -82,6 +83,17 @@ export default defineConfig({
       env: { PORT: String(REACT_PORT) },
       reuseExistingServer: false,
       timeout: 120_000,
+    },
+    {
+      // The Next.js host fixture. `next start` serves a production build, which
+      // is the thing an integrator's site actually runs -- a dev server hides
+      // hydration and hoisting behaviour behind different defaults.
+      command:
+        `npm run build:widget && npm run build -w @sunny/widget-demo-next && ` +
+        `npm run start -w @sunny/widget-demo-next`,
+      url: `http://127.0.0.1:${NEXT_PORT}/`,
+      reuseExistingServer: false,
+      timeout: 240_000,
     },
   ],
 });
