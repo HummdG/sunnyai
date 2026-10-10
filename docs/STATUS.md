@@ -44,7 +44,7 @@ Every line below is a command that ran and its output.
 | Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                        |
 | Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                           |
 | Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                          |
-| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **19 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces     |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **22 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces     |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -306,8 +306,11 @@ which is the useful kind of finding:
   `node:22-bookworm` container and all thirteen comparisons pass, so `resvg` on
   Linux produces byte-identical PNGs to Windows. Docker was already running on
   this machine; without it the honest line would have been "unverified". Re-run
-  after the play moves added two scenes: **16/16 in the container**, so the
-  premise held for the new baselines too rather than only for the first set.
+  after the play moves added two scenes: **16/16 in the container**. It was then
+  left too long — the count in the table above had drifted to 19 without a
+  container run on record behind it, which is the failure mode this whole
+  paragraph exists to warn about — and re-run after A05's three balloon scenes:
+  **22/22**. Every PNG in the tree now has a Linux run behind it.
 
 ### Fixed in the previous session (the marketing site)
 
