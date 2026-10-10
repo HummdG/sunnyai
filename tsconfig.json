@@ -36,6 +36,7 @@
     "apps/*/test/**/*.ts",
     "apps/*/*.ts",
     "scripts/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "*.config.ts"
   ]
 }

@@ -2,7 +2,7 @@
   "name": "sunny-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Sunny.ai \u00e2\u20ac\u201d multi-tenant AI assistant platform for solar installers",
+  "description": "Sunny.ai â€” multi-tenant AI assistant platform for solar installers",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -28,10 +29,13 @@
     "dev:marketing": "npm run dev -w @sunny/marketing",
     "smoke": "node scripts/smoke-api.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "verify:all": "npm run verify && npm run build:widget && npm run test:e2e",
     "render:samples": "npm run render -w @sunny/character"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",

@@ -48,13 +48,14 @@ export default tseslint.config(
         fetch: 'readonly',
       },
       parserOptions: {
-        projectService: {
-          // Root-level config files are real TypeScript but belong to no
-          // workspace, so the project service cannot place them. They are small
-          // and worth linting, so they get a default project rather than being
-          // ignored wholesale.
-          allowDefaultProject: ['*.config.ts'],
-        },
+        // Root-level config files are real TypeScript and belong to no workspace,
+        // so `tsconfig.json` names them explicitly. That is load-bearing rather
+        // than tidiness: without a project the service types every import as
+        // `any`, and `playwright.config.ts` reported seven "unsafe member access"
+        // errors that described the missing project rather than the file. Being
+        // in the project also means `tsc --noEmit` checks them like everything
+        // else.
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },

@@ -7,6 +7,14 @@ out/
 coverage/
 test-results/
 playwright-report/
+playwright/.cache/
+
+# Runtime data written by the API while tests and smoke checks run: conversation
+# transcripts and captured leads, appended to on every run. Committing these made
+# each smoke run dirty the tree and put a fake "Smoke Test" lead into history --
+# the installer dashboard reads leads, so a committed one is a phantom enquiry.
+.data*/
+
 *.log
 .env
 .env.local
