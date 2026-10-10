@@ -99,7 +99,7 @@ const blink: Sequence = {
   intensity: 'minimal',
   assets: [],
   reducedMotionFallback: null,
-  states: ['idle', 'listening', 'speaking', 'guiding', 'relaxing'],
+  states: ['idle', 'listening', 'speaking', 'guiding', 'relaxing', 'playing'],
   pose: (base, t) => {
     const r = cloneRig(base);
     const close = t < 0.35 ? ease(t / 0.35) : 1 - ease((t - 0.35) / 0.65);
@@ -920,6 +920,182 @@ const bubbleOpenStill: Sequence = {
   },
 };
 
+// ─── A07, the play moves ─────────────────────────────────────────────────────
+
+/**
+ * The reduced-motion fallback for the play moves: Sunny stands still.
+ *
+ * A play move is a burst of whole-body motion -- a hop, a run, a dance -- and
+ * there is no honest still of one: a held frame of a hop is a character caught
+ * in mid-air. So the fallback is the pose Sunny was measured into, exactly as
+ * `idle-still` is for the resting layer.
+ */
+const playStill: Sequence = {
+  id: 'play-still',
+  group: 'play',
+  priority: PRIORITY.play,
+  duration: 1,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'off',
+  assets: [],
+  reducedMotionFallback: null,
+  states: ['playing'],
+  pose: (base) => cloneRig(base),
+};
+
+/**
+ * A07 at `minimal`. Two small side-steps, right then left, each a hop with the
+ * gaze and the head leaning into the direction of travel: the least motion that
+ * still reads as "Sunny is playing along" rather than "Sunny is standing there".
+ *
+ * **Short and finite, not a loop.** A game of tic-tac-toe lasts minutes, and a
+ * character that hops for the whole of it is exhausting and competes with the
+ * board the visitor is trying to look at. So a play move is a burst at the start
+ * of the session, and the resting layer underneath carries the wait between
+ * moves. That is also why `AMBIENT_GROUP.playing` stays on the idle group.
+ *
+ * **No animation collisions, structurally.** All three moves share the `play`
+ * group, and the scheduler refuses a second instance of a group that is already
+ * running, so a shuffle can never be drawn over a dance. A07's acceptance
+ * criterion is met by the data model rather than by timing the sequences to be
+ * shorter than each other.
+ *
+ * Every pose here is enveloped by `bump(t)`, so the move leaves and returns to
+ * the resting pose: a sequence that started mid-hop would snap into it on the
+ * first frame, and one that ended mid-hop would leave the character in the air.
+ */
+const playShuffle: Sequence = {
+  id: 'play-shuffle',
+  group: 'play',
+  priority: PRIORITY.play,
+  duration: 900,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'minimal',
+  assets: [],
+  reducedMotionFallback: 'play-still',
+  states: ['playing'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const env = bump(t);
+    const step = Math.floor(t * 2) % 2 === 0 ? 1 : -1;
+    const hop = bump((t * 2) % 1) * env;
+    r.x = base.x + step * hop * 5;
+    r.y = base.y - hop * 3.5;
+    r.squash = -hop * 0.05;
+    r.stretch = hop * 0.04;
+    r.faceTilt = step * hop * 5;
+    r.smile.depth = base.smile.depth * (1 + hop * 0.18);
+    r.eyes.left.gaze = { x: step * hop * 0.45, y: 0.1 };
+    r.eyes.right.gaze = { ...r.eyes.left.gaze };
+    for (const ray of r.rays) ray.rotation = step * hop * 5;
+    return r;
+  },
+};
+
+/**
+ * A07 at `balanced`. A run on the spot: two strides, the body compressed at
+ * each footfall and stretched at the top of each stride, the rays streaming
+ * back from the direction of the lean, and the brows down and the eyes narrowed
+ * so the run has some intent behind it rather than being a bounce.
+ */
+const playRun: Sequence = {
+  id: 'play-run',
+  group: 'play',
+  priority: PRIORITY.play,
+  duration: 1100,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'balanced',
+  assets: [],
+  reducedMotionFallback: 'play-still',
+  states: ['playing'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const env = bump(t);
+    const stride = Math.abs(wave(t * 2)) * env;
+    const sway = wave(t, 0.25) * env;
+    // The lean and the wind are held for the whole move and only scale with the
+    // envelope, because they are what makes this read as a run: a character with
+    // no legs cannot show a stride, so the forward lean and the rays streaming
+    // back carry the meaning and the bob only says how fast.
+    r.rotation = env * 7 + stride * 2;
+    r.x = base.x + sway * 2;
+    r.y = base.y - stride * 4.5;
+    r.squash = (0.09 - stride * 0.14) * env;
+    r.stretch = (stride * 0.08 - 0.06) * env;
+    r.faceTilt = env * 1.5;
+    for (const side of ['left', 'right'] as const) {
+      r.brows[side].y = base.brows[side].y + env * 1.4;
+      r.brows[side].arch = base.brows[side].arch * (1 - env * 0.5);
+      r.eyes[side].scaleY = 1 - env * 0.3;
+      // Both eyes on the direction of travel: this is the one move in the set
+      // that is going somewhere, even if it never actually gets there.
+      r.eyes[side].gaze = { x: env * 0.45, y: -env * 0.05 };
+    }
+    r.smile.span = base.smile.span * (1 + env * 0.12);
+    r.smile.depth = base.smile.depth * (1 + env * 0.25);
+    for (const ray of r.rays) {
+      ray.offset = { x: -(2 + stride * 1.5) * env, y: 0 };
+      ray.lengthScale = 1 - env * 0.1;
+      ray.rotation = -env * 5;
+    }
+    return r;
+  },
+};
+
+/**
+ * A07 at `playful`. A dance: the body rocks through one and a half cycles, the
+ * head lagging behind it, the rays alternating in length so the ring ripples
+ * rather than turning as one piece, and a single sparkle that fades in and out
+ * as it swings. The plan's most-invoked move, so it is the one that gets the
+ * prop.
+ */
+const playDance: Sequence = {
+  id: 'play-dance',
+  group: 'play',
+  priority: PRIORITY.play,
+  duration: 1300,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'playful',
+  assets: ['sparkle'],
+  reducedMotionFallback: 'play-still',
+  states: ['playing'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const env = bump(t);
+    const rock = wave(t * 1.5) * env;
+    const swing = Math.abs(rock);
+    r.rotation = rock * 11;
+    r.x = base.x + rock * 4.5;
+    r.y = base.y - Math.abs(wave(t * 1.5, 0.25)) * 4 * env;
+    r.squash = -swing * 0.04;
+    r.stretch = swing * 0.05;
+    r.faceTilt = -rock * 6;
+    r.smile.span = base.smile.span * (1 + env * 0.3);
+    r.smile.depth = base.smile.depth * (1 + env * 0.45);
+    for (const side of ['left', 'right'] as const) {
+      r.eyes[side].scaleY = 1 - swing * 0.35;
+      r.eyes[side].gaze = { x: rock * 0.3, y: 0 };
+    }
+    for (const [i, ray] of r.rays.entries()) {
+      ray.lengthScale = 1 + swing * 0.22 * (i % 2 === 0 ? 1 : -0.4);
+      ray.rotation = rock * 9;
+    }
+    r.props = [
+      {
+        ...prop('sparkle', rock * 30 - 6, -30, 0.35 + swing * 0.5, rock * 80),
+        // Faded by the size of the swing, so it is invisible at both ends of the
+        // move and cannot be left on screen by a frame that lands mid-gesture.
+        opacity: swing,
+      },
+    ];
+    return r;
+  },
+};
+
 /**
  * The registry. Every sequence the engine can run is here; the scheduler can
  * only pick from this list, so a typo in a state name is a typecheck failure
@@ -953,6 +1129,10 @@ export const SEQUENCES: readonly Sequence[] = [
   coolShadesPlay,
   bubbleOpenStill,
   bubbleOpen,
+  playStill,
+  playShuffle,
+  playRun,
+  playDance,
 ];
 
 export const SEQUENCE_BY_ID: ReadonlyMap<string, Sequence> = new Map(

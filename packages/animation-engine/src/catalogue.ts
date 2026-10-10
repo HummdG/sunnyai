@@ -31,7 +31,9 @@ export type CatalogueCategory =
   /** Part of holding a conversation: listening, thinking, speaking, pointing. */
   | 'conversation'
   /** A reaction to something that happened. */
-  | 'reaction';
+  | 'reaction'
+  /** Something the visitor started, played out by Sunny. */
+  | 'play';
 
 /**
  * Who asks for this moment today.
@@ -180,6 +182,16 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     category: 'reaction',
     asked: 'engine',
     askedBy: '`turn_failed`',
+  },
+  {
+    group: 'play',
+    name: 'Playing along',
+    description:
+      'A short burst of showing off when a game starts: a shuffle, a run or a dance, ' +
+      'depending on the tenant’s motion setting.',
+    category: 'play',
+    asked: 'engine',
+    askedBy: '`play_started`',
   },
 ];
 

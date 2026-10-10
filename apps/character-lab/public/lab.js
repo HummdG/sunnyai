@@ -684,7 +684,7 @@
     intensity: "minimal",
     assets: [],
     reducedMotionFallback: null,
-    states: ["idle", "listening", "speaking", "guiding", "relaxing"],
+    states: ["idle", "listening", "speaking", "guiding", "relaxing", "playing"],
     pose: (base, t) => {
       const r = cloneRig(base);
       const close = t < 0.35 ? ease(t / 0.35) : 1 - ease((t - 0.35) / 0.65);
@@ -1377,6 +1377,128 @@
       return r;
     }
   };
+  var playStill = {
+    id: "play-still",
+    group: "play",
+    priority: PRIORITY.play,
+    duration: 1,
+    canInterrupt: true,
+    loop: true,
+    intensity: "off",
+    assets: [],
+    reducedMotionFallback: null,
+    states: ["playing"],
+    pose: (base) => cloneRig(base)
+  };
+  var playShuffle = {
+    id: "play-shuffle",
+    group: "play",
+    priority: PRIORITY.play,
+    duration: 900,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: [],
+    reducedMotionFallback: "play-still",
+    states: ["playing"],
+    pose: (base, t) => {
+      const r = cloneRig(base);
+      const env = bump(t);
+      const step = Math.floor(t * 2) % 2 === 0 ? 1 : -1;
+      const hop = bump(t * 2 % 1) * env;
+      r.x = base.x + step * hop * 5;
+      r.y = base.y - hop * 3.5;
+      r.squash = -hop * 0.05;
+      r.stretch = hop * 0.04;
+      r.faceTilt = step * hop * 5;
+      r.smile.depth = base.smile.depth * (1 + hop * 0.18);
+      r.eyes.left.gaze = { x: step * hop * 0.45, y: 0.1 };
+      r.eyes.right.gaze = { ...r.eyes.left.gaze };
+      for (const ray of r.rays) ray.rotation = step * hop * 5;
+      return r;
+    }
+  };
+  var playRun = {
+    id: "play-run",
+    group: "play",
+    priority: PRIORITY.play,
+    duration: 1100,
+    canInterrupt: true,
+    loop: false,
+    intensity: "balanced",
+    assets: [],
+    reducedMotionFallback: "play-still",
+    states: ["playing"],
+    pose: (base, t) => {
+      const r = cloneRig(base);
+      const env = bump(t);
+      const stride = Math.abs(wave(t * 2)) * env;
+      const sway = wave(t, 0.25) * env;
+      r.rotation = env * 7 + stride * 2;
+      r.x = base.x + sway * 2;
+      r.y = base.y - stride * 4.5;
+      r.squash = (0.09 - stride * 0.14) * env;
+      r.stretch = (stride * 0.08 - 0.06) * env;
+      r.faceTilt = env * 1.5;
+      for (const side of ["left", "right"]) {
+        r.brows[side].y = base.brows[side].y + env * 1.4;
+        r.brows[side].arch = base.brows[side].arch * (1 - env * 0.5);
+        r.eyes[side].scaleY = 1 - env * 0.3;
+        r.eyes[side].gaze = { x: env * 0.45, y: -env * 0.05 };
+      }
+      r.smile.span = base.smile.span * (1 + env * 0.12);
+      r.smile.depth = base.smile.depth * (1 + env * 0.25);
+      for (const ray of r.rays) {
+        ray.offset = { x: -(2 + stride * 1.5) * env, y: 0 };
+        ray.lengthScale = 1 - env * 0.1;
+        ray.rotation = -env * 5;
+      }
+      return r;
+    }
+  };
+  var playDance = {
+    id: "play-dance",
+    group: "play",
+    priority: PRIORITY.play,
+    duration: 1300,
+    canInterrupt: true,
+    loop: false,
+    intensity: "playful",
+    assets: ["sparkle"],
+    reducedMotionFallback: "play-still",
+    states: ["playing"],
+    pose: (base, t) => {
+      const r = cloneRig(base);
+      const env = bump(t);
+      const rock = wave(t * 1.5) * env;
+      const swing = Math.abs(rock);
+      r.rotation = rock * 11;
+      r.x = base.x + rock * 4.5;
+      r.y = base.y - Math.abs(wave(t * 1.5, 0.25)) * 4 * env;
+      r.squash = -swing * 0.04;
+      r.stretch = swing * 0.05;
+      r.faceTilt = -rock * 6;
+      r.smile.span = base.smile.span * (1 + env * 0.3);
+      r.smile.depth = base.smile.depth * (1 + env * 0.45);
+      for (const side of ["left", "right"]) {
+        r.eyes[side].scaleY = 1 - swing * 0.35;
+        r.eyes[side].gaze = { x: rock * 0.3, y: 0 };
+      }
+      for (const [i, ray] of r.rays.entries()) {
+        ray.lengthScale = 1 + swing * 0.22 * (i % 2 === 0 ? 1 : -0.4);
+        ray.rotation = rock * 9;
+      }
+      r.props = [
+        {
+          ...prop("sparkle", rock * 30 - 6, -30, 0.35 + swing * 0.5, rock * 80),
+          // Faded by the size of the swing, so it is invisible at both ends of the
+          // move and cannot be left on screen by a frame that lands mid-gesture.
+          opacity: swing
+        }
+      ];
+      return r;
+    }
+  };
   var SEQUENCES = [
     idleStill,
     idle,
@@ -1404,7 +1526,11 @@
     coolShades,
     coolShadesPlay,
     bubbleOpenStill,
-    bubbleOpen
+    bubbleOpen,
+    playStill,
+    playShuffle,
+    playRun,
+    playDance
   ];
   var SEQUENCE_BY_ID = new Map(
     SEQUENCES.map((s) => [s.id, s])
@@ -1428,6 +1554,10 @@
   var AMBIENT_GROUP = {
     idle: "idle",
     relaxing: "idle",
+    // A game borrows the resting layer for the same reason the relaxing state
+    // does: the play moves are short bursts at the start of the session, and what
+    // the visitor is looking at for the rest of it is a character breathing
+    // quietly beside a board. See A07 in `sequences.ts`.
     playing: "idle",
     listening: "idle",
     thinking: "think",
@@ -1667,6 +1797,14 @@
       category: "reaction",
       asked: "engine",
       askedBy: "`turn_failed`"
+    },
+    {
+      group: "play",
+      name: "Playing along",
+      description: "A short burst of showing off when a game starts: a shuffle, a run or a dance, depending on the tenant\u2019s motion setting.",
+      category: "play",
+      asked: "engine",
+      askedBy: "`play_started`"
     }
   ];
   var UNREACHABLE_GROUPS = CATALOGUE.filter(
@@ -1736,6 +1874,9 @@
         case "attention":
           this.scheduler.request("open", result.state, now);
           break;
+        case "play_started":
+          this.scheduler.request("play", result.state, now);
+          break;
         case "speaking_started":
           if (previous === "thinking") this.scheduler.request("eureka", result.state, now);
           break;
@@ -1784,7 +1925,14 @@
      * being talked at should still see Sunny blink.
      */
     maybeBlink(now) {
-      const blinkable = ["idle", "listening", "speaking", "guiding", "relaxing"];
+      const blinkable = [
+        "idle",
+        "listening",
+        "speaking",
+        "guiding",
+        "relaxing",
+        "playing"
+      ];
       if (!blinkable.includes(this.machine.state)) {
         this.#nextBlinkAt = now + BLINK_MIN_MS;
         return;
@@ -1913,6 +2061,10 @@
     eureka: ["turn_started", "speaking_started"],
     speak: ["speaking_started"],
     guide: ["guiding_started"],
+    // A game starting is what makes Sunny show off; the move itself is the
+    // engine's, asked for by `play_started` the same way the eureka is asked for
+    // by `speaking_started` out of thinking.
+    play: ["play_started"],
     confused: ["confused"],
     // `turn_failed` is not accepted from rest, so the error has to be reached the
     // way it really happens: a turn that started and then failed.
@@ -2107,6 +2259,7 @@
       ["impress", "impress"],
       ["confused", "confused"],
       ["guiding_started", "guiding_started"],
+      ["play_started", "play_started"],
       ["dismissed", "dismissed"]
     ];
     const eventButtons = events.map(([label, type]) => {

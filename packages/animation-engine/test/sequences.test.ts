@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   SunnyAnimator,
   PRIORITY,
+  Scheduler,
   SEQUENCES,
   SEQUENCE_BY_ID,
   GROUPS,
@@ -11,7 +12,7 @@ import {
   isEligible,
   sequencesForState,
 } from '@sunny/animation-engine';
-import type { Sequence } from '@sunny/animation-engine';
+import type { Intensity, Sequence } from '@sunny/animation-engine';
 import { defaultRig, PROP_IDS } from '@sunny/character';
 
 /**
@@ -143,8 +144,10 @@ describe('sequences', () => {
     ] as const;
     for (const state of states) {
       const options = sequencesForState(state);
-      // `playing` and `relaxing` deliberately borrow the idle layer.
-      expect(options.length || state === 'playing' || state === 'relaxing').toBeTruthy();
+      // `relaxing` deliberately borrows the idle layer. `playing` used to as
+      // well, which was the whole problem: a game started and the character did
+      // not acknowledge it. It has the play moves of its own now (A07).
+      expect(options.length || state === 'relaxing', `${state} has nothing to render`).toBeTruthy();
     }
   });
 });
@@ -371,5 +374,64 @@ describe('SunnyAnimator', () => {
     a.reset();
     a.play('celebrate', 4_700);
     expect(a.frame(4_700).sequenceId).toMatch(/^celebrate/);
+  });
+
+  it('gives the playing state a move of its own', () => {
+    // `play_started` used to move the machine into `playing` and change nothing
+    // on screen, because the playing state borrowed the resting layer. A game
+    // could start and Sunny would carry on breathing as though nothing had
+    // happened.
+    const a = new SunnyAnimator(defaultRig(), { seed: 3 });
+    a.dispatch({ type: 'play_started' }, 0);
+    expect(a.state).toBe('playing');
+    expect(a.frame(0).sequenceId).toMatch(/^play-/);
+  });
+
+  it('picks the play move the tenant’s motion setting allows', () => {
+    const cases: ReadonlyArray<[Intensity, string]> = [
+      ['minimal', 'play-shuffle'],
+      ['balanced', 'play-run'],
+      ['playful', 'play-dance'],
+    ];
+    for (const [intensity, id] of cases) {
+      const a = new SunnyAnimator(defaultRig(), { intensity, seed: 3 });
+      a.dispatch({ type: 'play_started' }, 0);
+      expect(a.frame(0).sequenceId, `at ${intensity}`).toBe(id);
+    }
+  });
+
+  it('cannot run two play moves at once', () => {
+    // A07 asks for "no animation collisions", and it holds structurally rather
+    // than by tuning the durations: the three moves are variants of one group,
+    // and a second instance of a group already running is refused.
+    const scheduler = new Scheduler('playful', false);
+    expect(scheduler.request('play', 'playing', 0)).toBe(true);
+    expect(scheduler.request('play-shuffle', 'playing', 0)).toBe(false);
+    expect(scheduler.active.filter((i) => i.sequence.group === 'play')).toHaveLength(1);
+  });
+
+  it('stops playing after a burst and gives the frame back to resting', () => {
+    // A game lasts minutes; the move is a burst at the start of it. Once the
+    // burst is over, what the visitor is looking at is the resting layer under
+    // the board, and nothing of the move may be left on screen.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.dispatch({ type: 'play_started' }, 0);
+    expect(a.frame(0).sequenceId).toBe('play-dance');
+
+    // Past the dance's own 1.3 s, and long before the seeded blink cadence.
+    const after = a.frame(1_400);
+    expect(after.sequenceId).toBe('idle-breathe');
+    expect(after.rig.props).toEqual([]);
+  });
+
+  it('keeps blinking while a game is on', () => {
+    // The blink layer is asked for in `playing` too. A read-only game lasts
+    // minutes, the move is over after about a second, and a character that never
+    // blinked for the length of it would read as switched off.
+    const a = new SunnyAnimator(defaultRig(), { seed: 3 });
+    a.dispatch({ type: 'play_started' }, 0);
+    const drawn = new Set<string | null>();
+    for (let i = 0; i <= 400; i++) drawn.add(a.frame(i * 50).sequenceId);
+    expect([...drawn]).toContain('blink');
   });
 });

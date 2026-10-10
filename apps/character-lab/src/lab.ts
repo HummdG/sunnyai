@@ -177,13 +177,14 @@ const groupOfSequence = new Map<string, string>(SEQUENCES.map((s) => [s.id, s.gr
  * How an application actually arrives at a moment.
  *
  * `Play` is a demonstration, not a bypass: it drives the machine the way a
- * stream event would, then asks for the moment. Seven of the thirteen moments
- * are reactions to something and **cannot be reached from the resting state at
- * all** -- the perk, the thinking spin, the eureka, the speaking pulse, the
- * point, the tilt and the error each declare a state that only an event can
- * enter. A gallery that simply called `play()` in place would leave the most
- * interesting cards doing nothing when clicked, which reads as a broken engine
- * rather than as a moment that needs a reason.
+ * stream event would, then asks for the moment. Eight of the fourteen moments
+ * are reactions to something and **do nothing when called from rest** -- the
+ * perk, the thinking spin, the eureka, the speaking pulse, the point, the play
+ * move, the tilt and the error each declare a state that only an event can
+ * enter, so `play()` on its own is refused by the scheduler's state check. A
+ * gallery that simply called `play()` in place would leave the most interesting
+ * cards doing nothing when clicked, which reads as a broken engine rather than
+ * as a moment that needs a reason.
  *
  * `idle` comes first so that every click starts from the same place: without it,
  * one moment would strand the next, and which cards worked would depend on the
@@ -197,6 +198,10 @@ const ROUTE: Record<string, readonly MachineEvent['type'][]> = {
   eureka: ['turn_started', 'speaking_started'],
   speak: ['speaking_started'],
   guide: ['guiding_started'],
+  // A game starting is what makes Sunny show off; the move itself is the
+  // engine's, asked for by `play_started` the same way the eureka is asked for
+  // by `speaking_started` out of thinking.
+  play: ['play_started'],
   confused: ['confused'],
   // `turn_failed` is not accepted from rest, so the error has to be reached the
   // way it really happens: a turn that started and then failed.
@@ -426,6 +431,7 @@ function scrubber(): HTMLElement {
     ['impress', 'impress'],
     ['confused', 'confused'],
     ['guiding_started', 'guiding_started'],
+    ['play_started', 'play_started'],
     ['dismissed', 'dismissed'],
   ];
   const eventButtons = events.map(([label, type]) => {

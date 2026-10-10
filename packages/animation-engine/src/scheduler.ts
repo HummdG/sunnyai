@@ -32,6 +32,10 @@ export interface RenderResult {
 const AMBIENT_GROUP: Partial<Record<SunnyState, string>> = {
   idle: 'idle',
   relaxing: 'idle',
+  // A game borrows the resting layer for the same reason the relaxing state
+  // does: the play moves are short bursts at the start of the session, and what
+  // the visitor is looking at for the rest of it is a character breathing
+  // quietly beside a board. See A07 in `sequences.ts`.
   playing: 'idle',
   listening: 'idle',
   thinking: 'think',

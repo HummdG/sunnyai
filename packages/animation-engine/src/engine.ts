@@ -100,6 +100,15 @@ export class SunnyAnimator {
       case 'attention':
         this.scheduler.request('open', result.state, now);
         break;
+      case 'play_started':
+        // Nothing used to happen here. `play_started` moved the machine into
+        // `playing` and the playing state borrowed the idle layer, so the event
+        // changed no pixel: a game could start and Sunny would carry on
+        // breathing as if nothing had been said. The move is what makes the
+        // state mean something -- asked for by group, so the tenant's intensity
+        // setting chooses the shuffle, the run or the dance.
+        this.scheduler.request('play', result.state, now);
+        break;
       case 'speaking_started':
         // Coming out of thinking, the first token is the answer arriving, which
         // is the eureka's whole reason to exist. From anywhere else -- a host
@@ -160,7 +169,18 @@ export class SunnyAnimator {
    * being talked at should still see Sunny blink.
    */
   private maybeBlink(now: number): void {
-    const blinkable: SunnyState[] = ['idle', 'listening', 'speaking', 'guiding', 'relaxing'];
+    // `playing` is in the list even though a play move outranks a blink: a game
+    // is long, the move is a short burst at the start of it, and between bursts
+    // the resting layer is what the visitor is looking at. A character that
+    // stops blinking for the length of a game reads as switched off.
+    const blinkable: SunnyState[] = [
+      'idle',
+      'listening',
+      'speaking',
+      'guiding',
+      'relaxing',
+      'playing',
+    ];
     if (!blinkable.includes(this.machine.state)) {
       this.#nextBlinkAt = now + BLINK_MIN_MS;
       return;

@@ -42,7 +42,23 @@ export const SCENES: readonly Scene[] = [
   { name: 'celebrating', events: [{ at: 0, event: { type: 'celebrate' } }], at: 900 },
   { name: 'confused', events: [{ at: 0, event: { type: 'confused' } }], at: 640 },
   { name: 'failed', events: [{ at: 0, event: { type: 'turn_failed' } }], at: 780 },
-  { name: 'playing', events: [{ at: 0, event: { type: 'play_started' } }], at: 950 },
+  // The play move is a finite burst, so the capture time is the middle of it
+  // rather than an arbitrary moment: at 950 ms the run is already tapering back
+  // towards the resting pose, and the baseline would show a character standing
+  // still with slightly lowered brows.
+  { name: 'playing', events: [{ at: 0, event: { type: 'play_started' } }], at: 550 },
+  // The play group is the one group where the intensity setting chooses a
+  // different *move* rather than a quieter version of the same one -- a shuffle,
+  // a run or a dance -- so its extreme is a scene of its own rather than a
+  // repetition, captured at the peak of the swing. There is no `playing-off` and
+  // no `playing-reduced-motion` for the same reason: both resolve to a held
+  // still, which is the resting pose, and a baseline for that already exists.
+  {
+    name: 'playing-playful',
+    events: [{ at: 0, event: { type: 'play_started' } }],
+    at: 650,
+    intensity: 'playful',
+  },
   // The same moment at the extremes of the intensity setting, which is the
   // tenant's choice and the one thing a visitor never sees anyone change.
   {
