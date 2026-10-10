@@ -27,13 +27,16 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **285 passing across 10 files**
+- [ ] `npm run test` — currently **300 passing across 11 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
         network boundary_
-  - [ ] visual snapshots — Vitest snapshots only; **not** pixel-diffed against
-        the reference artwork in CI
+  - [ ] visual snapshots — **13 committed PNG baselines** of the character,
+        compared byte for byte. Aimed at the rig rather than at a page, for the
+        reason in D-16: a page screenshot differs by operating system and the
+        test gets deleted. Regenerate with `npm run test:visual:update` only
+        after looking at what moved.
 - [ ] `npm run build` — record both bundle sizes and compare against the last
       release. Last known: widget **112.1 kB (30.8 kB gzipped)**, lab 65.0 kB
 - [ ] `npm run smoke` — against a **running** deployment

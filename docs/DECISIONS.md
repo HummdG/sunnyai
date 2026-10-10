@@ -476,3 +476,75 @@ eyebrow label at 2.66:1 (deep orange on pale orange) and the URL bar at 4.25:1
 was being used on a tinted bar). The second is the more interesting one — a
 token is only valid on the surface it was measured against, and the fix was to
 override it locally rather than to trust the name.
+
+## D-16. Visual baselines are aimed at the character, not at a page
+
+Plan §12 lists visual snapshots among the required checks, and this repository
+has never had one: `docs/RELEASE_CHECKLIST.md` has carried "Vitest snapshots
+only, **not** pixel-diffed" since it was written. Those are two different things
+and the gap was real — a `toMatchSnapshot()` of a rig proves the object is the
+one the test itself produced, not that it draws the same picture it drew
+yesterday.
+
+**The baseline is the character, rasterised, not a screenshot of a page.** A
+screenshot of a web page is a different image on every operating system: font
+hinting, subpixel antialiasing and the installed font set all differ, so a
+baseline generated on this Windows machine fails on Linux CI for reasons
+unrelated to the change under review. Tests like that get deleted, and a deleted
+test protects nothing. Sunny has no text and no fonts — paths and circles,
+rasterised by `resvg` with its own rasteriser — and the engine is deterministic
+on purpose, with time passed in and the blink cadence seeded. The same input is
+the same bytes on every machine, which is what makes a committed PNG a fair
+expectation rather than a hostage to the CI box.
+
+**Byte equality, not a pixel-difference budget.** A tolerance would add a second
+way for a real regression to pass, and it would be unearned here: when the
+pipeline is deterministic, "differs by one pixel" and "differs" are the same
+event. On a mismatch the actual image is written to `.data-visual/actual/` so
+the failure can be looked at rather than guessed at.
+
+**Thirteen scenes, and the generator is a separate command.** One scene per
+visually distinct state, at a fixed frame, plus the two extremes of the
+intensity setting and the reduced-motion fallback — because "reduced motion
+looks the same as no animation" is an assumption worth checking rather than
+asserting. `scripts/update-visual-baselines.ts` is the only thing that writes a
+baseline and the test only compares, so a green run means the images are what
+they were instead of the renderer agreeing with itself.
+
+**Writing the harness found a real mistake in the harness, and the guard that
+caught it was worth its cost.** The first version of `rigFor` built an animator
+and called `frame(captureTime)` on it directly. A sequence's instance is
+anchored to the _first frame that observes it_, so a single call at `1400` is
+elapsed time zero — the start of the sequence. Six of the thirteen baselines
+were therefore the wrong frame, and `idle-rest` and `idle-breathing` came out
+byte-identical, because "breathing" was the rest pose twice. The product has
+never had this bug: the widget drives the animator from a
+`requestAnimationFrame` loop, where a frame always follows a frame. The harness
+now walks the same 30 FPS cadence, dispatching events as they come due, which is
+the only way the captured frames are the frames the product draws.
+
+The initial guard — "every scene renders to a distinct image" — then failed on
+`celebrating-off` and `celebrating-reduced-motion`, and that one is correct
+behaviour, not a defect: an intensity of `off` resolves no sequence at all, so
+the character rests, while reduced motion resolves `celebrate-still`, whose pose
+is the resting pose. Two routes, one image. The guard was rewritten to state
+that pair explicitly and require every other pair to differ, which keeps the
+degenerate-pass protection (a rasteriser emitting one blank image for everything)
+without pretending the scenes form a bijection. A second test asserts the
+resting and celebrating scenes differ, because a general distinctness check
+would have gone on passing while half the suite collapsed.
+
+The cross-platform claim was tested rather than trusted. CI runs on
+`ubuntu-latest` and the baselines were generated on Windows, so "the same bytes
+everywhere" is exactly the kind of assertion that is only discovered to be false
+by a red build someone then deletes. The committed tree was extracted into a
+`node:22-bookworm` container, installed with `npm ci` and run there:
+
+    git archive HEAD | docker run --rm -i -w /work node:22-bookworm \
+      bash -c 'mkdir -p /work && tar -x -C /work && npm ci && npx vitest run tests/visual'
+
+All fifteen tests pass, so the thirteen PNGs `resvg` produces on Linux are
+byte-identical to the ones Windows produced — different platform binaries, same
+pixels. That result is worth having on the record because it is the whole
+premise of the increment; if it had failed, the baseline would have had to move
+into the container rather than into the repository.

@@ -12,9 +12,10 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **285 tests across 10 files**,
+public marketing site are built, tested and green: **300 tests across 11 files**,
 a real fidelity comparison
-against the supplied artwork, **26/26 API smoke checks** against a running server,
+against the supplied artwork, **13 committed visual baselines** of the character
+compared byte for byte, **26/26 API smoke checks** against a running server,
 and **30 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
 host page, and on the marketing site, which runs the real widget and the real
@@ -30,19 +31,20 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                              | Result                                                                    |
-| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                               |
-| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                                |
-| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)               |
-| Unit / contract / visual tests | `npm run test`                       | **285 passed (10 files)**                                                 |
-| Browser end-to-end             | `npm run verify:all`                 | **30 passed** (Chromium, four real host pages, real API, real shadow DOM) |
-| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                            |
-| Character lab bundle           | `npm run build`                      | 65.0 kB                                                                   |
-| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                           |
-| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                                     |
-| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                        |
-| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)       |
+| Check                          | Command                                                                                     | Result                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                              |
+| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                               |
+| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                              |
+| Unit / contract / visual tests | `npm run test`                                                                              | **300 passed (11 files)**                                                                |
+| Browser end-to-end             | `npm run verify:all`                                                                        | **30 passed** (Chromium, four real host pages, real API, real shadow DOM)                |
+| Widget bundle                  | `npm run build`                                                                             | 112.1 kB — **30.8 kB gzipped**                                                           |
+| Character lab bundle           | `npm run build`                                                                             | 65.0 kB                                                                                  |
+| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                          |
+| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                    |
+| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                       |
+| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                      |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **15 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -63,10 +65,14 @@ first real finding should not be the one that matters.
 - **Character** (`packages/character`, 14 tests) — determinism, byte-identical
   replay, SVG accessibility, the closed prop vocabulary, gradient rules, and a
   deep-frozen snapshot of the canonical pose.
-- **Animation engine** (`packages/animation-engine`, visual snapshots) —
+- **Animation engine** (`packages/animation-engine`, Vitest snapshots) —
   every sequence exercised across its motion, purity, no mutation of the base
   rig, every group resolved at every intensity, and that every declared
   `reducedMotionFallback` exists.
+- **Visual regression** (`tests/visual`, 15 tests) — thirteen scenes, one per
+  visually distinct state plus the intensity extremes and the reduced-motion
+  fallback, each rasterised and compared byte for byte against a committed PNG.
+  Aimed at the character rather than at a page, for the reason in D-16.
 - **API** (`apps/api`) — config and capability reporting, the SSE contract,
   session tokens, tenant isolation, tool dispatch, lead capture (including that a
   submission without consent writes nothing, and that the caller cannot name the
@@ -106,7 +112,36 @@ first real finding should not be the one that matters.
   carries no customer claim — because those are the two ways this page could lie
   without any test noticing.
 
-### Fixed in this session (the marketing site)
+### Fixed in this session (the visual baselines)
+
+The increment that closed §12's visual-snapshot gap found a mistake in itself,
+which is the useful kind of finding:
+
+- **Six of the thirteen first baselines were the wrong frame.** The harness built
+  an animator and called `frame(captureTime)` on it directly. A sequence's
+  instance is anchored to the first frame that observes it, so that single call
+  is elapsed time zero — the _start_ of the sequence, not the frame named. The
+  two idle scenes came out byte-identical because "breathing" was the rest pose
+  twice, and the distinctness guard caught it before anything was committed. The
+  widget has never had this bug: it drives the animator from a
+  `requestAnimationFrame` loop, where a frame always follows a frame. The harness
+  now walks the same 30 FPS cadence (D-16).
+- **A correct pair then failed the guard, and the guard was what was wrong.**
+  `celebrating-off` and `celebrating-reduced-motion` render the same image: an
+  intensity of `off` resolves no sequence, so the character rests, and reduced
+  motion resolves `celebrate-still`, whose pose is the resting pose. Two routes,
+  one image. The guard now names that pair explicitly and requires every other
+  pair to differ — the same protection, without pretending the scenes form a
+  bijection.
+- **The cross-platform premise was checked, not assumed.** The baselines were
+  generated on Windows and CI runs on `ubuntu-latest`, so "the same bytes
+  everywhere" could have been the kind of claim that is only found to be false by
+  a red build someone then deletes. The committed tree was run in a
+  `node:22-bookworm` container and all thirteen comparisons pass, so `resvg` on
+  Linux produces byte-identical PNGs to Windows. Docker was already running on
+  this machine; without it the honest line would have been "unverified".
+
+### Fixed in the previous session (the marketing site)
 
 Three findings, all of them caught by the checks rather than by reading the code:
 
@@ -364,8 +399,9 @@ belongs to a different codebase. **This needs a decision from the user** — see
 
 `packages/solar-rules` and `packages/sunscan-adapter` are `package.json`-only
 stubs. `packages/ui` is real but only holds tokens — no components yet.
-`apps/dashboard` does not exist. `tests/security` and `tests/visual` are empty
-directories. (`tests/e2e` is not — it holds the Playwright suites.) `apps/marketing`
+`apps/dashboard` does not exist. `tests/security` is an empty directory.
+(`tests/visual` no longer is — it holds the character baselines, D-16 — and
+`tests/e2e` holds the Playwright suites.) `apps/marketing`
 now exists and is built (D-15), which makes the dashboard the larger remaining
 gap of the two: it is the one the plan's P10 blocks on a product decision rather
 than on code, and it is the only surface that still needs a data source that has
@@ -473,8 +509,11 @@ properly rather than sketched.
 
    `apps/marketing` (P3) was the other half of this item and is now built. Its
    exit gate in the plan is "a visual regression and a Lighthouse/accessibility
-   baseline" and it is **half met**: axe passes at `serious` and above, and the
-   hero's motion is asserted in a browser. There is no Lighthouse run and no
-   visual regression against the reference artwork, so the gate should be
-   described as half met rather than met — the accessibility half is real, the
-   performance half has never been measured.
+   baseline", and it is **better than half met but not met**: axe passes at
+   `serious` and above; the hero's motion, its canonical colour and its use of
+   the real widget are all asserted in a browser; and the character now has
+   thirteen committed visual baselines (D-16). What is still missing is the
+   _performance_ half — there is no Lighthouse run and no Core Web Vitals figure,
+   so nothing has measured how fast the page is. Page-level screenshots are
+   deliberately not used as the visual regression, for the operating-system
+   reason in D-16, so the baseline is the character rather than the page.
