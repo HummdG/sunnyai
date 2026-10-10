@@ -56,9 +56,20 @@ export function optionsFromScript(script: HTMLScriptElement): MountOptions | nul
 /**
  * Mount on every script tag that asked for a widget.
  *
- * Idempotent and multi-instance by design: a CMS that renders the snippet twice
- * gets two widgets rather than two copies fighting over one host, and a page
- * that loads the script twice does not double-mount.
+ * The script tag is a bootstrap, not a lifecycle. It runs once, and nothing
+ * unmounts the widget afterwards: a widget belongs to the *document*, not to
+ * whatever element the snippet happened to sit in. That is what makes it behave
+ * on a single-page site, where the route changes under it and the assistant
+ * stays put -- and it is why removing the tag tears nothing down. The
+ * alternative, watching the whole document for the tag's removal, is a
+ * MutationObserver on every customer's page, which is too high a price for a
+ * teardown nobody asked for.
+ *
+ * A page may host several widgets, keyed by public id, but never two of the
+ * same. Two script tags carrying one id is a duplicated bootstrap -- a CMS
+ * rendering a footer snippet twice, or a framework remounting a component that
+ * contains one -- and the readable outcome is one widget, not two launchers
+ * stacked on each other.
  */
 async function boot(): Promise<void> {
   const scripts = document.querySelectorAll<HTMLScriptElement>(
@@ -70,12 +81,31 @@ async function boot(): Promise<void> {
     if (!options) continue;
     script.setAttribute(MOUNT_FLAG, 'true');
 
+    // Safe to interpolate: `optionsFromScript` has already validated the id
+    // against `publicWidgetIdSchema`, so this cannot leave the attribute value.
+    const alreadyMounted = document.querySelector(`[data-sunny-widget="${options.publicId}"]`);
+    if (alreadyMounted) continue;
+
     const host = document.createElement('div');
     // The host is a bare marker: every style the widget needs is inside the
     // shadow root, so the page's own CSS cannot collide with it.
     host.setAttribute('data-sunny-widget', options.publicId);
-    const anchor = script.parentNode ?? document.body;
-    anchor.insertBefore(host, script.nextSibling);
+
+    // The host is appended to the body, not inserted beside the script tag.
+    //
+    // "Put it next to my own script" reads as the tidy choice and is wrong in
+    // both of the placements that matter most. A snippet pasted into <head> --
+    // which is where an embed is usually told to go -- would leave a <div> in
+    // the document head, where the browser never renders it. And an integrator
+    // who puts the tag inside a component tree does not get to choose: React 19
+    // hoists `<script async src>` into the head itself. On the React host page
+    // in `apps/widget-demo-react` the widget mounted, reported itself through
+    // `window.sunny`, and was invisible, because this line put it in the head.
+    //
+    // Nothing is lost by moving it. The widget is fixed-positioned and painted
+    // inside a shadow root, so its place in the document affects only paint
+    // order -- and the end of the body is where an overlay belongs.
+    (document.body ?? document.documentElement).append(host);
 
     const widget = new SunnyWidget(host, options);
     await widget.mount();

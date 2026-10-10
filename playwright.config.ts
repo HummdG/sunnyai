@@ -16,6 +16,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const API_PORT = Number(process.env.API_PORT ?? 8787);
 const DEMO_PORT = Number(process.env.DEMO_PORT ?? 4173);
+const REACT_PORT = Number(process.env.REACT_PORT ?? 4174);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -57,11 +58,30 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: `npx tsx apps/widget-demo/serve.ts --port ${DEMO_PORT}`,
+      // The widget bundle is rebuilt as part of starting the server that serves
+      // it. Without that, a run after a source change tests the previous bundle
+      // and reports success for code that no longer exists -- a stale artefact
+      // reads exactly like a passing test.
+      command: `npm run build:widget && npx tsx apps/widget-demo/serve.ts --port ${DEMO_PORT}`,
       url: `http://127.0.0.1:${DEMO_PORT}/`,
       env: { PORT: String(DEMO_PORT) },
-      reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
+      // Not reusable, unlike the API. A developer may reasonably have the API
+      // running already, and it serves their source. These two serve a *built*
+      // artefact, so an already-running one is by definition a different build,
+      // and reusing it would undo the rebuild above. An occupied port is then a
+      // loud failure, which is the right outcome.
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
+      // The React host fixture: the same widget, in a page React owns.
+      command:
+        `npm run build:widget && npm run build -w @sunny/widget-demo-react && ` +
+        `npx tsx apps/widget-demo-react/serve.ts --port ${REACT_PORT}`,
+      url: `http://127.0.0.1:${REACT_PORT}/`,
+      env: { PORT: String(REACT_PORT) },
+      reuseExistingServer: false,
+      timeout: 120_000,
     },
   ],
 });

@@ -59,6 +59,16 @@ test('mounts from the embed snippet, inside a shadow root', async ({ page }) => 
   expect(hasShadowRoot).toBe(true);
 });
 
+test('mounts on the body, wherever the snippet was pasted', async ({ page }) => {
+  // The demo page happens to put the snippet at the end of <body>, which is the
+  // one placement where mounting *beside* the script tag would also look right.
+  // Pinning the parent is what stops the widget from drifting back to a rule
+  // that breaks the two placements that matter -- a snippet in <head>, and a
+  // framework that hoists an async script there itself.
+  const parent = await page.locator(HOST).evaluate((node) => node.parentElement?.tagName ?? null);
+  expect(parent).toBe('BODY');
+});
+
 test('names itself from the API rather than the page', async ({ page }) => {
   await openWidget(page);
 

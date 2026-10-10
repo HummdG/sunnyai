@@ -39,3 +39,11 @@ credentials.json
 
 # Character render output
 packages/character/out/
+
+# The React host fixture's bundle. Unlike the character lab's, which is small
+# enough to commit so its page works with no build step, this is a 3.6 MB
+# unminified React development build: no benefit to committing it, and a fresh
+# 3.6 MB blob on every dependency bump. Built by `npm run build:widget-demo-react`,
+# and rebuilt by the Playwright server before the fixture is served.
+apps/widget-demo-react/public/app.js
+apps/widget-demo-react/public/app.js.map

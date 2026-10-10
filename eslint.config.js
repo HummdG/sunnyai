@@ -27,6 +27,10 @@ export default tseslint.config(
       '**/out/**',
       '**/.data*/**',
       'apps/character-lab/public/**',
+      // The React fixture's bundle, built next to the page that loads it. It is
+      // gitignored, so this only matters for a developer who has just built it;
+      // without the ignore, `npm run lint` fails on a generated file.
+      'apps/widget-demo-react/public/**',
       'packages/widget/dist/**',
       '**/*.d.ts',
       // Linting the lint config itself buys nothing, and the file belongs to no

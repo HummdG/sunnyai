@@ -4,6 +4,10 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    // Set for the React host fixture in `apps/widget-demo-react`, which is the
+    // only `.tsx` in the repository. The widget itself ships no framework: the
+    // fixture exists precisely to check that it works in one.
+    "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
@@ -30,9 +34,11 @@
   },
   "include": [
     "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.tsx",
     "packages/*/test/**/*.ts",
     "packages/*/scripts/**/*.ts",
     "apps/*/src/**/*.ts",
+    "apps/*/src/**/*.tsx",
     "apps/*/test/**/*.ts",
     "apps/*/*.ts",
     "scripts/**/*.ts",

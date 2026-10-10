@@ -1,0 +1,18 @@
+{
+  "name": "@sunny/widget-demo-react",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A React host page for the widget, because most installers are not plain HTML",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
+  }
+}
