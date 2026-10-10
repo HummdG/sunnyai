@@ -83,6 +83,19 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     allowedOrigins: ['http://localhost:4173'],
     sessionSecret: 'test-secret-not-used-in-production',
     logLevel: 'silent',
+    // Enabled but effectively unlimited, so every other test still runs the
+    // limiter's real code path while only the tests that deliberately set a small
+    // limit can trip it. Written out rather than left to `loadConfig`, so the
+    // suite does not change behaviour because of an env var on the machine.
+    rateLimit: {
+      enabled: true,
+      trustProxyHops: 0,
+      rules: {
+        session: { limit: 100_000, windowMs: 60_000 },
+        chat: { limit: 100_000, windowMs: 60_000 },
+      },
+      maxKeys: 10_000,
+    },
     ...overrides,
   };
 }
@@ -437,5 +450,155 @@ describe('the vertical slice', () => {
     expect(instruction).toContain('Never claim to be human');
     // And it is told, in the same breath, that no knowledge is connected.
     expect(instruction).toContain('no knowledge sources connected');
+  });
+});
+
+/**
+ * Rate limiting, exercised through the real routes.
+ *
+ * The unit tests in ratelimit.test.ts cover the counter; these cover the wiring,
+ * which is where a limiter usually goes wrong -- applied to the wrong route,
+ * applied after the expensive work, or silently returning 200 because the error
+ * never reached the error handler.
+ */
+describe('rate limiting', () => {
+  // Subclasses the scripted provider so the counting override is a plain method.
+  // Written as an `async *` generator it would need an `await` to satisfy
+  // `require-await`, which would mean inventing one purely to please the linter.
+  class CountingProvider extends ScriptedProvider {
+    calls = 0;
+
+    constructor() {
+      super(() => [{ type: 'text', text: 'hello' }]);
+    }
+
+    override stream(request: ChatTurnRequest): AsyncIterable<ChatChunk> {
+      this.calls += 1;
+      return super.stream(request);
+    }
+  }
+
+  function limitedConfig(overrides: {
+    session?: number;
+    chat?: number;
+    enabled?: boolean;
+  }): ServerConfig {
+    return makeConfig({
+      rateLimit: {
+        enabled: overrides.enabled ?? true,
+        trustProxyHops: 0,
+        rules: {
+          session: { limit: overrides.session ?? 100_000, windowMs: 60_000 },
+          chat: { limit: overrides.chat ?? 100_000, windowMs: 60_000 },
+        },
+        maxKeys: 10_000,
+      },
+    });
+  }
+
+  it('refuses session creation past the limit, with a retry hint', async () => {
+    const { app } = await h(undefined, limitedConfig({ session: 2 }));
+    const open = () =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/widget/session',
+        payload: { publicId: 'w_demo000001', origin: 'http://localhost:4173' },
+      });
+
+    expect((await open()).statusCode).toBe(200);
+    expect((await open()).statusCode).toBe(200);
+
+    const refused = await open();
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+    // The header is asserted rather than assumed: it is set on the reply before
+    // the error handler throws, and that it survives is exactly the kind of
+    // framework detail worth pinning.
+    expect(refused.headers['retry-after']).toBe('60');
+  });
+
+  it('stops calling the model once a session is over budget', async () => {
+    const provider = new CountingProvider();
+    const { app } = await h(provider, limitedConfig({ chat: 2 }));
+    const { sessionId, token } = await openSession(app);
+
+    const ask = (clientMessageId: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/chat/stream',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { sessionId, clientMessageId, text: 'hello' },
+      });
+
+    expect((await ask('c1')).statusCode).toBe(200);
+    expect((await ask('c2')).statusCode).toBe(200);
+
+    const refused = await ask('c3');
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+
+    // The point of limiting this route at all: the third request must not have
+    // cost a token. If the check sat after the provider call it would still have
+    // returned 429 to the visitor while billing for the turn.
+    expect(provider.calls).toBe(2);
+  });
+
+  it('gives each session its own chat budget', async () => {
+    const { app } = await h(new CountingProvider(), limitedConfig({ chat: 1 }));
+    const first = await openSession(app);
+    const second = await openSession(app);
+
+    const ask = (id: { sessionId: string; token: string }, clientMessageId: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/chat/stream',
+        headers: { authorization: `Bearer ${id.token}` },
+        payload: { sessionId: id.sessionId, clientMessageId, text: 'hello' },
+      });
+
+    expect((await ask(first, 'c1')).statusCode).toBe(200);
+    expect((await ask(first, 'c2')).statusCode).toBe(429);
+    // One visitor exhausting their budget must not lock out another.
+    expect((await ask(second, 'c1')).statusCode).toBe(200);
+  });
+
+  it('does not limit at all when the limiter is switched off', async () => {
+    const provider = new CountingProvider();
+    const { app } = await h(provider, limitedConfig({ chat: 1, enabled: false }));
+    const { sessionId, token } = await openSession(app);
+
+    for (const id of ['c1', 'c2', 'c3', 'c4']) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/chat/stream',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { sessionId, clientMessageId: id, text: 'hello' },
+      });
+      expect(response.statusCode).toBe(200);
+    }
+    expect(provider.calls).toBe(4);
+  });
+
+  it('does not spend a session budget on a refused chat request', async () => {
+    // A request that fails authorisation must not consume the budget of the
+    // session it names, or an attacker could exhaust a victim's allowance by
+    // replaying their session id without a token.
+    const { app } = await h(new CountingProvider(), limitedConfig({ chat: 1 }));
+    const { sessionId, token } = await openSession(app);
+
+    const unauthenticated = await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      payload: { sessionId, clientMessageId: 'c0', text: 'hello' },
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const allowed = await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'hello' },
+    });
+    expect(allowed.statusCode).toBe(200);
   });
 });

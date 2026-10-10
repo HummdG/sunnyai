@@ -147,6 +147,58 @@ undone.
 **Until it is decided:** the work is unversioned, which is the largest
 non-technical risk in this document.
 
+## D-10. Rate limiting is an in-memory fixed window, and is not a quota
+
+**Decision.** A fixed-window counter in process memory. Session creation is keyed
+by client address; chat is keyed by session. Defaults: 30 session creations and
+20 chat turns per minute, both overridable by env var, with the whole thing
+switchable off by `SUNNY_RATE_LIMIT=0`.
+
+**Why it exists at all.** The API has two public routes that cost something real.
+`POST /v1/widget/session` is unauthenticated and writes a durable conversation
+record, so a loop fills the store. `POST /v1/chat/stream` calls a model and bills
+per token, so a loop is a denial of wallet — there is no data to steal, which is
+precisely why nobody notices. `rate_limited`/429 was already in the error contract
+and **nothing could ever return it**; the control had been designed and not built.
+
+**Why a fixed window.** A sliding log or token bucket defends against a caller who
+tunes their rate to sit just under the limit. That is not the threat. The threat is
+a script with no pacing at all, which a fixed window stops equally well for less
+memory and less work per request. The cost is that a caller can burst to 2x the
+limit across a window boundary, and for a chat widget that is not worth defending
+against.
+
+**Why `X-Forwarded-For` is resolved by hand rather than by a framework option.**
+The obvious implementation reads the left-most entry of the header, which is the
+one the caller supplies — so the attacker picks the key they are limited by and
+rotates it, which is the same as no limit. `clientAddress()` counts in from the
+socket instead: trusting N proxies means the client is N entries back from the
+right, and everything to the left is ignored. With no trust configured, or a
+chain shorter than the configured trust, it falls back to the socket peer, which
+over-limits rather than under-limits. The spoofing case is a unit test.
+
+**The honest limits of this, which belong in the release notes and not only here:**
+
+- **It is per-instance.** The effective limit is `limit × instances`. On Cloud Run
+  with four instances the real ceiling is four times what the config says. This is
+  a backstop against a naive script and a runaway client, **not a quota**, and not
+  a substitute for an edge control (Cloud Armor rate limiting, an API gateway) at
+  scale.
+- **The bucket map is bounded, and eviction resets a counter.** At
+  `SUNNY_RL_MAX_KEYS` the sweep drops expired buckets, then the oldest. A dropped
+  key starts a fresh count, so extreme key cardinality makes the limiter _more_
+  permissive for the keys it evicts. That is the deliberate direction for a memory
+  guard to fail, but it means the cap cannot be relied on as a security control.
+- **The hop count for Cloud Run is not verified.** `SUNNY_TRUST_PROXY` has not been
+  set against a real deployment, and the number of proxies between a visitor and
+  the container has not been confirmed from Google's documentation. Until it is,
+  the safe setting is the default (trust nothing), which means the address key is
+  the load balancer and the limit applies across all visitors at once.
+- **The smoke test shares the address budget.** `scripts/smoke-api.mjs` creates
+  several sessions from one address per run. With the defaults there is plenty of
+  headroom, but a deployment configured with a tight session limit will fail smoke
+  for a reason that is not a bug.
+
 ---
 
 ## Recorded, not decided

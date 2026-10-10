@@ -9,7 +9,7 @@ import {
 } from '@sunny/contracts';
 import { Readable } from 'node:stream';
 
-import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { runTurn } from './agent/agent.js';
 import {
@@ -18,6 +18,12 @@ import {
   type ChatProvider,
 } from './agent/provider.js';
 import { capabilityReport, type ServerConfig } from './config.js';
+import {
+  clientAddress,
+  createRateLimiter,
+  type RateLimiter,
+  type RateLimitRule,
+} from './ratelimit.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
 import { newId, type Store } from './store.js';
 import type { TenantRegistry } from './tenants.js';
@@ -28,6 +34,8 @@ export interface ServerDeps {
   tenants: TenantRegistry;
   /** Defaults to the unconfigured provider when no key is set. */
   provider?: ChatProvider;
+  /** Injected so tests can drive the clock and read bucket counts. */
+  rateLimiter?: RateLimiter;
   now?: () => number;
 }
 
@@ -43,6 +51,37 @@ const SSE_HEADERS: Readonly<Record<string, string>> = {
 export function buildServer(deps: ServerDeps): FastifyInstance {
   const { config, store, tenants } = deps;
   const now = deps.now ?? (() => Date.now());
+  const limiter = deps.rateLimiter ?? createRateLimiter({ now, maxKeys: config.rateLimit.maxKeys });
+
+  /**
+   * Count one request against `key` and refuse it once the budget is spent.
+   *
+   * Disabled by config rather than by omitting the call, so "is the limiter on?"
+   * is one env var and not something a reader has to reconstruct from which
+   * routes happen to call this.
+   */
+  function enforceRateLimit(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    scope: string,
+    subject: string,
+    rule: RateLimitRule,
+  ): void {
+    if (!config.rateLimit.enabled) return;
+    const decision = limiter.check(`${scope}:${subject}`, rule);
+    if (decision.allowed) return;
+
+    // Set before throwing: Fastify keeps headers already on the reply when the
+    // error handler sends, and `Retry-After` is the part of a 429 a well-behaved
+    // client actually acts on. A test asserts it survives, because "Fastify keeps
+    // them" is an assumption worth pinning rather than trusting.
+    reply.header('retry-after', String(decision.retryAfterSec));
+    request.log.warn(
+      { scope, limit: decision.limit, windowMs: rule.windowMs },
+      'rate limit exceeded',
+    );
+    throw new ApiError('rate_limited', 'Too many requests. Please wait a moment and try again.');
+  }
   const provider =
     deps.provider ??
     (config.gemini
@@ -167,7 +206,22 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return widgetConfig;
   });
 
-  app.post('/v1/widget/session', async (request) => {
+  app.post('/v1/widget/session', async (request, reply) => {
+    // Keyed by client address, before any other work: this route costs nothing to
+    // call and is the cheapest way to fill the store, so it is the one an
+    // unattended script finds first.
+    enforceRateLimit(
+      request,
+      reply,
+      'session',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.session,
+    );
+
     const body = sessionRequestSchema.safeParse(request.body);
     if (!body.success) throw badRequestFromZod(body.error);
 
@@ -217,6 +271,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (body.data.sessionId !== claims.sessionId) {
       throw new ApiError('forbidden', 'That session token is for a different session.');
     }
+
+    // Keyed by session, not by address: the caller is authenticated by this
+    // point, so the precise subject is known, and visitors behind one NAT do not
+    // exhaust each other's budget. Session creation -- the way to get more
+    // sessions -- is itself limited by address above. Applied before the provider
+    // is even resolved, so a caller over budget cannot cost a token.
+    enforceRateLimit(request, reply, 'chat', claims.sessionId, config.rateLimit.rules.chat);
 
     const tenant = tenants.all.find((t) => t.id === claims.tenantId);
     if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');

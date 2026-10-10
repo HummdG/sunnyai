@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **206 passing across 6 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
+- [ ] `npm run test` — currently **236 passing across 7 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
       a network boundary_ - [ ] visual snapshots — Vitest snapshots only; **not** pixel-diffed against
       the reference artwork in CI
 - [ ] `npm run build` — record both bundle sizes and compare against the last
@@ -92,6 +92,22 @@ Run `npm run verify` — it chains the first four.
       plausibly
 - [ ] Model call fails mid-stream → the visitor sees an error state, not a
       silent stop. Check this against a revoked key, not a mock.
+- [ ] **Decide whether rate limiting is sufficient for launch, or whether an edge
+      control is needed as well.** The built-in limiter is in-memory and
+      per-instance, so the effective limit is `limit × instances`, and the bucket
+      cap can evict a counter. It stops a naive script; it is not a quota. See
+      `docs/DECISIONS.md`, D-10.
+- [ ] **Set `SUNNY_TRUST_PROXY` deliberately, having confirmed the hop count.**
+      Left at its default (trust nothing) the limiter keys on the load balancer,
+      so every visitor shares one bucket and the limit applies globally. Setting
+      it wrong is worse: a hop count above the real chain means the forged part of
+      `X-Forwarded-For` is believed. The correct value has **not** been verified
+      against Google's documentation.
+- [ ] Rate limits are high enough that `npm run smoke` passes from one address —
+      a smoke failure caused by the limiter is worse than no limiter, because it
+      teaches whoever runs the gate to ignore it.
+- [ ] Confirm a visitor who hits a limit sees something humane, not a bare 429.
+      `retry-after` is set; nothing in the widget currently reads it.
 - [ ] Tool call the deployment did not declare → dropped, never executed
 - [ ] Lead save fails → the visitor is told, and the conversation is not silently
       lost
@@ -137,10 +153,10 @@ Run `npm run verify` — it chains the first four.
 
 ## 8. Known scope gaps to state plainly, not to discover
 
-- [ ] **4 of the plan's 14 API routes exist.** Qualification, catalogue,
-      recommendations, assessments, dashboard metrics, knowledge ingestion,
-      Drive integration and billing are **not implemented**. Do not describe the
-      product as having them.
+- [ ] **3 of the plan's 14 API routes exist.** Qualification, lead creation by
+      route, catalogue, recommendations, assessments, dashboard metrics, knowledge
+      ingestion, Drive integration and billing are **not implemented**. Do not
+      describe the product as having them.
 - [ ] **There is no SunScan integration.** No SunScan endpoint has ever been
       called from this code. `packages/sunscan-adapter` is a stub, and SunScan
       has no unified error envelope, so the adapter must translate per route.

@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine and the API's first vertical slice are
-built, tested and green: **206 tests across 6 files**, a real fidelity comparison
+built, tested and green: **236 tests across 7 files**, a real fidelity comparison
 against the supplied artwork, and **17/17 API smoke checks** against a running
 server. The assistant itself **has never answered a prompt**, because there is no
 model credential in this environment — the deployment correctly refuses instead
-of simulating. Terraform exists and has never been run. Four of the plan's
+of simulating. Terraform exists and has never been run. Three of the plan's
 fourteen API routes exist. Nothing has been deployed anywhere. Sunny is not
 reachable by any customer, and by the plan's own standard it must not be
 described as working until it is.
@@ -30,7 +30,7 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`         | _All matched files use Prettier code style_                         |
 | Lint                           | `npm run lint`                 | clean (ESLint, type-aware)                                          |
 | Types                          | `npm run typecheck`            | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)         |
-| Unit / contract / visual tests | `npm run test`                 | **206 passed (6 files)**                                            |
+| Unit / contract / visual tests | `npm run test`                 | **236 passed (7 files)**                                            |
 | Widget bundle                  | `npm run build`                | 109.4 kB — **29.6 kB gzipped**                                      |
 | Character lab bundle           | `npm run build`                | 65.0 kB                                                             |
 | API smoke                      | `npm run smoke`                | **17/17 checks passed, exit 0**                                     |
@@ -48,12 +48,24 @@ Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
   rig, every group resolved at every intensity, and that every declared
   `reducedMotionFallback` exists.
 - **API** (`apps/api`) — config and capability reporting, the SSE contract,
-  session tokens, tenant isolation, tool dispatch, and the persistence layer.
+  session tokens, tenant isolation, tool dispatch, rate limiting (both the
+  counter and the address resolution it keys on, including the case where a
+  caller forges `X-Forwarded-For`), and the persistence layer.
 - **Contracts** (`packages/contracts`) — the Zod schemas that are the single
   source of truth for the wire format.
 
 ### Fixed in this session
 
+- **The API had no rate limiting at all.** `rate_limited`/429 existed in the
+  error contract and nothing could ever return it. `POST /v1/widget/session` is
+  unauthenticated and writes a conversation record; `POST /v1/chat/stream` calls
+  a model and bills per token. Either could be driven in a loop — a denial of
+  wallet with no data to steal and nothing to detect. Both routes are now limited
+  (session creation per client address, chat per session, checked _before_ the
+  provider resolves so a refused turn costs nothing). Verified against a running
+  server with `SUNNY_RL_SESSION_LIMIT=3`: three 200s, then `429` with
+  `retry-after: 60` and the shared envelope. Details and the limits of the
+  approach in `docs/DECISIONS.md`, D-10.
 - **The smoke test could not fail the build.** It printed _"17/17 checks
   passed"_ and exited **127** on Windows: `process.exit()` tore the process down
   while `fetch`'s pooled keep-alive socket was still closing, tripping a libuv
@@ -106,14 +118,20 @@ installed in this environment. The CI job that runs `fmt -check` and
 on GitHub in a form CI can see (see blocker 7). Treat the infrastructure as a
 description of intent that compiles, not as infrastructure known to work.
 
-### 4. Four of the plan's fourteen API routes exist
+### 4. Three of the plan's fourteen API routes exist
 
 Implemented: `POST /v1/widget/session`, `POST /v1/chat/stream`,
-`GET /v1/widget/config/:publicId`, `POST /v1/leads`, plus `GET /healthz` and
-`GET /v1/conversation` (not in the plan's list).
+`GET /v1/widget/config/:publicId`, plus `GET /healthz`, `GET /v1/conversation`
+and `GET /v1/leads` (none of those three is in the plan's list).
+
+**Corrected on 2026-10-10:** this section previously claimed `POST /v1/leads` was
+implemented. It is not. `app.get('/v1/leads', …)` exists and nothing else on that
+path, so the count is **three**, not four. Creating a lead happens through the
+`create_lead` tool in the conversation, which is a real path, but the plan's route
+does not exist.
 
 Absent, each with nothing behind it: `POST /v1/qualification/answer`,
-`GET /v1/catalog/products`, `POST /v1/recommendations`,
+`POST /v1/leads`, `GET /v1/catalog/products`, `POST /v1/recommendations`,
 `POST /v1/sunscan/assessments`, `GET /v1/sunscan/assessments/:id`,
 `GET /v1/dashboard/metrics`, `POST /v1/knowledge/sources`,
 `GET /v1/knowledge/jobs/:id`,

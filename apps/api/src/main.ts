@@ -1,4 +1,9 @@
-import { assertProductionReady, capabilityReport, loadConfig } from './config.js';
+import {
+  assertProductionReady,
+  capabilityReport,
+  loadConfig,
+  productionWarnings,
+} from './config.js';
 import { buildServer } from './server.js';
 import { FileStore } from './store.js';
 import { TenantRegistry } from './tenants.js';
@@ -33,6 +38,9 @@ async function main(): Promise<void> {
   }
   if (!capabilities.escalation.available) {
     console.warn(`  escalation: unavailable — ${capabilities.escalation.reason}\n`);
+  }
+  for (const warning of productionWarnings(config)) {
+    console.warn(`  warning: ${warning}\n`);
   }
 }
 
