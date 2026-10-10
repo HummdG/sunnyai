@@ -1,15 +1,22 @@
 import {
   ApiError,
   badRequestFromZod,
+  catalogueUploadRequestSchema,
   chatRequestSchema,
   leadRequestSchema,
   publicWidgetIdSchema,
   qualificationAnswerSchema,
+  recommendationRequestSchema,
   sessionRequestSchema,
   STATUS_FOR_CODE,
+  type CatalogueIssue,
+  type CatalogueResponse,
+  type CatalogueUploadResponse,
   type ChatStreamEvent,
   type QualificationAnswerResponse,
 } from '@sunny/contracts';
+import { importProducts, importRecords, mergeWant, parseCsv, recommend } from '@sunny/solar-rules';
+import { timingSafeEqual } from 'node:crypto';
 import { Readable } from 'node:stream';
 
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -505,7 +512,186 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return { leads: await store.listLeads(claims.tenantId) };
   });
 
+  // ─── catalogue ─────────────────────────────────────────────────────────────
+  //
+  // Two routes with two different credentials, and the difference is the point.
+  // Reading the catalogue is a visitor-facing act: the session token names the
+  // tenant, exactly as it does for a lead. Writing it is an installer-facing act
+  // — it is their commercial data, and the only route in this API that changes
+  // what every future visitor is shown — so it needs an admin token, and the
+  // tenant comes from the body because the caller is the installer rather than a
+  // visitor who must not be able to name one.
+
+  app.get('/v1/catalog/products', async (request) => {
+    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
+    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
+
+    const products = await store.listProducts(claims.tenantId);
+    const payload: CatalogueResponse = {
+      products,
+      currencies: [
+        ...new Set(
+          products
+            .map((product) => product.currency)
+            .filter((currency): currency is string => currency !== null),
+        ),
+      ],
+      categories: [...new Set(products.map((product) => product.category))],
+    };
+    return payload;
+  });
+
+  app.post('/v1/catalog/products', { bodyLimit: 4 * 1024 * 1024 }, async (request, reply) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'Catalogue uploads are disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+    enforceRateLimit(
+      request,
+      reply,
+      'catalogue',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.catalogue,
+    );
+
+    const body = catalogueUploadRequestSchema.safeParse(request.body);
+    if (!body.success) throw badRequestFromZod(body.error);
+
+    const tenant = tenants.all.find((t) => t.id === body.data.tenantId);
+    if (!tenant) throw new ApiError('not_found', 'Unknown tenant.');
+
+    // An append has to know what it is appending to, both to detect a duplicate
+    // the tenant already holds and to report the size afterwards.
+    const existing = body.data.mode === 'append' ? await store.listProducts(tenant.id) : [];
+
+    const options = {
+      tenantId: tenant.id,
+      now: new Date(now()).toISOString(),
+      nextId: () => newId('prd'),
+      existing,
+    };
+    let imported: ReturnType<typeof importProducts>;
+    let structural: CatalogueIssue[];
+    let totalRows: number;
+    if (body.data.csv !== undefined) {
+      const parsed = parseCsv(body.data.csv);
+      imported = importProducts(parsed.rows, options);
+      // A parse-level failure is not a bad row, it is an untrustworthy file: an
+      // unterminated quote means the rest of the file is inside one cell, and a
+      // truncated download is the likeliest way to get one. Importing the rows
+      // that happened to survive would store half a price list.
+      structural = parsed.issues;
+      totalRows = parsed.rows.length;
+    } else {
+      imported = importRecords(body.data.records ?? [], options);
+      structural = [];
+      totalRows = body.data.records?.length ?? 0;
+    }
+
+    const issues = [...structural, ...imported.issues];
+    const failed = structural.some((issue) => issue.severity === 'error');
+    const accepted = failed ? 0 : imported.products.length;
+
+    let catalogueSize: number;
+    if (body.data.dryRun || failed) {
+      catalogueSize = existing.length + accepted;
+    } else {
+      const saved = await store.saveProducts(tenant.id, imported.products, body.data.mode);
+      catalogueSize = saved.length;
+    }
+
+    // The report is the answer, so every outcome here is a 200 with a body an
+    // installer can read: a file that imported 98 of 100 rows is not an HTTP
+    // error, it is a file with two problems in it, and the two are told apart by
+    // `severity` rather than by a status code. `dryRun` is the one that is
+    // genuinely a different outcome, and it says so in the body.
+    const payload: CatalogueUploadResponse = {
+      accepted,
+      rejected: Math.max(0, totalRows - accepted),
+      products: failed ? [] : imported.products,
+      issues,
+      catalogueSize,
+      mode: body.data.mode,
+      dryRun: body.data.dryRun,
+    };
+    reply.code(body.data.dryRun || failed ? 200 : 201);
+    return payload;
+  });
+
+  // ─── recommendations ───────────────────────────────────────────────────────
+
+  /**
+   * Options, assembled from the installer's own catalogue.
+   *
+   * The refinement lives here rather than in the tool so that both doors — a
+   * visitor clicking "cheaper", and the model deciding to refine — go through
+   * the same merge against the same stored constraints. The response carries the
+   * merged want, so a caller can see what was actually in force rather than what
+   * it asked for.
+   */
+  app.post('/v1/recommendations', async (request, reply) => {
+    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
+    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
+
+    // Limited by the chat rule: this spends CPU rather than tokens, and the
+    // subject is authenticated either way, so a separate budget would be a
+    // second number to get wrong for no gain.
+    enforceRateLimit(
+      request,
+      reply,
+      'recommendations',
+      claims.sessionId,
+      config.rateLimit.rules.chat,
+    );
+
+    const body = recommendationRequestSchema.safeParse(request.body);
+    if (!body.success) throw badRequestFromZod(body.error);
+    if (body.data.sessionId !== claims.sessionId) {
+      throw new ApiError('forbidden', 'That session token is for a different session.');
+    }
+
+    const [products, conversation, standing] = await Promise.all([
+      store.listProducts(claims.tenantId),
+      store.getConversation(claims.tenantId, claims.sessionId),
+      store.getWant(claims.tenantId, claims.sessionId),
+    ]);
+
+    const want = mergeWant(standing, body.data.want ?? {});
+    const response = recommend({
+      products,
+      answers: conversation?.answers ?? {},
+      want,
+      now: new Date(now()).toISOString(),
+    });
+    await store.saveWant(claims.tenantId, claims.sessionId, want);
+    return response;
+  });
+
   return app;
+}
+
+/**
+ * Compare a presented token with the configured one in constant time.
+ *
+ * `timingSafeEqual` throws on unequal lengths, so the length check has to come
+ * first — which leaks the length and nothing else, the usual and accepted
+ * trade. What this buys is that a wrong token cannot be narrowed down one byte
+ * at a time by watching how long the comparison took.
+ */
+function tokensMatch(presented: string | undefined, expected: string): boolean {
+  if (presented === undefined) return false;
+  const left = Buffer.from(presented);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 /** Fastify attaches `validation` to the errors its own schema checks raise. */

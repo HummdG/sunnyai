@@ -1,0 +1,11 @@
+Category,Manufacturer,Model,Power (W),Capacity (kWh),Price,Currency,Warranty (years),Source,Max DC Power (W),Max String Voltage (V),Phase,Hybrid,Battery Families,Battery Family,Compatible Inverters,VOC,Notes
+Panel,Sunbeam,SB-430,430,,£180,GBP,25,demo://sunbeam-sb-430,,,,,,,,38.2,DEMO ROW - fictional product and price
+Panel,Sunbeam,SB-500,500,,£215,GBP,25,demo://sunbeam-sb-500,,,,,,,,41.5,DEMO ROW - fictional product and price
+Panel,Aurora,A420,420,,£195,GBP,25,demo://aurora-a420,,,,,,,,39.4,DEMO ROW - fictional product and price
+Inverter,Voltix,VX-3.6K,3600,,950,GBP,10,demo://voltix-vx36,4600,600,1,,Alpha;Beta,,,,DEMO ROW - fictional product and price
+Inverter,Voltix,VX-6K,6000,,1350,GBP,10,demo://voltix-vx6,7800,600,3,,Alpha;Beta,,,,DEMO ROW - fictional product and price
+Inverter,Helio,HX-5K Hybrid,5000,,1200,GBP,10,demo://helio-hx5,6500,550,1,yes,Alpha,,,,DEMO ROW - fictional product and price
+Battery,Alpha,Home 5,,5,2950,GBP,10,demo://alpha-home5,,,,,,Alpha,Voltix VX-3.6K;Voltix VX-6K;Helio HX-5K Hybrid,,DEMO ROW - fictional product and price
+Battery,Alpha,Home 10,,10,4600,GBP,10,demo://alpha-home10,,,,,,Alpha,Voltix VX-6K;Helio HX-5K Hybrid,,DEMO ROW - fictional product and price
+Battery,Beta,Stack 10,,10,4900,GBP,10,demo://beta-stack10,,,,,,Beta,Helio HX-5K Hybrid,,DEMO ROW - fictional product and price
+EV Charger,Voltix,EV-7,7000,,750,GBP,3,demo://voltix-ev7,,,1,,,,,,DEMO ROW - fictional product and price

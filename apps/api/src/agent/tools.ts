@@ -1,4 +1,6 @@
-import { PAGE_ACTIONS, TOOL_NAMES } from '@sunny/contracts';
+import { PAGE_ACTIONS, PRODUCT_CATEGORIES, TOOL_NAMES } from '@sunny/contracts';
+import type { PackageOption, Product, ProductCategory, RecommendationWant } from '@sunny/contracts';
+import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
 import { newId, type LeadRecord, type Store } from '../store.js';
 import type { Tenant } from '../tenants.js';
@@ -69,6 +71,136 @@ function num(args: Record<string, unknown>, key: string): number | null {
     return Number(value);
   }
   return null;
+}
+
+/**
+ * A boolean argument.
+ *
+ * Models send `true` as often as `"true"`, and the difference matters here:
+ * `requireBattery: "false"` read as truthy would turn "no battery" into "must
+ * have a battery". Anything that is not recognisably a boolean is `null` --
+ * absent -- rather than a guess, so a malformed argument leaves the standing
+ * constraint alone instead of overwriting it.
+ */
+function bool(args: Record<string, unknown>, key: string): boolean | null {
+  const value = args[key];
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const text = value.trim().toLowerCase();
+    if (text === 'true') return true;
+    if (text === 'false') return false;
+  }
+  return null;
+}
+
+/**
+ * The model's arguments as a refinement of what the visitor has already asked
+ * for. Only the fields it actually set are present, because `mergeWant` reads
+ * an absent field as "unchanged" -- and a key set to `undefined` is exactly
+ * that, so the two agree without either side having to know the other's rule.
+ */
+function wantFromArgs(args: Record<string, unknown>): RecommendationWant {
+  const want: RecommendationWant = {};
+  const targetKwp = num(args, 'targetKwp');
+  const panelCount = num(args, 'panelCount');
+  const maxBudgetMajor = num(args, 'maxBudgetMajor');
+  const minBatteryKwh = num(args, 'minBatteryKwh');
+  const currency = str(args, 'currency');
+
+  if (targetKwp !== null && targetKwp > 0) want.targetKwp = targetKwp;
+  if (panelCount !== null && panelCount > 0) want.panelCount = Math.round(panelCount);
+  if (maxBudgetMajor !== null && maxBudgetMajor > 0) want.maxBudgetMajor = maxBudgetMajor;
+  if (minBatteryKwh !== null && minBatteryKwh > 0) want.minBatteryKwh = minBatteryKwh;
+  if (currency !== null) want.currency = currency.toUpperCase();
+
+  const requireBattery = bool(args, 'requireBattery');
+  if (requireBattery !== null) want.requireBattery = requireBattery;
+  const requireEvCharging = bool(args, 'requireEvCharging');
+  if (requireEvCharging !== null) want.requireEvCharging = requireEvCharging;
+  const preferCheaper = bool(args, 'preferCheaper');
+  if (preferCheaper !== null) want.preferCheaper = preferCheaper;
+  const reset = bool(args, 'reset');
+  if (reset !== null) want.reset = reset;
+
+  return want;
+}
+
+/**
+ * Minor units as a person reads them, or null.
+ *
+ * A price with no currency has no label: "180.00" alone would be a figure the
+ * model could pair with any currency it liked, which is the invented-price
+ * failure this whole engine exists to avoid.
+ */
+function money(minor: number | null, currency: string | null): string | null {
+  return minor === null || currency === null ? null : `${currency} ${(minor / 100).toFixed(2)}`;
+}
+
+/**
+ * The part of a catalogue row a conversation needs.
+ *
+ * `compatibility` travels with it because the model has to justify the pairing,
+ * and a justification it can only make by inventing a number is not one. Absent
+ * fields are null here exactly as they are in the catalogue.
+ */
+function productCard(product: Product): Record<string, unknown> {
+  return {
+    id: product.id,
+    category: product.category,
+    manufacturer: product.manufacturer,
+    model: product.model,
+    powerW: product.powerW,
+    capacityWh: product.capacityWh,
+    price:
+      product.priceMinor === null
+        ? null
+        : {
+            minor: product.priceMinor,
+            currency: product.currency,
+            label: money(product.priceMinor, product.currency),
+            status: product.priceStatus,
+            sourceRef: product.sourceRef,
+          },
+    warrantyYears: product.warrantyYears,
+    compatibility: product.compatibility,
+  };
+}
+
+/**
+ * An option as the model sees it.
+ *
+ * Prices come back twice: as the integer and as a label. The label exists so
+ * the model has something quotable that was produced here rather than by
+ * arithmetic of its own, and the integer stays alongside it so nothing about
+ * the figure becomes opaque on the way out.
+ */
+function packageForModel(option: PackageOption): Record<string, unknown> {
+  return {
+    id: option.id,
+    rank: option.rank,
+    title: option.title,
+    summary: option.summary,
+    items: option.items.map((item) => ({
+      productId: item.productId,
+      name: `${item.manufacturer} ${item.model}`,
+      category: item.category,
+      quantity: item.quantity,
+      powerW: item.powerW,
+      capacityWh: item.capacityWh,
+      priceMinor: item.priceMinor,
+      priceLabel: money(item.priceMinor, item.currency),
+      priceStatus: item.priceStatus,
+      sourceRef: item.sourceRef,
+    })),
+    totalMinor: option.totalMinor,
+    totalLabel: money(option.totalMinor, option.currency),
+    totalStatus: option.totalStatus,
+    systemPowerW: option.systemPowerW,
+    batteryCapacityWh: option.batteryCapacityWh,
+    reasons: option.reasons,
+    limitations: option.limitations,
+    nextStep: option.nextStep,
+  };
 }
 
 // ─── the questionnaire, as extracted from SunScan ────────────────────────────
@@ -308,12 +440,23 @@ const DEFINITIONS: ToolDefinition[] = [
   {
     name: 'validate_compatibility',
     description:
-      "Check whether a proposed system makes sense for the answers given so far, using Sunny's own rules of thumb. Report any warnings verbatim; they are not advisory.",
+      "Check a system the visitor has described against this installer's own catalogue: whether the panel count is within the inverter's DC input limit, whether a panel fits its string voltage, and whether a battery is one the inverter is listed with. Each answer says which rule ran and which could not, because a rule that could not run is not a pass. Also reports the caveats that follow from the visitor's own roof answers. Never state a compatibility verdict of your own.",
     parameters: {
       type: 'object',
       properties: {
         panelCount: { type: 'number' },
-        batteryKwh: { type: 'number' },
+        panelProductId: {
+          type: 'string',
+          description: 'From search_catalogue, when a panel was chosen.',
+        },
+        inverterProductId: {
+          type: 'string',
+          description: 'From search_catalogue, when an inverter was chosen.',
+        },
+        batteryProductId: {
+          type: 'string',
+          description: 'From search_catalogue, when a battery was chosen.',
+        },
       },
       required: ['panelCount'],
     },
@@ -327,86 +470,198 @@ const DEFINITIONS: ToolDefinition[] = [
           summary: 'No panel count given.',
         };
       }
-      const warnings: string[] = [];
-      const notes: string[] = [];
 
-      const size = ctx.answers['roof_size'];
-      const direction = ctx.answers['roof_direction'];
-      const shading = ctx.answers['roof_shading'];
+      const products = await ctx.store.listProducts(ctx.tenant.id);
+      const verdict = validateSystem(
+        { products, answers: ctx.answers, want: {} },
+        {
+          panelCount,
+          panelProductId: str(args, 'panelProductId'),
+          inverterProductId: str(args, 'inverterProductId'),
+          batteryProductId: str(args, 'batteryProductId'),
+        },
+      );
 
-      if (panelCount > 20 && (size === 'small' || size === 'unsure')) {
-        warnings.push(
-          `${panelCount} panels is likely more than a ${size ?? 'small'} roof will take.`,
+      const notes = [...verdict.notes];
+      if (products.length === 0) {
+        // The roof caveats still stand, but nothing about the hardware has been
+        // checked, and saying "no problems found" here would be a lie of omission.
+        notes.push(
+          'No product list has been loaded into Sunny, so nothing about the hardware could be checked.',
         );
-      }
-      if (direction === 'north' && panelCount > 6) {
-        warnings.push('A north-facing roof will generate materially less than the model assumes.');
-      }
-      if (shading === 'heavy') {
-        warnings.push('Heavy shading needs an on-site survey before any figure is quoted.');
-      }
-      if (direction === 'unsure' || size === 'unsure') {
-        notes.push('Roof orientation or size is uncertain; figures are indicative until surveyed.');
       }
 
       return {
         ok: true,
-        data: { panelCount, warnings, notes, ruleSource: 'sunny-rules-of-thumb' },
-        summary: warnings.length ? warnings.join(' ') : 'No compatibility problems detected.',
+        data: {
+          panelCount,
+          warnings: verdict.warnings,
+          notes,
+          constraintsChecked: verdict.checks,
+          exclusions: verdict.exclusions,
+          catalogueSize: products.length,
+          ruleSource: "installer's catalogue",
+        },
+        summary: verdict.warnings.length
+          ? verdict.warnings.join(' ')
+          : notes.length
+            ? 'No contradictions found. ' + notes.join(' ')
+            : 'No compatibility problems found.',
       };
     },
   },
   {
     name: 'search_catalogue',
     description:
-      "Look up products from this installer's catalogue. Only use products returned here.",
+      "Look up products from this installer's own catalogue. Only use products returned here, and only " +
+      'quote a price a returned row carries. Returns nothing, with a reason, when no catalogue is loaded.',
     parameters: {
       type: 'object',
       properties: {
-        kind: { type: 'string', description: 'panel, battery, inverter, or all' },
+        kind: {
+          type: 'string',
+          description: 'panel, inverter, battery, ev_charger, mounting, other, or all',
+        },
         maxResults: { type: 'number' },
       },
     },
     required: [],
     async run(args, ctx) {
-      // The catalogue is the installer's commercial data and lives in SunScan.
-      // Until the adapter is connected, say so rather than inventing prices.
-      if (!ctx.sunscanConnected) {
+      // From the store, per tenant: the rows the recommendation engine reads and
+      // the rows the model reads are the same ones, so a figure the model quotes
+      // can be traced back to the row the installer uploaded.
+      const products = await ctx.store.listProducts(ctx.tenant.id);
+      if (products.length === 0) {
         return {
           ok: false,
-          data: { products: [], connected: false },
+          data: { products: [], catalogueSize: 0 },
           summary:
-            "I cannot reach this installer's catalogue in this environment, so I will not quote specific products or prices.",
+            'No product list has been loaded into Sunny for this installer, so I cannot quote any ' +
+            'product or price. I can still pass the enquiry on.',
         };
       }
+
+      const kind = str(args, 'kind');
+      const category: ProductCategory | null =
+        kind !== null && (PRODUCT_CATEGORIES as readonly string[]).includes(kind)
+          ? (kind as ProductCategory)
+          : null;
+      const maxResults = Math.min(Math.max(Math.trunc(num(args, 'maxResults') ?? 8), 1), 25);
+
+      const matching = products.filter(
+        (product) => category === null || product.category === category,
+      );
+      // A deterministic order, on purpose: the same question in two sessions has
+      // to return the same shortlist, or a refinement would be compared against
+      // a different catalogue than the one it was given. Priced rows first --
+      // they are what a quote is made of -- then cheapest, then by name.
+      const ordered = [...matching].sort((a, b) => {
+        if ((a.priceMinor !== null) !== (b.priceMinor !== null)) {
+          return a.priceMinor !== null ? -1 : 1;
+        }
+        if (a.priceMinor !== null && b.priceMinor !== null && a.priceMinor !== b.priceMinor) {
+          return a.priceMinor - b.priceMinor;
+        }
+        const byName = `${a.manufacturer} ${a.model}`.localeCompare(`${b.manufacturer} ${b.model}`);
+        return byName !== 0 ? byName : a.id.localeCompare(b.id);
+      });
+      const rows = ordered.slice(0, maxResults);
+
       return {
-        ok: false,
-        data: { products: [], connected: true, pending: 'catalogue-sync-not-implemented' },
-        summary: 'Catalogue sync is not implemented in this build yet.',
+        ok: rows.length > 0,
+        data: {
+          products: rows.map(productCard),
+          catalogueSize: products.length,
+          matching: matching.length,
+          /** True when the shortlist was cut down, rather than the catalogue being this small. */
+          truncated: matching.length > rows.length,
+          categories: [...new Set(products.map((product) => product.category))].sort(),
+        },
+        summary:
+          rows.length === 0
+            ? `This installer's catalogue has no ${category ?? 'products'} rows.`
+            : `${rows.length} of ${matching.length} matching rows returned.`,
       };
     },
   },
   {
     name: 'recommend_packages',
     description:
-      'Produce up to three system options with indicative sizes and payback, given the answers so far.',
+      "Assemble up to three system options from this installer's catalogue for what the visitor has " +
+      'asked for, and check each against the compatibility rules. State the size the visitor named ' +
+      '(targetKwp or panelCount); a refinement like "cheaper" or "with a battery" is sent as that ' +
+      'field alone and accumulates onto what they asked for earlier. Do not add products, prices or ' +
+      'savings of your own: the options returned are the whole answer.',
     parameters: {
       type: 'object',
-      properties: { annualKwh: { type: 'number' } },
+      properties: {
+        targetKwp: { type: 'number', description: 'System size the visitor asked for, in kWp.' },
+        panelCount: {
+          type: 'number',
+          description: 'Or a panel count, if that is how they said it.',
+        },
+        maxBudgetMajor: {
+          type: 'number',
+          description: 'Their stated ceiling in major units -- 8000 for £8,000.',
+        },
+        currency: { type: 'string', description: 'ISO 4217 code the budget is stated in.' },
+        requireBattery: { type: 'boolean' },
+        requireEvCharging: { type: 'boolean' },
+        minBatteryKwh: {
+          type: 'number',
+          description: 'Minimum battery size, when they named one.',
+        },
+        preferCheaper: {
+          type: 'boolean',
+          description: 'True when they asked for the cheapest option rather than the best.',
+        },
+        reset: {
+          type: 'boolean',
+          description:
+            'True only when they have changed their mind and want earlier needs dropped.',
+        },
+      },
     },
     required: [],
     async run(args, ctx) {
+      const products = await ctx.store.listProducts(ctx.tenant.id);
+      const standing = await ctx.store.getWant(ctx.tenant.id, ctx.sessionId);
+      const want = mergeWant(standing, wantFromArgs(args));
+
+      const response = recommend({
+        products,
+        answers: ctx.answers,
+        want,
+        now: new Date().toISOString(),
+      });
+
+      // Stored even when nothing could be built. A refinement that produced no
+      // option is still a requirement the visitor stated, and dropping it would
+      // make the next turn quietly answer a different question.
+      await ctx.store.saveWant(ctx.tenant.id, ctx.sessionId, want);
+
+      const best = response.packages[0] ?? null;
+      if (best) {
+        // What the widget's "here are your options" moment fires on.
+        ctx.events.push({ kind: 'recommendation_ready', detail: { recommendationId: best.id } });
+      }
+
       return {
-        ok: false,
+        ok: best !== null,
         data: {
-          connected: ctx.sunscanConnected,
-          answers: ctx.answers,
-          reason:
-            "Recommendations are priced by the installer's own engine. Sunny does not produce an " +
-            'independent figure, because two different prices for the same roof is worse than none.',
+          catalogue: response.catalogue,
+          want: response.want,
+          packages: response.packages.map(packageForModel),
+          exclusions: response.exclusions,
+          constraintsChecked: response.constraintsChecked,
+          assumptions: response.assumptions,
+          surveyConfirmed: response.surveyConfirmed,
+          note: response.note,
         },
-        summary:
-          'I cannot produce priced options here; I can pass you to the installer for a quote.',
+        summary: best
+          ? `${response.packages.length} option(s). Best: ${best.title} — ` +
+            `${money(best.totalMinor, best.currency) ?? 'one item has no price, so there is no total'}.`
+          : response.note,
       };
     },
   },

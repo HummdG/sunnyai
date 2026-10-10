@@ -1355,3 +1355,130 @@ the only frame in the whole suite where `seed` is on screen, and the finished
 flower deliberately not spent here because the reduced-motion scene is already
 that picture -- and the reduced-motion **still**, a full flower standing beside
 her. Both were re-rendered under `node:22-bookworm` and are byte-identical there.
+
+## D-27. The catalogue is the installer's data, and silence is not a pass
+
+The plan's row is "Upload, validation, deterministic compatibility, package cards,
+iterative refinement", and its gate is two claims that pull against each other:
+**golden scenario tests** want the whole path to be reproducible arithmetic, and
+**no fabricated product details** wants nothing in the path invented. Both hold at
+once because of one structural choice: `@sunny/solar-rules` is a pure function of
+the installer's own rows. No network, no randomness, and no clock -- time arrives
+as an argument, ids arrive as a function. The same catalogue, the same answers and
+the same request produce the same response byte for byte, which is what makes a
+"golden scenario" a test rather than a memory of a conversation. Everything below
+is a consequence of that choice, plus one rule about absence.
+
+**A readable row and an unreadable row fail differently, and the difference is
+the import's whole design.** Reading a cell cannot be a guess: a price with no
+currency stops its row (`price-without-currency`) rather than being assumed into
+one, a figure whose header states no unit stops it (`missing-unit`) rather than
+being read as watts, and a duplicate inside the file is rejected against the line
+it first appeared on. But a row that is _readable and thin_ -- a price with no
+source, a battery that names no compatible inverters -- is stored and **said
+aloud**, as `indicative` rather than `verified` and as a warning rather than an
+error. An import that threw both kinds away would be deleting rows the installer
+can see; one that kept both silently would be turning a spreadsheet into a
+warranty. So the report is the answer: a file that imported 98 of 100 rows is not
+an HTTP error, it is a file with two problems in it, and the problems are told
+apart by `severity` rather than by a status code. The one genuinely different
+outcome is a **structural** parse failure, and there the route stores nothing at
+all: an unterminated quote means the rest of the file is inside one cell, and the
+likeliest way to get one is a truncated download, so importing the survivors would
+store half a price list under a name that claims to be whole.
+
+**Silence is not a pass, and the type is where that is enforced.** Every
+compatibility rule reports one of `applied`, `skipped-missing-data` or
+`not-applicable` -- and there is deliberately no `violated`. A contradiction does
+not produce a failed check; it produces an **exclusion** carrying the reason, and
+the option it killed never reaches a card. A rule that _cannot run_ because the
+catalogue does not carry the number is reported as skipped, never as satisfied, so
+no visitor is told a combination is fine on the strength of a missing column. The
+asymmetry is the point: an exclusion needs the installer's own data to contradict
+the pairing, and absence earns no verdict in either direction. That is why
+`hybrid: true` alone never marks a battery compatible with an inverter -- it says
+the inverter can charge _a_ battery, not which ones, and a card must not be built
+on a boolean -- and why the pairing rules only ever compare two named lists the
+installer wrote.
+
+**A test, not a reading, found the one place this was wrong.** The pairing rule
+compared a battery's compatible-inverter entries against the inverter's model
+alone. A price list writes an inverter as "Voltix VX-4K" about as often as it
+writes "VX-4K", and both name the same product -- but against the model alone the
+longer form names _some other_ inverter, and a named list that does not contain
+the device is an explicit `incompatible`. The formatting alone therefore produced
+a contradiction the installer had never stated, and the engine would have excluded
+a battery the spreadsheet sells. `namesProduct` now accepts either form while
+still requiring the manufacturer's own name, so it cannot pair two unrelated
+devices. The same review found the mirror-image gap on the other side:
+recommendations named their rules only in the card prose, so a _rule that ran and
+passed_ was invisible to the audit trail, unlike `validate_system`. Both paths now
+report every applied rule once, with the numbers it used.
+
+**Money is integers in one currency, or there is no total.** Prices are minor
+units on the product; one currency per catalogue; a file mixing currencies rejects
+the second currency's row with `mixed-currency` rather than converting it, because
+there is no rate anywhere in this build to convert with. A package's total is
+`null` unless **every** item is priced in that one currency, and the tool says "one
+item has no price, so there is no total" rather than summing the ones it has -- a
+part of a price presented as a price is exactly the fabrication the gate forbids.
+Which brings the other half of §7.4's labelling: a price is `verified` only because
+provenance says so, and `indicative` otherwise, and that status travels with the
+number onto the card rather than being flattened into it.
+
+**Refinement is a stored want, and there are two doors to it.** "Cheaper", "add a
+battery", "under £8,000" are not parsed from prose; the model passes fields, and a
+visitor clicking a refinement button passes the same fields. Both enter through
+`mergeWant(standing, incoming)`, where the standing want is the one stored against
+the conversation -- so a refinement accumulates onto what was already in force
+instead of replacing it, and a second "cheaper" does not forget the battery. The
+route saves the merge and returns it, so a caller can see what was actually in
+force rather than what it asked for, and the chat tool saves the same way. That a
+visitor may equally reach it through the model or through the widget is why the
+merge lives in the route and the tool calls it, rather than each having its own
+idea of what "also" means.
+
+**A size is the visitor's own figure or there are no packages.** The engine sizes
+a system only from a number the visitor gave -- about 4 kW, or a panel count -- and
+returns the honest note rather than a plausible guess when there is none. Nothing
+here computes a yield: no kWh, no kWh-per-kWp, no "panels that fit a roof this
+size". Two rules that used to sit inline in `validate_compatibility` are gone for
+the same reason: "more than 20 panels is more than a small roof will take" and
+"north-facing generates materially less" are claims no source in this build
+supports -- the questionnaire bands a roof as small, medium or large and names no
+count, and there is no yield model to be materially less than -- so they are
+replaced by a survey limitation, which is what the plan asks for. The size the
+visitor did give is recorded as an **assumption**, in those words, beside the
+system it produced.
+
+**The one write route in this API, and the only one behind an admin token.**
+Reading the catalogue is a visitor-facing act: the session token names the tenant,
+exactly as it does for a lead. Writing it is an installer-facing act and the only
+route that changes what every future visitor is shown, so it takes
+`SUNNY_ADMIN_TOKEN` and the tenant comes from the body, because the caller is the
+installer rather than a visitor who must not be able to name one. A token that is
+unset disables the route with `not_enabled` rather than leaving it open; the
+comparison is constant-time; the body limit is 4 MB and uploads are rate-limited.
+The `recommendation_ready` application event the plan names in §5.2 -- one of the
+four the UI maps to approved animations -- now has a real producer: an option set
+that survives the rules and gets saved emits it with the option's id.
+
+**What P8 does not include, and none of it is blocked on this repository.**
+Documents attached to a product (the plan says "CSV/structured records **and
+associated documents**") are still not read; `packages` and `recommendations` are
+answers rather than the stored Firestore entities of §3, so nothing is retained
+between turns except the want; the card reaches the chat transcript but not yet
+the widget's own product-card surface; and because there is no SunScan adapter
+(D-8), every option is _assumed_ and none is _survey-confirmed_ -- the response
+carries the field and it is empty, which is the truthful state of it. The route
+count moves from five of the plan's fourteen to eight: `GET /v1/catalog/products`,
+`POST /v1/recommendations`, and a `POST /v1/catalog/products` that the plan's §4
+list does not name and which is therefore not a matrix row.
+
+**Evidence.** `packages/solar-rules` (55 tests across `import.test.ts` and
+`recommend.test.ts`), `apps/api/test/tools.test.ts` (13, calling `executeTool`
+directly, because the stream's `tool_finished` carries only `ok` and a tool's
+_data_ is otherwise untestable), `apps/api/test/catalogue.test.ts` (16, the upload
+through its route, the refusals, and a chat turn that prices something and emits
+`recommendation_ready`), and `fixtures/demo-catalogue.csv` through
+`npm run seed:catalogue`.

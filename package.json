@@ -37,7 +37,8 @@
     "render:samples": "npm run render -w @sunny/character",
     "build:marketing": "npm run build -w @sunny/marketing",
     "build:tokens": "npm run build:tokens -w @sunny/ui",
-    "test:visual:update": "tsx scripts/update-visual-baselines.ts"
+    "test:visual:update": "tsx scripts/update-visual-baselines.ts",
+    "seed:catalogue": "tsx scripts/seed-catalogue.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

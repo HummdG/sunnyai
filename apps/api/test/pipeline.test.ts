@@ -14,6 +14,7 @@ import {
   type ChatTurnRequest,
 } from '../src/agent/provider.js';
 import type { ServerConfig } from '../src/config.js';
+import { ScriptedProvider } from './scripted-provider.js';
 import type { FastifyInstance } from 'fastify';
 
 /**
@@ -30,49 +31,6 @@ import type { FastifyInstance } from 'fastify';
  * docs/STATUS.md until one is supplied.
  */
 
-/** A provider that replays a fixed script, including tool calls. */
-class ScriptedProvider implements ChatProvider {
-  readonly kind = 'scripted';
-  readonly model = 'scripted-1';
-  #script: (request: ChatTurnRequest) => ChatChunk[];
-  #lastRequest: ChatTurnRequest | null = null;
-
-  constructor(script: (request: ChatTurnRequest) => ChatChunk[]) {
-    this.#script = script;
-  }
-
-  get lastRequest(): ChatTurnRequest | null {
-    return this.#lastRequest;
-  }
-
-  async *stream(request: ChatTurnRequest): AsyncIterable<ChatChunk> {
-    this.#lastRequest = request;
-    for (const chunk of this.#script(request)) {
-      if (chunk.type === 'tool_started') {
-        yield chunk;
-        // The real provider executes tools as it streams; the script must too,
-        // or the test would not cover the tool layer at all.
-        const declaration = request.tools.find((t) => t.name === chunk.call.name);
-        if (declaration) {
-          try {
-            const result = await request.execute(chunk.call);
-            yield { type: 'tool_finished', call: chunk.call, ok: true, result };
-          } catch (error) {
-            yield {
-              type: 'tool_finished',
-              call: chunk.call,
-              ok: false,
-              result: error instanceof Error ? error.message : String(error),
-            };
-          }
-        }
-      } else {
-        yield chunk;
-      }
-    }
-  }
-}
-
 function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   return {
     port: 0,
@@ -82,6 +40,9 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     dataDir: '.data-test',
     allowedOrigins: ['http://localhost:4173'],
     sessionSecret: 'test-secret-not-used-in-production',
+    // Set, so the catalogue-upload route is reachable: an unset token turns that
+    // route into a refusal, which is a case of its own below.
+    adminToken: 'test-admin-token',
     logLevel: 'silent',
     // Enabled but effectively unlimited, so every other test still runs the
     // limiter's real code path while only the tests that deliberately set a small
@@ -95,6 +56,7 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
         chat: { limit: 100_000, windowMs: 60_000 },
         leads: { limit: 100_000, windowMs: 60_000 },
         qualification: { limit: 100_000, windowMs: 60_000 },
+        catalogue: { limit: 100_000, windowMs: 60_000 },
       },
       maxKeys: 10_000,
     },
@@ -496,6 +458,7 @@ describe('rate limiting', () => {
           chat: { limit: overrides.chat ?? 100_000, windowMs: 60_000 },
           leads: { limit: overrides.leads ?? 100_000, windowMs: 60_000 },
           qualification: { limit: 100_000, windowMs: 60_000 },
+          catalogue: { limit: 100_000, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },
@@ -750,6 +713,7 @@ describe('POST /v1/leads', () => {
           chat: { limit: 100_000, windowMs: 60_000 },
           leads: { limit: 2, windowMs: 60_000 },
           qualification: { limit: 100_000, windowMs: 60_000 },
+          catalogue: { limit: 100_000, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },
@@ -904,6 +868,7 @@ describe('POST /v1/qualification/answer', () => {
           chat: { limit: 100_000, windowMs: 60_000 },
           leads: { limit: 100_000, windowMs: 60_000 },
           qualification: { limit: 2, windowMs: 60_000 },
+          catalogue: { limit: 100_000, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },

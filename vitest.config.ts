@@ -32,6 +32,13 @@ export default defineConfig({
     // The Playwright suite in tests/e2e is run by `npm run test:e2e`, not here.
     exclude: ['**/node_modules/**', 'tests/e2e/**'],
     environment: 'node',
+    // Generous on purpose, and raised after a real flake: when every worker runs
+    // at once, the *first* test in a file can absorb that file's module import
+    // (Fastify, zod, the packages) and blow a 5s budget while the code itself is
+    // fine -- one such test failed at 6.1s alone in the suite and passed in
+    // 1.6s for the whole file on its own. A timeout that fails a correct test is
+    // worse than a longer one, and 20s still ends a genuine hang.
+    testTimeout: 20_000,
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],

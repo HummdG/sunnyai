@@ -1,5 +1,7 @@
-import { appendFile, mkdir, readFile, readdir } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+import type { Product, RecommendationWant } from '@sunny/contracts';
 
 /**
  * Persistence, behind an interface.
@@ -57,6 +59,17 @@ export interface Conversation {
    * to the per-turn maps, so an old record still resumes correctly.
    */
   answers?: Record<string, string>;
+  /**
+   * The recommendation constraints standing on this session.
+   *
+   * Stored rather than re-derived because "cheaper" is a comparison against the
+   * last set, and a set of options cannot be compared to anything unless what it
+   * was built from is still on hand. Keeping it here, beside the answers, means
+   * a refinement that says nothing about batteries cannot drop the battery the
+   * visitor asked for four turns ago -- the merge happens against stored state
+   * instead of against the model's recollection of the conversation.
+   */
+  want?: RecommendationWant;
   createdAt: string;
   updatedAt: string;
 }
@@ -101,6 +114,35 @@ export interface Store {
   ): Promise<Conversation>;
   saveLead(lead: LeadRecord): Promise<LeadRecord>;
   listLeads(tenantId: string, limit?: number): Promise<LeadRecord[]>;
+  /**
+   * This tenant's catalogue.
+   *
+   * Tenant-scoped like everything else, and the scope is the whole point: a
+   * price list is the installer's commercial data, and a catalogue read that
+   * could cross tenants would put one installer's trade prices in front of
+   * another's customers.
+   */
+  listProducts(tenantId: string): Promise<Product[]>;
+  /**
+   * Replace this tenant's catalogue, or append to it.
+   *
+   * Replace is the default because the file an installer uploads *is* their
+   * price list: importing a second version on top of the first would leave two
+   * prices for one panel, and nothing in a row says which is current. Returns
+   * the catalogue as it now stands.
+   */
+  saveProducts(
+    tenantId: string,
+    products: readonly Product[],
+    mode: 'replace' | 'append',
+  ): Promise<Product[]>;
+  /** The constraints standing on this session's recommendations. */
+  getWant(tenantId: string, sessionId: string): Promise<RecommendationWant>;
+  saveWant(
+    tenantId: string,
+    sessionId: string,
+    want: RecommendationWant,
+  ): Promise<RecommendationWant>;
   /** Diagnostics for `/healthz`; must never throw. */
   health(): Promise<{ ok: boolean; detail: string }>;
 }
@@ -117,10 +159,36 @@ export class FileStore implements Store {
   #dir: string;
   #conversationCache = new Map<string, Conversation>();
   #leads: LeadRecord[] = [];
+  /** Loaded per tenant, on first read: a big catalogue is not loaded at boot. */
+  #products = new Map<string, Product[]>();
   #loaded = false;
 
   constructor(dataDir: string) {
     this.#dir = dataDir;
+  }
+
+  get #catalogueDir(): string {
+    return join(this.#dir, 'catalogue');
+  }
+
+  #catalogueFile(tenantId: string): string {
+    return join(this.#catalogueDir, `${encodeURIComponent(tenantId)}.json`);
+  }
+
+  async #readProducts(tenantId: string): Promise<Product[]> {
+    try {
+      const raw = await readFile(this.#catalogueFile(tenantId), 'utf8');
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      // Defensive for the same reason the conversation reader is: a file that
+      // names another tenant is not evidence that this tenant owns those rows.
+      return parsed.filter(
+        (row): row is Product =>
+          typeof row === 'object' && row !== null && (row as Product).tenantId === tenantId,
+      );
+    } catch {
+      return [];
+    }
   }
 
   async #ensure(): Promise<void> {
@@ -234,6 +302,68 @@ export class FileStore implements Store {
       .filter((l) => l.tenantId === tenantId)
       .slice(-limit)
       .reverse();
+  }
+
+  async listProducts(tenantId: string): Promise<Product[]> {
+    await this.#ensure();
+    const cached = this.#products.get(tenantId);
+    if (cached) return [...cached];
+    const loaded = await this.#readProducts(tenantId);
+    this.#products.set(tenantId, loaded);
+    return [...loaded];
+  }
+
+  async saveProducts(
+    tenantId: string,
+    products: readonly Product[],
+    mode: 'replace' | 'append',
+  ): Promise<Product[]> {
+    await this.#ensure();
+    const merged =
+      mode === 'append' ? [...(await this.listProducts(tenantId)), ...products] : [...products];
+
+    // A whole-file rewrite rather than an append, unlike leads: a catalogue is a
+    // state, not a log, and a replace has to be able to *remove* a price. An
+    // append-only file would need tombstones to express that, which is a
+    // database's job and not this store's.
+    await mkdir(this.#catalogueDir, { recursive: true });
+    await writeFile(this.#catalogueFile(tenantId), JSON.stringify(merged), 'utf8');
+    this.#products.set(tenantId, merged);
+    return [...merged];
+  }
+
+  async getWant(tenantId: string, sessionId: string): Promise<RecommendationWant> {
+    const conversation = await this.getConversation(tenantId, sessionId);
+    return conversation?.want ?? {};
+  }
+
+  async saveWant(
+    tenantId: string,
+    sessionId: string,
+    want: RecommendationWant,
+  ): Promise<RecommendationWant> {
+    await this.#ensure();
+    const existing = await this.getConversation(tenantId, sessionId);
+    const now = new Date().toISOString();
+    // A replacement, not a merge: the caller has already merged the standing
+    // constraints with the refinement, and merging again here would make the
+    // stored result depend on which layer did it.
+    const conversation: Conversation = existing
+      ? { ...existing, want: { ...want }, updatedAt: now }
+      : {
+          id: newId('conv'),
+          tenantId,
+          sessionId,
+          turns: [],
+          want: { ...want },
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    await mkdir(join(this.#dir, 'conversations'), { recursive: true });
+    await appendFile(this.#conversationFile(tenantId), `${JSON.stringify(conversation)}\n`, 'utf8');
+    this.#conversationCache.set(`${tenantId}:${sessionId}`, conversation);
+    return conversation.want ?? {};
   }
 
   async health(): Promise<{ ok: boolean; detail: string }> {

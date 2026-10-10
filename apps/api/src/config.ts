@@ -78,6 +78,12 @@ export interface RateLimitConfig {
      * likelier to be the target of a loop than the chat is.
      */
     qualification: RateLimitRule;
+    /**
+     * Per client address. The only route that takes a multi-megabyte body, and
+     * the only one behind an admin token — limited anyway, because a leaked
+     * token should not also be an unlimited write amplifier.
+     */
+    catalogue: RateLimitRule;
   };
   maxKeys: number;
 }
@@ -93,6 +99,16 @@ export interface ServerConfig {
   /** Origins allowed to open a widget session. Empty means any (dev only). */
   allowedOrigins: string[];
   sessionSecret: string;
+  /**
+   * The token that authorises a catalogue upload.
+   *
+   * Unset by default, and an unset token means uploads are *off* rather than
+   * open: there is no default value here, because a default would be a published
+   * credential guarding the one route that writes an installer's commercial
+   * data. With it unset, `/v1/catalog/products` answers `not_enabled` and says
+   * which variable to set.
+   */
+  adminToken: string | null;
   logLevel: string;
   rateLimit: RateLimitConfig;
 }
@@ -176,6 +192,13 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         limit: Number(env('SUNNY_RL_QUALIFICATION_LIMIT') ?? 40),
         windowMs: Number(env('SUNNY_RL_QUALIFICATION_WINDOW_MS') ?? 60_000),
       },
+      // Low, because a real price list is uploaded a handful of times a season
+      // and the route is token-guarded anyway. This is the limit that stops a
+      // loop, not the one that shapes normal use.
+      catalogue: {
+        limit: Number(env('SUNNY_RL_CATALOGUE_LIMIT') ?? 20),
+        windowMs: Number(env('SUNNY_RL_CATALOGUE_WINDOW_MS') ?? 60_000),
+      },
     },
     maxKeys: Number(env('SUNNY_RL_MAX_KEYS') ?? 10_000),
   };
@@ -190,6 +213,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     // A development default, replaced by Secret Manager in Cloud Run. The API
     // refuses to boot in production with this value (see `assertProductionReady`).
     sessionSecret: env('SESSION_SECRET') ?? 'dev-only-insecure-session-secret',
+    adminToken: env('SUNNY_ADMIN_TOKEN') ?? null,
     logLevel: env('LOG_LEVEL') ?? (nodeEnv === 'test' ? 'silent' : 'info'),
     rateLimit,
     ...overrides,
@@ -270,9 +294,20 @@ export interface CapabilityReport {
   };
   escalation: { available: boolean; model: string | null; reason: string | null };
   persistence: { available: boolean; kind: string };
+  /** Whether an installer can load a catalogue into this deployment. */
+  catalogue: { uploadsEnabled: boolean; reason: string | null };
 }
 
 export function capabilityReport(config: ServerConfig): CapabilityReport {
+  const catalogue: CapabilityReport['catalogue'] = config.adminToken
+    ? { uploadsEnabled: true, reason: null }
+    : {
+        uploadsEnabled: false,
+        reason:
+          'SUNNY_ADMIN_TOKEN is not set, so no catalogue can be uploaded. Set it to load an ' +
+          'installer’s product list; without one, recommendations have nothing to price.',
+      };
+
   if (!config.gemini) {
     return {
       chat: {
@@ -286,6 +321,7 @@ export function capabilityReport(config: ServerConfig): CapabilityReport {
       },
       escalation: { available: false, model: null, reason: 'GEMINI_API_KEY is not set.' },
       persistence: { available: true, kind: 'file' },
+      catalogue,
     };
   }
 
@@ -317,5 +353,6 @@ export function capabilityReport(config: ServerConfig): CapabilityReport {
             'is not retiring, so this is left to the operator.',
         },
     persistence: { available: true, kind: 'file' },
+    catalogue,
   };
 }

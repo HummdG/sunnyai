@@ -178,6 +178,7 @@ describe('rate limit configuration', () => {
           chat: { limit: 20, windowMs: 60_000 },
           leads: { limit: 10, windowMs: 60_000 },
           qualification: { limit: 40, windowMs: 60_000 },
+          catalogue: { limit: 20, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },
