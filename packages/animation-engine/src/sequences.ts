@@ -1922,9 +1922,9 @@ const popShower: Sequence = {
  * rays.** She has eight; the two that own the lower right are at 91.5 degrees
  * (straight out to the side) and 131.5 (down and right), and they leave a
  * 40-degree gap between them. Everything else on that side is her own body or a
- * ray, so the plant goes in the gap: the base 64 units out, which is past both
- * ray tips, and a lean of 14 degrees away from her, which is what keeps the stem
- * outside the ray ring all the way up.
+ * ray, so the plant goes in the gap: the base at (64, 52), which is 82.5 out from
+ * her centre and so past both ray tips, and a lean of 14 degrees away from her,
+ * which is what keeps the stem outside the ray ring all the way up.
  *
  * `y = 52` is the ground the deckchair stands on (D-20), because a plant on a
  * different floor from the chair is a sticker rather than a plant.

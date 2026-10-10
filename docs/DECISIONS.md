@@ -1291,7 +1291,8 @@ leans _away_ from her.** The first version of this moment put the plant in the
 lower right and drew it straight across the ray at 131.5 degrees: a black smudge
 on an orange triangle, past saving by tint or outline. She has eight rays and the
 two that own the lower right leave a 40-degree gap, so the plant goes in the gap
--- 64 units out, past both ray tips at 75.5, leaning 14 degrees away, which keeps
+-- at (64, 52) in the body's frame, which is 82.5 out from her centre and so past
+both ray tips at 75.5, leaning 14 degrees away, which keeps
 the stem outside the ray ring the whole way up. Leaning it _toward_ her, the
 direction a real plant grows toward a sun, would grow it straight across the rays
 this placement exists to avoid; the lean is not botany, it is the open space. The
