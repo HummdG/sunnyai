@@ -457,6 +457,23 @@ const tableRead = (page: Page, key: string): Promise<string | null> =>
   page.locator(table).getAttribute(`data-${key}`);
 const ballAt = async (page: Page): Promise<string> => (await tableRead(page, 'ball')) ?? '';
 
+/**
+ * Where Sunny's bat is on the page, in viewport coordinates.
+ *
+ * Read from the painted rectangle rather than from an attribute the test worked
+ * out, and read at all because "she is still playing" is the one claim about a
+ * take-over that holds unconditionally: her aim is deliberately chosen to be as
+ * far as it can be from the *opponent's* bat (D-24), so a visitor who takes the
+ * right bat and then puts their hands down concedes, and the rally count is no
+ * longer a promise the page can keep. Her bat moving is.
+ */
+const sunnyPaddleY = (page: Page): Promise<number | null> =>
+  page.evaluate(() => {
+    const node = document.querySelector('#pong [data-prop="paddle"]');
+    if (!node) return null;
+    return (node as SVGGraphicsElement).getBoundingClientRect().y;
+  });
+
 test('puts the bat on the end of a ray, and rallies with it', async ({ page }) => {
   await page.goto(LAB_URL);
 
@@ -470,17 +487,10 @@ test('puts the bat on the end of a ray, and rallies with it', async ({ page }) =
   const paddle = page.locator('#pong [data-prop="paddle"]');
   await expect(paddle).toHaveCount(1);
 
-  // The arm moves: her prop is not parked, it is playing. Read from the painted
-  // rectangle rather than from an attribute this file worked out.
-  const propY = () =>
-    page.evaluate(() => {
-      const node = document.querySelector('#pong [data-prop="paddle"]');
-      if (!node) return null;
-      return (node as SVGGraphicsElement).getBoundingClientRect().y;
-    });
-  const first = await propY();
+  // The arm moves: her prop is not parked, it is playing.
+  const first = await sunnyPaddleY(page);
   await expect
-    .poll(async () => Math.abs((await propY())! - first!), { timeout: 10_000 })
+    .poll(async () => Math.abs((await sunnyPaddleY(page))! - first!), { timeout: 10_000 })
     .toBeGreaterThan(2);
 
   // A rally: the ball crosses the court and is returned, so the count of returns
@@ -507,12 +517,20 @@ test('takes the right bat over on the first key, and hands it back', async ({ pa
   await expect(page.locator(table)).toHaveAttribute('data-controlled', 'right');
   await page.keyboard.up('ArrowDown');
 
-  // Hers stays hers: she goes on playing the left end while the visitor plays the
-  // right, which is what makes the take-over a take-over rather than a swap.
-  const before = await tableRead(page, 'hits');
+  // Hers stays hers: she goes on playing the left end while the visitor plays
+  // the right, which is what makes the take-over a take-over rather than a swap.
+  //
+  // Asserted against her bat's motion rather than against the rally count. The
+  // count is the wrong proxy and was a flaky one: her aim is picked to be as far
+  // from the opponent's bat as it can be (D-24), so a visitor who takes the bat
+  // and then puts their hands down concedes the point, every rally resets `hits`
+  // to zero, and whether the count happened to grow was a coin flip on a serve
+  // angle. That she is still *playing* is the claim, and it holds every time.
+  const before = await sunnyPaddleY(page);
   await expect
-    .poll(async () => Number(await tableRead(page, 'hits')), { timeout: 20_000 })
-    .toBeGreaterThan(Number(before));
+    .poll(async () => Math.abs((await sunnyPaddleY(page))! - before!), { timeout: 10_000 })
+    .toBeGreaterThan(2);
+  await expect(page.locator(table)).toHaveAttribute('data-controlled', 'right');
 
   await page.locator('#pong .btn', { hasText: 'Hand back to Sunny' }).click();
   await expect(page.locator(table)).toHaveAttribute('data-controlled', 'sunny');

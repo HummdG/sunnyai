@@ -744,3 +744,157 @@ describe('A05, the balloon', () => {
     expect(a.frame(3_000).rig).toEqual(base);
   });
 });
+
+describe('A10, the arcade spin', () => {
+  const variants = ['arcade-tuck', 'arcade-roll', 'arcade-spin'] as const;
+
+  it('returns to the exact default pose, which is the row’s acceptance', () => {
+    // The plan's acceptance for A10 is "returns to exact default pose", and the
+    // word that has teeth is *exact*. A pose is a pure function of progress, so
+    // the claim is about t = 1 and `toEqual` is a fair way to hold it -- but only
+    // because nothing in these three sequences is built on a value that is
+    // merely *close* to zero at the end. `sin(pi)` is 1.2e-16; three of those
+    // added up is a rig that renders identically and compares differently, which
+    // is why this section has its own helpers rather than reusing `bump`.
+    for (const id of variants) {
+      const sequence = SEQUENCE_BY_ID.get(id)!;
+      expect(sequence.pose(defaultRig(), 1), `${id} at t=1`).toEqual(base);
+      expect(sequence.pose(defaultRig(), 0), `${id} at t=0`).toEqual(base);
+    }
+  });
+
+  it('folds the rays in and turns the body, which is what makes it a roll', () => {
+    // The move has to read as a roll and not as a wobble. Two things carry that:
+    // the body rotates (a spin) and the rays shorten towards the body so the
+    // eight arms gather into one disc. A rotating character still showing eight
+    // splayed rays is a sun wobbling, not a sun rolling.
+    const spin = SEQUENCE_BY_ID.get('arcade-spin')!;
+    let mostTurned = 0;
+    let shortestRay = 1;
+    for (let t = 0; t <= 1; t += 0.02) {
+      const rig = spin.pose(base, t);
+      mostTurned = Math.max(mostTurned, Math.abs(rig.rotation));
+      shortestRay = Math.min(shortestRay, ...rig.rays.map((ray) => ray.lengthScale));
+    }
+    // Both whole revolutions happen inside the sequence, so the body passes
+    // through every angle -- if the turn were capped the maximum would be low.
+    expect(mostTurned).toBeGreaterThan(180);
+    // Folded, not vanished: the rays stay well inside the drawing area, which is
+    // the same bound the whole-file invariant applies at every t.
+    expect(shortestRay).toBeGreaterThan(0.5);
+    expect(shortestRay).toBeLessThan(0.75);
+  });
+
+  it('turns a whole number of revolutions, so the last frame is the first', () => {
+    // Two revolutions rather than "about two": a value that ends at 719 degrees
+    // is a character that has been left a degree off true, which is the same
+    // class of bug as a leaked prop and just as invisible.
+    const spin = SEQUENCE_BY_ID.get('arcade-spin')!;
+    expect(spin.pose(base, 1).rotation).toBe(0);
+    expect(SEQUENCE_BY_ID.get('arcade-roll')!.pose(base, 1).rotation).toBe(0);
+  });
+
+  it('spins where it stands: the cue does not move the machine out of the game', () => {
+    // The reason `spin` is a cue rather than a transition. A wave cleared
+    // happens in the middle of a game; a state change to `celebrating` would
+    // settle her back to `idle` four seconds later with the fleet still coming,
+    // and the visitor would be playing alone.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.dispatch({ type: 'play_started' }, 0);
+    expect(a.state).toBe('playing');
+
+    // Five seconds in, which is when a wave actually clears: the opening burst
+    // is a second and a bit, and the fleet takes many ticks to shoot down.
+    a.dispatch({ type: 'spin' }, 5_000);
+    expect(a.state, 'the cue must not move the machine').toBe('playing');
+    expect(SEQUENCE_BY_ID.get(a.frame(5_000).sequenceId!)?.group).toBe('arcade');
+
+    // And the game is still on. Four seconds later she is still in `playing`,
+    // which is exactly what the `celebrating` route would have taken away.
+    a.frame(9_500);
+    expect(a.state).toBe('playing');
+  });
+
+  it('defers to a burst that is still running, because they share a band', () => {
+    // The brief puts both of these in `user-invoked play`: a game starting and a
+    // wave cleared are the same kind of moment, so they share a priority and the
+    // scheduler keeps whichever was asked for first -- the play burst. Stated
+    // here rather than left to insertion order to decide unobserved, even though
+    // the product cannot reach it: a wave takes far longer to clear than the
+    // burst lasts.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.dispatch({ type: 'play_started' }, 0);
+    a.dispatch({ type: 'spin' }, 100);
+    expect(a.frame(100).sequenceId).toBe('play-dance');
+  });
+
+  it('picks the spin the tenant’s motion setting allows', () => {
+    const cases: ReadonlyArray<[Intensity, string]> = [
+      ['minimal', 'arcade-tuck'],
+      ['balanced', 'arcade-roll'],
+      ['playful', 'arcade-spin'],
+    ];
+    for (const [intensity, id] of cases) {
+      const a = new SunnyAnimator(defaultRig(), { intensity, seed: 3 });
+      a.dispatch({ type: 'spin' }, 0);
+      expect(a.frame(0).sequenceId, `at ${intensity}`).toBe(id);
+    }
+  });
+
+  it('gives a reduced-motion visitor the tuck instead of the spin', () => {
+    // Not the resting pose: there is no honest still of a mid-roll, but there is
+    // one of "something small just happened", so the fallback is the quietest
+    // variant rather than nothing at all.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.dispatch({ type: 'spin' }, 0);
+    const frame = a.frame(0, { reducedMotion: true });
+    expect(frame.sequenceId).toBe('arcade-tuck');
+    // And the fallback is what moved, not the spin: at the same moment the
+    // playful variant would have her at a different angle entirely.
+    expect(frame.rig.rotation).toBe(0);
+  });
+
+  it('is refused where a spin would be rude', () => {
+    // The arcade group lists `playing`, `celebrating` and `idle` and nothing
+    // else, so the cue is dropped in the middle of a conversation rather than
+    // interrupting the visitor's answer with a somersault.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.dispatch({ type: 'turn_started' }, 0);
+    a.dispatch({ type: 'speaking_started' }, 10);
+    a.dispatch({ type: 'spin' }, 20);
+    expect(a.state).toBe('speaking');
+
+    // Never once, over the whole of the spin's own duration.
+    const drawn = new Set<string | null>();
+    for (let i = 0; i <= 26; i++) drawn.add(a.frame(20 + i * 50).sequenceId);
+    for (const id of drawn) {
+      expect(SEQUENCE_BY_ID.get(id ?? '')?.group, `${id} took the frame`).not.toBe('arcade');
+    }
+  });
+
+  it('lets the fleet getting through reach the character', () => {
+    // The arcade has dispatched `impress` on a loss since A08 and the playing
+    // row has no entry for it, so the event fell on the floor: the visitor lost
+    // and Sunny did nothing. It stays off that row deliberately -- a reaction
+    // that moved her out of `playing` would also move her out on every *point*
+    // in the pong and the board, which dispatch one apiece -- so the arcade ends
+    // the game before it reacts, which is what it has actually happened.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.dispatch({ type: 'play_started' }, 0);
+    expect(a.state).toBe('playing');
+
+    a.dispatch({ type: 'play_finished' }, 1_000);
+    a.dispatch({ type: 'impress' }, 1_000);
+    expect(a.state).toBe('celebrating');
+    expect(SEQUENCE_BY_ID.get(a.frame(1_000).sequenceId!)?.group).toBe('cool');
+  });
+
+  it('cannot run two spins at once', () => {
+    // Same structural guard the play moves rely on: a second wave cleared while
+    // the first spin is still playing is refused rather than layered.
+    const scheduler = new Scheduler('playful', false);
+    expect(scheduler.request('arcade', 'playing', 0)).toBe(true);
+    expect(scheduler.request('arcade-roll', 'playing', 0)).toBe(false);
+    expect(scheduler.active.filter((i) => i.sequence.group === 'arcade')).toHaveLength(1);
+  });
+});

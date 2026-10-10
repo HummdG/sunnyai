@@ -748,6 +748,9 @@
   var TAU = Math.PI * 2;
   var wave = (p, phase = 0) => Math.sin((p + phase) * TAU);
   var bump = (t) => Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
+  var land = (t) => t <= 0 || t >= 1 ? 0 : Math.sin(Math.PI * t);
+  var turns = (t, whole) => whole * 360 * t % 360;
+  var swell = (t, from, to) => t <= from || t >= to ? 0 : Math.sin(Math.PI * ((t - from) / (to - from)));
   var ease = (t) => {
     const c = Math.min(1, Math.max(0, t));
     return c * c * (3 - 2 * c);
@@ -1628,6 +1631,100 @@
       return r;
     }
   };
+  function gather(t, inBy, outFrom) {
+    return Math.min(ease(t / inBy), ease((1 - t) / outFrom));
+  }
+  var arcadeTuck = {
+    id: "arcade-tuck",
+    group: "arcade",
+    priority: PRIORITY.play,
+    duration: 800,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: [],
+    reducedMotionFallback: null,
+    states: ["celebrating", "playing", "idle"],
+    pose: (base, t) => {
+      const r = cloneRig(base);
+      const a = land(t);
+      r.squash = base.squash + a * 0.07;
+      r.stretch = base.stretch - a * 0.03;
+      r.y = base.y - a * 1.5;
+      r.smile.span = base.smile.span * (1 + a * 0.18);
+      r.smile.depth = base.smile.depth * (1 + a * 0.28);
+      r.eyes.left.scaleY = base.eyes.left.scaleY - a * 0.22;
+      r.eyes.right.scaleY = base.eyes.right.scaleY - a * 0.22;
+      r.rays.forEach((ray, i) => {
+        ray.lengthScale = base.rays[i].lengthScale - a * 0.16;
+      });
+      return r;
+    }
+  };
+  var arcadeRoll = {
+    id: "arcade-roll",
+    group: "arcade",
+    priority: PRIORITY.play,
+    duration: 1e3,
+    canInterrupt: true,
+    loop: false,
+    intensity: "balanced",
+    assets: [],
+    reducedMotionFallback: "arcade-tuck",
+    states: ["celebrating", "playing", "idle"],
+    pose: (base, t) => {
+      const r = cloneRig(base);
+      const fold = gather(t, 0.2, 0.26);
+      const a = land(t);
+      r.rotation = base.rotation + turns(ease((t - 0.14) / 0.62), 1);
+      r.x = base.x + a * 2.5;
+      r.y = base.y - a * 2;
+      r.squash = base.squash + fold * 0.11;
+      r.stretch = base.stretch - fold * 0.05;
+      r.smile.span = base.smile.span * (1 + a * 0.22);
+      r.smile.depth = base.smile.depth * (1 + a * 0.35);
+      r.eyes.left.scaleY = base.eyes.left.scaleY - fold * 0.4;
+      r.eyes.right.scaleY = base.eyes.right.scaleY - fold * 0.4;
+      r.rays.forEach((ray, i) => {
+        ray.lengthScale = base.rays[i].lengthScale - fold * 0.4;
+        ray.rotation = base.rays[i].rotation + fold * 90;
+      });
+      return r;
+    }
+  };
+  var arcadeSpin = {
+    id: "arcade-spin",
+    group: "arcade",
+    priority: PRIORITY.play,
+    duration: 1300,
+    canInterrupt: true,
+    loop: false,
+    intensity: "playful",
+    assets: [],
+    reducedMotionFallback: "arcade-tuck",
+    states: ["celebrating", "playing", "idle"],
+    pose: (base, t) => {
+      const r = cloneRig(base);
+      const fold = gather(t, 0.16, 0.24);
+      const a = land(t);
+      const hop = a * Math.sin(Math.PI * Math.min(1, Math.max(0, (t - 0.15) / 0.7)));
+      r.rotation = base.rotation + turns(ease((t - 0.12) / 0.68), 2);
+      r.y = base.y - hop * 4;
+      r.squash = base.squash + (fold * 0.14 - hop * 0.05);
+      r.stretch = base.stretch + (hop * 0.04 - fold * 0.06);
+      r.faceTilt = base.faceTilt - fold * 3;
+      r.smile.span = base.smile.span * (1 + a * 0.3);
+      r.smile.depth = base.smile.depth * (1 + a * 0.45);
+      r.eyes.left.scaleY = base.eyes.left.scaleY - fold * 0.45;
+      r.eyes.right.scaleY = base.eyes.right.scaleY - fold * 0.45;
+      const bloom = swell(t, 0.72, 1);
+      r.rays.forEach((ray, i) => {
+        ray.lengthScale = base.rays[i].lengthScale + (bloom * 0.18 - fold * 0.42);
+        ray.rotation = base.rays[i].rotation + fold * 120;
+      });
+      return r;
+    }
+  };
   function relaxPose(base, t, extra) {
     const r = cloneRig(base);
     const seated = Math.min(ease(t / 0.2), ease((1 - t) / 0.12));
@@ -1991,7 +2088,10 @@
     popStill,
     popBurst,
     popFlinch,
-    popShower
+    popShower,
+    arcadeTuck,
+    arcadeRoll,
+    arcadeSpin
   ];
   var SEQUENCE_BY_ID = new Map(
     SEQUENCES.map((s) => [s.id, s])
@@ -2282,6 +2382,14 @@
       askedBy: "`play_started`"
     },
     {
+      group: "arcade",
+      name: "Arcade spin",
+      description: "Her rays fold flat and she rolls: a whole turn at a walking pace, or two fast revolutions with a hop, depending on the tenant\u2019s motion setting.",
+      category: "play",
+      asked: "engine",
+      askedBy: "`spin` \u2014 a wave cleared in an arcade game"
+    },
+    {
       group: "relax",
       name: "Taking a break",
       description: "The visitor closes the chat and Sunny gets a deckchair out: it unfolds, she lies back, and at the stronger settings the shades come down or she dozes off.",
@@ -2355,6 +2463,10 @@
      * vocabulary the application compiled in.
      */
     dispatch(event, now) {
+      if (event.type === "spin") {
+        this.scheduler.request("arcade", this.machine.state, now);
+        return;
+      }
       const previous = this.machine.state;
       const result = this.machine.send(event, now);
       if (!result.changed) return;
@@ -3213,6 +3325,12 @@
     // engine's, asked for by `play_started` the same way the eureka is asked for
     // by `speaking_started` out of thinking.
     play: ["play_started"],
+    // A wave cleared in the arcade cabinet (A10). The route is the cue itself
+    // rather than a state to move into, because the spin happens *inside* a game:
+    // it is the one moment in the catalogue that plays on top of the state instead
+    // of replacing it, so the gallery demonstrates it the way the cabinet asks for
+    // it -- `spin`, from rest -- rather than by moving the machine somewhere first.
+    arcade: ["spin"],
     // The break Sunny takes when the visitor closes the chat. The panel has to be
     // open for there to be anything to close, so the route opens it first: a
     // dismissal from rest is legal, but it is not the moment A04 is about, and the

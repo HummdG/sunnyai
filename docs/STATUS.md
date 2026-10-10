@@ -12,9 +12,9 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **559 tests across 16 files**,
+public marketing site are built, tested and green: **589 tests across 16 files**,
 a real fidelity comparison
-against the supplied artwork, **21 committed visual baselines** of the character
+against the supplied artwork, **23 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
 and **42 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
@@ -31,20 +31,20 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                                                                                     | Result                                                                                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                                                            |
-| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                                                             |
-| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                            |
-| Unit / contract / visual tests | `npm run test`                                                                              | **559 passed (16 files)**                                                                                                              |
-| Browser end-to-end             | `npm run test:e2e`                                                                          | **42 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                           |
-| Widget bundle                  | `npm run build:widget`                                                                      | 125.3 kB — **34.8 kB gzipped**                                                                                                         |
-| Character lab bundle           | `npm run build:lab`                                                                         | 126.1 kB, plus the lazily-loaded arcade chunk at 11.8 kB (A08)                                                                         |
-| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                                                                        |
-| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                                                                  |
-| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                                                                     |
-| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                    |
-| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **23 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09), are byte-identical to the ones Linux produces |
+| Check                          | Command                                                                                     | Result                                                                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                                                                                                 |
+| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                                                                                                  |
+| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                                                                 |
+| Unit / contract / visual tests | `npm run test`                                                                              | **589 passed (16 files)**                                                                                                                                                   |
+| Browser end-to-end             | `npm run test:e2e`                                                                          | **42 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                                                                |
+| Widget bundle                  | `npm run build:widget`                                                                      | 127.7 kB — **35.3 kB gzipped**                                                                                                                                              |
+| Character lab bundle           | `npm run build:lab`                                                                         | 130.4 kB, plus the lazily-loaded arcade chunk at 11.9 kB (A08)                                                                                                              |
+| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                                                                                                             |
+| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                                                                                                       |
+| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                                                                                                          |
+| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                                                         |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **25 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09) and the two arcade-spin scenes (A10), are byte-identical to the ones Linux produces |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -93,7 +93,7 @@ first real finding should not be the one that matters.
   finger was rather than where the moment chose — with a test that the float is
   cancelled rather than left drifting beside its own shards, which is the bug the
   id-only `cancel` had hidden.
-- **Visual regression** (`tests/visual`, 22 tests) — twenty scenarios, one per
+- **Visual regression** (`tests/visual`, 25 tests) — twenty-three scenarios, one per
   visually distinct state plus the intensity extremes, the reduced-motion
   fallbacks and the moments where the setting changes the moment rather than its
   strength, each rasterised and compared byte for byte against a committed PNG.
@@ -155,8 +155,9 @@ first real finding should not be the one that matters.
   which is the only surface where the catalogue is something a person can click.
   Every catalogued moment is asserted to be listed under its catalogue name and
   description, the moments nothing asks for are asserted to be marked rather than
-  hidden, and **every moment is played**: the spec clicks `Play` on all seventeen
-  and waits for the page to record that it drew each one. It is the half of P11's
+  hidden, and **every moment is played**: the spec clicks `Play` on every entry
+  in the catalogue and waits for the page to record that it drew each one. It is
+  the half of P11's
   gate that a unit test cannot reach, and it found three things (D-18) — including
   a moment that was dropped rather than deferred, and a bug in the lab's own
   preview clock that made a working moment look broken. It also carries the two
@@ -283,6 +284,79 @@ every test stays green:
   assume. The committed tree in `node:22-bookworm` installed from its lockfile
   and produced **22/22** byte-identical PNGs. No new workspace this time, so
   `npm ci` had nothing new to refuse.
+
+### Fixed in this session (A10: the arcade spin)
+
+The increment was the plan's tenth row — "Arcade spin | Original fast roll/spin,
+not Sonic IP | Returns to exact default pose" — and the constraint and the
+acceptance criterion are both unusual, so this is mostly about what those two
+phrases forbade rather than about what was added:
+
+- **"Original" is a constraint on the silhouette, and it is why she rolls as a
+  disc.** The move being reached for is the one everybody has seen a hedgehog do,
+  so the shape cannot be copied and Sunny's roll had to be shaped like her: her
+  eight rays fold **flat**, gathering into one disc with her face legible at the
+  middle, and it is the disc that turns. A turning sun still showing eight
+  splayed rays is a sun wobbling, which is why that version was rejected before it
+  was tried. Three variants, one per intensity: the tuck (a beat, no turn), the
+  roll (one whole revolution) and the spin (two revolutions with a hop and a
+  bloom on the way out).
+- **"Returns to exact default pose" was taken literally, and that is why the row
+  needed its own arithmetic.** A pose is a pure function of progress, so
+  "returns" is a claim about `t = 1`, and _exact_ has to mean something a test can
+  hold with `toEqual`. The existing helper for a gesture that fades out,
+  `bump(t) = sin(pi t)`, is **1.2e-16 at `t = 1`** — invisible in one term, and a
+  rig that renders identically to the resting pose while comparing differently in
+  three. So the row adds `land` (a bump clamped to exactly zero at both ends),
+  `turns` (whole revolutions folded with `% 360`, so a two-turn spin ends at 0
+  and not 720) and `swell` (a bump whose ends are tested against `t` rather than
+  against a divided progress, because `(1 - 0.72) / 0.28` is 0.9999999999999999).
+  Every field is then written as the base value _plus_ a term that is exactly
+  zero at both ends — never as a bare expression that happens to be zero, because
+  `-a * 0.03` is _negative_ zero when `a` is zero and `toEqual` distinguishes it.
+  The acceptance criterion is one line per variant:
+  `expect(sequence.pose(defaultRig(), 1)).toEqual(base)`.
+- **`spin` is a cue, not a transition, and the obvious wiring is a bug.** Adding
+  the wave-cleared to the machine as another `celebrate` reads right and is
+  wrong, because `celebrating` settles back to `idle` after four seconds and a
+  wave cleared happens _inside_ a game — she would leave the playing state to
+  spin, settle to idle while the fleet was still descending, and spend the rest of
+  the visitor's game breathing at nothing. A moment that ends the thing it is
+  celebrating is not worth having. So `SunnyAnimator.dispatch` answers `spin`
+  before the machine is consulted, leaving the state alone — the same shape
+  `tap()` uses for a balloon — and the request can still be refused, which is the
+  right answer: the group lists `playing`, `celebrating` and `idle` and nothing
+  else, so the cue is dropped mid-sentence rather than interrupting an answer
+  with a somersault.
+- **The arcade's loss had been falling on the floor since A08, and the fix is
+  not the one it looks like.** `impress` out of `playing` is ignored: the playing
+  row has no entry for it. Adding one is the tempting repair and is wrong for the
+  same reason the spin is a cue — a reaction that moved her out of `playing`
+  would also move her out on every _point_, and the pong and the board each
+  dispatch one apiece (A09, A06). A point is not the end of the game; a loss is,
+  so the arcade now says so: `play_finished` (the only event that takes her out
+  of a game) and then `impress`, which from `idle` reaches the shades. **The
+  pong's and the board's per-point reactions are still dead dispatches**, stated
+  here rather than left to be rediscovered, and left alone because waking them is
+  a change to A06 and A09 that this row is not.
+- **A flaky browser test in A09 was found by running this row's gate, and the
+  test was the thing that was wrong.** The lab's third pong test took the right
+  bat over and asserted the rally count grew — which it cannot do reliably: her
+  aim is deliberately as far from the _opponent's_ bat as it can be (D-24), so a
+  visitor who takes the bat and puts their hands down concedes, every point
+  resets `hits` to zero, and whether the count moved was a coin flip on one serve
+  angle. It passed in A09 by luck and failed three times in a row here. It now
+  asserts that **her bat is still playing** while the visitor holds the right one,
+  which is what the test's own comment always claimed and is true every run.
+- **Nothing moved that should not have.** The existing twenty-one baselines are
+  byte-identical and two are added — the spin caught in the middle of the turn,
+  and the reduced-motion tuck, which is the fallback being _used_ rather than
+  merely declared. The committed tree in `node:22-bookworm` installed from its
+  lockfile and produced **25/25** byte-identical PNGs.
+- **Thirty new tests, and none of them a count that had to be remembered.** The
+  generator loops do it: three new sequences add five engine snapshot tests each,
+  the catalogue's per-entry `describe.each` adds three, the sequences suite adds
+  ten of its own, and the two new scenes add two — 589 across sixteen files, from 559. What is checked where is D-25's last paragraph.
 
 ### Fixed in the previous session (A05: the balloon)
 
@@ -720,11 +794,11 @@ not been designed.
 | ------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Formatting / lint              | **done**, in CI and locally                                                                        |
 | Typecheck                      | **done**                                                                                           |
-| Unit tests                     | **done** — 559 across 16 files                                                                     |
+| Unit tests                     | **done** — 589 across 16 files                                                                     |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
 | E2E (Playwright)               | **done** — 42 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
-| Visual snapshots               | **done** — 21 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
+| Visual snapshots               | **done** — 23 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
 | Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
 | Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
 | Terraform validation           | **written, never executed**                                                                        |
@@ -839,8 +913,8 @@ properly rather than sketched.
    demonstrated in a browser as well as proven by test. The lab grew a gallery
    built from `CATALOGUE`, with a route per moment so that the moments
    unreachable from rest can be demonstrated rather than appearing broken, and a
-   Playwright spec clicks all seventeen and waits for the page to record that it
-   drew each one (D-18). **A07 is now done** (D-19): the playing state had no
+   Playwright spec clicks every entry in it and waits for the page to record that
+   it drew each one (D-18). **A07 is now done** (D-19): the playing state had no
    behaviour of its own — `play_started` moved the machine and changed no pixel —
    so it gained three short moves, one per intensity, which is also how A07's "no
    animation collisions" holds without timing anything. **A04 is done too**

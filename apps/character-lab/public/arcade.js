@@ -335,9 +335,10 @@
         const before = game;
         game = invaders_exports.step(game);
         if (before.status === "playing" && game.status === "lost") {
+          reactions.dispatch("play_finished");
           reactions.dispatch("impress");
         } else if (game.wave > before.wave) {
-          reactions.dispatch("celebrate");
+          reactions.dispatch("spin");
         }
         if (game.status === "lost") owed = 0;
       }

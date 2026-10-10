@@ -27,18 +27,20 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **559 passing across 16 files**
+- [ ] `npm run test` — currently **589 passing across 16 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
         network boundary_
-  - [ ] visual snapshots — **21 committed PNG baselines** of the character,
+  - [ ] visual snapshots — **23 committed PNG baselines** of the character,
         compared byte for byte. Aimed at the rig rather than at a page, for the
         reason in D-16: a page screenshot differs by operating system and the
-        test gets deleted. Twenty are states the engine produces; the
-        twenty-first, the paddle on the end of a ray (A09, D-24), is posed by
-        hand, because the ray-to-arm morph is a rig control no machine event
-        reaches. Regenerate with `npm run test:visual:update` only after looking
+        test gets deleted. Twenty-one are states the engine produces; one, the
+        paddle on the end of a ray (A09, D-24), is posed by hand, because the
+        ray-to-arm morph is a rig control no machine event reaches; and the last
+        is the arcade spin's reduced-motion tuck (A10, D-25), the third baseline
+        in which a fallback is _used_ rather than the resting pose being handed
+        back. Regenerate with `npm run test:visual:update` only after looking
         at what moved.
   - [ ] re-run the visual suite under Linux (`node:22-bookworm`, `npm ci`, then
         `npx vitest run tests/visual`) whenever a baseline moves. That is the
@@ -46,20 +48,21 @@ Run `npm run verify` — it chains the first four.
         committed rather than a screenshot test is the claim that they are
         platform-independent — which is only a claim until it is re-checked
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **125.3 kB (34.8 kB gzipped)**, lab 126.1 kB,
-      arcade 11.8 kB. The lab now has a **second entry point** (A08, D-23): the
-      arcade is a separate 11.8 kB file the page fetches only when the visitor
+      release. Last known: widget **127.7 kB (35.3 kB gzipped)**, lab 130.4 kB,
+      arcade 11.9 kB. The lab now has a **second entry point** (A08, D-23): the
+      arcade is a separate 11.9 kB file the page fetches only when the visitor
       asks for it, so any release that measures "the lab" must measure both, and
       a release where the arcade has crept back into `lab.js` is a regression
       against the plan's own word for that row. All three have grown since the
-      figures this line used to carry (119.8 kB and 86.0 kB): the widget by two
-      more moments of animation library (A04's break and A05's balloon and burst,
-      D-20 and D-21), the lab by the eight
+      figures this line used to carry (119.8 kB and 86.0 kB): the widget by three
+      more moments of animation library (A04's break, A05's balloon and burst,
+      and A10's three arcade-spin variants, D-20, D-21 and D-25), the lab by the
       sequence variants those add to its grid and, latterly, by the tic-tac-toe
       board and the ping pong table and the rules they import (A06 and A09, D-22
-      and D-24). The widget's own figure is unchanged by A09 — the rally is a lab
-      surface and ships no code to a customer — so its growth is the two moments
-      above and nothing more. None has a budget yet. Nothing
+      and D-24). The widget's own figure is unchanged by A09 and by A10 — the
+      rally and the arcade are lab surfaces and ship no code to a customer — so
+      its growth is the three moments above and nothing more. None has a budget
+      yet. Nothing
       about either number is alarming at this size, but a figure nobody
       re-measures becomes a figure nobody can trust, so the next release should
       set the budget rather than only re-read the number.
@@ -183,9 +186,12 @@ Run `npm run verify` — it chains the first four.
       prop, because there is an honest still of a balloon at rest and none of a
       deckchair arriving — D-20 and D-21)
 - [ ] Every sequence's `reducedMotionFallback` is honoured — a test asserts every
-      one exists, and the `relaxing-reduced-motion` and `balloon-reduced-motion`
-      baselines are the fallbacks actually being _used_ rather than merely defined
-      (D-20, D-21)
+      one exists, and the `relaxing-reduced-motion`, `balloon-reduced-motion`
+      and `arcade-spin-reduced-motion` baselines are the fallbacks actually being
+      _used_ rather than merely defined (D-20, D-21, D-25). The arcade's is a
+      fallback rather than a `-still` like the rest: `arcade-tuck` is the row's
+      own minimal variant, so a visitor who asked for less motion still sees that
+      something happened — they just do not see a spin
 - [ ] The widget is keyboard-reachable and the conversation is reachable by a
       screen reader
 - [ ] Colour contrast on the chat surface, not just the character

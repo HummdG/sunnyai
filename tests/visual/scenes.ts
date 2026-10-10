@@ -176,6 +176,33 @@ export const SCENES: readonly Scene[] = [
     at: 2_400,
     reducedMotion: true,
   },
+  // The arcade spin (A10), caught in the middle of the turn. A wave cleared does
+  // not move the machine -- it is the one cue in the engine that plays *on top
+  // of* the state rather than replacing it -- so the scene dispatches the cue
+  // from rest, which is also how the lab's gallery asks for it.
+  //
+  // 700 ms is deliberately not a quarter or a half of the 1.3 s sequence: the
+  // turn completes two whole revolutions, and at exactly one half it is back at
+  // zero degrees, so a baseline taken there would show a character standing
+  // still with her rays folded and none of the spin that the row is about.
+  {
+    name: 'arcade-spin-playful',
+    events: [{ at: 0, event: { type: 'spin' } }],
+    at: 700,
+    intensity: 'playful',
+  },
+  // What a visitor who asked for less motion gets instead. Unlike the deckchair
+  // this is not the resting pose: the tuck is a small squash and a narrowing of
+  // the eyes that returns to rest, so a reduced-motion visitor still sees that
+  // something happened -- they just do not see a spin. This baseline is the
+  // record of that choice, and of the fallback actually being *used* rather than
+  // merely declared (D-25).
+  {
+    name: 'arcade-spin-reduced-motion',
+    events: [{ at: 0, event: { type: 'spin' } }],
+    at: 400,
+    reducedMotion: true,
+  },
   // The paddle, held on the end of a ray (A09). The morph aims one of the eight
   // rays at a point and stretches it until its tip is there; the prop hangs off
   // the tip. Nothing about the character's own state changes, which is why this

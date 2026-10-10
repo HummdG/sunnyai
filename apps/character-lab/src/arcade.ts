@@ -225,9 +225,19 @@ export function mount(container: HTMLElement, reactions: Reactions): void {
       const before = game;
       game = invaders.step(game);
       if (before.status === 'playing' && game.status === 'lost') {
+        // Two events, in the order a visitor would describe them: the game is
+        // over, and *then* she is unbothered about it. `impress` alone would not
+        // reach her -- the playing row has no entry for it, because a reaction
+        // that moved her out of `playing` would also move her out on every
+        // point in a machine that is still on (the pong and the board both
+        // dispatch one per point, A09 and A06). A loss is the one moment the
+        // game really has stopped, so it says so first and reacts second.
+        reactions.dispatch('play_finished');
         reactions.dispatch('impress');
       } else if (game.wave > before.wave) {
-        reactions.dispatch('celebrate');
+        // A wave cleared is a *cue* rather than a state change: Sunny spins
+        // where she is, and the game carries on. See A10 and the `spin` event.
+        reactions.dispatch('spin');
       }
       if (game.status === 'lost') owed = 0;
     }

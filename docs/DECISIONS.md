@@ -1149,3 +1149,99 @@ and that the keyboard takes the bat over and hands it back. The `paddle`
 painting is the one prop no machine event can reach — there is no event to send
 that produces an arm — so its visual baseline is the one scene in the suite that
 is _posed by hand_ rather than driven by an event, and the scene file says so.
+
+## D-25. A10's spin is a cue, and "exact" is a word with teeth
+
+The plan's row is "Arcade spin | Original fast roll/spin, not Sonic IP | Returns
+to exact default pose". The middle column is a design constraint and the last one
+is an acceptance criterion, and neither is the usual request — so this decision
+is mostly about what those two phrases _forbid_.
+
+**"Original" is a constraint on the silhouette, and it is why she rolls as a
+disc.** The move being reached for is the one everybody has seen a hedgehog do:
+tuck into a ball, spin, dash. Copying the shape would be copying the character it
+belongs to, so Sunny's roll is hers and shaped like her — her eight rays fold
+_flat_, gathering into a single disc with her face still legible at the middle,
+and it is the disc that turns. Nothing here is a ball and nothing here is blue.
+The fold is also what makes it read as a roll at all: a turning sun still showing
+eight splayed rays is a sun wobbling, which is why "turns while the rays stay
+out" was rejected before it was tried. Three variants, one per intensity: the
+tuck (a beat, no turn, no travel), the roll (one whole revolution, the disc
+gathering and opening), and the spin (two revolutions with a hop and a bloom on
+the way out, where the rays fly past their resting length and settle back).
+
+**"Returns to exact default pose" is taken literally, and it is why this section
+has its own arithmetic.** A `pose` is a pure function of progress, so "returns"
+is a claim about `t = 1` — and the plan says _exact_, which has to mean something
+a test can hold with `toEqual`. The existing helper for a gesture that fades in
+and out is `bump(t) = sin(pi t)`, and `bump(1)` is `sin(pi)`, which is 1.2e-16
+and not 0. One of those is invisible; three of them, added into a transform, is a
+rig that renders identically to the resting pose and compares differently — a
+green screenshot test over a pose that is a hair off true, forever. So A10 adds
+three helpers. `land(t)` is `bump` clamped to exactly zero at both ends.
+`turns(t, whole)` multiplies a whole number of revolutions and folds it back with
+`% 360`, because a two-turn spin that ended at 720 degrees would be the same
+picture and a different number. And `swell(t, from, to)` is a bump whose ends are
+tested against `t` rather than against a divided progress, because
+`(1 - 0.72) / 0.28` is 0.9999999999999999, so the "is it over yet" test has to be
+on the input and not on the ratio. Every field in the three poses is then written
+as the base value _plus_ a term that is exactly zero at both ends, and never as a
+bare expression that happens to be zero — `-a * 0.03` is _negative_ zero when `a`
+is zero, and negative zero is not zero to `toEqual` either. The test that holds
+it is one line per variant and is the row's whole acceptance criterion:
+`expect(sequence.pose(defaultRig(), 1)).toEqual(base)`.
+
+**`spin` is a cue, not a transition, and that is a bug that was caught before it
+shipped.** The obvious wiring is to add the arcade's wave-cleared to the machine
+as another `celebrate`: a celebration is what it is. It is wrong, and the reason
+is a clock. `celebrating` settles back to `idle` after four seconds, and a wave
+cleared happens _inside_ a game — so she would leave the playing state to spin,
+settle to idle while the fleet was still descending, and spend the rest of the
+visitor's game breathing at nothing. A moment that ends the thing it is
+celebrating is not a moment worth having. So `spin` is answered in
+`SunnyAnimator.dispatch` _before_ the machine is consulted, with the state
+unchanged: the same shape `tap()` uses for a balloon, a moment that plays on top
+of the current state instead of replacing it. The request can still be refused,
+and refusing is the right answer — the arcade group lists `playing`,
+`celebrating` and `idle` and nothing else, so the cue is dropped in the middle of
+a sentence rather than interrupting the visitor's answer with a somersault.
+
+**The loss the arcade had been reporting since A08 was still falling on the
+floor, and the fix is not the one it looks like.** `impress` from `playing` is
+ignored: the playing row has no entry for it. The tempting repair is to add one,
+and it is wrong for the same reason the spin is a cue — a reaction that moved her
+out of `playing` would also move her out on every _point_, and the pong and the
+board each dispatch one apiece (`impress` when she scores, `celebrate` when the
+visitor does, A09 and A06). A point is not the end of the game. A loss _is_, so
+the arcade now says so: it dispatches `play_finished` (a transition the playing
+row does accept, and the only event that ever takes her out of a game) and then
+`impress`, which from `idle` reaches the shades. Two events, in the order a
+visitor would describe them. The pong's and the board's per-point reactions
+remain dead dispatches — stated here rather than left to be rediscovered, and
+left alone because waking them is a change to A06 and A09 that this row is not.
+
+**A flaky test in A09 was found by running the gate for A10, and it was the test
+that was wrong.** The third browser test in the lab took the right bat over and
+asserted the rally count grew. It cannot grow: her aim is deliberately as far from
+the _opponent's_ bat as it can be (D-24), so a visitor who takes the bat and then
+puts their hands down concedes, every point resets `hits` to zero, and whether
+the count happened to move was a coin flip on one serve angle. It passed in
+A09's session by luck and failed three times in a row here. The assertion is now
+that **her bat is still playing** while the visitor holds the right one — which
+is what the test's own comment always claimed ("she goes on playing the left
+end"), and is true every run.
+
+**What is checked where.** Ten engine tests, the important one being the exact
+return above; the others pin that the spin folds the rays and passes through more
+than half a turn, that a cue does not move the machine (and that she is still
+`playing` four seconds later), which variant each intensity selects, that reduced
+motion gets the tuck rather than the resting pose, that the cue is refused in
+`speaking`, that a second spin is refused while one is playing, and that the
+arcade's two-event loss reaches the shades. The catalogue gains one entry, so the
+gallery's engine-driven count, its `UNREACHABLE_GROUPS` list and the bijection
+test all move with it. The lab's route for the card is the cue itself — `spin`,
+from rest — because the gallery is the one caller that can ask for it out of any
+context. Two baselines are added: the spin at the middle of the turn, and the
+reduced-motion tuck, which is the fallback being _used_ rather than merely
+declared. Both were re-rendered under `node:22-bookworm` and are byte-identical
+there, as the suite's whole premise requires.

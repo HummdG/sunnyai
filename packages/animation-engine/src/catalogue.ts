@@ -198,6 +198,16 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     askedBy: '`play_started`',
   },
   {
+    group: 'arcade',
+    name: 'Arcade spin',
+    description:
+      'Her rays fold flat and she rolls: a whole turn at a walking pace, or two fast ' +
+      'revolutions with a hop, depending on the tenant’s motion setting.',
+    category: 'play',
+    asked: 'engine',
+    askedBy: '`spin` — a wave cleared in an arcade game',
+  },
+  {
     group: 'relax',
     name: 'Taking a break',
     description:

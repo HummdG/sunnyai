@@ -35,6 +35,20 @@ export type MachineEvent =
   /** The visitor started a game. */
   | { type: 'play_started' }
   | { type: 'play_finished' }
+  /**
+   * A wave was cleared in an arcade game, so Sunny spins (A10).
+   *
+   * **A cue, not a transition.** It is the one event in this union the machine
+   * never sees: the engine plays the spin in place, from whatever state the
+   * character is already in, and deliberately does not move her. The obvious
+   * alternative -- treat it as another `celebrate` -- was tried on paper and is
+   * wrong, because `celebrating` settles back to `idle` after four seconds and a
+   * wave cleared happens *inside* a game: she would leave the playing state to
+   * spin, settle to idle, and spend the rest of the visitor's game breathing at
+   * nothing while the fleet kept moving. A moment that ends the thing it is
+   * celebrating is not a moment worth having.
+   */
+  | { type: 'spin' }
   /** Nothing is happening. */
   | { type: 'idle' }
   /** The visitor dismissed or minimised Sunny. */

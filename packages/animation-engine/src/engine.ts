@@ -92,6 +92,21 @@ export class SunnyAnimator {
    * vocabulary the application compiled in.
    */
   dispatch(event: MachineEvent, now: number): void {
+    // `spin` is a cue rather than a transition, and it is answered before the
+    // machine is consulted. A wave cleared happens in the middle of a game, so
+    // the character must not leave the playing state to mark it -- see the
+    // comment on the event itself. Asking here, with the state unchanged, is the
+    // same shape `tap()` uses for a balloon: a moment that plays *on top of* the
+    // current state instead of replacing it.
+    //
+    // The request can still be refused, and refusing is the right answer: a spin
+    // in the middle of a sentence would be rude, so the arcade group simply does
+    // not list the conversational states.
+    if (event.type === 'spin') {
+      this.scheduler.request('arcade', this.machine.state, now);
+      return;
+    }
+
     const previous = this.machine.state;
     const result = this.machine.send(event, now);
     if (!result.changed) return;

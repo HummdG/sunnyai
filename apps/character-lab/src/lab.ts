@@ -191,6 +191,12 @@ const ROUTE: Record<string, readonly MachineEvent['type'][]> = {
   // engine's, asked for by `play_started` the same way the eureka is asked for
   // by `speaking_started` out of thinking.
   play: ['play_started'],
+  // A wave cleared in the arcade cabinet (A10). The route is the cue itself
+  // rather than a state to move into, because the spin happens *inside* a game:
+  // it is the one moment in the catalogue that plays on top of the state instead
+  // of replacing it, so the gallery demonstrates it the way the cabinet asks for
+  // it -- `spin`, from rest -- rather than by moving the machine somewhere first.
+  arcade: ['spin'],
   // The break Sunny takes when the visitor closes the chat. The panel has to be
   // open for there to be anything to close, so the route opens it first: a
   // dismissal from rest is legal, but it is not the moment A04 is about, and the

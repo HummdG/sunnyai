@@ -25,6 +25,40 @@ const wave = (p: number, phase = 0): number => Math.sin((p + phase) * TAU);
 /** Smooth 0→1→0 over the sequence, used to fade a gesture in and out. */
 const bump = (t: number): number => Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
 
+/**
+ * Like `bump`, but *exactly* zero at both ends.
+ *
+ * `bump(1)` is `sin(pi)`, which is 1.2e-16 rather than 0, so a pose built from
+ * it leaves the rig a hair off the base pose at the final frame. That is
+ * invisible and was fine for every sequence whose only job is to *look* like it
+ * settled -- but A10's acceptance is that the spin returns to the *exact*
+ * default pose, and "exact" has to mean exactly zero or the claim cannot be
+ * asserted with `toEqual`. The clamp is the whole difference.
+ */
+const land = (t: number): number => (t <= 0 || t >= 1 ? 0 : Math.sin(Math.PI * t));
+
+/**
+ * A rotation that completes a whole number of turns and lands back on zero.
+ *
+ * `whole * 360` degrees is a whole number of revolutions, and `% 360` folds it
+ * back into 0..359 -- which is the same picture, so the motion is continuous,
+ * while the *value* is exactly 0 at the end. Without the modulo a two-turn spin
+ * would end at 720 and the rig would differ from the base pose by a number that
+ * renders identically and compares differently.
+ */
+const turns = (t: number, whole: number): number => (whole * 360 * t) % 360;
+
+/**
+ * A bump over `[from, to]` that is *exactly* zero outside it.
+ *
+ * The bounds are tested against `t` rather than against the divided progress,
+ * which is the whole point: `(1 - 0.72) / 0.28` is 0.9999999999999999 and not 1,
+ * so a `land((t - 0.72) / 0.28)` bloom would leave the rays a hair long on the
+ * final frame -- invisible, and enough to fail a `toEqual` against the base rig.
+ */
+const swell = (t: number, from: number, to: number): number =>
+  t <= from || t >= to ? 0 : Math.sin(Math.PI * ((t - from) / (to - from)));
+
 /** Smoothstep, for gestures that should ease rather than start and stop abruptly. */
 const ease = (t: number): number => {
   const c = Math.min(1, Math.max(0, t));
@@ -1109,6 +1143,180 @@ const playDance: Sequence = {
   },
 };
 
+// ─── A10, the arcade spin ────────────────────────────────────────────────────
+
+/**
+ * A10 is the animation no other row needed: a fast roll. It is asked for by an
+ * arcade moment -- a wave cleared, in A08's cabinet -- and the plan's two words
+ * about it are both load-bearing.
+ *
+ * **"Original" is the design constraint, and it is about the silhouette rather
+ * than about a name.** The move it is reaching for is the one everybody has seen
+ * a hedgehog do: tuck into a ball, spin, dash. Copying that is copying the
+ * character it belongs to, so Sunny's roll is hers and shaped like her -- her
+ * eight rays fold *flat*, gathering into a single disc with her face still
+ * legible at the centre, and it is the disc that turns. Nothing here is a ball
+ * and nothing here is blue. The fold is also what makes it read as a roll at
+ * all: a rotating sun still showing eight splayed rays is a sun wobbling.
+ *
+ * **"Returns to exact default pose" is the acceptance, and it is taken
+ * literally.** `poses` in this file are pure functions of progress, so "returns"
+ * is a claim about `t = 1` that a test can hold with `toEqual` -- provided every
+ * number the pose touches is *exactly* the base value there, not merely close.
+ * That is why this section has its own `land` (not `bump`, whose `sin(pi)` is
+ * 1.2e-16) and `turns` (a rotation that lands on 0 rather than on 720): the two
+ * helpers exist so the last frame is the base rig to the bit, and the test that
+ * asserts it is the whole of the row's acceptance criterion.
+ *
+ * The gather-and-release is shared by all three variants and differs only in how
+ * much the disc turns, which is the intensity setting's business: `arcade-tuck`
+ * gathers and does not turn at all, and is therefore also the honest answer for a
+ * visitor who asked for less motion -- the fold is a small movement, not a spin.
+ * The variant bodies are written out rather than factored into one function with
+ * a `turns` parameter, because the three want different envelopes (the roll
+ * travels, the spin does not; the tuck narrows the eyes, the spin squints through
+ * them) and a shared function with three flags is harder to read than three
+ * short poses.
+ */
+
+/**
+ * How far she has gathered into a disc, 0..1. Fast in, held, slower out -- and
+ * exactly 0 at both ends, so anything scaled by it lands on the base value.
+ */
+function gather(t: number, inBy: number, outFrom: number): number {
+  return Math.min(ease(t / inBy), ease((1 - t) / outFrom));
+}
+
+/**
+ * A10 at `minimal`, and the reduced-motion answer for the other two.
+ *
+ * A gather and a small squash and nothing else: no rotation and no travel, so a
+ * visitor who asked for less motion gets a beat rather than a spin. It is the
+ * weakest of the three and it still does something, which is what stops an
+ * intensity setting from deleting the row.
+ */
+const arcadeTuck: Sequence = {
+  id: 'arcade-tuck',
+  group: 'arcade',
+  priority: PRIORITY.play,
+  duration: 800,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'minimal',
+  assets: [],
+  reducedMotionFallback: null,
+  states: ['celebrating', 'playing', 'idle'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const a = land(t);
+    // Every line is written as the base value *plus* a term that is exactly
+    // zero at both ends, rather than as a bare expression that happens to be
+    // zero -- `-a * 0.03` is negative zero when `a` is zero, and negative zero
+    // is not zero to `toEqual`. See the note on A10 at the top of this section.
+    r.squash = base.squash + a * 0.07;
+    r.stretch = base.stretch - a * 0.03;
+    r.y = base.y - a * 1.5;
+    r.smile.span = base.smile.span * (1 + a * 0.18);
+    r.smile.depth = base.smile.depth * (1 + a * 0.28);
+    r.eyes.left.scaleY = base.eyes.left.scaleY - a * 0.22;
+    r.eyes.right.scaleY = base.eyes.right.scaleY - a * 0.22;
+    r.rays.forEach((ray, i) => {
+      ray.lengthScale = base.rays[i]!.lengthScale - a * 0.16;
+    });
+    return r;
+  },
+};
+
+/**
+ * A10 at `balanced`: one full roll. She gathers, turns a single whole revolution
+ * while the disc is tight, and unrolls as she comes out of it -- the three-phase
+ * shape of an actual roll, with the turn confined to the middle so it starts and
+ * ends still.
+ */
+const arcadeRoll: Sequence = {
+  id: 'arcade-roll',
+  group: 'arcade',
+  priority: PRIORITY.play,
+  duration: 1000,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'balanced',
+  assets: [],
+  reducedMotionFallback: 'arcade-tuck',
+  states: ['celebrating', 'playing', 'idle'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const fold = gather(t, 0.2, 0.26);
+    const a = land(t);
+    r.rotation = base.rotation + turns(ease((t - 0.14) / 0.62), 1);
+    // A roll goes somewhere. The travel is small and returns with her, which is
+    // the compromise a roll in place has to make: she is not going to leave the
+    // panel, so the sense of rolling is carried by the turn and the tilt.
+    r.x = base.x + a * 2.5;
+    r.y = base.y - a * 2;
+    r.squash = base.squash + fold * 0.11;
+    r.stretch = base.stretch - fold * 0.05;
+    r.smile.span = base.smile.span * (1 + a * 0.22);
+    r.smile.depth = base.smile.depth * (1 + a * 0.35);
+    r.eyes.left.scaleY = base.eyes.left.scaleY - fold * 0.4;
+    r.eyes.right.scaleY = base.eyes.right.scaleY - fold * 0.4;
+    r.rays.forEach((ray, i) => {
+      ray.lengthScale = base.rays[i]!.lengthScale - fold * 0.4;
+      // A quarter of the body's turn, so the ring is not perfectly rigid: a
+      // disc of separate rays that turned as one piece would read as a picture
+      // of a disc rather than as eight things spinning together.
+      ray.rotation = base.rays[i]!.rotation + fold * 90;
+    });
+    return r;
+  },
+};
+
+/**
+ * A10 at `playful`: the fast one. Two whole revolutions inside a tight disc, a
+ * hop off the ground at the top of the spin, and a bloom on the way out where
+ * the rays fly a little past their resting length and settle back -- the overshoot
+ * is what makes it read as "fast" rather than merely as "rotating".
+ */
+const arcadeSpin: Sequence = {
+  id: 'arcade-spin',
+  group: 'arcade',
+  priority: PRIORITY.play,
+  duration: 1300,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'playful',
+  assets: [],
+  reducedMotionFallback: 'arcade-tuck',
+  states: ['celebrating', 'playing', 'idle'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const fold = gather(t, 0.16, 0.24);
+    const a = land(t);
+    // The hop peaks in the middle of the spin, not at the start, so she is
+    // airborne for the fastest part of it.
+    const hop = a * Math.sin(Math.PI * Math.min(1, Math.max(0, (t - 0.15) / 0.7)));
+    // Two revolutions, folded back to 0..359 so the value lands on base.rotation.
+    r.rotation = base.rotation + turns(ease((t - 0.12) / 0.68), 2);
+    r.y = base.y - hop * 4;
+    r.squash = base.squash + (fold * 0.14 - hop * 0.05);
+    r.stretch = base.stretch + (hop * 0.04 - fold * 0.06);
+    r.faceTilt = base.faceTilt - fold * 3;
+    r.smile.span = base.smile.span * (1 + a * 0.3);
+    r.smile.depth = base.smile.depth * (1 + a * 0.45);
+    r.eyes.left.scaleY = base.eyes.left.scaleY - fold * 0.45;
+    r.eyes.right.scaleY = base.eyes.right.scaleY - fold * 0.45;
+    // The bloom: the rays fly out past their resting length as the disc opens,
+    // peaking just after the turn ends. `swell` is a bump over 0.72..1 and is
+    // exactly zero at t = 1, like everything else here.
+    const bloom = swell(t, 0.72, 1);
+    r.rays.forEach((ray, i) => {
+      ray.lengthScale = base.rays[i]!.lengthScale + (bloom * 0.18 - fold * 0.42);
+      ray.rotation = base.rays[i]!.rotation + fold * 120;
+    });
+    return r;
+  },
+};
+
 // ─── A04, the deckchair ──────────────────────────────────────────────────────
 
 /**
@@ -1752,6 +1960,9 @@ export const SEQUENCES: readonly Sequence[] = [
   popBurst,
   popFlinch,
   popShower,
+  arcadeTuck,
+  arcadeRoll,
+  arcadeSpin,
 ];
 
 export const SEQUENCE_BY_ID: ReadonlyMap<string, Sequence> = new Map(
