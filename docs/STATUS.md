@@ -12,7 +12,7 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **349 tests across 12 files**,
+public marketing site are built, tested and green: **350 tests across 12 files**,
 a real fidelity comparison
 against the supplied artwork, **13 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
@@ -36,8 +36,8 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                              |
 | Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                               |
 | Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                              |
-| Unit / contract / visual tests | `npm run test`                                                                              | **349 passed (12 files)**                                                                |
-| Browser end-to-end             | `npm run verify:all`                                                                        | **30 passed** (Chromium, four real host pages, real API, real shadow DOM)                |
+| Unit / contract / visual tests | `npm run test`                                                                              | **350 passed (12 files)**                                                                |
+| Browser end-to-end             | `npm run verify:all`                                                                        | **33 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                |
 | Widget bundle                  | `npm run build`                                                                             | 112.1 kB — **30.8 kB gzipped**                                                           |
 | Character lab bundle           | `npm run build`                                                                             | 65.0 kB                                                                                  |
 | API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                          |
@@ -117,6 +117,15 @@ first real finding should not be the one that matters.
   page's _honesty_ — that the pricing section carries no figure and the page
   carries no customer claim — because those are the two ways this page could lie
   without any test noticing.
+- **Browser, animation catalogue** (`tests/e2e/lab.spec.ts`) — the character lab,
+  which is the only surface where the catalogue is something a person can click.
+  Every catalogued moment is asserted to be listed under its catalogue name and
+  description, the moments nothing asks for are asserted to be marked rather than
+  hidden, and **every moment is played**: the spec clicks `Play` on all thirteen
+  and waits for the page to record that it drew each one. It is the half of P11's
+  gate that a unit test cannot reach, and it found three things (D-18) — including
+  a moment that was dropped rather than deferred, and a bug in the lab's own
+  preview clock that made a working moment look broken.
 
 ### Fixed in this session (the visual baselines)
 
@@ -531,9 +540,12 @@ properly rather than sketched.
    by asking the scheduler_ rather than by reading the sequence's own `states`.
    That test immediately found three moments the engine implements and nothing
    requests — `charge` (A12, one of the plan's five flagship sequences), `listen`
-   and `eureka` — and the eureka has since been wired (D-17). The remaining half
-   of the gate is **playable**: a gallery over `CATALOGUE` where a tenant or a
-   prospect can trigger any moment and watch it, which is the surface the plan
-   also wants for the marketing site. After that come A05–A18, the three games
-   and the seasonal cosmetics, none of which are blocked on anything outside
-   this repository.
+   and `eureka` — and the eureka has since been wired (D-17). **Both halves of
+   the gate are now met**: the catalogue exists and is tested, and playability is
+   demonstrated in a browser as well as proven by test. The lab grew a gallery
+   built from `CATALOGUE`, with a route per moment so that the seven moments
+   unreachable from rest can be demonstrated rather than appearing broken, and a
+   Playwright spec clicks all thirteen and waits for the page to record that it
+   drew each one (D-18). What remains of P11 is what the gate does not cover:
+   A05–A18, the three games and the seasonal cosmetics, none of which are blocked
+   on anything outside this repository.

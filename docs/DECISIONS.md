@@ -596,3 +596,66 @@ moment, and `listen`'s perk is never asked for because `attention` requests
 `open` and the listening state's ambient layer is the idle group. Both need a
 decision about _when_ they should fire, which is a product question rather than
 a mechanical one.
+
+## D-18. The catalogue gets a surface, and the surface found three things
+
+P11's exit gate is "the animation catalogue and playable tests pass". The
+catalogue half was D-17. This is the playable half: the character lab grows a
+gallery built directly from `CATALOGUE`, and a Playwright spec drives it, so
+"every moment can be played" is a thing that was clicked rather than a sentence
+in a document.
+
+Building it from `CATALOGUE` rather than from a hand-written list is the same
+bijection argument as D-16's: a moment cannot exist in the gallery and be absent
+from the engine, because the gallery is the engine's own export rendered. The
+name and description on the card are asserted against the catalogue's, so a
+moment cannot be renamed in one place and not the other.
+
+**Seven of the thirteen moments cannot be reached from the resting state.** The
+perk, the thinking spin, the eureka, the speaking pulse, the point, the tilt and
+the error each declare a state only an event can enter, so a gallery that simply
+called `play()` in place would leave the most interesting cards doing nothing
+when clicked -- which reads as a broken engine rather than as a moment that
+needs a reason. Each card therefore carries the route an application would
+actually take (idle → `turn_started` → play), and the gallery is a demonstration
+rather than a bypass. `idle` leads every route so that one click cannot strand
+the next: without it, which cards worked would depend on the order they were
+clicked in.
+
+Three things fell out of making the test honest.
+
+**A moment that loses its whole life is dropped, not deferred.** A requested
+sequence expires on a clock that starts at the request, not at the first frame
+that draws it. `celebrate` asked for while a 2.6 s `charging-panel` is playing is
+outranked on every frame of its own 1.4 s and then expires without ever being
+drawn. This is the priority system working -- the alternative is a celebration
+landing a second late, detached from the thing it is celebrating -- but it
+happens silently, and it is the second time this increment has found a moment
+whose only defect was that nobody could see it. `Scheduler.clear()` and
+`SunnyAnimator.reset()` are the answer for a caller that needs an isolated
+encounter: the lab's gallery clears the stage on every click, because each click
+is a separate question and the previous demonstration must not be the answer.
+The browse order is asserted in the sequence tests, with the drop as the
+documented behaviour rather than an accident.
+
+**`canInterrupt` is declared by every sequence and read by nothing.** The plan
+requires each sequence to declare it and the requirements matrix claims it is
+real, and it is -- the field exists, is typed, and is set on all twenty-four
+sequences. No code branches on it. Every sequence says `true`, so implementing
+it today would change nothing, which is exactly why it went unnoticed; the note
+is here so the next person adding a sequence that must _not_ be interrupted does
+not assume the field already does that.
+
+**The lab's own preview clock could starve a moment.** The clock was scoped to
+the selected moment's duration and restarted there, so a moment longer than the
+one being previewed could be rewound mid-flight: the 420 ms bubble that the
+perk waits behind never reached 420 ms, and the perk was never drawn. It now
+restarts only when nothing is playing. A moment that looks broken only from
+inside the lab is not a moment that is broken, and finding that required the
+browser test rather than the engine test.
+
+The spec asserts on a `data-drawn` mark the page sets for whatever it renders
+since the click, not on the live highlight, because the mark cannot be missed:
+the listening perk is on screen for under a third of a second, and a polling
+assertion that sampled the class at the wrong moment would report a moment that
+plays perfectly well as broken.

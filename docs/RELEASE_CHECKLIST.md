@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **349 passing across 12 files**
+- [ ] `npm run test` — currently **350 passing across 12 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
@@ -45,7 +45,7 @@ Run `npm run verify` — it chains the first four.
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **30 passing**
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **33 passing**
       in Chromium, over the plain-HTML demo, the two host fixtures and the
       marketing site
   - [ ] requires `npm run test:e2e:install` once per machine; a release
