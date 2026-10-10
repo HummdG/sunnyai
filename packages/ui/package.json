@@ -8,5 +8,11 @@
   "exports": {
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens.css"
+  },
+  "scripts": {
+    "build:tokens": "tsx scripts/build-tokens.ts"
+  },
+  "dependencies": {
+    "@sunny/character": "*"
   }
 }
