@@ -12,7 +12,7 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **300 tests across 11 files**,
+public marketing site are built, tested and green: **349 tests across 12 files**,
 a real fidelity comparison
 against the supplied artwork, **13 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
@@ -36,7 +36,7 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                              |
 | Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                               |
 | Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                              |
-| Unit / contract / visual tests | `npm run test`                                                                              | **300 passed (11 files)**                                                                |
+| Unit / contract / visual tests | `npm run test`                                                                              | **349 passed (12 files)**                                                                |
 | Browser end-to-end             | `npm run verify:all`                                                                        | **30 passed** (Chromium, four real host pages, real API, real shadow DOM)                |
 | Widget bundle                  | `npm run build`                                                                             | 112.1 kB — **30.8 kB gzipped**                                                           |
 | Character lab bundle           | `npm run build`                                                                             | 65.0 kB                                                                                  |
@@ -68,7 +68,13 @@ first real finding should not be the one that matters.
 - **Animation engine** (`packages/animation-engine`, Vitest snapshots) —
   every sequence exercised across its motion, purity, no mutation of the base
   rig, every group resolved at every intensity, and that every declared
-  `reducedMotionFallback` exists.
+  `reducedMotionFallback` exists. Plus **the catalogue** (D-17): every group
+  described by exactly one human-facing entry, and every entry proven
+  **playable** — asked of the scheduler rather than read off the sequence's own
+  `states`, because a moment can be requestable, eligible and still never drawn.
+  The eureka was, for its whole life. The moments nothing asks for are asserted
+  as a list — `charge` and `listen` today — so wiring one up, or letting another
+  rot, shows up as a diff rather than as silence.
 - **Visual regression** (`tests/visual`, 15 tests) — thirteen scenes, one per
   visually distinct state plus the intensity extremes and the reduced-motion
   fallback, each rasterised and compared byte for byte against a committed PNG.
@@ -517,3 +523,17 @@ properly rather than sketched.
    so nothing has measured how fast the page is. Page-level screenshots are
    deliberately not used as the visual regression, for the operating-system
    reason in D-16, so the baseline is the character rather than the page.
+
+8. **The animation library (P11) is the largest unblocked piece of remaining
+   work, and it is now started.** Its dependencies (P2, P4) were already met. Its
+   exit gate is "the animation catalogue and playable tests pass", and the
+   catalogue half is done: every moment is named, described and _proven playable
+   by asking the scheduler_ rather than by reading the sequence's own `states`.
+   That test immediately found three moments the engine implements and nothing
+   requests — `charge` (A12, one of the plan's five flagship sequences), `listen`
+   and `eureka` — and the eureka has since been wired (D-17). The remaining half
+   of the gate is **playable**: a gallery over `CATALOGUE` where a tenant or a
+   prospect can trigger any moment and watch it, which is the surface the plan
+   also wants for the marketing site. After that come A05–A18, the three games
+   and the seasonal cosmetics, none of which are blocked on anything outside
+   this repository.

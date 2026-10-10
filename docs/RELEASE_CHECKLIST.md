@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **300 passing across 11 files**
+- [ ] `npm run test` — currently **349 passing across 12 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a

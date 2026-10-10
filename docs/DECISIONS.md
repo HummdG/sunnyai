@@ -548,3 +548,51 @@ byte-identical to the ones Windows produced — different platform binaries, sam
 pixels. That result is worth having on the record because it is the whole
 premise of the increment; if it had failed, the baseline would have had to move
 into the container rather than into the repository.
+
+## D-17. The eureka gets a caller, a band, and its own still
+
+The animation catalogue (D-16's sibling commit) found three moments the engine
+implements and nothing requests. This fixes the eureka, because it is the one
+where both the defect and the right answer are unambiguous.
+
+**Nothing asked for it.** The machine goes `thinking` -> `speaking` on
+`speaking_started`, and that event requested no group at all. Every other
+conversational beat is requested where it happens: `guiding_started` asks for
+`guide`, `attention` asks for `open`. The first token arriving is the answer
+arriving, which is precisely the moment `thinking-eureka` describes, so
+`speaking_started` now asks for it — but only when it follows `thinking`. A host
+that streams a greeting, or a turn resumed from history, goes straight to
+`speaking` with no idea to land, and a spark there would be the character lying
+about its own state. That conditional is the whole reason the event is the right
+call site rather than the state.
+
+**It could not have been seen even if something had asked.** At `PRIORITY.success`
+(400) it lost every frame of its own `thinking` and `speaking` states to the
+ambient layers — `thinking-whirr` and `speaking-pulse`, both at `PRIORITY.chat`
+(600). A sequence can be requestable, eligible, correctly written and never once
+drawn; the only way to notice is to ask the scheduler what it would draw, which
+is what the catalogue's playable test now does. It moves to `chat + 20`: inside
+the chat band, where the plan's ordering puts it, but above the ambient layer it
+has to interrupt. Its still moves with it, because a floor is about how much
+motion a tenant allows, not which moment they asked for.
+
+**And it no longer claims `celebrating`.** With the higher band it had to be
+taken out of that state: a eureka still in flight would outrank the celebration
+that arrived while it played, so a real success — the thing the celebration tests
+exist to protect — would be buried entirely rather than deferred. The existing
+test caught this immediately, which is the case for having written the ordering
+down as an assertion rather than as a sentence in this file. An idea landing and
+a job well done are different beats and Sunny should not confuse them.
+
+`thinking-eureka` also carried `reducedMotionFallback: 'celebrate-still'` —
+a copy-paste, since `eureka-still` exists for exactly this and was sitting
+unused. A visitor who had asked for less motion was getting a different moment
+from the one they asked for.
+
+Two moments remain unreachable and are now asserted as such rather than
+forgotten: `charge` (A12, one of the plan's five flagship sequences) has no
+trigger because no stream event or tool has been tied to the solar-education
+moment, and `listen`'s perk is never asked for because `attention` requests
+`open` and the listening state's ambient layer is the idle group. Both need a
+decision about _when_ they should fire, which is a product question rather than
+a mechanical one.
