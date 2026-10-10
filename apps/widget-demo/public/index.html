@@ -212,7 +212,7 @@
         <strong>How this page loads it</strong>
         <pre>
 &lt;script
-  src="http://localhost:4173/sunny-widget.js"
+  src="http://localhost:4173/widget/sunny-widget.js"
   data-widget-id="w_demo000001"
   data-api-url="http://localhost:8787"
   async&gt;
@@ -263,7 +263,12 @@
       The embed snippet, exactly as a customer would paste it. Two attributes and
       a script tag; no build step, no framework, no global configuration object.
     -->
-    <script src="/sunny-widget.js" data-widget-id="w_demo000001" data-api-url="http://localhost:8787" async></script>
+    <script
+      src="/widget/sunny-widget.js"
+      data-widget-id="w_demo000001"
+      data-api-url="http://localhost:8787"
+      async
+    ></script>
     <script>
       // Purely for the demo's own status line: it tells whoever is looking at
       // this page whether the API behind the widget is actually up.

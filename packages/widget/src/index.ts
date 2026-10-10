@@ -8,11 +8,33 @@ export type { MountOptions } from './widget.js';
 const MOUNT_FLAG = 'data-sunny-mounted';
 
 /**
+ * The origin the script tag itself was served from, or null if it cannot be read.
+ *
+ * `new URL` throws on an empty `src`, which is a real state: a script inserted by
+ * an integration that forgot the attribute. Returning null rather than throwing
+ * keeps that a refused mount instead of an unhandled error in the host page.
+ */
+function scriptOrigin(script: HTMLScriptElement): string | null {
+  try {
+    return new URL(script.src).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Read the embed snippet's configuration off the script tag.
  *
  * The public widget id is validated here rather than trusted: it is the only
  * value a customer's page supplies, and a malformed one should mean the widget
  * does not mount, not that it queries the API with arbitrary text.
+ *
+ * `data-api-url` wins over the script's own origin. That precedence is the whole
+ * point of the attribute -- an installer serving the bundle from a CDN has the
+ * script on the CDN's origin and the API somewhere else entirely -- and reading
+ * it into a value the expression then ignores is a bug this used to have. Every
+ * request went to the origin serving the JavaScript, which looks correct in the
+ * one deployment where both are the same host and fails everywhere else.
  */
 export function optionsFromScript(script: HTMLScriptElement): MountOptions | null {
   const publicId = script.getAttribute('data-widget-id') ?? '';
@@ -25,11 +47,10 @@ export function optionsFromScript(script: HTMLScriptElement): MountOptions | nul
     return null;
   }
 
-  const configured = script.getAttribute('data-api-url');
-  const apiUrl = ((configured ?? script.src) ? new URL(script.src).origin : '').replace(/\/$/, '');
-  if (apiUrl === '') return null;
+  const base = script.getAttribute('data-api-url') ?? scriptOrigin(script);
+  if (!base) return null;
 
-  return { apiUrl, publicId: parsed.data };
+  return { apiUrl: base.replace(/\/+$/, ''), publicId: parsed.data };
 }
 
 /**
@@ -73,8 +94,19 @@ async function boot(): Promise<void> {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => void boot(), { once: true });
-} else {
-  void boot();
+/**
+ * Auto-mount, which is a side effect of being *loaded on a page*.
+ *
+ * Guarded by `typeof document` because there is not always a page: a test
+ * importing this module to exercise `optionsFromScript` got a ReferenceError
+ * from this line, and so would any bundler that evaluates the file outside a
+ * browser. The guard says the intent -- mount when there is a document to mount
+ * into -- instead of assuming one.
+ */
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => void boot(), { once: true });
+  } else {
+    void boot();
+  }
 }

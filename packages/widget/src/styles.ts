@@ -27,6 +27,15 @@ export function styles(): string {
   /* The host may override the accent, and only the accent. */
   --sunny-accent: var(--sunny-primary-color, var(--sunny-orange));
 
+  /* The legible tone of the accent, for anywhere the accent carries text: the
+     visitor's own bubbles, the send button, the suggestion chips. Computed in the
+     shadow root at mount, because the accent is the tenant's choice and the
+     readable version of it cannot be known until then. The fallback here is the
+     raw accent, so a stylesheet that somehow ran without the script still renders
+     -- just with the contrast the tenant's colour actually has, which is the
+     honest failure rather than an invisible one. */
+  --sunny-accent-ink: var(--sunny-accent);
+
   all: initial;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--sunny-ink);
@@ -124,7 +133,7 @@ export function styles(): string {
 
 .turn { max-width: 86%; padding: 9px 12px; border-radius: 14px; font-size: 14px;
   white-space: pre-wrap; overflow-wrap: anywhere; }
-.turn.user { align-self: flex-end; background: var(--sunny-accent); color: #fff;
+.turn.user { align-self: flex-end; background: var(--sunny-accent-ink); color: #fff;
   border-bottom-right-radius: 5px; }
 .turn.assistant { align-self: flex-start; background: #fff;
   border: 1px solid rgba(23,23,23,.08); border-bottom-left-radius: 5px; }
@@ -147,9 +156,9 @@ export function styles(): string {
 .suggestions button {
   font: inherit; font-size: 12.5px; cursor: pointer;
   border: 1px solid var(--sunny-orange-soft); background: var(--sunny-pale);
-  color: var(--sunny-orange-deep); border-radius: 999px; padding: 5px 11px;
+  color: var(--sunny-accent-ink); border-radius: 999px; padding: 5px 11px;
 }
-.suggestions button:hover { background: var(--sunny-orange-soft); color: #fff; }
+.suggestions button:hover { background: var(--sunny-accent-ink); color: #fff; }
 .suggestions button:focus-visible { outline: 2px solid var(--sunny-accent); }
 
 .composer { display: flex; gap: 8px; padding: 10px 12px 12px;
@@ -163,7 +172,7 @@ export function styles(): string {
   border-color: transparent; }
 .composer button {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; border: 0;
-  background: var(--sunny-accent); color: #fff; cursor: pointer; font-size: 16px;
+  background: var(--sunny-accent-ink); color: #fff; cursor: pointer; font-size: 16px;
   align-self: flex-end;
 }
 .composer button:disabled { opacity: .45; cursor: not-allowed; }

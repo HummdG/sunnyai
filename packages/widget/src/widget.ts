@@ -8,6 +8,7 @@ import {
 } from '@sunny/contracts';
 
 import { ChatClient } from './chat.js';
+import { legibleInk } from './contrast.js';
 import { el, setSvg } from './dom.js';
 import { styles } from './styles.js';
 
@@ -212,6 +213,16 @@ export class SunnyWidget {
   #applyConfig(config: WidgetConfig): void {
     this.#host.setAttribute('data-position', config.position);
     this.#host.style.setProperty('--sunny-primary-color', config.primaryColor);
+    // The accent is used in two roles that ask different things of it: as a fill
+    // behind white text (the visitor's own bubbles, the send button) and as text
+    // on the pale suggestion chip. One darkened tone satisfies both, and the
+    // chip's background is in the list because the tone has to clear that, not
+    // only white. Without this the default brand is 2.66:1 on the chip -- the
+    // exact failure the browser audit found, at the colour nobody chose yet.
+    this.#host.style.setProperty(
+      '--sunny-accent-ink',
+      legibleInk(config.primaryColor, ['#FFFFFF', '#FFF1E5']),
+    );
 
     const name = this.#root.querySelector('.header .name');
     const tagline = this.#root.querySelector('.header .tagline');

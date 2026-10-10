@@ -23,13 +23,19 @@ serveStatic({
   mounts: [
     // Order matters: the first mount whose directory holds the file wins, so the
     // specific prefix has to come before the catch-all.
-    { prefix: '/sunny-widget.js', dir: resolve(here, '../../packages/widget/dist') },
+    //
+    // A *directory* prefix, not `/sunny-widget.js`. A mount's prefix is stripped
+    // and the remainder resolved inside `dir`, with an empty remainder meaning
+    // `index.html` -- so mounting the bundle under its own filename asked for
+    // `dist/index.html`, found nothing, fell through to the catch-all and 404'd.
+    // The demo page had been shipping an embed snippet that loaded no widget;
+    // that only surfaced when a browser finally fetched it.
+    { prefix: '/widget', dir: resolve(here, '../../packages/widget/dist') },
     {
       prefix: '/',
       dir: resolve(here, 'public'),
       missingHint: {
-        '/sunny-widget.js':
-          'The widget bundle is not built yet. Run: npm run build -w @sunny/widget',
+        '/widget/sunny-widget.js': 'The widget bundle is not built yet. Run: npm run build:widget',
       },
     },
   ],
