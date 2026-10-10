@@ -203,6 +203,17 @@ rather than a moment, which is what made the shape of it the whole problem:
   other plays to the end and runs the history the page _published_ back through
   the same rules, comparing the result with the marks on screen.
 - **The lab bundle grew 99.3 → 106.3 kB**, which is the rules plus the board.
+- **The Linux container run caught a real defect, which is the point of it.** A
+  new npm workspace is only a workspace once it is in `package-lock.json`, and
+  `npm ci` refuses to install a tree whose lockfile does not mention a workspace
+  the root manifest declares: `npm error Missing: @sunny/games@0.1.0 from lock
+file`. Nothing local noticed, because the workspace was already linked in the
+  existing `node_modules` — so `npm run verify`, `npm run build` and the whole
+  browser suite were green on a tree that **could not be installed from a fresh
+  clone**, which is what CI does. `npm install --package-lock-only` fixed it, the
+  A06 commit carries the lockfile, and the container then ran **22/22**. A gate
+  that only ever runs against a warm working tree is not a gate; this one earned
+  its place in the checklist.
 
 ### Fixed in the previous session (A05: the balloon)
 
