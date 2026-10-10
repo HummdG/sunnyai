@@ -193,6 +193,16 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     asked: 'engine',
     askedBy: '`play_started`',
   },
+  {
+    group: 'relax',
+    name: 'Taking a break',
+    description:
+      'The visitor closes the chat and Sunny gets a deckchair out: it unfolds, she ' +
+      'lies back, and at the stronger settings the shades come down or she dozes off.',
+    category: 'ambient',
+    asked: 'engine',
+    askedBy: '`dismissed`',
+  },
 ];
 
 /** The entry for a group, or undefined when the group is not catalogued. */

@@ -144,10 +144,12 @@ describe('sequences', () => {
     ] as const;
     for (const state of states) {
       const options = sequencesForState(state);
-      // `relaxing` deliberately borrows the idle layer. `playing` used to as
-      // well, which was the whole problem: a game started and the character did
-      // not acknowledge it. It has the play moves of its own now (A07).
-      expect(options.length || state === 'relaxing', `${state} has nothing to render`).toBeTruthy();
+      // Every state has sequences of its own now. `relaxing` used to be the
+      // exception -- it borrowed the idle layer, which is exactly what A04
+      // fixed -- and the exemption is gone rather than left in place, because an
+      // exemption that outlives the gap it was written for is how a state ends
+      // up silently empty again.
+      expect(options.length, `${state} has nothing to render`).toBeGreaterThan(0);
     }
   });
 });
@@ -433,5 +435,91 @@ describe('SunnyAnimator', () => {
     const drawn = new Set<string | null>();
     for (let i = 0; i <= 400; i++) drawn.add(a.frame(i * 50).sequenceId);
     expect([...drawn]).toContain('blink');
+  });
+
+  it('gets the deckchair out when the visitor closes the chat', () => {
+    // A04. `dismissed` moved the machine to `relaxing`, and the relaxing state
+    // borrowed the idle layer -- so closing the panel, the one moment the
+    // launcher is alone on screen, changed nothing about the character.
+    const a = new SunnyAnimator(defaultRig(), { seed: 3 });
+    a.dispatch({ type: 'attention' }, 0);
+    a.frame(0);
+    a.dispatch({ type: 'dismissed' }, 400);
+    expect(a.state).toBe('relaxing');
+    const frame = a.frame(400);
+    expect(frame.sequenceId).toBe('relax-sunbathe');
+    expect(frame.rig.props.map((p) => p.id)).toContain('deckchair');
+  });
+
+  it('picks the break the tenant’s motion setting and visitor’s motion preference allow', () => {
+    const cases: ReadonlyArray<[Intensity, boolean, string]> = [
+      ['minimal', false, 'relax-settle'],
+      ['balanced', false, 'relax-sunbathe'],
+      ['playful', false, 'relax-doze'],
+      ['playful', true, 'relax-still'],
+    ];
+    for (const [intensity, reducedMotion, id] of cases) {
+      const a = new SunnyAnimator(defaultRig(), { intensity, seed: 3 });
+      a.dispatch({ type: 'dismissed' }, 0);
+      // The preference arrives with the frame, not the constructor: the widget
+      // re-reads the media query every frame, and the scheduler takes the
+      // reduced-motion flag from the context.
+      expect(
+        a.frame(0, { reducedMotion }).sequenceId,
+        `at ${intensity}, reduced ${reducedMotion}`,
+      ).toBe(id);
+    }
+  });
+
+  it('stops the break as soon as the visitor does anything', () => {
+    // A04's "stops immediately on user interaction". The chair is not ended by
+    // its clock but by the visitor: any event that moves the machine out of
+    // `relaxing` retires the instance on the next frame, whatever it has left of
+    // its nine seconds to run.
+    const a = new SunnyAnimator(defaultRig(), { seed: 3 });
+    a.dispatch({ type: 'dismissed' }, 0);
+    a.frame(0);
+    expect(a.frame(600).rig.props.map((p) => p.id)).toContain('deckchair');
+
+    // The visitor clicks the launcher again, still well inside the sequence.
+    a.dispatch({ type: 'attention' }, 700);
+    expect(a.state).toBe('listening');
+    expect(a.frame(700).rig.props).toEqual([]);
+  });
+
+  it('plants the chair on the ground while she settles into it', () => {
+    // Props are drawn in the body's frame, so a prop inherits the body's motion.
+    // The chair is given back the transform her body was given to sit down, so
+    // its own origin must land back on the body centre in the viewBox -- and
+    // stay there while she breathes, which is the part a naive negation would
+    // get wrong.
+    const sequence = SEQUENCE_BY_ID.get('relax-sunbathe')!;
+    for (const t of [0.3, 0.4, 0.5, 0.6, 0.7]) {
+      const rig = sequence.pose(base, t);
+      const chair = rig.props.find((p) => p.id === 'deckchair')!;
+      const a = (rig.rotation * Math.PI) / 180;
+      const x = rig.x + chair.x * Math.cos(a) - chair.y * Math.sin(a);
+      const y = rig.y + chair.x * Math.sin(a) + chair.y * Math.cos(a);
+      expect(x, `chair x at t=${t}`).toBeCloseTo(base.x, 6);
+      expect(y, `chair y at t=${t}`).toBeCloseTo(base.y, 6);
+      // And it does not lean with her either, once it is unfolded.
+      expect(rig.rotation + chair.rotation, `chair lean at t=${t}`).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('leaves nothing out when the break is over', () => {
+    // The chair arrives by unfolding and leaves by folding, so the end of the
+    // moment is the rest pose. A frame that stopped mid-fold would leave a chair
+    // standing on screen with nobody in it. Asserted as "nothing visible" rather
+    // than "no props", because a faded-to-nothing prop is already dropped from
+    // the markup and the array is the sequence's business, not the renderer's.
+    const sequence = SEQUENCE_BY_ID.get('relax-doze')!;
+    for (const t of [0, 1]) {
+      const rig = sequence.pose(base, t);
+      for (const p of rig.props) {
+        expect(p.opacity, `${p.id} at t=${t}`).toBeLessThanOrEqual(0.001);
+      }
+    }
+    expect(sequence.pose(base, 1).rotation).toBeCloseTo(base.rotation, 6);
   });
 });

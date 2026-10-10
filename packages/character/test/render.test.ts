@@ -9,6 +9,7 @@ import {
   type PropId,
   type SunnyRig,
 } from '../src/index.js';
+import { SUNNY_THEME, THEME_PRESETS } from '../src/tokens.js';
 
 /**
  * The renderer is where the character becomes pixels, and it is the one part of
@@ -147,6 +148,38 @@ describe('renderer', () => {
 
     expect(renderSunny(withProp('sparkle', { opacity: 0 }))).not.toContain('data-prop="sparkle"');
     expect(renderSunny(defaultRig())).not.toContain('data-prop=');
+  });
+
+  it('paints a surface prop as an outline around a theme colour, not as ink', () => {
+    // The character's own language is a black outline around a flat fill, and a
+    // prop that is an object has to be drawn the same way or it reads as a hole
+    // in the scene. The fill comes from the rig's theme, so it re-tints with the
+    // tenant's colour rather than being a second hard-coded palette.
+    const drawn = renderSunny(withProp('deckchair'));
+    const group = drawn.slice(drawn.indexOf('data-prop="deckchair"'));
+    expect(group).toContain(`fill="${SUNNY_THEME.highlight}"`);
+    expect(group).toContain(`stroke="${SUNNY_THEME.ink}"`);
+
+    const purple = withProp('deckchair');
+    purple.theme = THEME_PRESETS.purple!;
+    const purpleGroup = renderSunny(purple).slice(
+      renderSunny(purple).indexOf('data-prop="deckchair"'),
+    );
+    expect(purpleGroup).toContain(`fill="${THEME_PRESETS.purple!.highlight}"`);
+    expect(purpleGroup).not.toContain(SUNNY_THEME.highlight);
+  });
+
+  it('keeps the marks that are not objects as strokes or ink', () => {
+    // The two other paintings, pinned so a future prop cannot quietly claim the
+    // surface treatment: a mark is an ink stroke and a small sign is an ink mass.
+    const ask = renderSunny(withProp('question-mark'));
+    expect(ask.slice(ask.indexOf('data-prop="question-mark"'))).toContain('fill="none"');
+
+    const sparkle = renderSunny(withProp('sparkle')).slice(
+      renderSunny(withProp('sparkle')).indexOf('data-prop="sparkle"'),
+    );
+    expect(sparkle).toContain(`fill="${SUNNY_THEME.ink}"`);
+    expect(sparkle).not.toContain(`fill="${SUNNY_THEME.highlight}"`);
   });
 
   it('interpolates between two poses without leaving the rig shape', () => {

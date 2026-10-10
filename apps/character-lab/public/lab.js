@@ -485,6 +485,44 @@
     sunglasses: {
       d: "M-16.5-5.6h15a2.6 2.6 0 0 1 2.6 2.6v6.4a2.6 2.6 0 0 1-2.6 2.6h-15a2.6 2.6 0 0 1-2.6-2.6v-6.4a2.6 2.6 0 0 1 2.6-2.6ZM1.5-5.6h15a2.6 2.6 0 0 1 2.6 2.6v6.4a2.6 2.6 0 0 1-2.6 2.6h-15a2.6 2.6 0 0 1-2.6-2.6v-6.4a2.6 2.6 0 0 1 2.6-2.6ZM-1.6-3.6h3.2v2.4h-3.2ZM-19.1-3.9h-2.3a1.2 1.2 0 0 0-1.2 1.2v1.9a1.2 1.2 0 0 0 1.2 1.2h2.3ZM19.1-3.9h2.3a1.2 1.2 0 0 1 1.2 1.2v1.9a1.2 1.2 0 0 1-1.2 1.2h-2.3Z",
       filled: true
+    },
+    // A folding deckchair, drawn open and reclined: a fabric sling running out to
+    // the foot end, a back leaning away to the upper left, a bar across the top of
+    // it, and a leg frame underneath.
+    //
+    // Authored in the *body* frame rather than its own, which is the only prop that
+    // does so, and for a reason that is really a constraint: this one is furniture
+    // a 47-unit-radius body has to sit *in*, so its geometry is not about a chair's
+    // proportions, it is about where a seat's front edge and a back's inner edge
+    // land relative to the sun's silhouette. Authoring it in place means the
+    // sequence that deploys it places it at the origin and the numbers here are the
+    // composition.
+    //
+    // The back is not placed by eye. A straight back that leans up and to the left
+    // and is anchored under the body *must* cross the silhouette, because the
+    // circle bulges further out at shoulder height than any chord can: a line from
+    // under her bottom to above her head is either vertical, or it passes through
+    // her. The back below is the line that clears the circle all the way along --
+    // it runs at a distance of ~50 from the centre against a radius of 47.26, so it
+    // is a tangent with about 2.7 units of clearance -- and the lean that falls out
+    // of that constraint (~30 degrees off vertical) is a deckchair's recline, not a
+    // compromise. Attempts to draw it steeper put the panel across her eye.
+    //
+    // The sling's front edge sits just below her bottom edge rather than through
+    // it, so the whole chair reads as supporting her from underneath and nothing is
+    // drawn against her face. It is filled rather than stroked because at launcher
+    // size a line drawing of a chair is a tangle of hairlines: see D-20.
+    //
+    // The unfold is the prop's own transform, not articulation: the chair scales up
+    // from a third and rotates into place, so it whips open rather than hinging. A
+    // real fold would need props made of parts, which the model does not have.
+    deckchair: {
+      d: (
+        // The back panel, tangent to the silhouette, leaning up-left.
+        "M-38.5 35-66.5-19-89.5-7-61.5 47ZM-60 47 27.4 56 28.6 68-59 59ZM24.7 57 60.7 33 67.3 43 31.3 67ZM-29.9 53.9-35.9 79.9-39.7 78.7-33.7 52.7ZM25.9 65.9 30.9 87.9 27.1 89.1 22.1 67.1ZM-40 72h74v3h-74Z"
+      ),
+      filled: true,
+      surface: true
     }
   };
   function renderProp(prop2, paint) {
@@ -495,7 +533,7 @@
       `rotate(${n(prop2.rotation)})`,
       `scale(${n(prop2.scale)})`
     ].join(" ");
-    const draw = path.filled ? `fill="${paint.ink}"` : `fill="none" stroke="${paint.ink}" stroke-width="2.2" stroke-linecap="round"`;
+    const draw = path.surface ? `fill="${paint.highlight}" stroke="${paint.ink}" stroke-width="2.2" stroke-linejoin="round"` : path.filled ? `fill="${paint.ink}"` : `fill="none" stroke="${paint.ink}" stroke-width="2.2" stroke-linecap="round"`;
     return `<g data-prop="${prop2.id}" transform="${transform}" opacity="${n(Math.min(1, prop2.opacity))}"><path d="${path.d}" ${draw}/></g>`;
   }
   function browPath(brow2) {
@@ -1499,6 +1537,124 @@
       return r;
     }
   };
+  function relaxPose(base, t, extra) {
+    const r = cloneRig(base);
+    const seated = Math.min(ease(t / 0.2), ease((1 - t) / 0.12));
+    const deployed = Math.min(ease(t / 0.2), ease((1 - t) / 0.1));
+    const breath = wave(t * 1.25) * seated;
+    const stretch = bump((t - 0.7) / 0.18);
+    const lean = seated * 7;
+    const sink = seated * 2.5;
+    const dx = seated * 1.2;
+    const dy = sink - breath * 0.8 - stretch * 1.6;
+    r.rotation = base.rotation - lean;
+    r.x = base.x + dx;
+    r.y = base.y + dy;
+    r.faceTilt = base.faceTilt - seated * 3;
+    r.squash = seated * 0.02;
+    const squint = seated * (1 - stretch) * 0.62;
+    r.eyes.left.closed = squint;
+    r.eyes.right.closed = squint;
+    r.smile.depth = base.smile.depth * (1 + seated * 0.3);
+    r.smile.span = base.smile.span * (1 + seated * 0.08);
+    for (const ray of r.rays) {
+      ray.lengthScale = 1 - seated * 0.05 + breath * 0.05 + stretch * 0.14;
+      ray.widthScale = 1 + breath * 0.03;
+    }
+    const angle = lean * Math.PI / 180;
+    const props = [
+      {
+        id: "deckchair",
+        // See the note above: this is the inverse of the body's rotation and
+        // translation, so the chair stays on the ground while she settles into it.
+        x: -dx * Math.cos(angle) + dy * Math.sin(angle),
+        y: -dx * Math.sin(angle) - dy * Math.cos(angle),
+        // Plus the unfold: the chair swings open from a lean as it deploys.
+        rotation: lean + (1 - deployed) * -14,
+        scale: 0.35 + 0.65 * deployed,
+        opacity: deployed
+      }
+    ];
+    if (extra.shades) {
+      const on = Math.min(ease((t - 0.16) / 0.1), ease((0.84 - t) / 0.1));
+      props.push({
+        id: "sunglasses",
+        x: -1.4,
+        y: -5.1 - 34 * (1 - on),
+        rotation: -3,
+        scale: 1,
+        opacity: on
+      });
+    }
+    if (extra.doze) {
+      for (const [i, phase] of [0, 0.35].entries()) {
+        const p = (t - 0.26 - phase) / 0.42;
+        if (p <= 0 || p >= 1) continue;
+        props.push({
+          id: "sparkle",
+          x: 14 + i * 10 + p * 8,
+          y: -52 - p * 24,
+          rotation: p * 140,
+          scale: 0.42 + bump(p) * 0.22,
+          opacity: bump(p) * 0.85 * seated
+        });
+      }
+    }
+    r.props = props;
+    return r;
+  }
+  var relaxStill = {
+    id: "relax-still",
+    group: "relax",
+    priority: PRIORITY.idle + 40,
+    duration: 1,
+    canInterrupt: true,
+    loop: true,
+    intensity: "off",
+    assets: [],
+    reducedMotionFallback: null,
+    states: ["relaxing"],
+    pose: (base) => cloneRig(base)
+  };
+  var relaxSettle = {
+    id: "relax-settle",
+    group: "relax",
+    priority: PRIORITY.idle + 40,
+    duration: 6800,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: ["deckchair"],
+    reducedMotionFallback: "relax-still",
+    states: ["relaxing"],
+    pose: (base, t) => relaxPose(base, t, { shades: false, doze: false })
+  };
+  var relaxSunbathe = {
+    id: "relax-sunbathe",
+    group: "relax",
+    priority: PRIORITY.idle + 40,
+    duration: 9200,
+    canInterrupt: true,
+    loop: false,
+    intensity: "balanced",
+    assets: ["deckchair", "sunglasses"],
+    reducedMotionFallback: "relax-still",
+    states: ["relaxing"],
+    pose: (base, t) => relaxPose(base, t, { shades: true, doze: false })
+  };
+  var relaxDoze = {
+    id: "relax-doze",
+    group: "relax",
+    priority: PRIORITY.idle + 40,
+    duration: 11400,
+    canInterrupt: true,
+    loop: false,
+    intensity: "playful",
+    assets: ["deckchair", "sunglasses", "sparkle"],
+    reducedMotionFallback: "relax-still",
+    states: ["relaxing"],
+    pose: (base, t) => relaxPose(base, t, { shades: true, doze: true })
+  };
   var SEQUENCES = [
     idleStill,
     idle,
@@ -1530,7 +1686,11 @@
     playStill,
     playShuffle,
     playRun,
-    playDance
+    playDance,
+    relaxStill,
+    relaxSettle,
+    relaxSunbathe,
+    relaxDoze
   ];
   var SEQUENCE_BY_ID = new Map(
     SEQUENCES.map((s) => [s.id, s])
@@ -1805,6 +1965,14 @@
       category: "play",
       asked: "engine",
       askedBy: "`play_started`"
+    },
+    {
+      group: "relax",
+      name: "Taking a break",
+      description: "The visitor closes the chat and Sunny gets a deckchair out: it unfolds, she lies back, and at the stronger settings the shades come down or she dozes off.",
+      category: "ambient",
+      asked: "engine",
+      askedBy: "`dismissed`"
     }
   ];
   var UNREACHABLE_GROUPS = CATALOGUE.filter(
@@ -1876,6 +2044,9 @@
           break;
         case "play_started":
           this.scheduler.request("play", result.state, now);
+          break;
+        case "dismissed":
+          this.scheduler.request("relax", result.state, now);
           break;
         case "speaking_started":
           if (previous === "thinking") this.scheduler.request("eureka", result.state, now);
@@ -2065,6 +2236,12 @@
     // engine's, asked for by `play_started` the same way the eureka is asked for
     // by `speaking_started` out of thinking.
     play: ["play_started"],
+    // The break Sunny takes when the visitor closes the chat. The panel has to be
+    // open for there to be anything to close, so the route opens it first: a
+    // dismissal from rest is legal, but it is not the moment A04 is about, and the
+    // bubble arriving first is the half-second of context that makes the chair
+    // read as a break rather than as furniture appearing from nowhere.
+    relax: ["attention", "dismissed"],
     confused: ["confused"],
     // `turn_failed` is not accepted from rest, so the error has to be reached the
     // way it really happens: a turn that started and then failed.

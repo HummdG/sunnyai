@@ -1,4 +1,4 @@
-import { cloneRig, type PropRig } from '@sunny/character';
+import { cloneRig, type PropRig, type SunnyRig } from '@sunny/character';
 
 import { PRIORITY, type Intensity, type Sequence, type SunnyState } from './types.js';
 
@@ -1096,6 +1096,211 @@ const playDance: Sequence = {
   },
 };
 
+// ─── A04, the deckchair ──────────────────────────────────────────────────────
+
+/**
+ * The part of the break every variant shares: the chair unfolds under her, she
+ * settles into it with narrowed eyes and a slow breath, and at the end she gets
+ * up while it folds away again. The variants add what is special about each
+ * intensity setting -- nothing, shades, a doze -- on top of this, so the arc
+ * itself exists once and cannot drift between them.
+ *
+ * **Why the moment ends by undoing itself.** A looping sunbathe cannot be made
+ * to work: a sequence's pose is a function of its progress, so a loop would
+ * replay the unfold on every cycle, and a loop that started already deployed
+ * would pop the chair into existence on the first frame. It cannot be the state's
+ * *ambient* layer either, which is where a break belongs by nature, because the
+ * scheduler never retires the floor instance -- the ambient has to loop, and a
+ * looping break is the chair that reopens every ten seconds. So the break is a
+ * finite *event*, requested once when the panel closes and leaving the idle layer
+ * underneath it, exactly as A07's play moves are. That also gives A04's "stops
+ * immediately on user interaction" for free, because any event that moves the
+ * machine out of `relaxing` retires the instance on the next frame -- the clock
+ * is not what ends it, the visitor is.
+ *
+ * **The chair is planted, she is not.** Props are drawn in the body's frame, so
+ * a prop inherits the body's motion: without the correction below the chair
+ * would lean and sink with her, and rise and fall with her breathing. The chair
+ * is therefore given back exactly the transform her body was given to sit down
+ * -- the inverse of the root rotation and of the translation, applied about the
+ * same origin the artwork is authored against -- and none of the breath. The
+ * inverse rotation needs the translation to be rotated too, which is why the
+ * three lines below are not simply negations.
+ */
+function relaxPose(base: SunnyRig, t: number, extra: { shades: boolean; doze: boolean }): SunnyRig {
+  const r = cloneRig(base);
+
+  // How far she has settled into the seat, and how far the chair has unfolded.
+  // They ramp together on the way in; on the way out the chair lingers, so she
+  // is standing before it has finished folding.
+  const seated = Math.min(ease(t / 0.2), ease((1 - t) / 0.12));
+  const deployed = Math.min(ease(t / 0.2), ease((1 - t) / 0.1));
+
+  // One slow breath for the length of the hold, and one stretch before she gets
+  // up -- the only part of the moment where she opens her eyes again.
+  const breath = wave(t * 1.25) * seated;
+  const stretch = bump((t - 0.7) / 0.18);
+
+  const lean = seated * 7;
+  const sink = seated * 2.5;
+  const dx = seated * 1.2;
+  const dy = sink - breath * 0.8 - stretch * 1.6;
+
+  r.rotation = base.rotation - lean;
+  r.x = base.x + dx;
+  r.y = base.y + dy;
+  // Leaning back into the chair's back, and a little wider as she settles.
+  r.faceTilt = base.faceTilt - seated * 3;
+  r.squash = seated * 0.02;
+
+  // A sunlit squint rather than a shut eye. `closed` collapses the eye to 6% of
+  // its height, which is right for a blink and wrong here: at the sizes this
+  // moment is actually seen it draws a black bar across her face, and with the
+  // shades drawn as outlines over the top the two marks fight. A narrow eye
+  // reads as comfortable at every size and lets the lenses stay legible.
+  const squint = seated * (1 - stretch) * 0.62;
+  r.eyes.left.closed = squint;
+  r.eyes.right.closed = squint;
+  r.smile.depth = base.smile.depth * (1 + seated * 0.3);
+  r.smile.span = base.smile.span * (1 + seated * 0.08);
+
+  // Relaxed rays: a little shorter at rest, and breathing with her.
+  for (const ray of r.rays) {
+    ray.lengthScale = 1 - seated * 0.05 + breath * 0.05 + stretch * 0.14;
+    ray.widthScale = 1 + breath * 0.03;
+  }
+
+  const angle = (lean * Math.PI) / 180;
+  const props: PropRig[] = [
+    {
+      id: 'deckchair',
+      // See the note above: this is the inverse of the body's rotation and
+      // translation, so the chair stays on the ground while she settles into it.
+      x: -dx * Math.cos(angle) + dy * Math.sin(angle),
+      y: -dx * Math.sin(angle) - dy * Math.cos(angle),
+      // Plus the unfold: the chair swings open from a lean as it deploys.
+      rotation: lean + (1 - deployed) * -14,
+      scale: 0.35 + 0.65 * deployed,
+      opacity: deployed,
+    },
+  ];
+
+  // The shades come down onto narrowed eyes and lift again before the stretch.
+  if (extra.shades) {
+    const on = Math.min(ease((t - 0.16) / 0.1), ease((0.84 - t) / 0.1));
+    props.push({
+      id: 'sunglasses',
+      x: -1.4,
+      y: -5.1 - 34 * (1 - on),
+      rotation: -3,
+      scale: 1,
+      opacity: on,
+    });
+  }
+
+  // The doze: two sparkles drifting up out of the notch above her head, the way
+  // a sleeping thought is drawn. There rather than over her face because ink on
+  // orange is legible at every size while the same mark on the chair's pale
+  // surface is not, and because a sparkle crossing her face would read as
+  // something happening to her rather than as something leaving her.
+  if (extra.doze) {
+    for (const [i, phase] of [0, 0.35].entries()) {
+      const p = (t - 0.26 - phase) / 0.42;
+      if (p <= 0 || p >= 1) continue;
+      props.push({
+        id: 'sparkle',
+        x: 14 + i * 10 + p * 8,
+        y: -52 - p * 24,
+        rotation: p * 140,
+        scale: 0.42 + bump(p) * 0.22,
+        opacity: bump(p) * 0.85 * seated,
+      });
+    }
+  }
+
+  r.props = props;
+  return r;
+}
+
+/**
+ * The reduced-motion variant, and the `off` setting's member.
+ *
+ * There is no honest still of this moment: the chair arrives by unfolding, and
+ * the model cannot cross-fade two poses, so a held pose plus a chair that faded
+ * in around a frozen body would read as a bug rather than as a break. A visitor
+ * who has asked for reduced motion gets the resting pose instead -- the same
+ * call the play moves make, and for the same reason.
+ */
+const relaxStill: Sequence = {
+  id: 'relax-still',
+  group: 'relax',
+  priority: PRIORITY.idle + 40,
+  duration: 1,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'off',
+  assets: [],
+  reducedMotionFallback: null,
+  states: ['relaxing'],
+  pose: (base) => cloneRig(base),
+};
+
+/**
+ * A04 at `minimal`. The chair unfolds, she settles, and she gets up again: the
+ * whole arc with nothing added. At this setting the break reads as a chair and a
+ * posture rather than as a performance.
+ */
+const relaxSettle: Sequence = {
+  id: 'relax-settle',
+  group: 'relax',
+  priority: PRIORITY.idle + 40,
+  duration: 6_800,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'minimal',
+  assets: ['deckchair'],
+  reducedMotionFallback: 'relax-still',
+  states: ['relaxing'],
+  pose: (base, t) => relaxPose(base, t, { shades: false, doze: false }),
+};
+
+/**
+ * A04 at `balanced`: the plan's "chair unfolds, shades, relax". The lenses come
+ * down after the chair has taken her weight, and lift again before she stirs.
+ */
+const relaxSunbathe: Sequence = {
+  id: 'relax-sunbathe',
+  group: 'relax',
+  priority: PRIORITY.idle + 40,
+  duration: 9_200,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'balanced',
+  assets: ['deckchair', 'sunglasses'],
+  reducedMotionFallback: 'relax-still',
+  states: ['relaxing'],
+  pose: (base, t) => relaxPose(base, t, { shades: true, doze: false }),
+};
+
+/**
+ * A04 at `playful`: she dozes off, and two sparkles drift away from her while
+ * she is under -- the character's one daydream, and the reason this variant is
+ * longer than the others.
+ */
+const relaxDoze: Sequence = {
+  id: 'relax-doze',
+  group: 'relax',
+  priority: PRIORITY.idle + 40,
+  duration: 11_400,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'playful',
+  assets: ['deckchair', 'sunglasses', 'sparkle'],
+  reducedMotionFallback: 'relax-still',
+  states: ['relaxing'],
+  pose: (base, t) => relaxPose(base, t, { shades: true, doze: true }),
+};
+
 /**
  * The registry. Every sequence the engine can run is here; the scheduler can
  * only pick from this list, so a typo in a state name is a typecheck failure
@@ -1133,6 +1338,10 @@ export const SEQUENCES: readonly Sequence[] = [
   playShuffle,
   playRun,
   playDance,
+  relaxStill,
+  relaxSettle,
+  relaxSunbathe,
+  relaxDoze,
 ];
 
 export const SEQUENCE_BY_ID: ReadonlyMap<string, Sequence> = new Map(

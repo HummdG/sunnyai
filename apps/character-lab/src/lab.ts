@@ -202,6 +202,12 @@ const ROUTE: Record<string, readonly MachineEvent['type'][]> = {
   // engine's, asked for by `play_started` the same way the eureka is asked for
   // by `speaking_started` out of thinking.
   play: ['play_started'],
+  // The break Sunny takes when the visitor closes the chat. The panel has to be
+  // open for there to be anything to close, so the route opens it first: a
+  // dismissal from rest is legal, but it is not the moment A04 is about, and the
+  // bubble arriving first is the half-second of context that makes the chair
+  // read as a break rather than as furniture appearing from nowhere.
+  relax: ['attention', 'dismissed'],
   confused: ['confused'],
   // `turn_failed` is not accepted from rest, so the error has to be reached the
   // way it really happens: a turn that started and then failed.

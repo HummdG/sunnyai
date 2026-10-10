@@ -81,6 +81,41 @@ export const SCENES: readonly Scene[] = [
     at: 900,
     reducedMotion: true,
   },
+  // The break Sunny takes when the visitor closes the chat (A04). Captured in
+  // the middle of the hold rather than during the unfold: the chair unfolding is
+  // over inside a second, and what a visitor actually looks at for the next nine
+  // is her lying in it.
+  {
+    name: 'relaxing',
+    events: [
+      { at: 0, event: { type: 'attention' } },
+      { at: 400, event: { type: 'dismissed' } },
+    ],
+    at: 4_600,
+  },
+  // The same moment where the intensity setting changes the *moment* rather than
+  // its strength: at the playful setting she dozes off, which is a different
+  // picture and not a louder version of this one. The `off` setting is
+  // deliberately not given a scene: it resolves to the resting pose, which is
+  // what the reduced-motion baseline below already pins.
+  {
+    name: 'relaxing-playful',
+    events: [
+      { at: 0, event: { type: 'attention' } },
+      { at: 400, event: { type: 'dismissed' } },
+    ],
+    at: 6_100,
+    intensity: 'playful',
+  },
+  {
+    name: 'relaxing-reduced-motion',
+    events: [
+      { at: 0, event: { type: 'attention' } },
+      { at: 400, event: { type: 'dismissed' } },
+    ],
+    at: 4_600,
+    reducedMotion: true,
+  },
 ];
 
 /** The frame cadence the widget runs at, and therefore the one used here. */

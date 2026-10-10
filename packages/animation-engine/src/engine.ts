@@ -109,6 +109,15 @@ export class SunnyAnimator {
         // setting chooses the shuffle, the run or the dance.
         this.scheduler.request('play', result.state, now);
         break;
+      case 'dismissed':
+        // The visitor closed the chat, so Sunny takes a break: `relaxing` is a
+        // production state -- the widget's own `close()` dispatches this, and the
+        // frame loop keeps running afterwards -- and until now the state borrowed
+        // the idle layer, which is why closing the panel changed nothing but the
+        // panel. The chair is a finite event, so reopening the chat retires it
+        // along with the state.
+        this.scheduler.request('relax', result.state, now);
+        break;
       case 'speaking_started':
         // Coming out of thinking, the first token is the answer arriving, which
         // is the eureka's whole reason to exist. From anywhere else -- a host

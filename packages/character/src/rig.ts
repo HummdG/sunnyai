@@ -85,6 +85,7 @@ export const PROP_IDS = [
   'sweat-drop',
   'battery',
   'sunglasses',
+  'deckchair',
 ] as const;
 export type PropId = (typeof PROP_IDS)[number];
 

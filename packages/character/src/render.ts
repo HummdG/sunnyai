@@ -180,9 +180,22 @@ function eyeHalfWidthAt(eye: EyeRig, y: number): number {
 /**
  * Props are drawn in body-local coordinates, like the rays. Each path is
  * authored in a frame about 12 units tall centred on the origin, so `scale` is
- * a plain multiplier and a sequence can size one without knowing its geometry.
+ * a plain multiplier and a sequence can size one without knowing its geometry --
+ * except the pieces of scenery, which say so in their own comments.
+ *
+ * Three paintings, and the third exists because the first two are not enough for
+ * furniture. `filled: false` draws an ink stroke, which is right for a mark --
+ * a question mark, the temple of a pair of glasses -- and `filled: true` draws a
+ * solid ink mass, which is right for a small sign like a sparkle. Neither can
+ * draw an *object*: the character's own language is a black outline around a
+ * flat fill, so furniture drawn as a black silhouette reads as a hole in the
+ * scene and a chair drawn in hairlines disappears at launcher size. `surface`
+ * is the third painting -- an outline around the theme's surface colour -- and
+ * it is what makes a prop look like something the character owns rather than
+ * something stamped on top of them. It re-tints with the theme, so a tenant's
+ * purple character gets a lilac chair.
  */
-const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean }>> = {
+const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?: boolean }>> = {
   // A bold question mark: the bowl, the stem, and a dot.
   'question-mark': {
     d: 'M-3.1-4.4a3.3 3.3 0 1 1 5.1 2.8q-2 1.3-2 3.1M0 5.6v0.1',
@@ -217,6 +230,51 @@ const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean }>> = {
       'M19.1-3.9h2.3a1.2 1.2 0 0 1 1.2 1.2v1.9a1.2 1.2 0 0 1-1.2 1.2h-2.3Z',
     filled: true,
   },
+  // A folding deckchair, drawn open and reclined: a fabric sling running out to
+  // the foot end, a back leaning away to the upper left, a bar across the top of
+  // it, and a leg frame underneath.
+  //
+  // Authored in the *body* frame rather than its own, which is the only prop that
+  // does so, and for a reason that is really a constraint: this one is furniture
+  // a 47-unit-radius body has to sit *in*, so its geometry is not about a chair's
+  // proportions, it is about where a seat's front edge and a back's inner edge
+  // land relative to the sun's silhouette. Authoring it in place means the
+  // sequence that deploys it places it at the origin and the numbers here are the
+  // composition.
+  //
+  // The back is not placed by eye. A straight back that leans up and to the left
+  // and is anchored under the body *must* cross the silhouette, because the
+  // circle bulges further out at shoulder height than any chord can: a line from
+  // under her bottom to above her head is either vertical, or it passes through
+  // her. The back below is the line that clears the circle all the way along --
+  // it runs at a distance of ~50 from the centre against a radius of 47.26, so it
+  // is a tangent with about 2.7 units of clearance -- and the lean that falls out
+  // of that constraint (~30 degrees off vertical) is a deckchair's recline, not a
+  // compromise. Attempts to draw it steeper put the panel across her eye.
+  //
+  // The sling's front edge sits just below her bottom edge rather than through
+  // it, so the whole chair reads as supporting her from underneath and nothing is
+  // drawn against her face. It is filled rather than stroked because at launcher
+  // size a line drawing of a chair is a tangle of hairlines: see D-20.
+  //
+  // The unfold is the prop's own transform, not articulation: the chair scales up
+  // from a third and rotates into place, so it whips open rather than hinging. A
+  // real fold would need props made of parts, which the model does not have.
+  deckchair: {
+    d:
+      // The back panel, tangent to the silhouette, leaning up-left.
+      'M-38.5 35-66.5-19-89.5-7-61.5 47Z' +
+      // The sling: the seat, running back under her from the knee.
+      'M-60 47 27.4 56 28.6 68-59 59Z' +
+      // ...and the foot section, turned up at the knee.
+      'M24.7 57 60.7 33 67.3 43 31.3 67Z' +
+      // Legs and the cross-brace under the sling.
+      'M-29.9 53.9-35.9 79.9-39.7 78.7-33.7 52.7Z' +
+      'M25.9 65.9 30.9 87.9 27.1 89.1 22.1 67.1Z' +
+      'M-40 72h74v3h-74Z',
+    filled: true,
+    surface: true,
+  },
 };
 
 function renderProp(prop: PropRig, paint: Paint): string {
@@ -231,9 +289,11 @@ function renderProp(prop: PropRig, paint: Paint): string {
     `rotate(${n(prop.rotation)})`,
     `scale(${n(prop.scale)})`,
   ].join(' ');
-  const draw = path.filled
-    ? `fill="${paint.ink}"`
-    : `fill="none" stroke="${paint.ink}" stroke-width="2.2" stroke-linecap="round"`;
+  const draw = path.surface
+    ? `fill="${paint.highlight}" stroke="${paint.ink}" stroke-width="2.2" stroke-linejoin="round"`
+    : path.filled
+      ? `fill="${paint.ink}"`
+      : `fill="none" stroke="${paint.ink}" stroke-width="2.2" stroke-linecap="round"`;
 
   // `data-prop` is what makes "which prop is on screen" a fact about the markup
   // rather than something a test has to infer by diffing two SVG strings. The
