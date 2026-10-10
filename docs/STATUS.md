@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **505 tests across 14 files**,
+public marketing site are built, tested and green: **535 tests across 15 files**,
 a real fidelity comparison
 against the supplied artwork, **20 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
-and **37 browser end-to-end checks** — including an axe accessibility pass — over
+and **39 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
 host page, and on the marketing site, which runs the real widget and the real
 character rather than pictures of them. The
@@ -36,10 +36,10 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                  |
 | Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                   |
 | Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                  |
-| Unit / contract / visual tests | `npm run test`                                                                              | **505 passed (14 files)**                                                                    |
-| Browser end-to-end             | `npm run test:e2e`                                                                          | **37 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
+| Unit / contract / visual tests | `npm run test`                                                                              | **535 passed (15 files)**                                                                    |
+| Browser end-to-end             | `npm run test:e2e`                                                                          | **39 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
 | Widget bundle                  | `npm run build:widget`                                                                      | 125.1 kB — **34.7 kB gzipped**                                                               |
-| Character lab bundle           | `npm run build:lab`                                                                         | 106.3 kB                                                                                     |
+| Character lab bundle           | `npm run build:lab`                                                                         | 108.9 kB, plus the lazily-loaded arcade chunk at 11.6 kB (A08)                               |
 | API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                              |
 | Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                        |
 | Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                           |
@@ -107,14 +107,20 @@ first real finding should not be the one that matters.
   that the standing map survives a restart), rate limiting (both the counter and
   the address resolution it keys on, including the case where a caller forges
   `X-Forwarded-For`), and the persistence layer.
-- **Games** (`packages/games`, 29 tests) — tic-tac-toe, as rules rather than as
-  a picture: all eight lines (checked by looping over the same `LINES` the board
-  draws from), an illegal move on a taken square, a non-cell, or a finished game
-  each refused, the canonical draw, `replay()` rebuilding a position from its
-  history and `moves.slice(0, n)` being the undo, and Sunny's opponent. The
-  opponent suite pins both halves of her being a heuristic rather than a solver:
-  she takes a win and blocks a threat, and she **loses to a two-move fork**,
-  which is the one thing the visitor has to see to win (D-22).
+- **Games** (`packages/games`, 59 tests across two files) — tic-tac-toe, as rules
+  rather than as a picture: all eight lines (checked by looping over the same
+  `LINES` the board draws from), an illegal move on a taken square, a non-cell,
+  or a finished game each refused, the canonical draw, `replay()` rebuilding a
+  position from its history and `moves.slice(0, n)` being the undo, and Sunny's
+  opponent. The opponent suite pins both halves of her being a heuristic rather
+  than a solver: she takes a win and blocks a threat, and she **loses to a
+  two-move fork**, which is the one thing the visitor has to see to win (D-22).
+  And Space Invaders (A08): the field and the fleet's origin, the ship's clamp at
+  both walls, `invaderAt` as the one collision test (a hit on an alive invader, a
+  miss on a dead one, out-of-range on the field's edge), each rank's points, one
+  shot in the air at a time, a bomb that hits only the cell the ship is in, lives
+  running out, a wave that keeps the score and speeds the fleet up, `restart`
+  keeping nothing, and a seeded generator making a whole game reproducible (D-23).
 - **Contracts** (`packages/contracts`) — the Zod schemas that are the single
   source of truth for the wire format.
 - **Widget** (`packages/widget`) — the embed snippet's attributes and which wins,
@@ -160,7 +166,11 @@ first real finding should not be the one that matters.
   worked out. And the two A06 checks: a click lands on the square it was aimed
   at, Sunny answers on her own turn and not before (the stage label names the
   thinking sequence while she does), and the history the page published rebuilds
-  the position it is showing.
+  the position it is showing. And the two A08 checks: **no request is made for
+  `/arcade.js` until the button is pressed** — the page is asserted to be up and
+  drawing the catalogue first, so the claim is "nothing fetched it" rather than
+  "it is absent" — and then the cabinet is played from the keyboard, with the
+  score asserted to answer a shot that was aimed at where the fleet actually was.
 
 ### Fixed in this session (A06: tic-tac-toe)
 
@@ -214,6 +224,58 @@ file`. Nothing local noticed, because the workspace was already linked in the
   A06 commit carries the lockfile, and the container then ran **22/22**. A gate
   that only ever runs against a warm working tree is not a gate; this one earned
   its place in the checklist.
+
+### Fixed in this session (A08: the arcade)
+
+The increment was the plan's eighth row — "Space Invaders | Lazy-loaded arcade
+game | Real collision, score, restart" — and the fourth word turned out to carry
+the decisions, because "lazy-loaded" is a claim a build can stop supporting while
+every test stays green:
+
+- **The arcade is a second bundle, `/arcade.js`, and the lab fetches it on the
+  press.** Two esbuild entries rather than a dynamic `import()`, because esbuild
+  cannot use `splitting` with `format: 'iife'` and a shared chunk would be
+  lazily-_parsed_ rather than not fetched at all. The chunk imports `@sunny/games`
+  and nothing else, and talks to the character through a two-method `Reactions`
+  interface, so it does not carry a second copy of the engine (D-23).
+- **The rules are 30 tests in the existing `@sunny/games`**, and the collision
+  test is a lookup on a grid of integers rather than a pixel overlap: one
+  `invaderAt`, everything that can hit anything goes through it, and the answer is
+  the same on every machine. The tick order — shots move and hit, fleet moves,
+  landing judged, bombs move and hit — is documented in the function and is the
+  reason it is one function rather than a pipeline of exported steps.
+- **`index.ts` now re-exports a namespace per game.** Both games wanted to export
+  `newGame`, `Game` and `Status`, and neither name is wrong; `ticTacToe.replay()`
+  says which game it is replaying, and A09's ping pong adds a third without
+  reopening it. Four call sites changed.
+- **`mount` returns nothing.** The first draft handed back `{ stop() }` for a rAF
+  loop that outlives its panel; nothing in the lab ever called it, and an unused
+  stop button is an API describing a life cycle the page does not have.
+- **The two browser checks found two defects, and only one was the game's.** The
+  readouts are published as `data-*` on the element `mount` was handed — the slot
+  inside `#arcade` — while the test read them off `#arcade`, so "the score never
+  moved" was a fact about a selector. The other was in the test: aiming through
+  Playwright locators failed every single time, because a locator click is a round
+  trip while the fleet keeps stepping, so the shot was aimed where the fleet had
+  _been_. Aiming and firing in one page-side turn is what a player does, and it
+  hits on the first attempt in every run. Both are recorded in D-23 because the
+  second one is the interesting kind of red: the assertion was right and the
+  mechanism for setting it up was wrong.
+- **Four test bugs in the new rules suite, none of them a rule change.** A helper
+  that only counted steps was used to move the ship; a second shot was aimed at a
+  column the fleet had already left; the fleet-clearing test put its last invader
+  on the top row where the fleet's cadence never brings the shot and never called
+  `fire`; and the determinism test asserted a step count for a game a bomb ended
+  early, which a throwaway trace showed is reachable because the counter generator
+  wraps to `0` every seventh call. The trace script was deleted and the test now
+  asserts what it can defend.
+- **A note on the suite's own margin, found by accident.** Two consecutive
+  full-file runs failed the catalogue test on its 30-second budget with the lab's
+  clock advancing at a twelfth of real time. The cause was not the code: stale
+  `sunny-ai` server processes from earlier Playwright runs were still alive and
+  starving the page of frames, which is the failure mode recorded for this
+  machine. With them killed the test takes 10.4 s of its 30 s. Worth knowing
+  before blaming an arcade for a slow catalogue.
 
 ### Fixed in the previous session (A05: the balloon)
 
@@ -651,10 +713,10 @@ not been designed.
 | ------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Formatting / lint              | **done**, in CI and locally                                                                        |
 | Typecheck                      | **done**                                                                                           |
-| Unit tests                     | **done** — 505 across 14 files                                                                     |
+| Unit tests                     | **done** — 535 across 15 files                                                                     |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
-| E2E (Playwright)               | **done** — 37 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
+| E2E (Playwright)               | **done** — 39 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
 | Visual snapshots               | **done** — 20 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
 | Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
 | Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
@@ -787,6 +849,12 @@ properly rather than sketched.
    The rules are a package of their own (`@sunny/games`), the board is a page
    surface, and the character contributes only its reactions through the four
    machine events a board can reach — so the engine gained no new mode, and the
-   next two games get the same split rather than a redesign. What remains of P11
-   is what the gate does not cover: A08–A18, two more games and the seasonal
+   next two games get the same split rather than a redesign. **A08 is done**
+   (D-23), and it is the row where the plan's adjective carried the work: the
+   arcade is a genuinely separate bundle the page does not fetch until it is asked
+   to, which a browser check proves by watching the network, and its collision is
+   one lookup on a grid of integers rather than a pixel overlap. Its rules joined
+   `@sunny/games` and forced that package's exports into one namespace per game,
+   so A09's ping pong is an addition rather than a collision. What remains of P11
+   is what the gate does not cover: A09–A18, two more games and the seasonal
    cosmetics, none of which are blocked on anything outside this repository.

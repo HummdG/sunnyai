@@ -11,6 +11,7 @@ import {
 import type { Intensity, MachineEvent, Sequence } from '@sunny/animation-engine';
 import { defaultRig, renderSunny, SUNNY_THEME, type SunnyRig } from '@sunny/character';
 
+import type { Reactions } from './arcade.js';
 import { el } from './dom.js';
 import { gamePanel, type GamePanel } from './game.js';
 
@@ -270,6 +271,92 @@ function refreshCatalogue(): void {
     moment.button.disabled = best === null;
     moment.button.textContent = best ? `Play · ${best.id}` : `hidden at ${state.intensity}`;
   }
+}
+
+// ─── the arcade (A08) ────────────────────────────────────────────────────────
+
+/** What an arcade game can say to the character. */
+function reactions(): Reactions {
+  return {
+    dispatch: (type) => {
+      // Cast rather than narrowed, exactly as the event buttons above do: the
+      // arcade names a machine event, and a name the machine does not know is
+      // refused by the same `dispatch` that refuses it here.
+      animator.dispatch({ type } as never, state.t);
+      renderBigStage();
+    },
+  };
+}
+
+/**
+ * Fetch the arcade bundle, once.
+ *
+ * A script tag rather than a dynamic `import()`: the lab is served as a classic
+ * script, and an importing lab would have to become an ES module and carry the
+ * arcade's code in its own chunk -- which is the thing "lazy-loaded" is supposed
+ * to avoid. The bundle registers itself on `window.SunnyArcade` and this waits
+ * for it to say so, rather than assuming that `load` means the code has run.
+ */
+function loadArcade(): Promise<NonNullable<Window['SunnyArcade']>> {
+  return new Promise((resolve, reject) => {
+    if (window.SunnyArcade) {
+      resolve(window.SunnyArcade);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = '/arcade.js';
+    script.addEventListener(
+      'load',
+      () => {
+        const loaded = window.SunnyArcade;
+        if (loaded) resolve(loaded);
+        else reject(new Error('arcade.js loaded but registered nothing'));
+      },
+      { once: true },
+    );
+    script.addEventListener('error', () => reject(new Error('the arcade bundle did not load')), {
+      once: true,
+    });
+    document.head.append(script);
+  });
+}
+
+/**
+ * A08's arcade, on the page but not in the bundle.
+ *
+ * The point of the button is that until it is pressed, `/arcade.js` has not been
+ * requested -- so the panel is built from a promise rather than from the module,
+ * and a failure leaves the button in a state that can be pressed again rather
+ * than a page that looks loaded and is not.
+ */
+function buildArcade(): void {
+  const host = document.getElementById('arcade')!;
+  const slot = el('div', { class: 'arcade-slot' });
+  const note = el('p', {
+    class: 'note',
+    text: 'Nothing here is fetched until the button is pressed.',
+  });
+  const button = el('button', { class: 'btn', type: 'button', text: 'Load the arcade' });
+
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    button.textContent = 'Loading…';
+    loadArcade()
+      .then((loaded) => {
+        loaded.mount(slot, reactions());
+        button.remove();
+        // The panel says how to play it; this note says the thing only the page
+        // that loaded it can say, so the two are not the same sentence twice.
+        note.textContent = 'Loaded: /arcade.js arrived on the press and not before.';
+      })
+      .catch((error: unknown) => {
+        button.disabled = false;
+        button.textContent = 'Load the arcade';
+        note.textContent = error instanceof Error ? error.message : 'the arcade did not load';
+      });
+  });
+
+  host.append(button, note, slot);
 }
 
 // ─── the single-character stage ──────────────────────────────────────────────
@@ -548,6 +635,7 @@ export function start(): void {
     redraw: () => renderBigStage(),
   });
   document.getElementById('game')!.append(board.element);
+  buildArcade();
 
   document.getElementById('controls')!.append(controls());
   document.getElementById('scrubber')!.append(scrubber());

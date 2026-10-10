@@ -1,5 +1,8 @@
 import type { SunnyAnimator } from '@sunny/animation-engine';
-import { CELLS, isLegal, move, newGame, sunnyMove, type Mark } from '@sunny/games';
+import { ticTacToe } from '@sunny/games';
+
+const { CELLS, isLegal, move, newGame, sunnyMove } = ticTacToe;
+type Mark = ticTacToe.Mark;
 
 import { el } from './dom.js';
 

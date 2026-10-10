@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { CATALOGUE, UNWIRED_GROUPS } from '@sunny/animation-engine';
-import { replay } from '@sunny/games';
+import { ticTacToe } from '@sunny/games';
 
 /**
  * The animation catalogue, in a browser.
@@ -264,7 +264,7 @@ test('plays a game to its end, and the history rebuilds the board', async ({ pag
     ),
   }));
 
-  const rebuilt = replay(drawn.moves).squares.map((square) => square ?? 'empty');
+  const rebuilt = ticTacToe.replay(drawn.moves).squares.map((square) => square ?? 'empty');
   expect(rebuilt, 'the published history does not rebuild the board on screen').toEqual(
     drawn.squares,
   );
@@ -275,4 +275,163 @@ test('plays a game to its end, and the history rebuilds the board', async ({ pag
   await page.locator('#game .btn', { hasText: 'New game' }).click();
   await expect(page.locator('#game .cell[data-square="empty"]')).toHaveCount(9);
   await expect(page.locator(boardStatus)).toHaveText(/Your turn/);
+});
+
+/**
+ * A08, played rather than asserted.
+ *
+ * A08's fourth word is *lazy-loaded*, and that is a claim about bytes: the rules
+ * are proved in `packages/games`, but "the game is not in the page until it is
+ * asked for" can only be proved by watching the network. So the first test
+ * listens to requests and the second one drives the cabinet.
+ */
+
+/**
+ * The element the arcade was mounted into, and the element it writes its
+ * readouts to.
+ *
+ * `#arcade` is the lab's section; the game is mounted into the slot inside it,
+ * and the `data-*` the readouts are published as belong to whatever `mount` was
+ * handed rather than to the section that happens to contain it.
+ */
+const arcadeSlot = '#arcade .arcade-slot';
+const arcadeField = '#arcade .arcade-field';
+const loadTheArcade = (page: Page) =>
+  page.locator('#arcade .btn', { hasText: 'Load the arcade' }).click();
+
+const arcadeRead = (page: Page, key: string): Promise<string | null> =>
+  page.locator(arcadeSlot).getAttribute(`data-${key}`);
+
+/**
+ * Aim at the middle of the fleet's lowest rank, then fire -- in one page-side
+ * turn.
+ *
+ * Read from the cells rather than assumed, because the aim is the whole of the
+ * game's skill and a test that fired from wherever the ship happened to be would
+ * be testing the fleet's luck. The *middle* of the rank rather than its edge,
+ * because the fleet steps sideways while the shot is in the air: a column three
+ * cells in still has an invader over it after the fleet has moved one.
+ *
+ * Both clicks go through the page rather than through Playwright, and that is
+ * the difference between this passing and failing. A locator click is a round
+ * trip; the fleet keeps stepping during it, and by the time a driver-aimed shot
+ * reached the fleet it had moved to the other side of the field -- which is a
+ * fact about the harness rather than about the game. A player aims and fires in
+ * one movement, and so does this.
+ */
+const aimAndFire = (page: Page): Promise<void> =>
+  page.evaluate(() => {
+    const cells = Array.from(document.querySelectorAll<HTMLElement>('#arcade .arcade-cell'));
+    const fleet = cells
+      .filter((cell) => cell.dataset.occupant === 'invader')
+      .map((cell) => (cell.dataset.cell ?? '0,0').split(',').map(Number) as [number, number]);
+    const lowest = Math.max(...fleet.map(([, y]) => y));
+    const columns = fleet
+      .filter(([, y]) => y === lowest)
+      .map(([x]) => x)
+      .sort((a, b) => a - b);
+    const target = columns[Math.floor(columns.length / 2)]!;
+
+    const ship = cells.find((cell) => cell.dataset.occupant === 'ship')!;
+    const shipX = Number((ship.dataset.cell ?? '0,0').split(',')[0]);
+    const way = target > shipX ? 'right' : 'left';
+    const move = document.querySelector<HTMLButtonElement>(`#arcade .btn[data-key="${way}"]`)!;
+    for (let i = 0; i < Math.abs(target - shipX); i++) move.click();
+    document.querySelector<HTMLButtonElement>('#arcade .btn[data-key="fire"]')!.click();
+  });
+
+test('fetches the arcade only when it is asked for', async ({ page }) => {
+  const asked: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/arcade.js')) asked.push(request.url());
+  });
+
+  await page.goto(LAB_URL);
+
+  // The page is up and doing its work -- the catalogue is drawn from the same
+  // bundle -- and the arcade has still not been asked for. That ordering is the
+  // claim: not "the arcade is absent" but "nothing fetched it".
+  await expect(page.locator('#catalogue-card .moment')).toHaveCount(CATALOGUE.length);
+  await expect(page.locator(arcadeSlot)).toBeEmpty();
+  expect(asked, 'the arcade bundle was fetched before anyone asked for it').toEqual([]);
+
+  await loadTheArcade(page);
+
+  await expect(page.locator(arcadeField)).toBeVisible();
+  await expect(page.locator(`${arcadeField} .arcade-cell`)).toHaveCount(12 * 12);
+  // Where the rules say they are, counted from the rules: four ranks of six.
+  await expect(page.locator(arcadeSlot)).toHaveAttribute('data-invaders', '24');
+  await expect(page.locator(arcadeSlot)).toHaveAttribute('data-lives', '3');
+  expect(asked, 'the arcade never asked for its own bundle').not.toEqual([]);
+
+  // The button goes away rather than becoming a second way to mount a second
+  // game into the same slot.
+  await expect(page.locator('#arcade .btn', { hasText: 'Load the arcade' })).toHaveCount(0);
+});
+
+test('drives the arcade from the keyboard, and the score answers a hit', async ({ page }) => {
+  await page.goto(LAB_URL);
+  await loadTheArcade(page);
+
+  const ship = page.locator(`${arcadeField} .arcade-cell[data-occupant="ship"]`);
+  const shipAt = () => ship.getAttribute('data-cell');
+  // A shot or a bomb in the ship's cell is drawn over it, so wait for a frame
+  // where the ship is the thing in its own cell before reading where it is.
+  await expect(ship).toHaveCount(1);
+
+  // The keys belong to the panel, not to the document: a visitor reading the
+  // catalogue is not playing the game, and the panel says where the keys go.
+  const adrift = (await shipAt())!;
+  await page.keyboard.press('ArrowLeft');
+  await expect(ship).toHaveAttribute('data-cell', adrift);
+
+  await page.locator(arcadeField).focus();
+  const before = await shipAt();
+  await page.keyboard.press('ArrowLeft');
+  await expect(ship).not.toHaveAttribute('data-cell', before!);
+  await page.keyboard.press('ArrowRight');
+  await expect(ship).toHaveAttribute('data-cell', before!);
+
+  // A hit is the claim, and the game's own clock is what makes it awkward to
+  // arrange: the shot takes six ticks to cross the empty field and the fleet is
+  // stepping under it the whole way. So the test aims at where the fleet is and
+  // tries again if it slipped aside, which is what a player does.
+  let hit = false;
+  for (let attempt = 0; attempt < 6 && !hit; attempt++) {
+    // One shot in the air at a time, as the cabinet had it, so an attempt waits
+    // for the last one to land or leave before taking its own -- otherwise it
+    // would press Fire into a no-op.
+    await expect(page.locator(`${arcadeField} .arcade-cell[data-occupant="shot"]`)).toHaveCount(0);
+    // A game cut short by the bombs is not a failure of the aim: start again and
+    // carry on, which is the only thing the cabinet ever offered either.
+    if ((await arcadeRead(page, 'status')) === 'lost') {
+      await page.locator('#arcade .btn[data-key="restart"]').click();
+    }
+    await aimAndFire(page);
+    hit = await page
+      .waitForFunction(
+        () =>
+          (document.querySelector<HTMLElement>('#arcade .arcade-slot')?.dataset.score ?? '0') !==
+          '0',
+        undefined,
+        { timeout: 2_000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+  }
+  expect(hit, 'no shot ever hit an invader').toBe(true);
+
+  // The score moved and the fleet shrank by exactly what a kill takes.
+  expect(Number(await arcadeRead(page, 'invaders'))).toBeLessThan(24);
+  expect(Number(await arcadeRead(page, 'score'))).toBeGreaterThan(0);
+
+  // Restart keeps nothing: not the score, not the fleet.
+  await page.locator('#arcade .btn[data-key="restart"]').click();
+  await expect(page.locator(arcadeSlot)).toHaveAttribute('data-score', '0');
+  await expect(page.locator(arcadeSlot)).toHaveAttribute('data-wave', '1');
+  await expect(page.locator(arcadeSlot)).toHaveAttribute('data-invaders', '24');
+  await expect(page.locator(arcadeSlot)).toHaveAttribute('data-status', 'playing');
+  await expect(page.locator(`${arcadeField} .arcade-cell[data-occupant="ship"]`)).toHaveCount(1);
 });

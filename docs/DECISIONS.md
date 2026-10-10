@@ -962,3 +962,91 @@ rather than about a class the board put on a paragraph -- and waits for her
 answer. The other plays to the end and then runs the history the page _published_
 back through the same rules and compares the result with the marks on screen, so
 "the log can replay the game" is checked rather than asserted in prose.
+
+## D-23. A08's arcade is "lazy-loaded", and that is a claim about bytes
+
+The plan's row for A08 is "Space Invaders | Lazy-loaded arcade game | Real
+collision, score, restart". The three words of the acceptance column are the same
+shape as A06's and get the same answer -- the rules are a module in
+`@sunny/games`, tested without a browser -- but the _fourth_ word of the
+description is the one with a decision inside it, because "lazy-loaded" is the
+kind of claim a build can quietly stop supporting while every test stays green.
+
+**Two entry points, and the arcade is a file of its own.** `build.mjs` now emits
+`lab.js` and `arcade.js`; the lab injects a `<script src="/arcade.js">` when the
+visitor presses the button and not before. The tidier-looking alternative is a
+dynamic `import()` -- except esbuild cannot use `splitting` with
+`format: 'iife'`, and the lab is served as a classic script, so a shared chunk
+would be _lazily parsed_ rather than _not fetched_, which is a weaker claim than
+the one the plan makes. A second IIFE entry costs a `declare global` and a
+hand-written loader, and buys a test that watches the network and can actually
+fail.
+
+**The arcade chunk does not carry the engine.** It imports `@sunny/games` and
+nothing else, and talks to the character through a two-method `Reactions`
+interface (`dispatch(type)`) that the lab implements with
+`animator.dispatch(...)`. Importing `SunnyAnimator` here would have worked and
+would have shipped a second copy of the engine inside a bundle whose only
+interesting property is its size. `el()` is copied from the lab for the same
+reason: an import from `lab.ts` would pull the catalogue, the grid and the engine
+into the lazily-loaded file.
+
+**`mount` returns nothing.** A game with a `requestAnimationFrame` loop is a leak
+that outlives whatever it was mounted into, so the first draft handed back
+`{ stop() }`. Nothing ever called it -- the lab builds the panel once and never
+replaces it -- and an unused stop button is an API describing a life cycle this
+page does not have. It was removed rather than kept "for later"; the comment says
+where it would go.
+
+**The clock belongs to the game, which is the opposite of A06's choice.** A board
+has no notion of time, so A06's runs on the stage's `state.t` and is paused and
+scrubbed with everything else on the page. An arcade game _is_ its tick -- it is
+what makes a shot move one cell and the fleet descend -- so running it on a clock
+a debug slider can rewind would make the game's only rule a function of the
+debugger. It has its own `requestAnimationFrame` loop at a fixed 110 ms tick, and
+the catch-up is capped at six ticks so a backgrounded tab is found where it was
+left rather than already lost.
+
+**The playfield is a grid of integers, and the collision test is a lookup.** A
+pixel game needs overlap tests, sub-stepping to stop a bullet tunnelling through
+a thin invader, and a rule for the exact boundary; each is a place where "it
+looked like a hit" and "it was a hit" disagree. Cells make a hit a lookup --
+`invaderAt(fleet, x, y)` is the only collision test in the file and every shot
+goes through it -- and the answer is identical on every machine. The renderer
+decides how big a cell is; it does not decide whether something was hit.
+
+**One namespace per game, because two games export the same three names.** Both
+tic-tac-toe and invaders want to export `newGame`, `Game` and `Status`, and none
+of those names is wrong. Flat re-exports would have meant one shadowing the
+other, so `index.ts` re-exports `ticTacToe` and `invaders` as namespaces:
+`ticTacToe.replay(...)` says which game it is replaying, and A09's ping pong will
+add a third without reopening this. Four call sites changed.
+
+**Four test bugs, all in the tests.** The walls test moved the ship with a helper
+that only steps a counter; the "two kills" test aimed at a column the fleet had
+already left; the fleet-clearing test put its last invader on the top row, where
+the fleet's cadence never brings the shot, and never called `fire`; and the
+determinism test asserted a step count for a game that a bomb ended early, which
+a throwaway trace showed was reachable because the counter generator wraps to
+`0` every seventh call. No rule changed: every failure was the test being clearer
+about the game than the game is.
+
+**The two browser tests found two real defects, only one of which was the game's
+fault to fix.** The first is that the readouts are published as `data-*` on the
+element `mount` was handed -- the slot inside `#arcade` -- while the test read
+them off `#arcade`, so "the score never moved" was a fact about the selector. The
+second is more interesting: aiming through Playwright locators failed every time,
+because a locator click is a round trip and the fleet keeps stepping during it,
+so the shot was aimed where the fleet _had_ been. Aiming and firing in one
+page-side turn is what a player does and hits on the first attempt in every run;
+the fix is in the test, and the comment says why the same-looking code is not the
+same test.
+
+**What is checked where.** The rules -- collision, score, wave, restart,
+determinism -- are 30 unit tests in `packages/games`; the two browser tests prove
+the two things only a browser can: that `/arcade.js` is not fetched until the
+button is pressed, and that the cabinet the visitor gets is that game, driven
+from the keyboard with the score answering a hit. The lab is a developer surface
+and the axe suite covers the widget rather than the lab, which is the status A06
+left it in; the arcade's keyboard path is at least asserted by a test rather than
+described in prose.

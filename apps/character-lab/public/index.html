@@ -223,6 +223,70 @@
         color: var(--muted);
       }
 
+      .arcade {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: auto 1fr;
+        align-items: start;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px;
+        background: var(--panel);
+      }
+      @media (max-width: 760px) {
+        .arcade {
+          grid-template-columns: 1fr;
+        }
+      }
+      .arcade-field {
+        display: grid;
+        grid-template-columns: repeat(12, 22px);
+        grid-auto-rows: 22px;
+        gap: 2px;
+        padding: 6px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        /* The game answers the keyboard, so it has to say where the keyboard is
+           pointing -- and only when the visitor got there by keyboard. */
+        outline-offset: 3px;
+      }
+      .arcade-field:focus-visible {
+        outline: 2px solid var(--orange);
+      }
+      .arcade-cell {
+        border-radius: 3px;
+      }
+      .arcade-cell[data-occupant='invader'] {
+        background: var(--ink);
+      }
+      .arcade-cell[data-occupant='ship'] {
+        background: var(--orange);
+      }
+      .arcade-cell[data-occupant='shot'],
+      .arcade-cell[data-occupant='bomb'] {
+        background: var(--orange);
+        border-radius: 50%;
+      }
+      .arcade-cell[data-occupant='shot'] {
+        background: var(--ink);
+      }
+      .arcade-side {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+      .arcade-readout {
+        display: flex;
+        gap: 22px;
+      }
+      .arcade-readout .field {
+        gap: 2px;
+      }
+      .arcade-slot:empty {
+        display: none;
+      }
+
       .scrubber {
         display: grid;
         gap: 14px;
@@ -400,6 +464,17 @@
       them rather than by a copy of them. She shows off when a game starts, thinks on her turn, and takes a moment when
       it ends. She is a heuristic rather than a solver: a perfect opponent can never be beaten, and a game you cannot
       win is not a game.
+    </p>
+
+    <h2>The arcade</h2>
+    <div id="arcade"></div>
+    <p class="lede" style="margin-top: 10px">
+      A08 is the plan's arcade row, and its fourth word is <em>lazy-loaded</em>: the rules live in
+      <span class="mono">@sunny/games</span> like tic-tac-toe's, but the game itself is a separate bundle (<span
+        class="mono"
+        >/arcade.js</span
+      >) that this page fetches only when the button is pressed. A test watches the network to prove it, because
+      "lazy-loaded" is a claim about bytes rather than about intentions.
     </p>
 
     <h2>Flagship moments</h2>

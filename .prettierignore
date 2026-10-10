@@ -24,6 +24,8 @@ package-lock.json
 *.min.css
 apps/character-lab/public/lab.js
 apps/character-lab/public/lab.js.map
+apps/character-lab/public/arcade.js
+apps/character-lab/public/arcade.js.map
 # Gitignored, but a developer who has just built the fixture has a copy on disk,
 # and `prettier --check .` would report it and fail the verify step for a file
 # that is not in the repository.

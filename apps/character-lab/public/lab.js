@@ -1,5 +1,11 @@
 "use strict";
 (() => {
+  var __defProp = Object.defineProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+
   // packages/animation-engine/src/types.ts
   var INTENSITIES = ["off", "minimal", "balanced", "playful"];
   var PRIORITY = {
@@ -2482,6 +2488,18 @@
   }
 
   // packages/games/src/tic-tac-toe.ts
+  var tic_tac_toe_exports = {};
+  __export(tic_tac_toe_exports, {
+    CELLS: () => CELLS,
+    LINES: () => LINES,
+    freeCells: () => freeCells,
+    isLegal: () => isLegal,
+    move: () => move,
+    newGame: () => newGame,
+    other: () => other,
+    replay: () => replay,
+    sunnyMove: () => sunnyMove
+  });
   var CELLS = 9;
   var LINES = [
     [0, 1, 2],
@@ -2547,6 +2565,9 @@
       ...verdict
     };
   }
+  function replay(moves, first = "X") {
+    return moves.reduce((game, cell) => move(game, cell), newGame(first));
+  }
   function winningCell(squares, mark) {
     for (const line of LINES) {
       let owned = 0;
@@ -2583,19 +2604,24 @@
     return pick(free, random);
   }
 
+  // packages/games/src/invaders.ts
+  var FIELD_ROWS = 12;
+  var SHIP_ROW = FIELD_ROWS - 1;
+
   // apps/character-lab/src/game.ts
+  var { CELLS: CELLS2, isLegal: isLegal2, move: move2, newGame: newGame2, sunnyMove: sunnyMove2 } = tic_tac_toe_exports;
   var HUMAN = "X";
   var SUNNY = "O";
   var THINK_MS = 700;
   function gamePanel(host2) {
-    let game = newGame(HUMAN);
+    let game = newGame2(HUMAN);
     let dueAt = null;
     let lastSeen = 0;
     const status = el("p", { class: "game-status" });
     const log = el("div", { class: "mono game-log" });
     const board2 = el("div", { class: "board", role: "grid", "aria-label": "Tic-tac-toe board" });
     const cells = [];
-    for (let cell = 0; cell < CELLS; cell++) {
+    for (let cell = 0; cell < CELLS2; cell++) {
       const button = el("button", {
         class: "cell",
         type: "button",
@@ -2630,7 +2656,7 @@
       return game.turn === HUMAN ? "Your turn \u2014 you are X" : "Sunny\u2019s turn";
     }
     function render() {
-      for (let cell = 0; cell < CELLS; cell++) {
+      for (let cell = 0; cell < CELLS2; cell++) {
         const button = cells[cell];
         const mark = game.squares[cell];
         button.textContent = mark ?? "";
@@ -2651,9 +2677,9 @@
       host2.redraw();
     }
     function play(cell) {
-      if (!visitorToPlay() || !isLegal(game, cell)) return;
+      if (!visitorToPlay() || !isLegal2(game, cell)) return;
       const now = host2.now();
-      game = move(game, cell);
+      game = move2(game, cell);
       if (game.status === "playing") {
         dueAt = now + THINK_MS;
         host2.animator().dispatch({ type: "turn_started" }, now);
@@ -2663,7 +2689,7 @@
       else settle();
     }
     function start2() {
-      game = newGame(HUMAN);
+      game = newGame2(HUMAN);
       dueAt = null;
       host2.animator().dispatch({ type: "play_started" }, host2.now());
       render();
@@ -2677,7 +2703,7 @@
         lastSeen = now;
         if (dueAt === null || now < dueAt) return false;
         dueAt = null;
-        game = move(game, sunnyMove(game));
+        game = move2(game, sunnyMove2(game));
         host2.animator().dispatch({ type: "turn_finished" }, now);
         render();
         if (game.status === "playing") host2.redraw();
@@ -2838,6 +2864,60 @@
       moment.button.disabled = best === null;
       moment.button.textContent = best ? `Play \xB7 ${best.id}` : `hidden at ${state.intensity}`;
     }
+  }
+  function reactions() {
+    return {
+      dispatch: (type) => {
+        animator.dispatch({ type }, state.t);
+        renderBigStage();
+      }
+    };
+  }
+  function loadArcade() {
+    return new Promise((resolve, reject) => {
+      if (window.SunnyArcade) {
+        resolve(window.SunnyArcade);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "/arcade.js";
+      script.addEventListener(
+        "load",
+        () => {
+          const loaded = window.SunnyArcade;
+          if (loaded) resolve(loaded);
+          else reject(new Error("arcade.js loaded but registered nothing"));
+        },
+        { once: true }
+      );
+      script.addEventListener("error", () => reject(new Error("the arcade bundle did not load")), {
+        once: true
+      });
+      document.head.append(script);
+    });
+  }
+  function buildArcade() {
+    const host2 = document.getElementById("arcade");
+    const slot = el("div", { class: "arcade-slot" });
+    const note = el("p", {
+      class: "note",
+      text: "Nothing here is fetched until the button is pressed."
+    });
+    const button = el("button", { class: "btn", type: "button", text: "Load the arcade" });
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      button.textContent = "Loading\u2026";
+      loadArcade().then((loaded) => {
+        loaded.mount(slot, reactions());
+        button.remove();
+        note.textContent = "Loaded: /arcade.js arrived on the press and not before.";
+      }).catch((error2) => {
+        button.disabled = false;
+        button.textContent = "Load the arcade";
+        note.textContent = error2 instanceof Error ? error2.message : "the arcade did not load";
+      });
+    });
+    host2.append(button, note, slot);
   }
   var stageSvg = null;
   var stageLabel = null;
@@ -3066,6 +3146,7 @@
       redraw: () => renderBigStage()
     });
     document.getElementById("game").append(board.element);
+    buildArcade();
     document.getElementById("controls").append(controls());
     document.getElementById("scrubber").append(scrubber());
     const flagshipRow = el("div", { class: "btn-row" });

@@ -1,18 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  CELLS,
-  LINES,
-  freeCells,
-  isLegal,
-  move,
-  newGame,
-  other,
-  replay,
-  sunnyMove,
-  type Game,
-  type Square,
-} from '@sunny/games';
+import { ticTacToe } from '@sunny/games';
+
+const { CELLS, LINES, freeCells, isLegal, move, newGame, other, replay, sunnyMove } = ticTacToe;
+type Game = ticTacToe.Game;
+type Square = ticTacToe.Square;
 
 /** Build a board directly, for the positions a legal sequence cannot reach. */
 function board(marks: Record<number, 'X' | 'O'>, turn: 'X' | 'O' = 'X'): Game {
