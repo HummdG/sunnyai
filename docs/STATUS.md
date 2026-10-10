@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **412 tests across 12 files**,
+public marketing site are built, tested and green: **476 tests across 13 files**,
 a real fidelity comparison
-against the supplied artwork, **17 committed visual baselines** of the character
+against the supplied artwork, **20 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
-and **33 browser end-to-end checks** — including an axe accessibility pass — over
+and **35 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
 host page, and on the marketing site, which runs the real widget and the real
 character rather than pictures of them. The
@@ -36,10 +36,10 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                  |
 | Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                   |
 | Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                  |
-| Unit / contract / visual tests | `npm run test`                                                                              | **412 passed (12 files)**                                                                    |
-| Browser end-to-end             | `npm run verify:all`                                                                        | **33 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
-| Widget bundle                  | `npm run build:widget`                                                                      | 119.8 kB — **33.1 kB gzipped**                                                               |
-| Character lab bundle           | `npm run build:lab`                                                                         | 86.0 kB                                                                                      |
+| Unit / contract / visual tests | `npm run test`                                                                              | **476 passed (13 files)**                                                                    |
+| Browser end-to-end             | `npm run verify:all`                                                                        | **35 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
+| Widget bundle                  | `npm run build:widget`                                                                      | 125.1 kB — **34.7 kB gzipped**                                                               |
+| Character lab bundle           | `npm run build:lab`                                                                         | 99.3 kB                                                                                      |
 | API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                              |
 | Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                        |
 | Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                           |
@@ -62,11 +62,14 @@ first real finding should not be the one that matters.
 
 ### What the tests actually cover
 
-- **Character** (`packages/character`, 16 tests) — determinism, byte-identical
+- **Character** (`packages/character`, 20 tests) — determinism, byte-identical
   replay, SVG accessibility, the closed prop vocabulary, the three ways a prop
   can be painted (a mark, a sign, and an object drawn in the theme's own surface
-  colour, which re-tints per tenant preset), gradient rules, and a deep-frozen
-  snapshot of the canonical pose.
+  colour, which re-tints per tenant preset), gradient rules, a deep-frozen
+  snapshot of the canonical pose, and the two helpers that convert between the
+  viewBox and the body's own frame — checked against the transform parsed out of
+  the rendered SVG, because a helper and a renderer that drifted apart would each
+  be self-consistent (D-21).
 - **Animation engine** (`packages/animation-engine`, Vitest snapshots) —
   every sequence exercised across its motion, purity, no mutation of the base
   rig, every group resolved at every intensity, and that every declared
@@ -84,11 +87,17 @@ first real finding should not be the one that matters.
   by `dismissed`, the same defect in the same shape — closing the chat changed the
   panel and nothing else — closed with a deckchair that unfolds, holds and folds
   away, and a test that the chair's own origin does not move while she breathes.
-- **Visual regression** (`tests/visual`, 19 tests) — seventeen scenarios, one per
+  Plus **the balloon** (A05, D-21): the first moment a _visitor_ starts, which
+  meant the engine gaining its first input channel — a tap is a viewBox point
+  hit-tested against the frame actually drawn, and the burst is anchored where the
+  finger was rather than where the moment chose — with a test that the float is
+  cancelled rather than left drifting beside its own shards, which is the bug the
+  id-only `cancel` had hidden.
+- **Visual regression** (`tests/visual`, 22 tests) — twenty scenarios, one per
   visually distinct state plus the intensity extremes, the reduced-motion
-  fallbacks and the two moments where the setting changes the moment rather than
-  its strength, each rasterised and compared byte for byte against a committed
-  PNG. Aimed at the character rather than at a page, for the reason in D-16, and
+  fallbacks and the moments where the setting changes the moment rather than its
+  strength, each rasterised and compared byte for byte against a committed PNG.
+  Aimed at the character rather than at a page, for the reason in D-16, and
   re-verified on Linux `resvg` whenever a baseline moves.
 - **API** (`apps/api`) — config and capability reporting, the SSE contract,
   session tokens, tenant isolation, tool dispatch, lead capture (including that a
@@ -132,13 +141,67 @@ first real finding should not be the one that matters.
   which is the only surface where the catalogue is something a person can click.
   Every catalogued moment is asserted to be listed under its catalogue name and
   description, the moments nothing asks for are asserted to be marked rather than
-  hidden, and **every moment is played**: the spec clicks `Play` on all fifteen
+  hidden, and **every moment is played**: the spec clicks `Play` on all seventeen
   and waits for the page to record that it drew each one. It is the half of P11's
   gate that a unit test cannot reach, and it found three things (D-18) — including
   a moment that was dropped rather than deferred, and a bug in the lab's own
-  preview clock that made a working moment look broken.
+  preview clock that made a working moment look broken. It also carries the two
+  A05 checks that only a browser can make: a tap on the stage's own screen
+  coordinates becomes the viewBox point the engine reasons in, and the balloon is
+  popped by tapping it where it is _painted_ rather than at a coordinate the test
+  worked out.
 
-### Fixed in this session (A04: the deckchair)
+### Fixed in this session (A05: the balloon)
+
+The increment was the plan's fifth moment — "Balloon floats, gaze follows,
+optional tap/pop", checked "Pointer/touch + reduced motion" — and unlike every
+moment before it, it starts with the visitor rather than with the machine:
+
+- **The engine gained its first input channel.** `SunnyAnimator.tap(point, now)`
+  takes a viewBox coordinate and hit-tests it against the frame that was actually
+  drawn, not the rest pose — which matters because the balloon travels, so a tap
+  where it _was_ has to miss (D-21). The forward and inverse of the renderer's
+  root transform now live in `rig.ts` as `toViewBox`/`toBodyFrame`, and a new
+  test reads that transform out of the emitted SVG and checks the helpers against
+  it rather than against a second copy of the same arithmetic.
+- **`cancel` matched nothing, and only a test found it.** Tapping the balloon
+  cancels the float before requesting the burst; `cancel('balloon')` named a
+  group but matched sequence _ids_, and the instance a group request installs is
+  the intensity's variant (`balloon-sway`), which under reduced motion renders a
+  third sequence again. So the cancel was a silent no-op in every case, and the
+  balloon only reappeared after the burst settled — invisible without the burst
+  over it. `cancel` now names things the way `request` does.
+- **The burst needed an anchor the gesture had already left behind.** It is the
+  only moment drawn somewhere the moment did not choose, and it outlives the
+  input by a fifth of a second, so the scheduler's instance carries an optional
+  `MomentAnchor` from `request` through to `pose`. Played cold from the gallery it
+  centres on the balloon's own resting place, which is the one position that is
+  not an invention.
+- **Two props became one project's worth of art, by reusing A04's decision.** The
+  balloon is drawn with `surface: true`, the ink-outline-around-`highlight`
+  treatment the deckchair introduced, so no new prop painting was needed and the
+  surface test now covers both.
+- **Reduced motion gets a balloon that does not move, not the absence of one.**
+  There is an honest still of a balloon at rest, so the float falls back to
+  `balloon-still`; the burst declares no fallback, because the pop under reduced
+  motion _is_ the balloon's disappearance — which the test asserts by holding a
+  still balloon and then asserting its absence, the opposite of what A04's
+  `relax-still` does for the same setting.
+- **The catalogue gained a third answer to "who asks".** The two moments are
+  asked for by neither the engine nor nobody; a gesture the host has to forward
+  asks for them. `AskState` gained `gesture`, and `UNWIRED_GROUPS` is now a
+  longer list than `UNREACHABLE_GROUPS` — which is the point of having both, and
+  the reason the lab marks the balloon and the burst dashed until a pointer is
+  forwarded through the widget.
+- **Three new baselines, and one of them is the third image in which reduced
+  motion does _not_ resolve to the resting pose.** That is the evidence for the
+  decision above rather than a repetition of an existing scene, and the suite's
+  coincidence guard still names exactly three scenes.
+- **The widget bundle grew 33.1 → 34.7 kB gzipped** (the engine travels inside
+  the widget), and the lab grew 86.0 → 99.3 kB, most of it the eight new
+  sequence variants the balloon and the burst add to the grid.
+
+### Fixed in the previous session (A04: the deckchair)
 
 The increment was the plan's fourth moment — "chair unfolds, shades, relax",
 "stops immediately on user interaction" — and it turned out to be the same defect
@@ -484,11 +547,14 @@ vendor guarantee:
 - **Cloud Run buffers SSE at 300 s by default, 3600 s maximum.** Long
   conversations will be cut without an explicit timeout and keep-alive.
 
-### 7. The repository is not under version control
+### 7. The history exists on one machine and nowhere else
 
-`C:\Work\Arkalith\sunny-ai` **is not a git repository.** It has a `.gitignore`
-and a `.github/workflows/ci.yml`, so it was scaffolded as one — but there is no
-`.git`, and none of the work above is committed anywhere.
+**Corrected 2026-10-10.** This section previously said
+`C:\Work\Arkalith\sunny-ai` was not a git repository at all. That was true when it
+was written and is no longer: it is a repository on `main` with 27 commits, each
+increment committed as it landed. What remains missing is a **remote** — the
+history has never left this machine, so it is protected against a bad edit and
+not against the machine (D-9).
 
 Meanwhile `C:\Work\Arkalith\SunScanV2` _is_ a repository whose remote is
 `https://github.com/HummdG/sunny.git` — a repository named **sunny** that
@@ -518,11 +584,11 @@ not been designed.
 | ------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Formatting / lint              | **done**, in CI and locally                                                                        |
 | Typecheck                      | **done**                                                                                           |
-| Unit tests                     | **done** — 412                                                                                     |
+| Unit tests                     | **done** — 476                                                                                     |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
-| E2E (Playwright)               | **done** — 33 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
-| Visual snapshots               | **done** — 17 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
+| E2E (Playwright)               | **done** — 35 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
+| Visual snapshots               | **done** — 20 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
 | Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
 | Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
 | Terraform validation           | **written, never executed**                                                                        |
@@ -569,8 +635,10 @@ properly rather than sketched.
 
 ## Next actions, in order
 
-1. **Decide the repository destination** (blocker 7). Nothing else is
-   recoverable until the work is versioned somewhere.
+1. **Decide where the repository should live** (blocker 7). The work is now
+   versioned locally and is still one machine away from being lost; every
+   remaining option — a new remote, a second remote, or merging into `SunScanV2`
+   — is outward-facing and needs the user (D-9).
 2. **Set a model credential and run one live turn.** Everything downstream
    depends on whether the real model behaves like the scripted one.
 3. **Choose the escalation model** before 2026-10-20 (blocker 2).
@@ -617,7 +685,7 @@ properly rather than sketched.
    baseline", and it is **better than half met but not met**: axe passes at
    `serious` and above; the hero's motion, its canonical colour and its use of
    the real widget are all asserted in a browser; and the character now has
-   seventeen committed visual baselines (D-16). What is still missing is the
+   twenty committed visual baselines (D-16). What is still missing is the
    _performance_ half — there is no Lighthouse run and no Core Web Vitals figure,
    so nothing has measured how fast the page is. Page-level screenshots are
    deliberately not used as the visual regression, for the operating-system
@@ -633,9 +701,9 @@ properly rather than sketched.
    and `eureka` — and the eureka has since been wired (D-17). **Both halves of
    the gate are now met**: the catalogue exists and is tested, and playability is
    demonstrated in a browser as well as proven by test. The lab grew a gallery
-   built from `CATALOGUE`, with a route per moment so that the eight moments
+   built from `CATALOGUE`, with a route per moment so that the moments
    unreachable from rest can be demonstrated rather than appearing broken, and a
-   Playwright spec clicks all fifteen and waits for the page to record that it
+   Playwright spec clicks all seventeen and waits for the page to record that it
    drew each one (D-18). **A07 is now done** (D-19): the playing state had no
    behaviour of its own — `play_started` moved the machine and changed no pixel —
    so it gained three short moves, one per intensity, which is also how A07's "no
@@ -643,10 +711,13 @@ properly rather than sketched.
    (D-20): `dismissed` moved the machine into `relaxing` and the state borrowed
    the idle layer in exactly the same way, so it gained a deckchair that unfolds,
    holds with her in it, and folds away — which needed a third way of painting a
-   prop, because the character's first two cannot draw an object. What remains of
-   P11 is what the gate does not cover: A05, A06, A08–A18, the three games and the
-   seasonal cosmetics, none of which are blocked on anything outside this
-   repository. A05 needs something the engine does not have yet — pointer and
-   touch input into a frame — and the three games (A06, A08, A09) need state that
-   outlives a single frame, which is the open question ADR-001 leaves: whether a
-   `playing` subsystem owns it or the host does.
+   prop, because the character's first two cannot draw an object. **A05 is done**
+   (D-21): it is the first moment a visitor starts, so the engine gained its first
+   input — a tap hit-tested against the drawn frame — and with it the first
+   moment drawn somewhere the moment itself did not choose. What remains of P11 is
+   what the gate does not cover: A06, A08–A18, the three games and the seasonal
+   cosmetics, none of which are blocked on anything outside this repository. The
+   three games (A06, A08, A09) are the hard ones: they need state that outlives a
+   single frame, which is the open question ADR-001 leaves — whether a `playing`
+   subsystem owns it or the host does — and the balloon added the engine's _input_
+   channel without answering where a _board_ would live.

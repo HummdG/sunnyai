@@ -19,6 +19,13 @@ export interface Scene {
   name: string;
   /** Dispatched in order; `at` is the time passed to `dispatch`. */
   events: Array<{ at: number; event: MachineEvent }>;
+  /**
+   * Pointer gestures, in viewBox coordinates, applied the same way the lab
+   * applies them. A tap is not an event: it carries a position, and it is the
+   * only input this engine takes that does. Scenes that do not tap anything leave
+   * it out.
+   */
+  taps?: Array<{ at: number; point: { x: number; y: number } }>;
   /** The frame to capture. */
   at: number;
   intensity?: Intensity;
@@ -116,6 +123,42 @@ export const SCENES: readonly Scene[] = [
     at: 4_600,
     reducedMotion: true,
   },
+  // The balloon (A05), captured once it has finished rising rather than during
+  // the rise: the travel is over inside a fifth of the loop, and what the visitor
+  // looks at for the rest of it is a balloon hanging there while she watches it.
+  // The tap point is the body centre, which is the whole of what a tap needs to
+  // land on her.
+  {
+    name: 'balloon-float',
+    events: [],
+    taps: [{ at: 0, point: { x: 100, y: 100 } }],
+    at: 2_400,
+  },
+  // The burst, caught a fifth of a second after the second tap -- near the peak
+  // of the flinch, with the shards out far enough to read as a burst rather than
+  // as a sparkle left over from something else. The second tap is at the balloon's
+  // resting place, which is where it is by then.
+  {
+    name: 'balloon-pop',
+    events: [],
+    taps: [
+      { at: 0, point: { x: 100, y: 100 } },
+      { at: 2_000, point: { x: 134, y: 38 } },
+    ],
+    at: 2_180,
+  },
+  // A visitor who asked for less motion gets a balloon that does not move, not
+  // the absence of one: unlike the deckchair, there is an honest still of a
+  // balloon at rest. This baseline is the record of that decision -- a third
+  // image in a suite where the other two reduced-motion scenes fall back to the
+  // resting pose.
+  {
+    name: 'balloon-reduced-motion',
+    events: [],
+    taps: [{ at: 0, point: { x: 100, y: 100 } }],
+    at: 2_400,
+    reducedMotion: true,
+  },
 ];
 
 /** The frame cadence the widget runs at, and therefore the one used here. */
@@ -149,25 +192,30 @@ export function rigFor(scene: Scene) {
     seed: 0x5eed_1234,
   });
 
-  const pending = [...scene.events].sort((a, b) => a.at - b.at);
-  const dispatchDue = (now: number): void => {
-    while (pending.length > 0 && pending[0]!.at <= now) {
-      const next = pending.shift()!;
-      animator.dispatch(next.event, next.at);
+  const steps = [
+    ...scene.events.map((e) => ({ at: e.at, run: () => animator.dispatch(e.event, e.at) })),
+    ...(scene.taps ?? []).map((tap) => ({
+      at: tap.at,
+      run: () => animator.tap(tap.point, tap.at),
+    })),
+  ].sort((a, b) => a.at - b.at);
+  const runDue = (now: number): void => {
+    while (steps.length > 0 && steps[0]!.at <= now) {
+      steps.shift()!.run();
     }
   };
 
-  dispatchDue(0);
+  runDue(0);
   let result = animator.frame(0, context);
 
   for (let i = 1; i * FRAME_MS < scene.at; i++) {
     const now = i * FRAME_MS;
-    dispatchDue(now);
+    runDue(now);
     result = animator.frame(now, context);
   }
 
   // The capture time itself, so a scene can name a moment between frames.
-  dispatchDue(scene.at);
+  runDue(scene.at);
   result = animator.frame(scene.at, context);
 
   return result.rig;

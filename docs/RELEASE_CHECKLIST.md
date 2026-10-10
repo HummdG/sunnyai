@@ -27,12 +27,12 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **412 passing across 12 files**
+- [ ] `npm run test` — currently **476 passing across 13 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
         network boundary_
-  - [ ] visual snapshots — **17 committed PNG baselines** of the character,
+  - [ ] visual snapshots — **20 committed PNG baselines** of the character,
         compared byte for byte. Aimed at the rig rather than at a page, for the
         reason in D-16: a page screenshot differs by operating system and the
         test gets deleted. Regenerate with `npm run test:visual:update` only
@@ -43,21 +43,21 @@ Run `npm run verify` — it chains the first four.
         committed rather than a screenshot test is the claim that they are
         platform-independent — which is only a claim until it is re-checked
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **119.8 kB (33.1 kB gzipped)**, lab 86.0 kB.
-      Both have grown since the figures this line used to carry (112.1 kB and
-      65.0 kB): the widget by the marketing site's use of it and by two moments
-      of animation library (A07's moves and A04's break, D-19 and D-20), the lab
-      by the catalogue gallery. Neither has a budget yet. Nothing about either
-      number is alarming at this size, but a figure nobody re-measures becomes a
-      figure nobody can trust, so the next release should set the budget rather
-      than only re-read the number.
+      release. Last known: widget **125.1 kB (34.7 kB gzipped)**, lab 99.3 kB.
+      Both have grown since the figures this line used to carry (119.8 kB and
+      86.0 kB): the widget by two more moments of animation library (A04's break
+      and A05's balloon and burst, D-20 and D-21), the lab by the eight
+      sequence variants those add to its grid. Neither has a budget yet. Nothing
+      about either number is alarming at this size, but a figure nobody
+      re-measures becomes a figure nobody can trust, so the next release should
+      set the budget rather than only re-read the number.
 - [ ] `npm run smoke` — against a **running** deployment
   - [ ] exits **0**, not 127 (the exit-code bug is fixed; confirm it stays
         fixed, because a gate that always fails gets deleted, and one that
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **33 passing**
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **35 passing**
       in Chromium, over the plain-HTML demo, the two host fixtures, the marketing
       site and the character lab
   - [ ] requires `npm run test:e2e:install` once per machine; a release
@@ -165,11 +165,15 @@ Run `npm run verify` — it chains the first four.
 
 - [ ] `Intensity = Off` still renders a complete, recognisable character
       (only the stills resolve — `idle-still`, `guiding-still`,
-      `speaking-still`, `play-still` and `relax-still`; everything else is
-      `null`, and that is intended)
+      `speaking-still`, `play-still`, `relax-still`, `balloon-still` and
+      `pop-still`; everything else is `null`, and that is intended. The last two
+      are the exception worth knowing: they are not the resting pose but a held
+      prop, because there is an honest still of a balloon at rest and none of a
+      deckchair arriving — D-20 and D-21)
 - [ ] Every sequence's `reducedMotionFallback` is honoured — a test asserts every
-      one exists, and the `relaxing-reduced-motion` baseline is the fallback
-      actually being _used_ rather than merely defined (D-20)
+      one exists, and the `relaxing-reduced-motion` and `balloon-reduced-motion`
+      baselines are the fallbacks actually being _used_ rather than merely defined
+      (D-20, D-21)
 - [ ] The widget is keyboard-reachable and the conversation is reachable by a
       screen reader
 - [ ] Colour contrast on the chat surface, not just the character

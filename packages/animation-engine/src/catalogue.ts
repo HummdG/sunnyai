@@ -39,13 +39,17 @@ export type CatalogueCategory =
  * Who asks for this moment today.
  *
  * - `engine`: the engine requests it itself, from the event named in `askedBy`.
+ * - `gesture`: the engine asks for it in response to a pointer gesture, through
+ *   `SunnyAnimator.tap()`. The engine owns the response and the host owns the
+ *   input, so the moment exists in the engine and still needs wiring: nothing
+ *   forwards a pointer gesture yet.
  * - `app`: nothing in the engine asks for it; an application has to call
  *   `SunnyAnimator.play(group)`. Nothing does yet.
  * - `nobody`: no caller exists. The animation is implemented, tested and
  *   unreachable in production, which is a fact worth stating rather than
  *   discovering.
  */
-export type AskState = 'engine' | 'app' | 'nobody';
+export type AskState = 'engine' | 'gesture' | 'app' | 'nobody';
 
 export interface CatalogueEntry {
   /** The group name an application uses to ask for this moment. */
@@ -59,8 +63,8 @@ export interface CatalogueEntry {
   asked: AskState;
   /**
    * The application event that asks for it, when one does. Absent for the
-   * ambient layers, which play because of the state rather than an event, and
-   * for the moments nothing asks for.
+   * ambient layers, which play because of the state rather than an event, for
+   * the moments a gesture asks for, and for the moments nothing asks for.
    */
   askedBy?: string;
   /**
@@ -203,6 +207,31 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     asked: 'engine',
     askedBy: '`dismissed`',
   },
+  {
+    group: 'balloon',
+    name: 'The balloon',
+    description:
+      'A balloon comes up out of her hands and floats there while she watches it, then ' +
+      'is let go.',
+    category: 'play',
+    asked: 'gesture',
+    note:
+      'The engine asks for this when `SunnyAnimator.tap()` is called with a point on ' +
+      'the body, so the host has to forward a pointer gesture. Nothing in the widget ' +
+      'does yet, and until one does a tap on the character does nothing at all.',
+  },
+  {
+    group: 'pop',
+    name: 'Popping it',
+    description: 'The balloon bursts where the visitor touched it, and she flinches.',
+    category: 'play',
+    asked: 'gesture',
+    note:
+      'Reached by tapping the balloon rather than the body, so it needs the same ' +
+      'forwarded gesture the float does. The burst is drawn at the point the visitor ' +
+      'touched instead of at a position the moment chose for itself, which is the ' +
+      'reason the scheduler carries an anchor.',
+  },
 ];
 
 /** The entry for a group, or undefined when the group is not catalogued. */
@@ -216,6 +245,15 @@ export function sequencesForGroup(group: string): readonly string[] {
     .sort((a, b) => b.priority - a.priority)
     .map((sequence) => sequence.id);
 }
+
+/**
+ * The groups the engine never asks for by itself, at any intensity: no event
+ * requests them, so a host has to. What they need stated is *wiring* rather than
+ * implementation, which is a different fact from being unreachable -- see below.
+ */
+export const UNWIRED_GROUPS: readonly string[] = CATALOGUE.filter(
+  (entry) => entry.asked !== 'engine',
+).map((entry) => entry.group);
 
 /** The groups with no caller, so "unreachable" is a query rather than a guess. */
 export const UNREACHABLE_GROUPS: readonly string[] = CATALOGUE.filter(

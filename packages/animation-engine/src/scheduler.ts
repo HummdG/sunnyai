@@ -5,6 +5,7 @@ import {
   PRIORITY,
   type EngineContext,
   type Intensity,
+  type MomentAnchor,
   type Sequence,
   type SunnyState,
 } from './types.js';
@@ -13,6 +14,13 @@ import {
 export interface Instance {
   sequence: Sequence;
   startedAt: number;
+  /**
+   * The anchor the moment was asked for with, if any. Carried on the instance
+   * rather than read from the frame, because a moment outlives the input that
+   * started it: the burst is still being drawn a fifth of a second after the
+   * finger left.
+   */
+  anchor?: MomentAnchor;
 }
 
 export interface RenderResult {
@@ -97,19 +105,33 @@ export class Scheduler {
    * Returns false when nothing could be chosen. That is a silent no-op rather
    * than an error: asking for a moment that cannot play is not a fault.
    */
-  request(groupOrId: string, state: SunnyState, now: number): boolean {
+  request(groupOrId: string, state: SunnyState, now: number, anchor?: MomentAnchor): boolean {
     const sequence = SEQUENCE_BY_ID.get(groupOrId) ?? bestInGroup(groupOrId, this.#intensity);
     if (!sequence) return false;
     if (!sequence.states.includes(state)) return false;
     if (!isEligible(sequence, this.#intensity)) return false;
     if (this.#active.some((a) => a.sequence.group === sequence.group)) return false;
-    this.#active.push({ sequence, startedAt: now });
+    this.#active.push({ sequence, startedAt: now, ...(anchor ? { anchor } : {}) });
     return true;
   }
 
-  /** Drop every instance of a sequence, whether or not it has finished. */
-  cancel(id: string): void {
-    this.#active = this.#active.filter((a) => a.sequence.id !== id);
+  /**
+   * Drop everything currently playing for a group or a sequence id.
+   *
+   * Named the same way `request` is, and for the same reason: a caller that
+   * asked for `balloon` did not choose between `balloon-sway` and
+   * `balloon-wander`, so it cannot name the one it wants back. More to the
+   * point, the sequence a group request installed is *not* the sequence that
+   * renders: `request('balloon', …)` stores whichever variant the intensity
+   * picked, and under reduced motion it renders a third sequence again. An
+   * id-only cancel silently matches none of those and the moment the caller
+   * meant to stop keeps running underneath -- which is exactly the bug it was
+   * written to prevent.
+   */
+  cancel(groupOrId: string): void {
+    this.#active = this.#active.filter(
+      (a) => a.sequence.id !== groupOrId && a.sequence.group !== groupOrId,
+    );
   }
 
   /**
@@ -198,7 +220,7 @@ export class Scheduler {
       : Math.min(1, elapsed / winner.sequence.duration);
 
     return {
-      rig: winner.sequence.pose(base, t),
+      rig: winner.sequence.pose(base, t, winner.instance.anchor),
       sequenceId: winner.sequence.id,
       yields: resolved.slice(1).map((e) => e.sequence.id),
     };

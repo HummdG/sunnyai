@@ -809,3 +809,95 @@ coinciding still fails, and the pair that used to coincide for the wrong reason
   constructor gets the unmodified sequence. The relax tests pass it with the
   frame, which is what the widget does, since it re-reads the media query as the
   visitor's preference can change while the page is open.
+
+## D-21. A05 is the first moment a visitor starts, so the engine gains an input
+
+Every moment before this one began in the machine: a stream event, or the blink
+timer. A05 is the plan's first line that names the visitor -- "Balloon floats,
+gaze follows, optional tap/pop", with "Pointer/touch" in its checks column -- so
+the work is not only a balloon. It is the first place where a position from
+outside the engine becomes a position inside it.
+
+**A tap is a coordinate, and the engine is the only thing that knows what is at
+one.** `SunnyAnimator.tap(point, now)` takes the point in viewBox coordinates and
+hit-tests it against the frame that was actually drawn -- `#last.rig` -- rather
+than against the rest pose. That distinction has teeth here because the balloon
+travels: a tap where the balloon was when it was released, half a second later,
+has to miss. The conversion both ways lives in `rig.ts` as `toBodyFrame` and
+`toViewBox`, the forward and inverse of `renderSunny`'s root transform, and a
+test in `packages/character` reads that transform out of the emitted SVG and
+checks the helpers against it -- because two self-consistent copies of the same
+arithmetic would both pass a round-trip and still be wrong about the picture.
+
+**Two groups, not one.** The float is `balloon` at `PRIORITY.play` and the burst
+is `pop` at `PRIORITY.interaction`. They could have been one group with a
+strength ladder, and that would have been wrong twice over: `bestInGroup` picks
+the strongest _eligible_ variant of a group, so a single group could not hold
+"floating" and "bursting" as alternatives, and the same-group guard in `request`
+is what stops a second moment of a group from being drawn over the first -- which
+is exactly the protection wanted when a visitor taps a second time.
+
+**The burst is anchored, and the anchor outlives the gesture.** It is the only
+moment drawn somewhere the moment did not choose. So the scheduler's instance
+carries an optional `MomentAnchor`, set by `request` from a fourth argument and
+read at render time, rather than the position being passed to `pose` each frame:
+the burst is still being drawn a fifth of a second after the finger left, and by
+then there is no gesture left to ask. `pose(base, t, anchor?)` takes it through.
+Played cold -- from the gallery's `Play`, with no input at all -- the burst
+centres on the balloon's own resting place, which is the one position that is not
+an invention, and a test asserts the two produce the same shards.
+
+**`cancel` matched nothing, and the test is what found it.** `tap` on the balloon
+cancels the float before requesting the burst, so the balloon does not drift away
+beside its own shards. It called `cancel('balloon')` -- a group name -- but
+`cancel` matched sequence _ids_, and the instance a group request installs is
+whichever variant the intensity picked (`balloon-sway` at `balanced`), which
+under reduced motion renders a third sequence again (`balloon-still`). So the
+cancel was a silent no-op in every case. Nothing failed visibly, because the
+burst outranks the float for its own duration; the float only reappeared when the
+burst settled. `cancel` now names things the way `request` does -- group or id --
+and the reduced-motion test is the one that catches it, because there the burst
+resolves to nothing and a surviving float is the whole difference.
+
+**A04's third painting was reused, not extended.** The balloon is drawn with
+`surface: true`, the ink-outline-around-`highlight` treatment A04 added for the
+deckchair. A balloon is the clearer case for it -- an object with an inside,
+where a hollow outline is a ring -- so no new prop painting was needed, and the
+surface test now covers both. The artwork also needed no string: the balloon is a
+rounder envelope and a knot, and the float itself is what says it is held.
+
+**Reduced motion gets a balloon that does not move, not the absence of one.**
+Unlike the deckchair, there is an honest still of "a balloon at rest", so the
+float falls back to `balloon-still`: same balloon, no travel, no lean, no gaze.
+The burst declares no fallback at all, because there is no honest still of
+something bursting -- the pop under reduced motion _is_ the balloon's
+disappearance, and the test says so by asserting a still balloon and then
+asserting its absence. At an intensity of `off` the same held balloon is the
+whole moment, which is the one place a moment survives `off` with a prop still on
+screen; the group-off motionlessness invariant is satisfied because the pose is
+genuinely motionless, and a tap takes it away into the base pose.
+
+**The catalogue gained a third answer to "who asks".** The two new moments are
+asked for by neither the engine nor nobody: something outside the engine asks,
+and that something is a gesture the host has to forward. `AskState` gained
+`gesture`, and the lab marks those cards `unwired` for the same reason it marks
+the engine-less ones -- the widget does not forward a pointer yet -- while the
+`UNREACHABLE_GROUPS` list keeps its narrower meaning and its test. That the two
+lists are no longer the same list is the point of having both.
+
+**Three new baselines, and the reduced-motion one is the interesting one.**
+`balloon-float`, `balloon-pop` and `balloon-reduced-motion` join the PNG suite;
+the existing seventeen did not move. The last of the three is a third image in
+which reduced motion does _not_ resolve to the resting pose -- the other two
+being a deckchair and a celebration -- so the suite's coincidence guard still
+names exactly three scenes, and the new one is evidence for the decision above
+rather than a repetition of an existing scene.
+
+**The lab has the gesture, and says what it is for.** The stage takes `pointerup`
+and converts through the SVG's own screen matrix, so a mouse, a finger and a pen
+all arrive the same way and the conversion survives a zoom or a resize; a hint
+under the character says "Tap her to give her a balloon, then tap the balloon to
+pop it", which is the documentation of a channel nothing in production forwards
+yet. An end-to-end test taps the body centre and then taps the balloon where it
+is _painted_ -- read page-side in one call, because the lab replaces the stage
+markup every frame and an element handle is detached before it can be measured.

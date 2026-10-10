@@ -1,6 +1,19 @@
-import { cloneRig, type PropRig, type SunnyRig } from '@sunny/character';
+import {
+  cloneRig,
+  toBodyFrame,
+  toViewBox,
+  type PropRig,
+  type SunnyRig,
+  type Vec2,
+} from '@sunny/character';
 
-import { PRIORITY, type Intensity, type Sequence, type SunnyState } from './types.js';
+import {
+  PRIORITY,
+  type Intensity,
+  type MomentAnchor,
+  type Sequence,
+  type SunnyState,
+} from './types.js';
 
 // ─── small maths helpers ─────────────────────────────────────────────────────
 
@@ -1301,6 +1314,395 @@ const relaxDoze: Sequence = {
   pose: (base, t) => relaxPose(base, t, { shades: true, doze: true }),
 };
 
+// ─── A05: the balloon ────────────────────────────────────────────────────────
+
+/**
+ * Where the balloon is let go from, where it hovers, and how far it drifts once
+ * it is released: all three in the body's frame, which is the frame the balloon
+ * artwork is authored in.
+ *
+ * A balloon is the one prop with nowhere else to be authored *but* the body's
+ * frame (D-21): it is held against the character, so its position is a fact
+ * about the composition -- "past her rays, over her shoulder" -- rather than
+ * about a balloon. These constants are therefore the composition, and the
+ * variants below only decide how much the balloon wanders around them.
+ */
+const BALLOON_START = { x: 30, y: -10 } as const;
+const BALLOON_HOVER = { x: 34, y: -62 } as const;
+/** How far it drifts once released, to the right and up, in body units. */
+const BALLOON_RELEASE = { x: 12, y: 18 } as const;
+
+/** How each intensity setting lets the balloon behave. */
+interface BalloonExtra {
+  /** Side-to-side swing while it is held, in body units. */
+  sway: number;
+  /**
+   * A second, faster swing at a different frequency. The two together make the
+   * balloon wander rather than oscillate, which is the difference between "being
+   * held" and "doing whatever it likes" -- and it is the only thing `playful`
+   * adds that `balanced` cannot express.
+   */
+  wander: number;
+  /** How far she leans after it, in degrees. */
+  lean: number;
+}
+
+/**
+ * The balloon, from the moment she lets it go to the moment it is gone.
+ *
+ * **Why this is a finite event rather than a loop.** It is the same constraint
+ * the deckchair runs into (A04, D-20): a sequence's pose is a function of its
+ * own progress and nothing else, so a loop would replay the release on every
+ * cycle, and an ambient cannot loop here either because the scheduler never
+ * retires the floor instance. So the float is a finite *event*, asked for when
+ * the visitor taps her, and the resting layer carries the scene afterwards.
+ *
+ * **It leaves by itself.** The visitor may never tap the balloon at all, so the
+ * float has to have an end that does not depend on them: it rises, hovers for as
+ * long as it likes, and is released at the end -- up and to the right, shrinking
+ * as it goes, its opacity already at nothing before it reaches the edge of the
+ * viewBox. The tap, if it comes, cuts this short (see `pop`, below).
+ *
+ * **The gaze is the one part of this pose that is a function of another part of
+ * it.** Everything else here derives from `t`; the gaze derives from where the
+ * balloon currently *is*, because a character watching something that wanders
+ * cannot have that fact precomputed. It is still pure -- the position is a pure
+ * function of `t`, so the gaze is too -- and it is written this way rather than
+ * as a second, parallel set of numbers so the two can never drift apart.
+ */
+function balloonPose(base: SunnyRig, t: number, extra: BalloonExtra): SunnyRig {
+  const r = cloneRig(base);
+
+  // In over the first fifth, out over the last fifth, so the balloon is never
+  // drawn in the instant it appears or the instant it goes.
+  const arrive = ease(t / 0.2);
+  const leave = ease((t - 0.8) / 0.2);
+  const visible = arrive * (1 - leave);
+  // Only the middle of the flight obeys the variants: the arrival is a release
+  // and the departure is a drift, and neither is a thing the tenant's motion
+  // setting should be able to make wander.
+  const held = ease(Math.min(arrive, (0.8 - t) / 0.12));
+
+  const sway = wave(t * 1.5) * extra.sway * held;
+  const wander = wave(t * 2.3, 0.15) * extra.wander * held;
+  const bob = wave(t * 1.5, 0.25) * (2.2 + extra.sway * 0.25) * held;
+  const drift = wave(t * 3.1, 0.6) * extra.wander * held;
+
+  const x =
+    BALLOON_START.x +
+    (BALLOON_HOVER.x - BALLOON_START.x) * arrive +
+    sway +
+    wander +
+    leave * BALLOON_RELEASE.x;
+  const y =
+    BALLOON_START.y +
+    (BALLOON_HOVER.y - BALLOON_START.y) * arrive -
+    bob -
+    leave * BALLOON_RELEASE.y;
+
+  // She leans and tilts after it -- a small lean, because the balloon is doing
+  // the travelling and she is only watching it go -- and smiles a little more.
+  const toward = extra.lean * held;
+  r.rotation = base.rotation + toward;
+  r.faceTilt = base.faceTilt - toward * 0.6;
+  r.x = base.x + toward * 0.35;
+  r.y = base.y - held * 0.5 - bob * 0.1;
+  r.smile.depth = base.smile.depth * (1 + held * 0.12);
+  r.smile.span = base.smile.span * (1 + held * 0.05);
+
+  // The gaze follows the balloon: from the body centre to where it is now,
+  // normalised, and clamped to the ±1 the rig documents.
+  const mag = Math.max(1, Math.hypot(x, y));
+  const gaze: Vec2 = {
+    x: Math.max(-1, Math.min(1, x / mag)),
+    y: Math.max(-1, Math.min(1, y / mag)),
+  };
+  r.eyes.left.gaze = gaze;
+  r.eyes.right.gaze = { ...gaze };
+
+  // The ring opens as she looks up, and the wind that moved the balloon moves
+  // the rays with it -- which is the only reason `drift` exists as its own term
+  // rather than being folded into `wander`.
+  for (const ray of r.rays) {
+    ray.lengthScale = 1 + held * 0.04 + drift * 0.02;
+    ray.widthScale = 1 + held * 0.02;
+    ray.rotation = drift * 2;
+  }
+
+  r.props = [
+    {
+      id: 'balloon',
+      x,
+      y,
+      // Tumbling slightly as it swings, and held back at an angle in the instant
+      // it is released -- which reads as the string going slack rather than as
+      // the balloon rotating on its own.
+      rotation: sway * 1.5 + drift * 2 + (1 - arrive) * -6,
+      scale: 0.72 + 0.28 * arrive - leave * 0.16,
+      opacity: visible,
+    },
+  ];
+  return r;
+}
+
+/**
+ * The reduced-motion variant, and the `off` setting's member: a balloon held
+ * still.
+ *
+ * This is the opposite call to A04's, and the difference is worth stating.
+ * There is no honest still of a deckchair arriving (D-20), so that moment
+ * resolves to the resting pose. There *is* an honest still here -- a balloon at
+ * rest is a perfectly ordinary thing to see -- so the visitor who has asked for
+ * less motion gets a balloon rather than nothing, and the tap still works on it.
+ * What they do not get is a balloon that travels, which is the whole of what
+ * this moment's motion consists of.
+ */
+const balloonStill: Sequence = {
+  id: 'balloon-still',
+  group: 'balloon',
+  priority: PRIORITY.play,
+  duration: 1,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'off',
+  assets: ['balloon'],
+  reducedMotionFallback: null,
+  states: ['idle', 'playing'],
+  pose: (base) => {
+    const r = cloneRig(base);
+    r.props = [
+      { id: 'balloon', x: BALLOON_HOVER.x, y: BALLOON_HOVER.y, rotation: 0, scale: 1, opacity: 1 },
+    ];
+    return r;
+  },
+};
+
+/**
+ * A05 at `minimal`: the balloon is released, rises to shoulder height, hovers
+ * while she watches it, and is let go. No sway to speak of -- at this setting
+ * the moment is the balloon, not what the balloon does.
+ */
+const balloonRise: Sequence = {
+  id: 'balloon-rise',
+  group: 'balloon',
+  priority: PRIORITY.play,
+  duration: 4_600,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'minimal',
+  assets: ['balloon'],
+  reducedMotionFallback: 'balloon-still',
+  states: ['idle', 'playing'],
+  pose: (base, t) => balloonPose(base, t, { sway: 0.6, wander: 0, lean: 1.6 }),
+};
+
+/**
+ * A05 at `balanced`: the plan's "balloon floats, gaze follows". It swings as she
+ * holds on to it, and she leans after it as it goes.
+ */
+const balloonSway: Sequence = {
+  id: 'balloon-sway',
+  group: 'balloon',
+  priority: PRIORITY.play,
+  duration: 5_600,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'balanced',
+  assets: ['balloon'],
+  reducedMotionFallback: 'balloon-still',
+  states: ['idle', 'playing'],
+  pose: (base, t) => balloonPose(base, t, { sway: 1.6, wander: 0.8, lean: 2.6 }),
+};
+
+/**
+ * A05 at `playful`: a balloon that is not being held so much as tolerated. Two
+ * frequencies rather than one bigger one, so the path is a wander rather than a
+ * swing, and the rays feel the wind.
+ */
+const balloonWander: Sequence = {
+  id: 'balloon-wander',
+  group: 'balloon',
+  priority: PRIORITY.play,
+  duration: 6_800,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'playful',
+  assets: ['balloon'],
+  reducedMotionFallback: 'balloon-still',
+  states: ['idle', 'playing'],
+  pose: (base, t) => balloonPose(base, t, { sway: 2.4, wander: 2.0, lean: 3.4 }),
+};
+
+/** How a pop plays out. */
+interface PopExtra {
+  /** How many shards the burst has. */
+  shards: number;
+  /** How far the furthest shard travels, in body units. */
+  reach: number;
+  /** How much she is startled by it: 0 is nothing, 1 is a full flinch. */
+  jolt: number;
+}
+
+/**
+ * The balloon bursting where the visitor touched it.
+ *
+ * **Anchored, and that is the whole point of the moment.** A pose is a function
+ * of its own progress; this one is also a function of a position the visitor
+ * chose, which is why `Sequence.pose` takes an optional `MomentAnchor` at all
+ * (see `types.ts`). The anchor is in viewBox coordinates and the shards are
+ * placed back into the body's frame from it, *per shard and after the body has
+ * moved*: the burst expands on the screen rather than in the body's frame, so
+ * the flinch below must not drag the shards along with it. A burst that moved
+ * with her would look painted on.
+ *
+ * **Without an anchor** -- the scheduler asked for the moment with no input, as
+ * the animation gallery's `Play` does -- the burst starts at the balloon's own
+ * resting place, which is the only other position it could meaningfully have.
+ * Every other anchored reading of this would be an invented one.
+ */
+function popPose(
+  base: SunnyRig,
+  t: number,
+  anchor: MomentAnchor | undefined,
+  extra: PopExtra,
+): SunnyRig {
+  const r = cloneRig(base);
+  const centre: Vec2 = anchor ? anchor.point : toViewBox(base, BALLOON_HOVER);
+
+  // The flinch: the burst is the moment and she is only reacting to it, so this
+  // is over in the first third and the shards outlive it.
+  const jolt = bump(t / 0.35) * extra.jolt;
+  r.y = base.y - jolt * 2.4;
+  r.squash = jolt * 0.07;
+  r.stretch = jolt * 0.03;
+  r.rotation = base.rotation - jolt * 2.2;
+  r.faceTilt = base.faceTilt - jolt * 1.6;
+
+  // Eyes wider and brows up: this is the only moment in the vocabulary where
+  // Sunny is the one being surprised.
+  for (const side of ['left', 'right'] as const) {
+    r.eyes[side].scaleY = base.eyes[side].scaleY + jolt * 0.22;
+    r.brows[side].y = base.brows[side].y - jolt * 1.4;
+    r.brows[side].arch = base.brows[side].arch * (1 + jolt * 0.3);
+  }
+  r.smile.depth = base.smile.depth * (1 + jolt * 0.2);
+
+  // And the rays take the shock: one quick flare out and a settle back.
+  for (const ray of r.rays) {
+    ray.lengthScale = 1 + jolt * 0.12;
+    ray.widthScale = 1 + jolt * 0.08;
+  }
+
+  // The shards. Each is aimed at its own angle and thrown along it, so the burst
+  // is a ring rather than a blob; alternating angles by a fixed amount and
+  // varying the reach by shard index keeps it irregular enough to read as a
+  // burst rather than as a clock face, without any randomness to replay.
+  const props: PropRig[] = [];
+  for (let i = 0; i < extra.shards; i++) {
+    // Staggered by thirds so the burst has a little depth to it rather than
+    // being one ring expanding in lockstep -- which reads as a diagram.
+    const p = (t - 0.06 - (i % 3) * 0.04) / 0.68;
+    if (p <= 0 || p >= 1) continue;
+    const out = 1 - (1 - p) * (1 - p); // fast out of the centre, slowing as it goes
+    const angle = (i / extra.shards) * 360 + (i % 2) * 24;
+    const dist = out * extra.reach * (0.72 + 0.28 * ((i % 3) / 2));
+    const radians = (angle * Math.PI) / 180;
+    const local = toBodyFrame(r, {
+      x: centre.x + Math.sin(radians) * dist,
+      y: centre.y - Math.cos(radians) * dist,
+    });
+    props.push({
+      id: 'sparkle',
+      x: local.x,
+      y: local.y,
+      rotation: angle + p * 180,
+      scale: 0.95 * (1 - out * 0.55),
+      opacity: bump(p) * 0.95,
+    });
+  }
+
+  r.props = props;
+  return r;
+}
+
+/**
+ * The reduced-motion variant, and the `off` setting's member: the balloon is
+ * simply not there any more.
+ *
+ * Unlike the float's still, there is no honest still of this moment -- a frozen
+ * burst is a drawing of a burst rather than the burst -- so this is the resting
+ * pose, exactly as `play-still` is for a hop. It is a real answer rather than a
+ * gap: the shards were never the balloon, and the balloon is gone either way.
+ */
+const popStill: Sequence = {
+  id: 'pop-still',
+  group: 'pop',
+  priority: PRIORITY.interaction,
+  duration: 1,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'off',
+  assets: [],
+  reducedMotionFallback: null,
+  states: ['idle', 'playing'],
+  pose: (base) => cloneRig(base),
+};
+
+/**
+ * A05 at `minimal`: the balloon is gone and a few shards drift out of where it
+ * was. She notices, but barely -- at this setting the pop is an event rather
+ * than a fright.
+ */
+const popBurst: Sequence = {
+  id: 'pop-burst',
+  group: 'pop',
+  priority: PRIORITY.interaction,
+  duration: 520,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'minimal',
+  assets: ['sparkle'],
+  reducedMotionFallback: null,
+  states: ['idle', 'playing'],
+  pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 5, reach: 20, jolt: 0.35 }),
+};
+
+/**
+ * A05 at `balanced`: the plan's "optional tap/pop". A fuller burst, and she
+ * flinches at it -- the first moment in the vocabulary she did not ask for.
+ */
+const popFlinch: Sequence = {
+  id: 'pop-flinch',
+  group: 'pop',
+  priority: PRIORITY.interaction,
+  duration: 620,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'balanced',
+  assets: ['sparkle'],
+  reducedMotionFallback: null,
+  states: ['idle', 'playing'],
+  pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 7, reach: 26, jolt: 0.8 }),
+};
+
+/**
+ * A05 at `playful`: a shower. The most shards and the longest throw, which at
+ * this size is the difference between "it popped" and "it went everywhere".
+ */
+const popShower: Sequence = {
+  id: 'pop-shower',
+  group: 'pop',
+  priority: PRIORITY.interaction,
+  duration: 760,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'playful',
+  assets: ['sparkle'],
+  reducedMotionFallback: null,
+  states: ['idle', 'playing'],
+  pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 10, reach: 34, jolt: 1 }),
+};
+
 /**
  * The registry. Every sequence the engine can run is here; the scheduler can
  * only pick from this list, so a typo in a state name is a typecheck failure
@@ -1342,6 +1744,14 @@ export const SEQUENCES: readonly Sequence[] = [
   relaxSettle,
   relaxSunbathe,
   relaxDoze,
+  balloonStill,
+  balloonRise,
+  balloonSway,
+  balloonWander,
+  popStill,
+  popBurst,
+  popFlinch,
+  popShower,
 ];
 
 export const SEQUENCE_BY_ID: ReadonlyMap<string, Sequence> = new Map(

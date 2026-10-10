@@ -177,14 +177,14 @@ const groupOfSequence = new Map<string, string>(SEQUENCES.map((s) => [s.id, s.gr
  * How an application actually arrives at a moment.
  *
  * `Play` is a demonstration, not a bypass: it drives the machine the way a
- * stream event would, then asks for the moment. Eight of the fourteen moments
- * are reactions to something and **do nothing when called from rest** -- the
- * perk, the thinking spin, the eureka, the speaking pulse, the point, the play
- * move, the tilt and the error each declare a state that only an event can
- * enter, so `play()` on its own is refused by the scheduler's state check. A
- * gallery that simply called `play()` in place would leave the most interesting
- * cards doing nothing when clicked, which reads as a broken engine rather than
- * as a moment that needs a reason.
+ * stream event would, then asks for the moment. A moment whose only state is one
+ * an event enters **does nothing when called from rest** -- the perk, the
+ * thinking spin, the eureka, the speaking pulse, the point, the play move, the
+ * tilt and the error each declare a state that only an event can enter, so
+ * `play()` on its own is refused by the scheduler's state check. A gallery that
+ * simply called `play()` in place would leave the most interesting cards doing
+ * nothing when clicked, which reads as a broken engine rather than as a moment
+ * that needs a reason.
  *
  * `idle` comes first so that every click starts from the same place: without it,
  * one moment would strand the next, and which cards worked would depend on the
@@ -300,11 +300,15 @@ function renderBigStage(): void {
   stageSvg.innerHTML = renderSunny(rig, { title: 'Sunny', uniqueIds: true });
   if (stageLabel) {
     const result = animator.lastFrame;
+    const props = rig.props.filter((prop) => prop.opacity > 0.001).map((prop) => prop.id);
     stageLabel.textContent = [
       `state: ${animator.state}`,
       `sequence: ${result?.sequenceId ?? 'none'}`,
+      props.length > 0 ? `props: ${props.join(', ')}` : '',
       `${state.t.toFixed(0)}ms`,
-    ].join('   ·   ');
+    ]
+      .filter(Boolean)
+      .join('   ·   ');
   }
 }
 
@@ -513,7 +517,38 @@ export function start(): void {
   stageSvg.setAttribute('role', 'img');
   stageSvg.setAttribute('aria-label', 'The character, driven by the state machine');
   stageLabel = el('div', { class: 'mono stage-label' });
-  stage.append(stageSvg, stageLabel);
+  stage.append(
+    stageSvg,
+    el('div', {
+      class: 'stage-hint',
+      text: 'Tap her to give her a balloon, then tap the balloon to pop it.',
+    }),
+    stageLabel,
+  );
+
+  // The pointer channel (A05). One handler covers every kind of pointer: a mouse,
+  // a finger and a pen all arrive as `pointerup`, so the lab demonstrates the
+  // gesture the widget will have to forward rather than a mouse-specific version
+  // of it. The coordinates come from the SVG's own screen matrix rather than from
+  // arithmetic on the bounding box, because that is the transform the browser
+  // actually applied -- it stays correct through a zoom or a resize, and it
+  // accounts for the letterboxing a non-square stage would introduce.
+  stage.addEventListener('pointerup', (event) => {
+    if (!stageSvg) return;
+    const ctm = stageSvg.getScreenCTM();
+    if (!ctm) return;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(ctm.inverse());
+    const hit = animator.tap({ x: point.x, y: point.y }, state.t);
+    // Drawn first, so the log reports what the tap actually produced rather than
+    // what the previous frame happened to be showing.
+    renderBigStage();
+    if (eventLog) {
+      const at = `${point.x.toFixed(0)},${point.y.toFixed(0)}`;
+      eventLog.textContent = hit
+        ? `${state.t.toFixed(0)}ms  tap ${at} → ${animator.lastFrame?.sequenceId ?? 'requested'}`
+        : `${state.t.toFixed(0)}ms  tap ${at} → nothing there`;
+    }
+  });
 
   document.getElementById('controls')!.append(controls());
   document.getElementById('scrubber')!.append(scrubber());

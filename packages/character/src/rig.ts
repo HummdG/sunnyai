@@ -86,6 +86,7 @@ export const PROP_IDS = [
   'battery',
   'sunglasses',
   'deckchair',
+  'balloon',
 ] as const;
 export type PropId = (typeof PROP_IDS)[number];
 
@@ -237,6 +238,52 @@ export function cloneRig(rig: SunnyRig): SunnyRig {
     rays: rig.rays.map((r) => ({ ...r, offset: { ...r.offset } })),
     props: rig.props.map((p) => ({ ...p })),
     theme: { ...rig.theme },
+  };
+}
+
+/**
+ * The root transform, as arithmetic: the part of `renderSunny` that places the
+ * body frame in the viewBox.
+ *
+ * `rig.ts` owns the rig and `render.ts` owns the markup, and this is the one
+ * piece of arithmetic both need: the renderer applies it, and anything holding a
+ * point in the *rendered* picture -- a tap on the character, a sequence planting
+ * a prop where the visitor's finger was -- has to undo it. Duplicating it would
+ * be a silent bug the day one of the two changed, so it is written once here and
+ * the renderer's own comment points back at it.
+ */
+function rootScale(rig: SunnyRig): { sx: number; sy: number } {
+  return { sx: rig.scale * (1 + rig.stretch), sy: rig.scale * (1 - rig.squash) };
+}
+
+/** The viewBox position of a point given in the body frame. */
+export function toViewBox(rig: SunnyRig, point: Vec2): Vec2 {
+  const { sx, sy } = rootScale(rig);
+  const a = (rig.rotation * Math.PI) / 180;
+  const x = point.x * sx;
+  const y = point.y * sy;
+  return {
+    x: rig.x + x * Math.cos(a) - y * Math.sin(a),
+    y: rig.y + x * Math.sin(a) + y * Math.cos(a),
+  };
+}
+
+/**
+ * The body-frame position of a point given in viewBox coordinates: the inverse
+ * of `toViewBox`, and therefore of the root transform.
+ *
+ * This is what turns a tap on the rendered SVG into a position a pose can be
+ * compared against, which is the only way a sequence can put something *where
+ * the visitor's finger was* rather than at a position the sequence chose.
+ */
+export function toBodyFrame(rig: SunnyRig, point: Vec2): Vec2 {
+  const { sx, sy } = rootScale(rig);
+  const a = (-rig.rotation * Math.PI) / 180;
+  const dx = point.x - rig.x;
+  const dy = point.y - rig.y;
+  return {
+    x: (dx * Math.cos(a) - dy * Math.sin(a)) / sx,
+    y: (dx * Math.sin(a) + dy * Math.cos(a)) / sy,
   };
 }
 

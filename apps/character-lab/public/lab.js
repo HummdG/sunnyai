@@ -338,6 +338,29 @@
       theme: { ...rig.theme }
     };
   }
+  function rootScale(rig) {
+    return { sx: rig.scale * (1 + rig.stretch), sy: rig.scale * (1 - rig.squash) };
+  }
+  function toViewBox(rig, point) {
+    const { sx, sy } = rootScale(rig);
+    const a = rig.rotation * Math.PI / 180;
+    const x = point.x * sx;
+    const y = point.y * sy;
+    return {
+      x: rig.x + x * Math.cos(a) - y * Math.sin(a),
+      y: rig.y + x * Math.sin(a) + y * Math.cos(a)
+    };
+  }
+  function toBodyFrame(rig, point) {
+    const { sx, sy } = rootScale(rig);
+    const a = -rig.rotation * Math.PI / 180;
+    const dx = point.x - rig.x;
+    const dy = point.y - rig.y;
+    return {
+      x: (dx * Math.cos(a) - dy * Math.sin(a)) / sx,
+      y: (dx * Math.sin(a) + dy * Math.cos(a)) / sy
+    };
+  }
 
   // packages/character/src/render.ts
   var add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
@@ -520,6 +543,33 @@
       d: (
         // The back panel, tangent to the silhouette, leaning up-left.
         "M-38.5 35-66.5-19-89.5-7-61.5 47ZM-60 47 27.4 56 28.6 68-59 59ZM24.7 57 60.7 33 67.3 43 31.3 67ZM-29.9 53.9-35.9 79.9-39.7 78.7-33.7 52.7ZM25.9 65.9 30.9 87.9 27.1 89.1 22.1 67.1ZM-40 72h74v3h-74Z"
+      ),
+      filled: true,
+      surface: true
+    },
+    // A balloon, drawn at the size it is used at (the second prop authored in the
+    // body frame, and for the same kind of reason the deckchair is): a balloon is
+    // *held against the character* -- it rises past her rays and its knot hangs
+    // over her shoulder -- so its scale is a fact about the composition rather
+    // than about the prop. The origin is the balloon's own centre rather than the
+    // bottom of a string, because that is the point a tap hits and the point the
+    // pop bursts from.
+    //
+    // A balloon is the clearest case for the `surface` painting: it is an object
+    // with an inside, so it takes the tenant's surface colour rather than being
+    // inked, and a hollow outline of a balloon at launcher size reads as a ring.
+    //
+    // There is no string, and that is a decision rather than an omission. A string
+    // drawn in this path would carry the character's own ink weight -- 2.2 units,
+    // the same as the balloon's outline, because a path here has exactly one
+    // stroke -- and at the sizes this is actually seen a 2-unit line twelve units
+    // long is a black smear beside the balloon rather than a string. The measured
+    // versions of both are in the commit that added this. A round envelope, a
+    // taper and a knot read as a balloon on their own.
+    balloon: {
+      d: (
+        // The envelope: round at the top, tapering to the neck.
+        "M0-15.4C7.9-15.4 13.6-9.4 13.6-2.2 13.6 6.4 7.2 13.6 3.4 16.6L-3.4 16.6C-7.2 13.6-13.6 6.4-13.6-2.2-13.6-9.4-7.9-15.4 0-15.4ZM-3.4 15.4H3.4L1.6 19.6H-1.6Z"
       ),
       filled: true,
       surface: true
@@ -1655,6 +1705,208 @@
     states: ["relaxing"],
     pose: (base, t) => relaxPose(base, t, { shades: true, doze: true })
   };
+  var BALLOON_START = { x: 30, y: -10 };
+  var BALLOON_HOVER = { x: 34, y: -62 };
+  var BALLOON_RELEASE = { x: 12, y: 18 };
+  function balloonPose(base, t, extra) {
+    const r = cloneRig(base);
+    const arrive = ease(t / 0.2);
+    const leave = ease((t - 0.8) / 0.2);
+    const visible = arrive * (1 - leave);
+    const held = ease(Math.min(arrive, (0.8 - t) / 0.12));
+    const sway = wave(t * 1.5) * extra.sway * held;
+    const wander = wave(t * 2.3, 0.15) * extra.wander * held;
+    const bob = wave(t * 1.5, 0.25) * (2.2 + extra.sway * 0.25) * held;
+    const drift = wave(t * 3.1, 0.6) * extra.wander * held;
+    const x = BALLOON_START.x + (BALLOON_HOVER.x - BALLOON_START.x) * arrive + sway + wander + leave * BALLOON_RELEASE.x;
+    const y = BALLOON_START.y + (BALLOON_HOVER.y - BALLOON_START.y) * arrive - bob - leave * BALLOON_RELEASE.y;
+    const toward = extra.lean * held;
+    r.rotation = base.rotation + toward;
+    r.faceTilt = base.faceTilt - toward * 0.6;
+    r.x = base.x + toward * 0.35;
+    r.y = base.y - held * 0.5 - bob * 0.1;
+    r.smile.depth = base.smile.depth * (1 + held * 0.12);
+    r.smile.span = base.smile.span * (1 + held * 0.05);
+    const mag = Math.max(1, Math.hypot(x, y));
+    const gaze = {
+      x: Math.max(-1, Math.min(1, x / mag)),
+      y: Math.max(-1, Math.min(1, y / mag))
+    };
+    r.eyes.left.gaze = gaze;
+    r.eyes.right.gaze = { ...gaze };
+    for (const ray of r.rays) {
+      ray.lengthScale = 1 + held * 0.04 + drift * 0.02;
+      ray.widthScale = 1 + held * 0.02;
+      ray.rotation = drift * 2;
+    }
+    r.props = [
+      {
+        id: "balloon",
+        x,
+        y,
+        // Tumbling slightly as it swings, and held back at an angle in the instant
+        // it is released -- which reads as the string going slack rather than as
+        // the balloon rotating on its own.
+        rotation: sway * 1.5 + drift * 2 + (1 - arrive) * -6,
+        scale: 0.72 + 0.28 * arrive - leave * 0.16,
+        opacity: visible
+      }
+    ];
+    return r;
+  }
+  var balloonStill = {
+    id: "balloon-still",
+    group: "balloon",
+    priority: PRIORITY.play,
+    duration: 1,
+    canInterrupt: true,
+    loop: true,
+    intensity: "off",
+    assets: ["balloon"],
+    reducedMotionFallback: null,
+    states: ["idle", "playing"],
+    pose: (base) => {
+      const r = cloneRig(base);
+      r.props = [
+        { id: "balloon", x: BALLOON_HOVER.x, y: BALLOON_HOVER.y, rotation: 0, scale: 1, opacity: 1 }
+      ];
+      return r;
+    }
+  };
+  var balloonRise = {
+    id: "balloon-rise",
+    group: "balloon",
+    priority: PRIORITY.play,
+    duration: 4600,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: ["balloon"],
+    reducedMotionFallback: "balloon-still",
+    states: ["idle", "playing"],
+    pose: (base, t) => balloonPose(base, t, { sway: 0.6, wander: 0, lean: 1.6 })
+  };
+  var balloonSway = {
+    id: "balloon-sway",
+    group: "balloon",
+    priority: PRIORITY.play,
+    duration: 5600,
+    canInterrupt: true,
+    loop: false,
+    intensity: "balanced",
+    assets: ["balloon"],
+    reducedMotionFallback: "balloon-still",
+    states: ["idle", "playing"],
+    pose: (base, t) => balloonPose(base, t, { sway: 1.6, wander: 0.8, lean: 2.6 })
+  };
+  var balloonWander = {
+    id: "balloon-wander",
+    group: "balloon",
+    priority: PRIORITY.play,
+    duration: 6800,
+    canInterrupt: true,
+    loop: false,
+    intensity: "playful",
+    assets: ["balloon"],
+    reducedMotionFallback: "balloon-still",
+    states: ["idle", "playing"],
+    pose: (base, t) => balloonPose(base, t, { sway: 2.4, wander: 2, lean: 3.4 })
+  };
+  function popPose(base, t, anchor, extra) {
+    const r = cloneRig(base);
+    const centre = anchor ? anchor.point : toViewBox(base, BALLOON_HOVER);
+    const jolt = bump(t / 0.35) * extra.jolt;
+    r.y = base.y - jolt * 2.4;
+    r.squash = jolt * 0.07;
+    r.stretch = jolt * 0.03;
+    r.rotation = base.rotation - jolt * 2.2;
+    r.faceTilt = base.faceTilt - jolt * 1.6;
+    for (const side of ["left", "right"]) {
+      r.eyes[side].scaleY = base.eyes[side].scaleY + jolt * 0.22;
+      r.brows[side].y = base.brows[side].y - jolt * 1.4;
+      r.brows[side].arch = base.brows[side].arch * (1 + jolt * 0.3);
+    }
+    r.smile.depth = base.smile.depth * (1 + jolt * 0.2);
+    for (const ray of r.rays) {
+      ray.lengthScale = 1 + jolt * 0.12;
+      ray.widthScale = 1 + jolt * 0.08;
+    }
+    const props = [];
+    for (let i = 0; i < extra.shards; i++) {
+      const p = (t - 0.06 - i % 3 * 0.04) / 0.68;
+      if (p <= 0 || p >= 1) continue;
+      const out = 1 - (1 - p) * (1 - p);
+      const angle = i / extra.shards * 360 + i % 2 * 24;
+      const dist = out * extra.reach * (0.72 + 0.28 * (i % 3 / 2));
+      const radians = angle * Math.PI / 180;
+      const local = toBodyFrame(r, {
+        x: centre.x + Math.sin(radians) * dist,
+        y: centre.y - Math.cos(radians) * dist
+      });
+      props.push({
+        id: "sparkle",
+        x: local.x,
+        y: local.y,
+        rotation: angle + p * 180,
+        scale: 0.95 * (1 - out * 0.55),
+        opacity: bump(p) * 0.95
+      });
+    }
+    r.props = props;
+    return r;
+  }
+  var popStill = {
+    id: "pop-still",
+    group: "pop",
+    priority: PRIORITY.interaction,
+    duration: 1,
+    canInterrupt: true,
+    loop: true,
+    intensity: "off",
+    assets: [],
+    reducedMotionFallback: null,
+    states: ["idle", "playing"],
+    pose: (base) => cloneRig(base)
+  };
+  var popBurst = {
+    id: "pop-burst",
+    group: "pop",
+    priority: PRIORITY.interaction,
+    duration: 520,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: ["sparkle"],
+    reducedMotionFallback: null,
+    states: ["idle", "playing"],
+    pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 5, reach: 20, jolt: 0.35 })
+  };
+  var popFlinch = {
+    id: "pop-flinch",
+    group: "pop",
+    priority: PRIORITY.interaction,
+    duration: 620,
+    canInterrupt: true,
+    loop: false,
+    intensity: "balanced",
+    assets: ["sparkle"],
+    reducedMotionFallback: null,
+    states: ["idle", "playing"],
+    pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 7, reach: 26, jolt: 0.8 })
+  };
+  var popShower = {
+    id: "pop-shower",
+    group: "pop",
+    priority: PRIORITY.interaction,
+    duration: 760,
+    canInterrupt: true,
+    loop: false,
+    intensity: "playful",
+    assets: ["sparkle"],
+    reducedMotionFallback: null,
+    states: ["idle", "playing"],
+    pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 10, reach: 34, jolt: 1 })
+  };
   var SEQUENCES = [
     idleStill,
     idle,
@@ -1690,7 +1942,15 @@
     relaxStill,
     relaxSettle,
     relaxSunbathe,
-    relaxDoze
+    relaxDoze,
+    balloonStill,
+    balloonRise,
+    balloonSway,
+    balloonWander,
+    popStill,
+    popBurst,
+    popFlinch,
+    popShower
   ];
   var SEQUENCE_BY_ID = new Map(
     SEQUENCES.map((s) => [s.id, s])
@@ -1758,18 +2018,32 @@
      * Returns false when nothing could be chosen. That is a silent no-op rather
      * than an error: asking for a moment that cannot play is not a fault.
      */
-    request(groupOrId, state2, now) {
+    request(groupOrId, state2, now, anchor) {
       const sequence = SEQUENCE_BY_ID.get(groupOrId) ?? bestInGroup(groupOrId, this.#intensity);
       if (!sequence) return false;
       if (!sequence.states.includes(state2)) return false;
       if (!isEligible(sequence, this.#intensity)) return false;
       if (this.#active.some((a) => a.sequence.group === sequence.group)) return false;
-      this.#active.push({ sequence, startedAt: now });
+      this.#active.push({ sequence, startedAt: now, ...anchor ? { anchor } : {} });
       return true;
     }
-    /** Drop every instance of a sequence, whether or not it has finished. */
-    cancel(id) {
-      this.#active = this.#active.filter((a) => a.sequence.id !== id);
+    /**
+     * Drop everything currently playing for a group or a sequence id.
+     *
+     * Named the same way `request` is, and for the same reason: a caller that
+     * asked for `balloon` did not choose between `balloon-sway` and
+     * `balloon-wander`, so it cannot name the one it wants back. More to the
+     * point, the sequence a group request installed is *not* the sequence that
+     * renders: `request('balloon', …)` stores whichever variant the intensity
+     * picked, and under reduced motion it renders a third sequence again. An
+     * id-only cancel silently matches none of those and the moment the caller
+     * meant to stop keeps running underneath -- which is exactly the bug it was
+     * written to prevent.
+     */
+    cancel(groupOrId) {
+      this.#active = this.#active.filter(
+        (a) => a.sequence.id !== groupOrId && a.sequence.group !== groupOrId
+      );
     }
     /**
      * Forget everything that is playing, including the ambient floor.
@@ -1835,7 +2109,7 @@
       const elapsed = now - winner.instance.startedAt;
       const t = winner.sequence.loop ? elapsed % winner.sequence.duration / winner.sequence.duration : Math.min(1, elapsed / winner.sequence.duration);
       return {
-        rig: winner.sequence.pose(base, t),
+        rig: winner.sequence.pose(base, t, winner.instance.anchor),
         sequenceId: winner.sequence.id,
         yields: resolved.slice(1).map((e) => e.sequence.id)
       };
@@ -1973,8 +2247,27 @@
       category: "ambient",
       asked: "engine",
       askedBy: "`dismissed`"
+    },
+    {
+      group: "balloon",
+      name: "The balloon",
+      description: "A balloon comes up out of her hands and floats there while she watches it, then is let go.",
+      category: "play",
+      asked: "gesture",
+      note: "The engine asks for this when `SunnyAnimator.tap()` is called with a point on the body, so the host has to forward a pointer gesture. Nothing in the widget does yet, and until one does a tap on the character does nothing at all."
+    },
+    {
+      group: "pop",
+      name: "Popping it",
+      description: "The balloon bursts where the visitor touched it, and she flinches.",
+      category: "play",
+      asked: "gesture",
+      note: "Reached by tapping the balloon rather than the body, so it needs the same forwarded gesture the float does. The burst is drawn at the point the visitor touched instead of at a position the moment chose for itself, which is the reason the scheduler carries an anchor."
     }
   ];
+  var UNWIRED_GROUPS = CATALOGUE.filter(
+    (entry) => entry.asked !== "engine"
+  ).map((entry) => entry.group);
   var UNREACHABLE_GROUPS = CATALOGUE.filter(
     (entry) => entry.asked === "nobody"
   ).map((entry) => entry.group);
@@ -1982,6 +2275,7 @@
   // packages/animation-engine/src/engine.ts
   var BLINK_MIN_MS = 2600;
   var BLINK_MAX_MS = 6400;
+  var TAP_RADIUS = { balloon: 24 };
   function xorshift(seed) {
     let s = seed >>> 0 || 2654435769;
     return () => {
@@ -2068,6 +2362,40 @@
      */
     reset() {
       this.scheduler.clear();
+    }
+    /**
+     * A pointer gesture on the character, given in viewBox coordinates. Returns
+     * whether Sunny had anything to say about it.
+     *
+     * **Hit-tested against what was drawn.** The test is made against the last rig
+     * the animator rendered rather than against anything current, for the same
+     * reason a button responds where it is rather than where it will be: the
+     * visitor pointed at a picture, and the picture they saw is the one that was on
+     * screen when their finger went down. Both the balloon's position and its size
+     * come from that frame, so a tap where the balloon is at the moment it is seen
+     * lands, and a tap where it was half a second ago does not.
+     *
+     * **Two gestures, one entry point.** A tap on the balloon pops it; a tap on her
+     * puts a balloon in her hands. Anything else the pointer lands on -- a ray tip,
+     * the empty canvas -- is not a hit and changes nothing, because a character
+     * that reacts to being touched anywhere is a character that cannot be *not*
+     * touched.
+     */
+    tap(point, now) {
+      const rig = this.#last?.rig ?? this.#base;
+      const local = toBodyFrame(rig, point);
+      const balloon = rig.props.find((prop2) => prop2.id === "balloon" && prop2.opacity > 0.05);
+      if (balloon) {
+        const radius = (TAP_RADIUS.balloon ?? 0) * balloon.scale;
+        if (Math.hypot(local.x - balloon.x, local.y - balloon.y) <= radius) {
+          this.scheduler.cancel("balloon");
+          return this.scheduler.request("pop", this.machine.state, now, { point });
+        }
+      }
+      if (Math.hypot(local.x, local.y) <= BODY.radius) {
+        return this.scheduler.request("balloon", this.machine.state, now);
+      }
+      return false;
     }
     /** Run one frame. `now` is monotonic milliseconds. */
     frame(now, ctx = {}) {
@@ -2315,11 +2643,13 @@
     stageSvg.innerHTML = renderSunny(rig, { title: "Sunny", uniqueIds: true });
     if (stageLabel) {
       const result = animator.lastFrame;
+      const props = rig.props.filter((prop2) => prop2.opacity > 1e-3).map((prop2) => prop2.id);
       stageLabel.textContent = [
         `state: ${animator.state}`,
         `sequence: ${result?.sequenceId ?? "none"}`,
+        props.length > 0 ? `props: ${props.join(", ")}` : "",
         `${state.t.toFixed(0)}ms`
-      ].join("   \xB7   ");
+      ].filter(Boolean).join("   \xB7   ");
     }
   }
   function controls() {
@@ -2501,7 +2831,26 @@
     stageSvg.setAttribute("role", "img");
     stageSvg.setAttribute("aria-label", "The character, driven by the state machine");
     stageLabel = el("div", { class: "mono stage-label" });
-    stage.append(stageSvg, stageLabel);
+    stage.append(
+      stageSvg,
+      el("div", {
+        class: "stage-hint",
+        text: "Tap her to give her a balloon, then tap the balloon to pop it."
+      }),
+      stageLabel
+    );
+    stage.addEventListener("pointerup", (event) => {
+      if (!stageSvg) return;
+      const ctm = stageSvg.getScreenCTM();
+      if (!ctm) return;
+      const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(ctm.inverse());
+      const hit = animator.tap({ x: point.x, y: point.y }, state.t);
+      renderBigStage();
+      if (eventLog) {
+        const at = `${point.x.toFixed(0)},${point.y.toFixed(0)}`;
+        eventLog.textContent = hit ? `${state.t.toFixed(0)}ms  tap ${at} \u2192 ${animator.lastFrame?.sequenceId ?? "requested"}` : `${state.t.toFixed(0)}ms  tap ${at} \u2192 nothing there`;
+      }
+    });
     document.getElementById("controls").append(controls());
     document.getElementById("scrubber").append(scrubber());
     const flagshipRow = el("div", { class: "btn-row" });

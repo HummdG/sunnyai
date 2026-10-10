@@ -13,7 +13,8 @@ import {
   sequencesForState,
 } from '@sunny/animation-engine';
 import type { Intensity, Sequence } from '@sunny/animation-engine';
-import { defaultRig, PROP_IDS } from '@sunny/character';
+import { defaultRig, PROP_IDS, toViewBox } from '@sunny/character';
+import type { PropRig, SunnyRig } from '@sunny/character';
 
 /**
  * Groups that are deliberately not required to offer a variant at every
@@ -521,5 +522,225 @@ describe('SunnyAnimator', () => {
       }
     }
     expect(sequence.pose(base, 1).rotation).toBeCloseTo(base.rotation, 6);
+  });
+});
+
+/**
+ * A05: the balloon, and the tap that starts it and ends it.
+ *
+ * Two things are being tested here that nothing else in this suite can reach.
+ * The first is the *input channel*: a pointer gesture is the only moment in the
+ * vocabulary the visitor starts directly, so `tap` is the one place where a
+ * position from outside the engine becomes a position inside it. The second is
+ * the *anchor*: the burst is the only moment that is drawn somewhere the moment
+ * itself did not choose, and getting that wrong is invisible in a snapshot --
+ * every pose would still be deterministic and every prop still declared.
+ */
+describe('A05, the balloon', () => {
+  const base = defaultRig();
+
+  /** The balloon in a frame, or a failure that says which frame it was. */
+  function balloonIn(rig: SunnyRig, where: string): PropRig {
+    const found = rig.props.find((p) => p.id === 'balloon');
+    expect(found, `no balloon in ${where}`).toBeDefined();
+    return found as PropRig;
+  }
+
+  it('gives her a balloon when the visitor taps her', () => {
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'balanced', seed: 3 });
+    a.frame(0);
+    expect(a.tap({ x: 100, y: 100 }, 0)).toBe(true);
+
+    const frame = a.frame(0);
+    expect(SEQUENCE_BY_ID.get(frame.sequenceId!)?.group).toBe('balloon');
+    expect(frame.rig.props.map((p) => p.id)).toContain('balloon');
+  });
+
+  it('ignores a tap that lands on neither the balloon nor the body', () => {
+    // A character that reacts to being touched anywhere is one that cannot be
+    // *not* touched. The rays are part of the drawing but not of the silhouette,
+    // so (100, 12) -- straight up, at the tip of the topmost ray -- is a miss.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'balanced', seed: 3 });
+    a.frame(0);
+    expect(a.tap({ x: 8, y: 8 }, 0)).toBe(false);
+    expect(a.tap({ x: 100, y: 12 }, 0)).toBe(false);
+    expect(a.tap({ x: 100, y: 190 }, 0)).toBe(false);
+    expect(a.frame(0).rig.props).toEqual([]);
+  });
+
+  it('offers no toy while she is busy', () => {
+    // The balloon is only for the states where she is otherwise unoccupied. A
+    // tap mid-answer is not a request for a balloon, and the scheduler refuses it
+    // rather than the caller deciding.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'balanced', seed: 3 });
+    a.dispatch({ type: 'turn_started' }, 0);
+    expect(a.state).toBe('thinking');
+    a.frame(0);
+    expect(a.tap({ x: 100, y: 100 }, 0)).toBe(false);
+    expect(a.frame(0).rig.props).toEqual([]);
+  });
+
+  it('hit-tests against the frame that was actually drawn', () => {
+    // The balloon travels, so "where it is" is only a fact about a particular
+    // frame. A tap where it was when it was released, half a second later, has to
+    // miss -- otherwise the hit test is against a position the visitor never saw.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'balanced', seed: 3 });
+    a.frame(0);
+    a.tap({ x: 100, y: 100 }, 0);
+
+    const early = a.frame(200).rig;
+    const start = balloonIn(early, 'the release');
+    const atRelease = toViewBox(early, start);
+
+    // Later in the flight the balloon has left that point behind.
+    const late = a.frame(2_000).rig;
+    const now = balloonIn(late, 'the hover');
+    expect(Math.hypot(now.x - start.x, now.y - start.y)).toBeGreaterThan(25);
+
+    expect(a.tap(atRelease, 2_000)).toBe(false);
+    expect(a.tap(toViewBox(late, now), 2_000)).toBe(true);
+  });
+
+  it('bursts the balloon where it was tapped, and takes the float away with it', () => {
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'balanced', seed: 3 });
+    a.frame(0);
+    a.tap({ x: 100, y: 100 }, 0);
+
+    const rig = a.frame(2_000).rig;
+    const balloon = balloonIn(rig, 'the hover');
+    const at = toViewBox(rig, balloon);
+
+    expect(a.tap(at, 2_000)).toBe(true);
+    const popped = a.frame(2_120).rig;
+
+    // The float is gone: the shards replaced it rather than playing over it.
+    expect(popped.props.map((p) => p.id)).not.toContain('balloon');
+    expect(popped.props.length).toBeGreaterThan(0);
+    expect(SEQUENCE_BY_ID.get(a.lastFrame!.sequenceId!)?.group).toBe('pop');
+
+    // And the burst is centred on the point that was tapped. Read back through
+    // the transform the renderer applies, so this is a claim about the picture
+    // rather than about the numbers in the body frame.
+    for (const shard of popped.props) {
+      const world = toViewBox(popped, shard);
+      const distance = Math.hypot(world.x - at.x, world.y - at.y);
+      expect(distance, `a shard landed ${distance.toFixed(1)} from the tap`).toBeLessThanOrEqual(
+        27,
+      );
+    }
+  });
+
+  it('anchors the burst in the picture, not in the body', () => {
+    // The failure this catches: placing the shards at the anchor *in the body's
+    // frame*, which looks right on a character standing still and slides the
+    // whole burst across the screen the moment she leans. The anchor is sixty
+    // units from the body centre and the body is rotated and scaled, so a burst
+    // that travelled with her would be most of a ray length away from the tap.
+    const sequence = SEQUENCE_BY_ID.get('pop-shower')!;
+    const anchor = { point: { x: 150, y: 50 } };
+
+    const tilted = defaultRig();
+    tilted.x = 90;
+    tilted.y = 108;
+    tilted.rotation = 25;
+    tilted.scale = 1.2;
+
+    for (const [name, start] of [
+      ['upright', base],
+      ['tilted', tilted],
+    ] as const) {
+      const posed = sequence.pose(start, 0.4, anchor);
+      expect(posed.props.length, name).toBeGreaterThan(0);
+      for (const shard of posed.props) {
+        const world = toViewBox(posed, shard);
+        const distance = Math.hypot(world.x - anchor.point.x, world.y - anchor.point.y);
+        expect(
+          distance,
+          `${name}: a shard landed ${distance.toFixed(1)} from the anchor`,
+        ).toBeLessThanOrEqual(35);
+      }
+    }
+  });
+
+  it('starts the burst at the balloon’s own resting place when nothing anchored it', () => {
+    // The gallery's `Play` asks for the moment with no input at all. There is
+    // exactly one position that is not an invention, and that is where the
+    // balloon would have been -- so a pop played cold is a burst in the same
+    // place, which is what makes it a demonstration of the same moment.
+    const sequence = SEQUENCE_BY_ID.get('pop-flinch')!;
+    const anchored = sequence.pose(base, 0.3, {
+      point: toViewBox(base, { x: 34, y: -62 }),
+    });
+    const cold = sequence.pose(base, 0.3);
+    expect(cold.props).toEqual(anchored.props);
+  });
+
+  it('leaves nothing behind when the balloon is released', () => {
+    for (const id of ['balloon-rise', 'balloon-sway', 'balloon-wander']) {
+      const sequence = SEQUENCE_BY_ID.get(id)!;
+      for (const prop of sequence.pose(base, 1).props) {
+        expect(prop.opacity, `${id} at t=1 still draws ${prop.id}`).toBeLessThanOrEqual(0.001);
+      }
+    }
+  });
+
+  it('stops the float as soon as anything else happens', () => {
+    // A05's "stops immediately on interaction", and the same mechanism A04 uses:
+    // the float declares the states it belongs to, so any event that moves the
+    // machine out of them retires it on the next frame. The visitor asking a
+    // question does not get a balloon drifting past the answer.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'balanced', seed: 3 });
+    a.frame(0);
+    a.tap({ x: 100, y: 100 }, 0);
+    expect(a.frame(200).rig.props.map((p) => p.id)).toContain('balloon');
+
+    a.dispatch({ type: 'turn_started' }, 300);
+    expect(a.state).toBe('thinking');
+    expect(a.frame(300).rig.props.map((p) => p.id)).not.toContain('balloon');
+  });
+
+  it('holds a still balloon for a visitor who asked for less motion', () => {
+    // There is an honest still of this moment -- a balloon at rest is an
+    // ordinary thing to see -- so the reduced-motion fallback is a balloon rather
+    // than nothing. What the visitor does not get is a balloon that travels.
+    const a = new SunnyAnimator(defaultRig(), {
+      intensity: 'balanced',
+      seed: 3,
+      reducedMotion: true,
+    });
+    a.frame(0, { reducedMotion: true });
+    expect(a.tap({ x: 100, y: 100 }, 0)).toBe(true);
+
+    const held = a.frame(0, { reducedMotion: true }).rig;
+    expect(a.lastFrame?.sequenceId).toBe('balloon-still');
+    expect(held.props.map((p) => p.id)).toContain('balloon');
+    expect(a.frame(900, { reducedMotion: true }).rig).toEqual(held);
+
+    // Popping it resolves to nothing at all, which is the honest account of a
+    // burst with the motion removed: the balloon is simply gone.
+    const at = toViewBox(held, balloonIn(held, 'the still'));
+    expect(a.tap(at, 900)).toBe(true);
+    const after = a.frame(960, { reducedMotion: true });
+    expect(after.rig.props.map((p) => p.id)).not.toContain('balloon');
+    expect(SEQUENCE_BY_ID.get(after.sequenceId!)?.group).not.toBe('pop');
+  });
+
+  it('keeps a whole balloon at an intensity of off, and takes it away when tapped', () => {
+    // `off` is the setting that removes behaviour, and the balloon is the one
+    // moment where a held pose is still the moment: the visitor gets a balloon
+    // that does not move, and tapping it removes it without anything moving
+    // either. That is the difference between this and `relax-still`, which shows
+    // nothing at all because there is no honest still of a chair arriving.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'off', seed: 3 });
+    a.frame(0);
+    expect(a.tap({ x: 100, y: 100 }, 0)).toBe(true);
+
+    const held = a.frame(0).rig;
+    expect(a.lastFrame?.sequenceId).toBe('balloon-still');
+    expect(a.frame(3_000).rig).toEqual(held);
+
+    const at = toViewBox(held, balloonIn(held, 'the still'));
+    expect(a.tap(at, 3_000)).toBe(true);
+    expect(a.frame(3_000).rig).toEqual(base);
   });
 });

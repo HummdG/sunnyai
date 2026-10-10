@@ -155,10 +155,16 @@ describe('renderer', () => {
     // prop that is an object has to be drawn the same way or it reads as a hole
     // in the scene. The fill comes from the rig's theme, so it re-tints with the
     // tenant's colour rather than being a second hard-coded palette.
-    const drawn = renderSunny(withProp('deckchair'));
-    const group = drawn.slice(drawn.indexOf('data-prop="deckchair"'));
-    expect(group).toContain(`fill="${SUNNY_THEME.highlight}"`);
-    expect(group).toContain(`stroke="${SUNNY_THEME.ink}"`);
+    //
+    // Two props claim this treatment, and the balloon is the clearer case of the
+    // two: a deckchair is furniture and could be argued about, but a balloon is
+    // an object with an inside, and a balloon drawn as a hollow outline is a ring.
+    for (const id of ['deckchair', 'balloon'] as const) {
+      const drawn = renderSunny(withProp(id));
+      const group = drawn.slice(drawn.indexOf(`data-prop="${id}"`));
+      expect(group, id).toContain(`fill="${SUNNY_THEME.highlight}"`);
+      expect(group, id).toContain(`stroke="${SUNNY_THEME.ink}"`);
+    }
 
     const purple = withProp('deckchair');
     purple.theme = THEME_PRESETS.purple!;

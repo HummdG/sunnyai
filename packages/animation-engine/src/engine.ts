@@ -1,4 +1,11 @@
-import { defaultRig, type SunnyRig } from '@sunny/character';
+import {
+  BODY,
+  defaultRig,
+  toBodyFrame,
+  type PropId,
+  type SunnyRig,
+  type Vec2,
+} from '@sunny/character';
 
 import { SunnyMachine, type MachineEvent } from './machine.js';
 import { Scheduler, type RenderResult } from './scheduler.js';
@@ -7,6 +14,18 @@ import { PRIORITY, type EngineContext, type Intensity, type SunnyState } from '.
 /** Milliseconds between blinks, when Sunny is resting. */
 const BLINK_MIN_MS = 2_600;
 const BLINK_MAX_MS = 6_400;
+
+/**
+ * How close a pointer has to come to a prop's centre to count as a hit on it, in
+ * body units, scaled by the prop's own scale.
+ *
+ * Generous on purpose, because this is not a selection tool: there is exactly one
+ * thing in the scene that can be tapped. The balloon is about 27 units across, so
+ * a radius of 24 is the whole prop plus enough slack for a thumb. A prop without
+ * an entry here has a radius of zero -- unhittable -- which is the safe default:
+ * a prop becomes tappable by being given a radius, never by being drawn.
+ */
+const TAP_RADIUS: Readonly<Partial<Record<PropId, number>>> = { balloon: 24 };
 
 /**
  * A deterministic stand-in for Math.random.
@@ -144,6 +163,53 @@ export class SunnyAnimator {
    */
   reset(): void {
     this.scheduler.clear();
+  }
+
+  /**
+   * A pointer gesture on the character, given in viewBox coordinates. Returns
+   * whether Sunny had anything to say about it.
+   *
+   * **Hit-tested against what was drawn.** The test is made against the last rig
+   * the animator rendered rather than against anything current, for the same
+   * reason a button responds where it is rather than where it will be: the
+   * visitor pointed at a picture, and the picture they saw is the one that was on
+   * screen when their finger went down. Both the balloon's position and its size
+   * come from that frame, so a tap where the balloon is at the moment it is seen
+   * lands, and a tap where it was half a second ago does not.
+   *
+   * **Two gestures, one entry point.** A tap on the balloon pops it; a tap on her
+   * puts a balloon in her hands. Anything else the pointer lands on -- a ray tip,
+   * the empty canvas -- is not a hit and changes nothing, because a character
+   * that reacts to being touched anywhere is a character that cannot be *not*
+   * touched.
+   */
+  tap(point: Vec2, now: number): boolean {
+    const rig = this.#last?.rig ?? this.#base;
+    const local = toBodyFrame(rig, point);
+
+    // The balloon first: it is drawn over everything else and it is small, so a
+    // point inside it is far likelier to have meant the balloon than the body it
+    // happens to overlap. A balloon faded to nothing is not there to be hit.
+    const balloon = rig.props.find((prop) => prop.id === 'balloon' && prop.opacity > 0.05);
+    if (balloon) {
+      const radius = (TAP_RADIUS.balloon ?? 0) * balloon.scale;
+      if (Math.hypot(local.x - balloon.x, local.y - balloon.y) <= radius) {
+        // The float is cancelled rather than left underneath: the burst is what
+        // replaced it, and a balloon still drifting away beside its own shards
+        // would be two answers to one gesture.
+        this.scheduler.cancel('balloon');
+        return this.scheduler.request('pop', this.machine.state, now, { point });
+      }
+    }
+
+    // Then the body itself, and only the body: the rays are part of the drawing
+    // but not part of the silhouette, and the state has to be one where a toy is
+    // welcome at all -- the scheduler refuses the rest.
+    if (Math.hypot(local.x, local.y) <= BODY.radius) {
+      return this.scheduler.request('balloon', this.machine.state, now);
+    }
+
+    return false;
   }
 
   /** Run one frame. `now` is monotonic milliseconds. */

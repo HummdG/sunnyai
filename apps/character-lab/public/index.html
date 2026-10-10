@@ -75,9 +75,19 @@
       #stage svg {
         width: calc(260px * var(--zoom));
         height: auto;
+        /* The stage is the one thing on this page that answers a pointer: see
+           A05. `touch-action` keeps a tap from being swallowed as the start of a
+           scroll gesture, and the cursor says the same thing to a mouse. */
+        cursor: pointer;
+        touch-action: manipulation;
       }
       .stage-label {
         color: var(--muted);
+        text-align: center;
+      }
+      .stage-hint {
+        color: var(--muted);
+        font-size: 12.5px;
         text-align: center;
       }
 
@@ -327,7 +337,8 @@
       Every moment Sunny has, named for a person rather than for the engine. <em>Play</em> asks the scheduler for the
       moment — the same call the widget makes — and the card lights up while it is the one on screen, so what the
       catalogue claims and what the engine draws can be compared by eye. A dashed card is a moment
-      <strong>nothing asks for</strong>: it is implemented and tested, and no event or tool reaches it.
+      <strong>the engine never asks for by itself</strong>: it is implemented and tested, and reaching it is a matter of
+      wiring — an event or a pointer gesture nothing forwards yet.
     </p>
 
     <h2>Scrub a sequence</h2>

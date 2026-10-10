@@ -275,6 +275,35 @@ const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?
     filled: true,
     surface: true,
   },
+  // A balloon, drawn at the size it is used at (the second prop authored in the
+  // body frame, and for the same kind of reason the deckchair is): a balloon is
+  // *held against the character* -- it rises past her rays and its knot hangs
+  // over her shoulder -- so its scale is a fact about the composition rather
+  // than about the prop. The origin is the balloon's own centre rather than the
+  // bottom of a string, because that is the point a tap hits and the point the
+  // pop bursts from.
+  //
+  // A balloon is the clearest case for the `surface` painting: it is an object
+  // with an inside, so it takes the tenant's surface colour rather than being
+  // inked, and a hollow outline of a balloon at launcher size reads as a ring.
+  //
+  // There is no string, and that is a decision rather than an omission. A string
+  // drawn in this path would carry the character's own ink weight -- 2.2 units,
+  // the same as the balloon's outline, because a path here has exactly one
+  // stroke -- and at the sizes this is actually seen a 2-unit line twelve units
+  // long is a black smear beside the balloon rather than a string. The measured
+  // versions of both are in the commit that added this. A round envelope, a
+  // taper and a knot read as a balloon on their own.
+  balloon: {
+    d:
+      // The envelope: round at the top, tapering to the neck.
+      'M0-15.4C7.9-15.4 13.6-9.4 13.6-2.2 13.6 6.4 7.2 13.6 3.4 16.6L-3.4 16.6' +
+      'C-7.2 13.6-13.6 6.4-13.6-2.2-13.6-9.4-7.9-15.4 0-15.4Z' +
+      // The knot at the neck.
+      'M-3.4 15.4H3.4L1.6 19.6H-1.6Z',
+    filled: true,
+    surface: true,
+  },
 };
 
 function renderProp(prop: PropRig, paint: Paint): string {

@@ -1,4 +1,4 @@
-import type { SunnyRig } from '@sunny/character';
+import type { SunnyRig, Vec2 } from '@sunny/character';
 
 /**
  * Sunny's states. Exactly one is active at a time; the machine decides which.
@@ -59,6 +59,24 @@ export const PRIORITY = {
 export type Priority = number;
 
 /**
+ * Where a moment is anchored, when the visitor put it somewhere.
+ *
+ * A pose is a function of its own progress and nothing else, which is what makes
+ * every frame reproducible. This is the smallest exception to that rule that A05
+ * could be built on: a balloon the visitor burst has to burst *where they
+ * touched it*, and that is a fact about the request rather than about the
+ * moment. It travels with the instance rather than with the frame, so it is
+ * still there on the last frame of the burst as on the first -- a per-frame
+ * pointer would be gone by then and the shards would snap back to the middle.
+ *
+ * The point is in viewBox coordinates, not in the body frame, because the pose
+ * that reads it is free to move the body and the anchor must not move with it.
+ */
+export interface MomentAnchor {
+  point: Vec2;
+}
+
+/**
  * A sequence is a pure function from progress to pose.
  *
  * That single constraint is what makes the whole character testable: replaying a
@@ -105,9 +123,10 @@ export interface Sequence {
   states: readonly SunnyState[];
   /**
    * The pose at progress `t` in 0..1 (or, when looping, the phase in 0..1).
-   * Must be pure: same inputs, same rig, every time.
+   * Must be pure: same inputs, same rig, every time. `anchor` is present only
+   * for a moment that was asked for with one -- see `MomentAnchor`.
    */
-  pose: (base: SunnyRig, t: number) => SunnyRig;
+  pose: (base: SunnyRig, t: number, anchor?: MomentAnchor) => SunnyRig;
 }
 
 /** Everything the engine needs to know about the world to choose a sequence. */
