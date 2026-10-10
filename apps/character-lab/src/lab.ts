@@ -207,6 +207,11 @@ const ROUTE: Record<string, readonly MachineEvent['type'][]> = {
   // `turn_failed` is not accepted from rest, so the error has to be reached the
   // way it really happens: a turn that started and then failed.
   error: ['turn_started', 'turn_failed'],
+  // `bloom` (A11) has no route, and is the first card that does not. Nothing in
+  // the engine asks for the planting -- it is not a response to anything, which
+  // is why it has no event at all -- so there is no sequence of events that
+  // would produce it. The click plays it by name, which is how an application
+  // asks for it, and the tooltip says what the empty route means.
 };
 
 function buildCatalogue(): void {

@@ -614,6 +614,77 @@
       d: "M-7-17H7A1.6 1.6 0 0 1 8.6-15.4V7.4A1.6 1.6 0 0 1 7 9H-7A1.6 1.6 0 0 1-8.6 7.4V-15.4A1.6 1.6 0 0 1-7-17ZM-3.4 9H3.4V14A3.4 3.4 0 0 1-3.4 14Z",
       filled: true,
       surface: true
+    },
+    // ── A11, the plant ─────────────────────────────────────────────────────────
+    //
+    // Three props rather than one, because the row names four stages -- "seed,
+    // shine, sprout, flower" -- and the model cannot morph a prop: a prop is one
+    // path with one transform, so a plant that grows has to be a plant that is
+    // *replaced* by the next one. The staging is therefore a cross-fade: each
+    // stage is its own prop, faded in as the one before it fades out, which is
+    // also why the three share an origin.
+    //
+    // **The seed and the seedling are solid ink marks**, the way the sparkle and
+    // the sweat-drop are: both are small, and a 2.2-unit outline around a 9-unit
+    // object is a smudge rather than an inside. The flower is the first thing in
+    // this moment big enough to have one.
+    //
+    // A seed is a teardrop standing on its point -- round above, pointed below --
+    // so the point is the end that goes into the ground.
+    seed: {
+      d: "M0 4.4C2.8 1.6 3.6-0.2 3.6-1.6A3.6 3.6 0 0 0-3.6-1.6C-3.6-0.2-2.8 1.6 0 4.4Z",
+      filled: true
+    },
+    // The sprout and the flower are authored **with their origin at the base**,
+    // unlike every other prop here, which is centred on itself. A plant grows from
+    // where it is planted: with the origin at the base the `scale` a sequence
+    // animates is the plant growing rather than the plant inflating, and the two
+    // stages share a planting point as a consequence of their geometry instead of
+    // by a constant someone has to keep in step. Both are `surface`-painted,
+    // because they are objects with an inside: a stem drawn as a bare ink line is
+    // a mark, and a flower made of marks is a doodle rather than a plant.
+    //
+    // Both are drawn *upright*, and it is the sequence that leans one outward.
+    // That is the opposite of the deckchair, which is authored in the body frame
+    // because the body has to sit in it; a plant has no such relationship with the
+    // character and is a plain object standing beside her.
+    //
+    // The stem is 4 units wide rather than a hairline for the same reason: the
+    // outline is 2.2 units, and a 2-unit stem would be all outline.
+    //
+    // The seedling is smaller than the flowering plant on purpose -- a shoot and a
+    // flower are the same plant, and a seedling drawn at the size of the thing it
+    // becomes is not a seed that grew.
+    //
+    // The leaves are short next to the stem, which is a decision about the scene
+    // rather than about the plant: a leaf reaching 12 units to the side is a leaf
+    // that lands across one of the character's rays, and a stem with wings is
+    // worse in this composition than a stem with leaves. Both stages keep them
+    // short for the same reason, and the flower's are the seedling's scaled up so
+    // the cross-fade from one to the other is a plant getting bigger.
+    //
+    // The bloom is six petals of radius 6 on a ring of radius 8 about (0, -30):
+    // big enough at launcher size that the cream inside each petal reads, and
+    // small enough that the six outlines crossing in the middle read as petals
+    // rather than as a scribble. The centre they leave uncovered is the flower's
+    // middle, which is why there is no disc drawn there, and the ring is centred
+    // on the stem rather than offset to one side so that the flower leans away
+    // from the character as one object instead of the head drooping off its own
+    // stalk.
+    sprout: {
+      d: (
+        // The stem, from the planting point up.
+        "M-1.6 0H1.6V-8H-1.6ZM-0.9-4.7C-2.8-6.1-5.8-5.9-6.6-4.4-5.5-2.9-2.7-3.1-0.8-4.4ZM0.9-7.8C2.8-9.2 5.8-9 6.6-7.6 5.5-6 2.7-6.2 0.8-7.6Z"
+      ),
+      filled: true
+    },
+    flower: {
+      d: (
+        // The stem, with its two leaves where the seedling had them.
+        "M-2 0H2V-22H-2ZM-1.3-6.8C-4-8.6-8.3-8.4-9.4-6.3-7.8-4.2-3.8-4.4-1.1-6.3ZM1.3-11.2C4-13.1 8.3-12.9 9.4-10.8 7.8-8.6 3.8-8.8 1.1-10.8ZM2-30a6 6 0 1 0 12 0 6 6 0 1 0-12 0ZM-2-23.1a6 6 0 1 0 12 0 6 6 0 1 0-12 0ZM-10-23.1a6 6 0 1 0 12 0 6 6 0 1 0-12 0ZM-14-30a6 6 0 1 0 12 0 6 6 0 1 0-12 0ZM-10-36.9a6 6 0 1 0 12 0 6 6 0 1 0-12 0ZM-2-36.9a6 6 0 1 0 12 0 6 6 0 1 0-12 0Z"
+      ),
+      filled: true,
+      surface: true
     }
   };
   function renderProp(prop2, paint) {
@@ -2045,6 +2116,163 @@
     states: ["idle", "playing"],
     pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 10, reach: 34, jolt: 1 })
   };
+  var PLANT = { x: 64, y: 52, lean: 14 };
+  var BLOOM_UP = 30;
+  function bloomCentre() {
+    const a = PLANT.lean * Math.PI / 180;
+    return { x: PLANT.x + BLOOM_UP * Math.sin(a), y: PLANT.y - BLOOM_UP * Math.cos(a) };
+  }
+  var SEED_HELD = { x: 56, y: 18 };
+  var SEED_APPEARS_BY = 0.06;
+  var SEED_DROPS_AT = 0.02;
+  var SEED_LANDS_BY = 0.16;
+  var SEED_FADES_FROM = 0.17;
+  var SEED_GONE = 0.22;
+  var SPROUT_AT = 0.26;
+  var SPROUT_DONE = 0.5;
+  var FLOWER_AT = 0.58;
+  var FLOWER_DONE = 0.86;
+  var TAKEN_IN = 0.88;
+  function bloomPose(base, t, extra) {
+    const r = cloneRig(base);
+    const props = [];
+    const shine = swell(t, 0.1, 0.46) * extra.shine;
+    r.rays.forEach((ray, i) => {
+      ray.lengthScale = base.rays[i].lengthScale + shine;
+    });
+    const fallen = ease((t - SEED_DROPS_AT) / (SEED_LANDS_BY - SEED_DROPS_AT));
+    const seedOpacity = ease(t / SEED_APPEARS_BY) * (1 - ease((t - SEED_FADES_FROM) / (SEED_GONE - SEED_FADES_FROM)));
+    if (seedOpacity > 0) {
+      props.push({
+        id: "seed",
+        x: SEED_HELD.x + (PLANT.x - SEED_HELD.x) * fallen,
+        y: SEED_HELD.y + (PLANT.y - SEED_HELD.y) * fallen,
+        rotation: -22 * (1 - fallen),
+        scale: 1,
+        opacity: seedOpacity
+      });
+    }
+    const sprout = ease((t - SPROUT_AT) / (SPROUT_DONE - SPROUT_AT));
+    const sproutOpacity = Math.min(1, sprout * 4) * (1 - ease((t - FLOWER_AT) / 0.14));
+    if (sproutOpacity > 0) {
+      props.push({
+        id: "sprout",
+        x: PLANT.x,
+        y: PLANT.y,
+        rotation: PLANT.lean + 14 * (1 - sprout),
+        scale: 0.25 + 0.75 * sprout,
+        opacity: sproutOpacity
+      });
+    }
+    const bloom = ease((t - FLOWER_AT) / (FLOWER_DONE - FLOWER_AT));
+    const flowerOpacity = Math.min(1, bloom * 4) * (1 - ease((t - TAKEN_IN) / (1 - TAKEN_IN)));
+    if (flowerOpacity > 0) {
+      props.push({
+        id: "flower",
+        x: PLANT.x,
+        y: PLANT.y,
+        rotation: PLANT.lean - 11 * (1 - bloom) + swell(t, 0.6, 0.92) * 3,
+        scale: (0.25 + 0.75 * bloom) * extra.bloom * (1 + swell(t, 0.62, 0.86) * 0.06),
+        opacity: flowerOpacity
+      });
+    }
+    const held = land(t / 0.9);
+    const lean = extra.lean * held;
+    r.rotation = base.rotation + lean;
+    r.x = base.x + lean * 0.35;
+    r.faceTilt = base.faceTilt - lean * 0.5;
+    r.smile.depth = base.smile.depth * (1 + held * 0.16);
+    r.smile.span = base.smile.span * (1 + held * 0.06);
+    if (extra.hop) r.y = base.y - swell(t, 0.58, 0.88) * 2.4;
+    const focus = sprout > 0 || bloom > 0 ? bloomCentre() : {
+      x: SEED_HELD.x + (PLANT.x - SEED_HELD.x) * fallen,
+      y: SEED_HELD.y + (PLANT.y - SEED_HELD.y) * fallen
+    };
+    const mag = Math.max(1, Math.hypot(focus.x, focus.y));
+    const gaze = {
+      x: base.eyes.left.gaze.x + (focus.x / mag - base.eyes.left.gaze.x) * held,
+      y: base.eyes.left.gaze.y + (focus.y / mag - base.eyes.left.gaze.y) * held
+    };
+    r.eyes.left.gaze = gaze;
+    r.eyes.right.gaze = { ...gaze };
+    const axis = {
+      x: Math.sin(PLANT.lean * Math.PI / 180),
+      y: -Math.cos(PLANT.lean * Math.PI / 180)
+    };
+    for (let i = 0; i < extra.gleam; i++) {
+      const p = (t - 0.34 - i * 0.14) / 0.3;
+      if (p <= 0 || p >= 1) continue;
+      const rise = 8 + p * 32;
+      props.push({
+        id: "sparkle",
+        x: PLANT.x + axis.x * rise,
+        y: PLANT.y + axis.y * rise,
+        rotation: p * 160,
+        scale: 0.34 + bump(p) * 0.42,
+        opacity: bump(p) * 0.9
+      });
+    }
+    r.props = props;
+    return r;
+  }
+  var bloomStill = {
+    id: "bloom-still",
+    group: "bloom",
+    priority: PRIORITY.play,
+    duration: 1,
+    canInterrupt: true,
+    loop: true,
+    intensity: "off",
+    assets: ["flower"],
+    reducedMotionFallback: null,
+    states: ["idle", "playing"],
+    pose: (base) => {
+      const r = cloneRig(base);
+      r.props = [
+        { id: "flower", x: PLANT.x, y: PLANT.y, rotation: PLANT.lean, scale: 1, opacity: 1 }
+      ];
+      return r;
+    }
+  };
+  var bloomSeed = {
+    id: "bloom-seed",
+    group: "bloom",
+    priority: PRIORITY.play,
+    duration: 4200,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: ["seed", "sprout", "flower"],
+    reducedMotionFallback: "bloom-still",
+    states: ["idle", "playing"],
+    pose: (base, t) => bloomPose(base, t, { shine: 0.05, gleam: 0, bloom: 1, hop: false, lean: 1.4 })
+  };
+  var bloomGrow = {
+    id: "bloom-grow",
+    group: "bloom",
+    priority: PRIORITY.play,
+    duration: 5200,
+    canInterrupt: true,
+    loop: false,
+    intensity: "balanced",
+    assets: ["seed", "sprout", "flower", "sparkle"],
+    reducedMotionFallback: "bloom-still",
+    states: ["idle", "playing"],
+    pose: (base, t) => bloomPose(base, t, { shine: 0.11, gleam: 1, bloom: 1, hop: false, lean: 2.2 })
+  };
+  var bloomShowcase = {
+    id: "bloom-showcase",
+    group: "bloom",
+    priority: PRIORITY.play,
+    duration: 6200,
+    canInterrupt: true,
+    loop: false,
+    intensity: "playful",
+    assets: ["seed", "sprout", "flower", "sparkle"],
+    reducedMotionFallback: "bloom-still",
+    states: ["idle", "playing"],
+    pose: (base, t) => bloomPose(base, t, { shine: 0.16, gleam: 2, bloom: 1.12, hop: true, lean: 3 })
+  };
   var SEQUENCES = [
     idleStill,
     idle,
@@ -2091,7 +2319,11 @@
     popShower,
     arcadeTuck,
     arcadeRoll,
-    arcadeSpin
+    arcadeSpin,
+    bloomStill,
+    bloomSeed,
+    bloomGrow,
+    bloomShowcase
   ];
   var SEQUENCE_BY_ID = new Map(
     SEQUENCES.map((s) => [s.id, s])
@@ -2412,6 +2644,14 @@
       category: "play",
       asked: "gesture",
       note: "Reached by tapping the balloon rather than the body, so it needs the same forwarded gesture the float does. The burst is drawn at the point the visitor touched instead of at a position the moment chose for itself, which is the reason the scheduler carries an anchor."
+    },
+    {
+      group: "bloom",
+      name: "Planting a flower",
+      description: "A seed drops into the ground beside her, her rays stretch over it, a shoot comes up out of the soil and opens into a flower.",
+      category: "play",
+      asked: "app",
+      note: 'The solar showcase (A11), and nothing in the engine asks for it. It has no event because it is not a response to anything: an application calls `SunnyAnimator.play("bloom")` when it wants to show a visitor what sunlight does, which is a decision no machine event could make.'
     }
   ];
   var UNWIRED_GROUPS = CATALOGUE.filter(
@@ -3341,6 +3581,11 @@
     // `turn_failed` is not accepted from rest, so the error has to be reached the
     // way it really happens: a turn that started and then failed.
     error: ["turn_started", "turn_failed"]
+    // `bloom` (A11) has no route, and is the first card that does not. Nothing in
+    // the engine asks for the planting -- it is not a response to anything, which
+    // is why it has no event at all -- so there is no sequence of events that
+    // would produce it. The click plays it by name, which is how an application
+    // asks for it, and the tooltip says what the empty route means.
   };
   function buildCatalogue() {
     const host2 = document.getElementById("catalogue-card");

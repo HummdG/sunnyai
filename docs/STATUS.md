@@ -12,9 +12,9 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **589 tests across 16 files**,
+public marketing site are built, tested and green: **624 tests across 16 files**,
 a real fidelity comparison
-against the supplied artwork, **23 committed visual baselines** of the character
+against the supplied artwork, **25 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
 and **42 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
@@ -31,20 +31,20 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                                                                                     | Result                                                                                                                                                                      |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                                                                                                 |
-| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                                                                                                  |
-| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                                                                 |
-| Unit / contract / visual tests | `npm run test`                                                                              | **589 passed (16 files)**                                                                                                                                                   |
-| Browser end-to-end             | `npm run test:e2e`                                                                          | **42 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                                                                |
-| Widget bundle                  | `npm run build:widget`                                                                      | 127.7 kB — **35.3 kB gzipped**                                                                                                                                              |
-| Character lab bundle           | `npm run build:lab`                                                                         | 130.4 kB, plus the lazily-loaded arcade chunk at 11.9 kB (A08)                                                                                                              |
-| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                                                                                                             |
-| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                                                                                                       |
-| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                                                                                                          |
-| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                                                         |
-| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **25 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09) and the two arcade-spin scenes (A10), are byte-identical to the ones Linux produces |
+| Check                          | Command                                                                                     | Result                                                                                                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                                                                                                                                |
+| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                                                                                                                                 |
+| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                                                                                                |
+| Unit / contract / visual tests | `npm run test`                                                                              | **624 passed (16 files)**                                                                                                                                                                                  |
+| Browser end-to-end             | `npm run test:e2e`                                                                          | **42 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                                                                                               |
+| Widget bundle                  | `npm run build:widget`                                                                      | 131.5 kB — **36.5 kB gzipped**                                                                                                                                                                             |
+| Character lab bundle           | `npm run build:lab`                                                                         | 140.8 kB, plus the lazily-loaded arcade chunk at 11.9 kB (A08)                                                                                                                                             |
+| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                                                                                                                                            |
+| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                                                                                                                                      |
+| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                                                                                                                                         |
+| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                                                                                        |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **27 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09), the two arcade-spin scenes (A10) and the two planting scenes (A11), are byte-identical to the ones Linux produces |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -92,8 +92,15 @@ first real finding should not be the one that matters.
   hit-tested against the frame actually drawn, and the burst is anchored where the
   finger was rather than where the moment chose — with a test that the float is
   cancelled rather than left drifting beside its own shards, which is the bug the
-  id-only `cancel` had hidden.
-- **Visual regression** (`tests/visual`, 25 tests) — twenty-three scenarios, one per
+  id-only `cancel` had hidden. Plus **the arcade spin** (A10, D-25), which is the
+  engine's first _cue_ — a moment played on top of the state rather than moving
+  the machine — and needs its own arithmetic to return to the exact default pose.
+  Plus **the plant** (A11, D-26): four stages drawn with three props because a prop
+  cannot morph, a composition held out of the rays by a test that measures the
+  actual triangles, and the first catalogue entry whose `asked` is `app` — nothing
+  in the machine asks for it, so the scene harness gained a way to ask for a moment
+  by name rather than only by event.
+- **Visual regression** (`tests/visual`, 27 tests) — twenty-five scenarios, one per
   visually distinct state plus the intensity extremes, the reduced-motion
   fallbacks and the moments where the setting changes the moment rather than its
   strength, each rasterised and compared byte for byte against a committed PNG.
@@ -357,6 +364,81 @@ phrases forbade rather than about what was added:
   generator loops do it: three new sequences add five engine snapshot tests each,
   the catalogue's per-entry `describe.each` adds three, the sequences suite adds
   ten of its own, and the two new scenes add two — 589 across sixteen files, from 559. What is checked where is D-25's last paragraph.
+
+### Fixed in this session (A11: the plant)
+
+The increment was the plan's eleventh row — "Plant flower | Seed, shine, sprout,
+flower | Solar-theme showcase" — three columns, three separate problems, and the
+middle one is a four-act story the engine has to tell in one moment:
+
+- **A prop cannot morph, so four stages are drawn with three props and an
+  ordering rule the tests hold.** A prop is one path with one transform (D-2), so
+  a seed cannot _become_ a shoot: the growth is a cross-fade. What matters then is
+  what may be on screen together — the seed is **in the ground before the shoot
+  breaks it** (a seed beside a plant is not a story), while the shoot and the
+  flower **do** overlap, because the flower is meant to come out of the shoot. The
+  shine has no prop at all, because she _is_ the light: that stage is her rays
+  lengthening, and it is the one stage whose strength differs at every intensity.
+  A fourth prop would have been a beam, which is a painting of something she
+  already is.
+- **"Solar-theme showcase" is a composition constraint, and it is why the plant
+  leans _away_ from her.** The first version put the plant in the lower right and
+  drew it straight across the ray at 131.5 degrees — a black smudge on an orange
+  triangle, past saving by tint or outline. She has eight rays and the two that
+  own the lower right leave a 40-degree gap, so the plant goes in the gap: 64
+  units out, past both ray tips at 75.5, leaning 14 degrees away, which keeps the
+  stem outside the ray ring the whole way up. Leaning it _toward_ her — the way a
+  real plant grows toward a sun — would grow it across the rays this placement
+  exists to avoid. The same rule then caught the glints: the first version drifted
+  them on their own arc, and at the top they landed on the ray at 91.5 degrees,
+  where a dark sparkle on orange reads as a speck of dirt on the ray rather than
+  as light, so they now rise along the plant's own lean. The rule is executable
+  rather than eyeballed — for every prop of every variant, at 400 points through
+  the moment, the distance from the nearest ray's axis must exceed that ray's
+  half-width at its radius, computed from `RAY` rather than from numbers copied
+  into the test.
+- **A reduced-motion visitor gets the flower, which is A05's decision rather than
+  A04's.** There is no honest still of a deckchair arriving (D-20) and there _is_
+  an honest still of a plant growing: a flower standing beside her is an ordinary
+  thing to see. So the fallback is `bloom-still` — three of the four stages
+  compressed into the one the row is about — and what the visitor is spared is the
+  story rather than the plant. It is the fourth image in a suite where the other
+  three reduced-motion scenes fall back to the resting pose, and the baseline is
+  the record of that. A test found the asymmetry worth stating: a fallback runs on
+  the **clock of the variant it replaced**, so reached as a reduced-motion
+  fallback at a higher intensity the plant stands for the 6.2 s the showcase would
+  have taken and is retired with the moment, while at `off` — where the setting
+  selects the still itself — it loops and stays. That is the engine's behaviour
+  rather than this row's; every group with a fallback does the same.
+- **It is the first moment with no event at all, so it needed a new answer to
+  "who asks for this?"** `asked: 'app'` has been a possible answer since D-18 and
+  this is the first animation to actually be one: nothing in the machine asks for
+  the planting, because it is not a response to anything. An application calls
+  `SunnyAnimator.play('bloom')` when it wants to show a visitor what sunlight
+  does, and that is a decision no event could make. So `UNWIRED_GROUPS` grows by
+  one and `UNREACHABLE_GROUPS` does not move — unwired is "implemented, needs a
+  caller", unreachable is "no caller exists", and the difference between the two
+  lists is the whole reason the catalogue distinguishes them. The lab's gallery
+  plays it from the card, which is what an application does, and its card is the
+  first with an empty route; the tooltip says "plays from the resting state"
+  because that is the truth of it.
+- **That found a real gap in the visual harness, which could only dispatch events
+  or taps.** A moment with no event **could not be looked at** by the suite that
+  exists to look at things, so `Scene` gained an optional `play`, wired through
+  the same public `play()` the lab uses; the A11 scenes are its first users, and
+  the app-request path is now exercised by the baselines rather than only by the
+  lab.
+- **Nothing moved that should not have.** The existing twenty-three baselines are
+  byte-identical and two are added — the seed in the soil with the rays
+  lengthening (the only frame in the suite where `seed` is on screen) and the
+  reduced-motion still, a full flower standing beside her. The committed tree in
+  `node:22-bookworm` installed from its lockfile and produced **27/27**
+  byte-identical PNGs.
+- **Thirty-five new tests, from 589 to 624 across the same sixteen files.** The
+  generator loops do most of it: four new sequences add five engine snapshot tests
+  each (twenty), the catalogue's per-entry `describe.each` adds three, the
+  sequences suite adds ten of its own, and the two new scenes add two. What is
+  checked where is D-26's last paragraph.
 
 ### Fixed in the previous session (A05: the balloon)
 
@@ -794,11 +876,11 @@ not been designed.
 | ------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Formatting / lint              | **done**, in CI and locally                                                                        |
 | Typecheck                      | **done**                                                                                           |
-| Unit tests                     | **done** — 589 across 16 files                                                                     |
+| Unit tests                     | **done** — 624 across 16 files                                                                     |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
 | E2E (Playwright)               | **done** — 42 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
-| Visual snapshots               | **done** — 23 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
+| Visual snapshots               | **done** — 25 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
 | Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
 | Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
 | Terraform validation           | **written, never executed**                                                                        |
@@ -895,7 +977,7 @@ properly rather than sketched.
    baseline", and it is **better than half met but not met**: axe passes at
    `serious` and above; the hero's motion, its canonical colour and its use of
    the real widget are all asserted in a browser; and the character now has
-   twenty committed visual baselines (D-16). What is still missing is the
+   twenty-five committed visual baselines (D-16). What is still missing is the
    _performance_ half — there is no Lighthouse run and no Core Web Vitals figure,
    so nothing has measured how fast the page is. Page-level screenshots are
    deliberately not used as the visual regression, for the operating-system
@@ -944,7 +1026,13 @@ properly rather than sketched.
    `@sunny/games` and a test that plays a game to a winner found a real defect the
    unit tests could not: a bat that always met the ball dead centre returned it
    dead level, and two such bats rallied forever without scoring, so she now aims
-   every return at the side of the court the opponent's bat is not on. What
-   remains of P11 is what the gate does not cover: A10–A18, one more game and the
-   seasonal cosmetics, none of which are blocked on anything outside this
+   every return at the side of the court the opponent's bat is not on. **A10 is
+   done** (D-25), and it is the row where the acceptance criterion carried the
+   work: "returns to exact default pose" is a claim about `t = 1` that a test can
+   hold with `toEqual`, which is what forced the row's own arithmetic. **A11 is
+   done** (D-26), and it is the first moment not asked for by an event at all — an
+   application plays it by name — so the catalogue's `asked: 'app'` answer went
+   from declared to used, and the visual harness gained the same way of asking.
+   What remains of P11 is what the gate does not cover: A12–A18, one more game and
+   the seasonal cosmetics, none of which are blocked on anything outside this
    repository.

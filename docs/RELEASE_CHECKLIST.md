@@ -48,20 +48,23 @@ Run `npm run verify` — it chains the first four.
         committed rather than a screenshot test is the claim that they are
         platform-independent — which is only a claim until it is re-checked
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **127.7 kB (35.3 kB gzipped)**, lab 130.4 kB,
+      release. Last known: widget **131.5 kB (36.5 kB gzipped)**, lab 140.8 kB,
       arcade 11.9 kB. The lab now has a **second entry point** (A08, D-23): the
       arcade is a separate 11.9 kB file the page fetches only when the visitor
       asks for it, so any release that measures "the lab" must measure both, and
       a release where the arcade has crept back into `lab.js` is a regression
       against the plan's own word for that row. All three have grown since the
-      figures this line used to carry (119.8 kB and 86.0 kB): the widget by three
+      figures this line used to carry (119.8 kB and 86.0 kB): the widget by four
       more moments of animation library (A04's break, A05's balloon and burst,
-      and A10's three arcade-spin variants, D-20, D-21 and D-25), the lab by the
+      A10's three arcade-spin variants, and A11's four planting variants, D-20,
+      D-21, D-25 and D-26), the lab by the
       sequence variants those add to its grid and, latterly, by the tic-tac-toe
       board and the ping pong table and the rules they import (A06 and A09, D-22
       and D-24). The widget's own figure is unchanged by A09 and by A10 — the
-      rally and the arcade are lab surfaces and ship no code to a customer — so
-      its growth is the three moments above and nothing more. None has a budget
+      rally and the arcade are lab surfaces and ship no code to a customer — while
+      A11 is the first moment since A05 to move it, because the plant's three
+      paintings and four variants live in the engine the widget ships (127.7 to
+      131.5 kB, and 35.3 to 36.5 kB gzipped). None has a budget
       yet. Nothing
       about either number is alarming at this size, but a figure nobody
       re-measures becomes a figure nobody can trust, so the next release should

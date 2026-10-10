@@ -242,6 +242,20 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
       'touched instead of at a position the moment chose for itself, which is the ' +
       'reason the scheduler carries an anchor.',
   },
+  {
+    group: 'bloom',
+    name: 'Planting a flower',
+    description:
+      'A seed drops into the ground beside her, her rays stretch over it, a shoot comes ' +
+      'up out of the soil and opens into a flower.',
+    category: 'play',
+    asked: 'app',
+    note:
+      'The solar showcase (A11), and nothing in the engine asks for it. It has no ' +
+      'event because it is not a response to anything: an application calls ' +
+      '`SunnyAnimator.play("bloom")` when it wants to show a visitor what sunlight ' +
+      'does, which is a decision no machine event could make.',
+  },
 ];
 
 /** The entry for a group, or undefined when the group is not catalogued. */

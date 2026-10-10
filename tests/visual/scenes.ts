@@ -26,6 +26,23 @@ export interface Scene {
    * it out.
    */
   taps?: Array<{ at: number; point: { x: number; y: number } }>;
+  /**
+   * A moment asked for by name, through the same `SunnyAnimator.play()` an
+   * application uses.
+   *
+   * Most moments are reached by an event and the scenes above say so by
+   * dispatching one. Some are not: a group can have no event because it is not a
+   * response to anything the machine can know about (A11's planting is the
+   * first). For those the only honest way to ask is the way the product asks,
+   * which is by name -- `play` is public API with a doc comment saying it is for
+   * exactly this -- so the scene asks for it that way rather than reaching past
+   * the animator to pose a rig by hand.
+   *
+   * The ask goes through the frame loop like an event, so the sequence's clock
+   * starts when it is played rather than when `at` is reached: a scene that
+   * played at its own capture time would baseline the start of the moment.
+   */
+  play?: { at: number; group: string };
   /** The frame to capture. */
   at: number;
   intensity?: Intensity;
@@ -203,6 +220,46 @@ export const SCENES: readonly Scene[] = [
     at: 400,
     reducedMotion: true,
   },
+  // The planting (A11), twice: once while it is growing and once for the visitor
+  // who asked for less motion.
+  //
+  // This is not a state and there is no cue either -- the engine has nothing that
+  // could ask for it, because an application plays it to show a visitor what
+  // sunlight does, which is a decision no machine event could make. So the scene
+  // asks the way an application asks, by name, through the same `play()` the lab
+  // uses.
+  //
+  // Caught a fifth of the way in, which is the one frame of the moment with the
+  // seed on screen: it is planted, the shoot has not broken the soil yet, and she
+  // is looking down at it. The finished flower is the more flattering picture and
+  // there is no point spending this baseline on it, because the reduced-motion
+  // scene below *is* that picture -- so this frame is spent on the stage the suite
+  // would otherwise never have: the two new paintings this row adds are the seed
+  // and the shoot, and between this baseline and the next one, both are looked at.
+  {
+    name: 'bloom-seed',
+    events: [],
+    play: { at: 0, group: 'bloom' },
+    at: 1_116,
+    intensity: 'playful',
+  },
+  // What a reduced-motion visitor gets instead of the growth: the plant simply
+  // already there, unmoving, which is `bloom-still` -- three of the four stages
+  // compressed into the one the row is about. Caught in the middle of the hold,
+  // as the balloon's still is, because the still is constant and the time only has
+  // to be past the first frame.
+  //
+  // A fourth image in the suite where the other three reduced-motion scenes fall
+  // back to the resting pose, and the same decision as A05's: there is no honest
+  // still of a plant growing, but a flower standing beside her is an ordinary
+  // thing to see, so she does not lose the plant for asking for less motion.
+  {
+    name: 'bloom-reduced-motion',
+    events: [],
+    play: { at: 0, group: 'bloom' },
+    at: 2_400,
+    reducedMotion: true,
+  },
   // The paddle, held on the end of a ray (A09). The morph aims one of the eight
   // rays at a point and stretches it until its tip is there; the prop hangs off
   // the tip. Nothing about the character's own state changes, which is why this
@@ -254,11 +311,18 @@ export function rigFor(scene: Scene) {
     seed: 0x5eed_1234,
   });
 
+  const plays = scene.play ? [scene.play] : [];
   const steps = [
     ...scene.events.map((e) => ({ at: e.at, run: () => animator.dispatch(e.event, e.at) })),
     ...(scene.taps ?? []).map((tap) => ({
       at: tap.at,
       run: () => animator.tap(tap.point, tap.at),
+    })),
+    ...plays.map((play) => ({
+      at: play.at,
+      run: () => {
+        animator.play(play.group, play.at);
+      },
     })),
   ].sort((a, b) => a.at - b.at);
   const runDue = (now: number): void => {

@@ -1911,6 +1911,346 @@ const popShower: Sequence = {
   pose: (base, t, anchor) => popPose(base, t, anchor, { shards: 10, reach: 34, jolt: 1 }),
 };
 
+// ─── A11: planting a flower ──────────────────────────────────────────────────
+
+/**
+ * Where the seed goes in, and how far the plant leans away from her.
+ *
+ * Authored in the body's frame like every other prop, but the numbers come from
+ * the composition rather than from taste, and the composition puts one rule on
+ * this moment that no other row has: **the plant must not be drawn across her
+ * rays.** She has eight; the two that own the lower right are at 91.5 degrees
+ * (straight out to the side) and 131.5 (down and right), and they leave a
+ * 40-degree gap between them. Everything else on that side is her own body or a
+ * ray, so the plant goes in the gap: the base 64 units out, which is past both
+ * ray tips, and a lean of 14 degrees away from her, which is what keeps the stem
+ * outside the ray ring all the way up.
+ *
+ * `y = 52` is the ground the deckchair stands on (D-20), because a plant on a
+ * different floor from the chair is a sticker rather than a plant.
+ *
+ * The leaning is the part that has to be explained, and it is not botany.
+ * `sprout` and `flower` are the two props authored *from their base* (see
+ * `render.ts`), so 22 units of stem is 22 units of lean away from wherever it is
+ * planted -- and leaning it *toward* her, which is the direction a real plant
+ * would grow toward a sun, would grow it straight across the rays this whole
+ * placement exists to avoid. It leans away because that is where the open space
+ * is, and the two numbers below are where that stopped grazing the ray at 131.5
+ * degrees: the leaf tip comes within 2 units of it, which is a gap on screen
+ * rather than a crossing.
+ */
+const PLANT = { x: 64, y: 52, lean: 14 } as const;
+
+/**
+ * How far above the planting point the bloom's centre sits, in the flower's own
+ * art.
+ *
+ * The one number here that is a copy of a number in `render.ts`, kept because
+ * the alternative is a gaze aimed at nothing: she looks at the flower, so the
+ * sequence has to know where the flower is, and where it is is (0, -30) rotated
+ * by the lean. If the bloom moves in the artwork, this moves with it -- the
+ * `flower` path and this constant are two halves of one fact.
+ */
+const BLOOM_UP = 30;
+
+/** Where the bloom's centre ends up once the plant has leaned, in body units. */
+function bloomCentre(): Vec2 {
+  const a = (PLANT.lean * Math.PI) / 180;
+  return { x: PLANT.x + BLOOM_UP * Math.sin(a), y: PLANT.y - BLOOM_UP * Math.cos(a) };
+}
+
+/**
+ * Where the seed is before it is dropped, in body units: beside her, chest high,
+ * in the same gap in the rays the plant ends up in, so the fall is one short
+ * move down and out rather than a journey around her. At radius 59 it is clear
+ * of the body's outline (47.25) and of both rays on that side.
+ */
+const SEED_HELD = { x: 56, y: 18 } as const;
+
+/** When each stage of the moment happens, as progress through it. */
+const SEED_APPEARS_BY = 0.06;
+const SEED_DROPS_AT = 0.02;
+const SEED_LANDS_BY = 0.16;
+const SEED_FADES_FROM = 0.17;
+const SEED_GONE = 0.22;
+const SPROUT_AT = 0.26;
+const SPROUT_DONE = 0.5;
+const FLOWER_AT = 0.58;
+const FLOWER_DONE = 0.86;
+const TAKEN_IN = 0.88;
+
+/** How each intensity setting lets the planting behave. */
+interface BloomExtra {
+  /** How far the rays stretch while the sun does its work, as a fraction. */
+  shine: number;
+  /** How many glints are in the air while it grows. */
+  gleam: number;
+  /** How much bigger the bloom comes out. */
+  bloom: number;
+  /** Whether the bloom lifts her off the ground for a moment. */
+  hop: boolean;
+  /** How far she leans toward it, in degrees. */
+  lean: number;
+}
+
+/**
+ * A11: the seed, the sun, the sprout and the flower.
+ *
+ * **One moment with four stages, rather than four moments.** The row names four
+ * things in a fixed order and that order is the whole of its interest. Four
+ * sequences would be four chances to be interrupted between them -- a visitor
+ * who looked away during the sprout would have planted a seed and never seen a
+ * flower -- so the story is kept whole in one pose, and its four stages are four
+ * windows of one progress value.
+ *
+ * **Three props for four stages, because a prop cannot morph.** A prop is one
+ * path with one transform (see `render.ts`), so nothing here can be a seed that
+ * *becomes* a shoot: the growth is a cross-fade, each stage faded in as the one
+ * before it fades out. It works because `sprout` and `flower` are both authored
+ * from their planting point, so the two cross-fade over the same spot rather
+ * than two drawings sliding past each other.
+ *
+ * **The shine has no prop at all.** A beam of light would be a fourth painting,
+ * and the character is already the light she is standing in: her rays stretch,
+ * which is the same gesture as the sun coming out, and it is the stage the three
+ * variants carry most of their difference in.
+ *
+ * **Nothing is left behind.** The bloom withdraws over the last tenth of the
+ * moment because a finite sequence is retired when it is over, so a flower that
+ * stayed would be a flower that vanished on the next frame. A visitor who asked
+ * for less motion gets a plant that is simply already there, which is
+ * `bloom-still`.
+ */
+function bloomPose(base: SunnyRig, t: number, extra: BloomExtra): SunnyRig {
+  const r = cloneRig(base);
+  const props: PropRig[] = [];
+
+  // The sun. The rays lengthen while the seed is in the ground and settle back
+  // before the bloom opens, so the light is what the growth is *for* rather than
+  // decoration over the top of it.
+  const shine = swell(t, 0.1, 0.46) * extra.shine;
+  r.rays.forEach((ray, i) => {
+    ray.lengthScale = base.rays[i]!.lengthScale + shine;
+  });
+
+  // The seed: it appears beside her, drops to the planting point, and is gone
+  // before the shoot is up. The fall eases rather than running straight -- a
+  // drop that does not slow before it lands reads as a seed being pushed -- and
+  // it rights itself on the way down, which is the whole of what planting looks
+  // like on a character with no hands.
+  const fallen = ease((t - SEED_DROPS_AT) / (SEED_LANDS_BY - SEED_DROPS_AT));
+  const seedOpacity =
+    ease(t / SEED_APPEARS_BY) * (1 - ease((t - SEED_FADES_FROM) / (SEED_GONE - SEED_FADES_FROM)));
+  if (seedOpacity > 0) {
+    props.push({
+      id: 'seed',
+      x: SEED_HELD.x + (PLANT.x - SEED_HELD.x) * fallen,
+      y: SEED_HELD.y + (PLANT.y - SEED_HELD.y) * fallen,
+      rotation: -22 * (1 - fallen),
+      scale: 1,
+      opacity: seedOpacity,
+    });
+  }
+
+  // The shoot: up out of the planting point, more sideways than it ends so that
+  // it reads as growing *out* of the ground, then straightening as it rises.
+  const sprout = ease((t - SPROUT_AT) / (SPROUT_DONE - SPROUT_AT));
+  const sproutOpacity = Math.min(1, sprout * 4) * (1 - ease((t - FLOWER_AT) / 0.14));
+  if (sproutOpacity > 0) {
+    props.push({
+      id: 'sprout',
+      x: PLANT.x,
+      y: PLANT.y,
+      rotation: PLANT.lean + 14 * (1 - sprout),
+      scale: 0.25 + 0.75 * sprout,
+      opacity: sproutOpacity,
+    });
+  }
+
+  // The bloom, and the shape the row is named for. It opens as it grows -- the
+  // head untwists and then settles, which is the only sort of opening a
+  // one-transform prop can do -- and it is taken in over the last tenth.
+  const bloom = ease((t - FLOWER_AT) / (FLOWER_DONE - FLOWER_AT));
+  const flowerOpacity = Math.min(1, bloom * 4) * (1 - ease((t - TAKEN_IN) / (1 - TAKEN_IN)));
+  if (flowerOpacity > 0) {
+    props.push({
+      id: 'flower',
+      x: PLANT.x,
+      y: PLANT.y,
+      rotation: PLANT.lean - 11 * (1 - bloom) + swell(t, 0.6, 0.92) * 3,
+      scale: (0.25 + 0.75 * bloom) * extra.bloom * (1 + swell(t, 0.62, 0.86) * 0.06),
+      opacity: flowerOpacity,
+    });
+  }
+
+  // She leans over it and watches. One number drives the lean, the shift and the
+  // smile rather than three that would drift apart, and it is `land` so that all
+  // of them are the base values *exactly* at both ends (D-25).
+  const held = land(t / 0.9);
+  const lean = extra.lean * held;
+  r.rotation = base.rotation + lean;
+  r.x = base.x + lean * 0.35;
+  r.faceTilt = base.faceTilt - lean * 0.5;
+  r.smile.depth = base.smile.depth * (1 + held * 0.16);
+  r.smile.span = base.smile.span * (1 + held * 0.06);
+  if (extra.hop) r.y = base.y - swell(t, 0.58, 0.88) * 2.4;
+
+  // What she is looking at: the seed while it is still falling, the bloom once
+  // there is one, and nothing in particular before either. The offset is written
+  // as `base + (target - base) * held` rather than assigned outright so that the
+  // gaze is the base gaze at t = 0 and t = 1 -- and so that this keeps working
+  // the day a base rig arrives with a gaze of its own.
+  const focus: Vec2 =
+    sprout > 0 || bloom > 0
+      ? bloomCentre()
+      : {
+          x: SEED_HELD.x + (PLANT.x - SEED_HELD.x) * fallen,
+          y: SEED_HELD.y + (PLANT.y - SEED_HELD.y) * fallen,
+        };
+  const mag = Math.max(1, Math.hypot(focus.x, focus.y));
+  const gaze: Vec2 = {
+    x: base.eyes.left.gaze.x + (focus.x / mag - base.eyes.left.gaze.x) * held,
+    y: base.eyes.left.gaze.y + (focus.y / mag - base.eyes.left.gaze.y) * held,
+  };
+  r.eyes.left.gaze = gaze;
+  r.eyes.right.gaze = { ...gaze };
+
+  // The glints at the stronger settings: the light coming off the plant as it
+  // grows. Each is drawn only inside its own window -- `continue` rather than a
+  // fade to zero -- so the last frame of the moment has no props in it at all,
+  // and the two are staggered so they are in the air one after the other rather
+  // than in a row.
+  //
+  // They rise along the plant's own lean, from just above the soil to a little
+  // past the bloom, rather than in a freer arc. The reason is the same one that
+  // fixed the planting point: the gap between the rays at 91.5 and 131.5 degrees
+  // is narrow, and a glint that wanders out of it lands *on* the side ray, where
+  // a dark sparkle against orange reads as a speck of dirt on the ray rather
+  // than as light. Light that travels up the stem is also the truer picture --
+  // it is what made the plant grow.
+  const axis = {
+    x: Math.sin((PLANT.lean * Math.PI) / 180),
+    y: -Math.cos((PLANT.lean * Math.PI) / 180),
+  };
+  for (let i = 0; i < extra.gleam; i++) {
+    const p = (t - 0.34 - i * 0.14) / 0.3;
+    if (p <= 0 || p >= 1) continue;
+    // From 8 units above the planting point to 8 units past the bloom, so the
+    // spark leaves the stem at the top rather than stopping on the flower.
+    const rise = 8 + p * 32;
+    props.push({
+      id: 'sparkle',
+      x: PLANT.x + axis.x * rise,
+      y: PLANT.y + axis.y * rise,
+      rotation: p * 160,
+      scale: 0.34 + bump(p) * 0.42,
+      opacity: bump(p) * 0.9,
+    });
+  }
+
+  r.props = props;
+  return r;
+}
+
+/**
+ * The `off` setting's member, and the reduced-motion answer: the plant standing
+ * where it was planted.
+ *
+ * The same call as A05's still and not A04's, and for the same reason: there is
+ * no honest still of a deckchair arriving (D-20), and there *is* an honest still
+ * of a plant growing -- a flower standing beside her is an ordinary thing to
+ * see. So a visitor who has asked for less motion gets the flower rather than
+ * nothing, and what they do not get is the four stages, which is the whole of
+ * what this moment's motion consists of.
+ *
+ * It loops, so at the `off` intensity -- where the setting picks this variant
+ * itself -- the plant simply stays. Reached the other way, as the fallback for a
+ * visitor who asked for less motion at a higher setting, it runs on the clock of
+ * the variant it replaced and is retired with it at 6.2 s. That difference is the
+ * engine's rather than this row's: a fallback has always run on the length of the
+ * moment it stood in for, and every group behaves the same way.
+ *
+ * It is three of the four stages compressed to the last one, which is worth
+ * being plain about: a still cannot show a seed becoming a shoot, so the still
+ * is the end of the story rather than a taste of it.
+ */
+const bloomStill: Sequence = {
+  id: 'bloom-still',
+  group: 'bloom',
+  priority: PRIORITY.play,
+  duration: 1,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'off',
+  assets: ['flower'],
+  reducedMotionFallback: null,
+  states: ['idle', 'playing'],
+  pose: (base) => {
+    const r = cloneRig(base);
+    r.props = [
+      { id: 'flower', x: PLANT.x, y: PLANT.y, rotation: PLANT.lean, scale: 1, opacity: 1 },
+    ];
+    return r;
+  },
+};
+
+/**
+ * A11 at `minimal`: the seed goes in and the flower comes up. The shine is a
+ * suggestion rather than a moment of its own -- at this setting the row is the
+ * plant, not the light that made it grow.
+ */
+const bloomSeed: Sequence = {
+  id: 'bloom-seed',
+  group: 'bloom',
+  priority: PRIORITY.play,
+  duration: 4_200,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'minimal',
+  assets: ['seed', 'sprout', 'flower'],
+  reducedMotionFallback: 'bloom-still',
+  states: ['idle', 'playing'],
+  pose: (base, t) => bloomPose(base, t, { shine: 0.05, gleam: 0, bloom: 1, hop: false, lean: 1.4 }),
+};
+
+/**
+ * A11 at `balanced`: the plan's four stages, in order. The rays stretch while it
+ * is in the ground, and a glint comes off it as it comes up.
+ */
+const bloomGrow: Sequence = {
+  id: 'bloom-grow',
+  group: 'bloom',
+  priority: PRIORITY.play,
+  duration: 5_200,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'balanced',
+  assets: ['seed', 'sprout', 'flower', 'sparkle'],
+  reducedMotionFallback: 'bloom-still',
+  states: ['idle', 'playing'],
+  pose: (base, t) => bloomPose(base, t, { shine: 0.11, gleam: 1, bloom: 1, hop: false, lean: 2.2 }),
+};
+
+/**
+ * A11 at `playful`: the sunlight is at full strength, two glints run up the
+ * plant as it grows, and the bloom is big enough to lift her off the ground
+ * for a moment -- which is the one thing here that is a *reaction* rather than a
+ * reading of the story.
+ */
+const bloomShowcase: Sequence = {
+  id: 'bloom-showcase',
+  group: 'bloom',
+  priority: PRIORITY.play,
+  duration: 6_200,
+  canInterrupt: true,
+  loop: false,
+  intensity: 'playful',
+  assets: ['seed', 'sprout', 'flower', 'sparkle'],
+  reducedMotionFallback: 'bloom-still',
+  states: ['idle', 'playing'],
+  pose: (base, t) => bloomPose(base, t, { shine: 0.16, gleam: 2, bloom: 1.12, hop: true, lean: 3 }),
+};
+
 /**
  * The registry. Every sequence the engine can run is here; the scheduler can
  * only pick from this list, so a typo in a state name is a typecheck failure
@@ -1963,6 +2303,10 @@ export const SEQUENCES: readonly Sequence[] = [
   arcadeTuck,
   arcadeRoll,
   arcadeSpin,
+  bloomStill,
+  bloomSeed,
+  bloomGrow,
+  bloomShowcase,
 ];
 
 export const SEQUENCE_BY_ID: ReadonlyMap<string, Sequence> = new Map(

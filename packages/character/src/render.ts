@@ -320,6 +320,89 @@ const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?
     filled: true,
     surface: true,
   },
+  // ── A11, the plant ─────────────────────────────────────────────────────────
+  //
+  // Three props rather than one, because the row names four stages -- "seed,
+  // shine, sprout, flower" -- and the model cannot morph a prop: a prop is one
+  // path with one transform, so a plant that grows has to be a plant that is
+  // *replaced* by the next one. The staging is therefore a cross-fade: each
+  // stage is its own prop, faded in as the one before it fades out, which is
+  // also why the three share an origin.
+  //
+  // **The seed and the seedling are solid ink marks**, the way the sparkle and
+  // the sweat-drop are: both are small, and a 2.2-unit outline around a 9-unit
+  // object is a smudge rather than an inside. The flower is the first thing in
+  // this moment big enough to have one.
+  //
+  // A seed is a teardrop standing on its point -- round above, pointed below --
+  // so the point is the end that goes into the ground.
+  seed: {
+    d: 'M0 4.4C2.8 1.6 3.6-0.2 3.6-1.6A3.6 3.6 0 0 0-3.6-1.6C-3.6-0.2-2.8 1.6 0 4.4Z',
+    filled: true,
+  },
+  // The sprout and the flower are authored **with their origin at the base**,
+  // unlike every other prop here, which is centred on itself. A plant grows from
+  // where it is planted: with the origin at the base the `scale` a sequence
+  // animates is the plant growing rather than the plant inflating, and the two
+  // stages share a planting point as a consequence of their geometry instead of
+  // by a constant someone has to keep in step. Both are `surface`-painted,
+  // because they are objects with an inside: a stem drawn as a bare ink line is
+  // a mark, and a flower made of marks is a doodle rather than a plant.
+  //
+  // Both are drawn *upright*, and it is the sequence that leans one outward.
+  // That is the opposite of the deckchair, which is authored in the body frame
+  // because the body has to sit in it; a plant has no such relationship with the
+  // character and is a plain object standing beside her.
+  //
+  // The stem is 4 units wide rather than a hairline for the same reason: the
+  // outline is 2.2 units, and a 2-unit stem would be all outline.
+  //
+  // The seedling is smaller than the flowering plant on purpose -- a shoot and a
+  // flower are the same plant, and a seedling drawn at the size of the thing it
+  // becomes is not a seed that grew.
+  //
+  // The leaves are short next to the stem, which is a decision about the scene
+  // rather than about the plant: a leaf reaching 12 units to the side is a leaf
+  // that lands across one of the character's rays, and a stem with wings is
+  // worse in this composition than a stem with leaves. Both stages keep them
+  // short for the same reason, and the flower's are the seedling's scaled up so
+  // the cross-fade from one to the other is a plant getting bigger.
+  //
+  // The bloom is six petals of radius 6 on a ring of radius 8 about (0, -30):
+  // big enough at launcher size that the cream inside each petal reads, and
+  // small enough that the six outlines crossing in the middle read as petals
+  // rather than as a scribble. The centre they leave uncovered is the flower's
+  // middle, which is why there is no disc drawn there, and the ring is centred
+  // on the stem rather than offset to one side so that the flower leans away
+  // from the character as one object instead of the head drooping off its own
+  // stalk.
+  sprout: {
+    d:
+      // The stem, from the planting point up.
+      'M-1.6 0H1.6V-8H-1.6Z' +
+      // One leaf to each side, the right one set higher, because a seedling
+      // whose leaves are level reads as a machine part rather than a plant.
+      'M-0.9-4.7C-2.8-6.1-5.8-5.9-6.6-4.4-5.5-2.9-2.7-3.1-0.8-4.4Z' +
+      'M0.9-7.8C2.8-9.2 5.8-9 6.6-7.6 5.5-6 2.7-6.2 0.8-7.6Z',
+    filled: true,
+  },
+  flower: {
+    d:
+      // The stem, with its two leaves where the seedling had them.
+      'M-2 0H2V-22H-2Z' +
+      'M-1.3-6.8C-4-8.6-8.3-8.4-9.4-6.3-7.8-4.2-3.8-4.4-1.1-6.3Z' +
+      'M1.3-11.2C4-13.1 8.3-12.9 9.4-10.8 7.8-8.6 3.8-8.8 1.1-10.8Z' +
+      // The bloom: a ring of six petals of radius 6 about (0, -30), which
+      // `sequences.ts` is told as `BLOOM_UP` so the gaze can be aimed at it.
+      'M2-30a6 6 0 1 0 12 0 6 6 0 1 0-12 0Z' +
+      'M-2-23.1a6 6 0 1 0 12 0 6 6 0 1 0-12 0Z' +
+      'M-10-23.1a6 6 0 1 0 12 0 6 6 0 1 0-12 0Z' +
+      'M-14-30a6 6 0 1 0 12 0 6 6 0 1 0-12 0Z' +
+      'M-10-36.9a6 6 0 1 0 12 0 6 6 0 1 0-12 0Z' +
+      'M-2-36.9a6 6 0 1 0 12 0 6 6 0 1 0-12 0Z',
+    filled: true,
+    surface: true,
+  },
 };
 
 function renderProp(prop: PropRig, paint: Paint): string {

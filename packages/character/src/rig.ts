@@ -88,6 +88,9 @@ export const PROP_IDS = [
   'deckchair',
   'balloon',
   'paddle',
+  'seed',
+  'sprout',
+  'flower',
 ] as const;
 export type PropId = (typeof PROP_IDS)[number];
 

@@ -13,7 +13,7 @@ import {
   sequencesForState,
 } from '@sunny/animation-engine';
 import type { Intensity, Sequence } from '@sunny/animation-engine';
-import { defaultRig, PROP_IDS, toViewBox } from '@sunny/character';
+import { defaultRig, PROP_IDS, RAY, toViewBox } from '@sunny/character';
 import type { PropRig, SunnyRig } from '@sunny/character';
 
 /**
@@ -896,5 +896,248 @@ describe('A10, the arcade spin', () => {
     expect(scheduler.request('arcade', 'playing', 0)).toBe(true);
     expect(scheduler.request('arcade-roll', 'playing', 0)).toBe(false);
     expect(scheduler.active.filter((i) => i.sequence.group === 'arcade')).toHaveLength(1);
+  });
+});
+
+describe('A11, the plant', () => {
+  const variants = ['bloom-seed', 'bloom-grow', 'bloom-showcase'] as const;
+  /** How finely the moment is walked when a claim is about the whole of it. */
+  const STEPS = 400;
+
+  /** The props a sequence actually draws, and the first moment each is visible. */
+  function drawnBy(id: string, visible = 0.05): Map<string, number> {
+    const sequence = SEQUENCE_BY_ID.get(id)!;
+    const first = new Map<string, number>();
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      for (const prop of sequence.pose(base, t).props) {
+        if (prop.opacity > visible && !first.has(prop.id)) first.set(prop.id, t);
+      }
+    }
+    return first;
+  }
+
+  it('tells the story in order, in one sequence rather than four moments', () => {
+    // The row names four stages and the order is the whole of its interest. Four
+    // sequences would be four chances to be interrupted between them -- a visitor
+    // who looked away would have planted a seed and never seen a flower -- so the
+    // requirement is that one sequence carries all of it, and this is where that
+    // is checked rather than assumed.
+    const first = drawnBy('bloom-showcase');
+    const seed = first.get('seed');
+    const sprout = first.get('sprout');
+    const flower = first.get('flower');
+    for (const [name, at] of [
+      ['seed', seed],
+      ['shoot', sprout],
+      ['flower', flower],
+    ] as const) {
+      expect(at, `the ${name} is never drawn`).toBeDefined();
+    }
+    expect(seed!).toBeLessThan(sprout!);
+    expect(sprout!).toBeLessThan(flower!);
+  });
+
+  it('buries the seed before the shoot breaks the ground', () => {
+    // A deliberate gap rather than a cross-fade: the seed is *in* the ground by
+    // the time anything comes up, because a seed and a shoot on screen together
+    // is a seed beside a plant. The shoot then overlaps the flower on purpose --
+    // that pair *is* the cross-fade, and the flower is meant to come out of it.
+    const sequence = SEQUENCE_BY_ID.get('bloom-showcase')!;
+    let lastSeed = 0;
+    let firstSeed = 1;
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      if (sequence.pose(base, t).props.some((p) => p.id === 'seed' && p.opacity > 0.05)) {
+        lastSeed = t;
+        firstSeed = Math.min(firstSeed, t);
+      }
+    }
+    const sprout = drawnBy('bloom-showcase').get('sprout')!;
+    expect(lastSeed).toBeLessThan(sprout);
+    // And it is not a seed that never lands: it has to be going somewhere.
+    expect(lastSeed - firstSeed).toBeGreaterThan(0.08);
+  });
+
+  it('stretches the rays for the shine, and is done before the bloom opens', () => {
+    // The shine has no prop: the character is the light, so the stage is her rays
+    // lengthening. It also has to be *over* by the time the flower is there, or
+    // the light reads as decoration over the finished plant rather than as what
+    // made it grow -- which is the reason this test is about the end of the shine
+    // rather than only about its size.
+    const sequence = SEQUENCE_BY_ID.get('bloom-showcase')!;
+    let peak = 0;
+    let last = 0;
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      const extra = sequence.pose(base, t).rays[0]!.lengthScale - 1;
+      if (extra > 0.01) last = t;
+      peak = Math.max(peak, extra);
+    }
+    expect(peak).toBeGreaterThan(0.1);
+    expect(last).toBeLessThan(drawnBy('bloom-showcase').get('flower')!);
+  });
+
+  it('draws every prop it declares, and nothing it does not', () => {
+    // `assets` is the promise a sequence makes about what it paints. The whole-file
+    // invariants check the two halves separately -- that every asset is a real prop
+    // and that nothing undeclared is drawn -- so what is left to check is the
+    // direction neither of them covers: a variant that declares a prop it never
+    // draws, which is a cross-fade that has quietly stopped happening.
+    for (const id of [...variants, 'bloom-still'] as const) {
+      const sequence = SEQUENCE_BY_ID.get(id)!;
+      expect([...drawnBy(id).keys()].sort(), `${id} draws`).toEqual([...sequence.assets].sort());
+    }
+  });
+
+  it('plants it in the gap between her rays', () => {
+    // The composition rule this row put on itself, and the one that took the
+    // longest to get right: the plant is not drawn across a ray. She has eight,
+    // and the two that own the lower right leave a 40-degree gap; a plant
+    // anywhere else on that side is a stem through an orange triangle, which is
+    // what the first attempt at this moment looked like.
+    //
+    // Measured rather than eyeballed, against the rays' real geometry: at the
+    // radius a point sits at, a ray is this wide, and the point is clear if it is
+    // further than that from the ray's axis.
+    const halfWidthAt = (radius: number): number => {
+      if (radius <= RAY.baseRadius || radius >= RAY.tipRadius) return 0;
+      const along = (radius - RAY.baseRadius) / (RAY.tipRadius - RAY.baseRadius);
+      return RAY.baseHalfWidth * (1 - along) + RAY.apexRadius * along;
+    };
+    const clearance = (x: number, y: number): number => {
+      const radius = Math.hypot(x, y);
+      if (radius >= RAY.tipRadius || radius <= RAY.baseRadius) return Infinity;
+      const angle = (Math.atan2(x, -y) * 180) / Math.PI;
+      return Math.min(
+        ...RAY.anglesDeg.map((ray) => {
+          const off = Math.abs(((angle - ray + 540) % 360) - 180);
+          return radius * Math.sin((off * Math.PI) / 180) - halfWidthAt(radius);
+        }),
+      );
+    };
+
+    // The bloom's centre sits 30 units up the stem and its petals reach a further
+    // 14, so the top of the flower is the highest point the artwork puts in the
+    // gap; the leaf tips are the other extreme and are within 2.6 units of the
+    // 131.5-degree ray at the lean this moment uses. Checked here at the two ends
+    // of the plant that the rig can reason about -- the planting point and the top
+    // of the bloom. Everything between them is inside that envelope, and the
+    // baseline is what catches the artwork's own corners.
+    const TOP_OF_BLOOM = 44;
+    for (const id of [...variants, 'bloom-still'] as const) {
+      const sequence = SEQUENCE_BY_ID.get(id)!;
+      for (let i = 0; i <= STEPS; i++) {
+        const t = i / STEPS;
+        for (const prop of sequence.pose(base, t).props) {
+          if (prop.opacity <= 0.05) continue;
+          expect(
+            clearance(prop.x, prop.y),
+            `${id} at t=${t}: ${prop.id} sits on a ray`,
+          ).toBeGreaterThan(0);
+          if (prop.id !== 'flower') continue;
+          const lean = (prop.rotation * Math.PI) / 180;
+          const top = {
+            x: prop.x + Math.sin(lean) * TOP_OF_BLOOM * prop.scale,
+            y: prop.y - Math.cos(lean) * TOP_OF_BLOOM * prop.scale,
+          };
+          expect(
+            clearance(top.x, top.y),
+            `${id} at t=${t}: the bloom's top sits on a ray`,
+          ).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it('leaves the plant standing for a reduced-motion visitor', () => {
+    // The same decision as A05's still and not A04's: there is no honest still of
+    // a plant *growing*, but a flower standing beside her is an ordinary thing to
+    // see, so asking for less motion costs the visitor the story and not the
+    // plant. Three of the four stages are compressed into the one the row is
+    // about, which is the honest thing to do with them.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.play('bloom', 0);
+    // For as long as the request lives, which is the clock of the variant the
+    // setting picked rather than the still's own: a fallback runs on the length
+    // of the moment it replaced, so the plant stands for the 6.2 s the showcase
+    // would have taken.
+    for (const now of [0, 3_000, 6_000]) {
+      const frame = a.frame(now, { reducedMotion: true });
+      expect(frame.sequenceId, `at ${now}`).toBe('bloom-still');
+      expect(frame.rig.props.filter((p) => p.opacity > 0.001).map((p) => p.id)).toEqual(['flower']);
+    }
+    // And is then retired with the moment, which is what every finite moment does
+    // with its props. Stated rather than left as a surprise: it is the *story* the
+    // visitor is spared, not the picture.
+    expect(a.frame(6_300, { reducedMotion: true }).sequenceId).toBe('idle-still');
+    // And where it stands is where the growth puts it, which is what lets the
+    // last stage be a cross-fade rather than two drawings sliding past each
+    // other: the still and the grown flower share a planting point.
+    const still = SEQUENCE_BY_ID.get('bloom-still')!.pose(base, 0).props[0]!;
+    const grown = SEQUENCE_BY_ID.get('bloom-showcase')!
+      .pose(defaultRig(), 0.7)
+      .props.find((p) => p.id === 'flower')!;
+    expect(still.x).toBe(grown.x);
+    expect(still.y).toBe(grown.y);
+  });
+
+  it('picks the variant the tenant’s motion setting allows', () => {
+    // `off` is not an absence here: the setting that removes the motion keeps the
+    // plant, which is the same still a reduced-motion visitor gets.
+    const cases: ReadonlyArray<[Intensity, string]> = [
+      ['off', 'bloom-still'],
+      ['minimal', 'bloom-seed'],
+      ['balanced', 'bloom-grow'],
+      ['playful', 'bloom-showcase'],
+    ];
+    for (const [intensity, id] of cases) {
+      const a = new SunnyAnimator(defaultRig(), { intensity, seed: 3 });
+      expect(a.play('bloom', 0), `asking at ${intensity}`).toBe(true);
+      expect(a.frame(0).sequenceId, `at ${intensity}`).toBe(id);
+    }
+  });
+
+  it('is refused where a plant would be out of place', () => {
+    // The group lists `idle` and `playing`, the two states where she is not doing
+    // anything else, so an application asking for the showcase in the middle of an
+    // answer is dropped rather than layered over the visitor's answer.
+    const a = new SunnyAnimator(defaultRig(), { intensity: 'playful', seed: 3 });
+    a.dispatch({ type: 'turn_started' }, 0);
+    a.dispatch({ type: 'speaking_started' }, 10);
+    expect(a.state).toBe('speaking');
+    expect(a.play('bloom', 20)).toBe(false);
+
+    // Never once, over more than the whole of the longest variant's duration.
+    const drawn = new Set<string | null>();
+    for (let i = 0; i <= 140; i++) drawn.add(a.frame(20 + i * 50).sequenceId);
+    for (const id of drawn) {
+      expect(SEQUENCE_BY_ID.get(id ?? '')?.group, `${id} took the frame`).not.toBe('bloom');
+    }
+  });
+
+  it('returns to the exact default pose, and leaves nothing behind', () => {
+    // The row's acceptance is a finite moment that ends where it started. Exact,
+    // not close: every field is written as `base.field + term` with a term that is
+    // zero at both ends, so the comparison is `toEqual` rather than a tolerance --
+    // and it covers the props too, which is the harder half, because a prop that
+    // is merely nearly faded out is a flower that is still on screen.
+    for (const id of variants) {
+      const sequence = SEQUENCE_BY_ID.get(id)!;
+      expect(sequence.pose(defaultRig(), 0), `${id} at t=0`).toEqual(base);
+      expect(sequence.pose(defaultRig(), 1), `${id} at t=1`).toEqual(base);
+      expect(sequence.pose(defaultRig(), 1).props, `${id} at t=1 leaves`).toHaveLength(0);
+    }
+  });
+
+  it('cannot run two plantings at once', () => {
+    // The same structural guard every other group relies on, checked here because
+    // this group is the first one an application can ask for by name: two calls
+    // from one page are far easier to make by accident than two identical machine
+    // events.
+    const scheduler = new Scheduler('playful', false);
+    expect(scheduler.request('bloom', 'idle', 0)).toBe(true);
+    expect(scheduler.request('bloom-grow', 'idle', 0)).toBe(false);
+    expect(scheduler.active.filter((i) => i.sequence.group === 'bloom')).toHaveLength(1);
   });
 });

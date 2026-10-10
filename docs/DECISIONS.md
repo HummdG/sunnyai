@@ -1245,3 +1245,112 @@ context. Two baselines are added: the spin at the middle of the turn, and the
 reduced-motion tuck, which is the fallback being _used_ rather than merely
 declared. Both were re-rendered under `node:22-bookworm` and are byte-identical
 there, as the suite's whole premise requires.
+
+## D-26. A11 plants a flower, and the model cannot morph
+
+The plan's row is "Plant flower | Seed, shine, sprout, flower | Solar-theme
+showcase". Three columns, three separate problems: the middle one is a four-act
+story the engine has to tell in one moment, the left one says the moment is the
+sun doing what the sun does, and the right one is what the moment is _for_.
+
+**Three props for four stages, because a prop cannot morph.** A prop is one path
+with one transform (D-2), so there is no way for a seed to _become_ a shoot: the
+growth is a cross-fade, each stage faded in as the one before it fades out. That
+leaves an ordering rule which the tests hold rather than the eye -- the seed is
+**in the ground before the shoot breaks it**, the two never on screen together,
+because a seed beside a plant is not a story -- while the shoot and the flower
+**do** overlap, because the flower is meant to come out of the shoot. The shine
+has no prop at all: she _is_ the light, so that stage is her rays lengthening,
+the one stage of the four whose strength differs at every intensity. A fourth
+prop would have been a beam, and a beam is a painting of something she already
+is.
+
+**Two of the three paintings are authored from their base, and that is what
+makes the cross-fade work.** `sprout` and `flower` both put their origin where
+they are planted rather than at their own centre, so the shoot and the bloom fade
+over the same spot instead of two drawings sliding past each other. The seed is
+not: it is drawn about its own middle, because it is held, then dropped, then
+turned upright by the fall. The three are painted the way their size demands --
+the seed and the shoot as solid ink marks, the way the sparkle and the sweat-drop
+are, because a 2.2-unit outline around a 9-unit object is a smudge rather than an
+inside; the flower with a cream inside and an outline like the sunglasses, being
+the first thing in this moment big enough to have one.
+
+**The one number copied out of the artwork is the bloom's height, and it exists
+because she looks at the flower.** `BLOOM_UP = 30` in `sequences.ts` is the
+distance from the planting point to the bloom's centre in the `flower` path, and
+the gaze is aimed at `(0, -30)` rotated by the plant's lean. A sequence that
+looked at "the top of the plant" would be looking at nothing in particular,
+because there is no way to ask a path where its far end is. So the constant is
+duplicated with a comment saying so, and the two are one fact in two files. The
+alternative -- a gaze aimed a little to the left of the flower forever -- is
+worse than the comment.
+
+**"Solar-theme showcase" is a composition constraint, and it is why the plant
+leans _away_ from her.** The first version of this moment put the plant in the
+lower right and drew it straight across the ray at 131.5 degrees: a black smudge
+on an orange triangle, past saving by tint or outline. She has eight rays and the
+two that own the lower right leave a 40-degree gap, so the plant goes in the gap
+-- 64 units out, past both ray tips at 75.5, leaning 14 degrees away, which keeps
+the stem outside the ray ring the whole way up. Leaning it _toward_ her, the
+direction a real plant grows toward a sun, would grow it straight across the rays
+this placement exists to avoid; the lean is not botany, it is the open space. The
+same rule then caught the glints. The first version drifted them up and to the
+right on their own arc, and at the top of that arc they landed on the ray at 91.5
+degrees, where a dark sparkle on orange reads as a speck of dirt on the ray rather
+than as light. They now rise along the plant's own lean, from just above the soil
+to a little past the bloom -- which is also the truer picture, light travelling up
+the stem being what made it grow. A test holds the whole of it: for every prop of
+every variant, at 400 points through the moment, its distance from the nearest
+ray's axis must exceed that ray's half-width at its radius, computed from `RAY`
+rather than from numbers copied into the test. It covers the planting point and
+the top of the bloom, the two ends the rig can reason about, and the baseline
+catches the artwork's own corners; the leaf tip, the tightest point in the
+drawing, comes within 2.6 units of the 131.5-degree ray.
+
+**A reduced-motion visitor gets the flower, which is A05's decision and not
+A04's.** There is no honest still of a deckchair arriving (D-20), and there _is_
+an honest still of a plant growing: a flower standing beside her is an ordinary
+thing to see. So the fallback is `bloom-still` -- three of the four stages
+compressed into the one the row is about -- and what the visitor is spared is the
+story rather than the plant. It is a fourth image in a suite where the other three
+reduced-motion scenes fall back to the resting pose, and the baseline is the
+record of that. One asymmetry is worth stating because a test found it rather than
+reasoning: a fallback runs on the **clock of the variant it replaced**, so reached
+as a reduced-motion fallback at a higher intensity the plant stands for the 6.2 s
+the showcase would have taken and is then retired with the moment, while at `off`
+-- where the setting selects the still itself -- it loops and stays. That is the
+engine's behaviour rather than this row's; every group with a fallback does the
+same, and the test now asserts both halves.
+
+**It is the first moment with no event at all, so it needed a new answer to "who
+asks for this?".** `asked: 'app'` has been a possible answer since D-18 and this
+is the first animation to actually be one: nothing in the machine asks for the
+planting, because it is not a response to anything. An application calls
+`SunnyAnimator.play('bloom')` when it wants to show a visitor what sunlight does,
+and that is a decision no event could make. So `UNWIRED_GROUPS` grows by one and
+`UNREACHABLE_GROUPS` does not move: unwired is "implemented, needs a caller",
+unreachable is "no caller exists", and the difference between the two lists is the
+whole reason the catalogue distinguishes them. The lab's gallery plays it from the
+card, which is what an application does, and its card is the first with an empty
+route -- the tooltip says "plays from the resting state" because that is the truth
+of it. That found a real gap in the harness: the visual scenes could only dispatch
+events or taps, so a moment with no event **could not be looked at** by the suite
+that exists to look at things. `Scene` gains an optional `play`, wired through the
+same public `play()` the lab uses, and the A11 scenes are its first users -- the
+app-request path is now exercised by the baselines rather than only by the lab.
+
+**What is checked where.** Ten engine tests: the four stages in order and in one
+sequence rather than four moments; the seed buried before the shoot; the rays
+stretching for the shine and finishing before the bloom opens; every declared
+asset actually drawn; the ray clearance above; the reduced-motion still on both
+clocks and standing where the growth puts it; which variant each of the four
+intensities selects; the ask being refused mid-conversation; the exact return to
+the default pose at both ends with nothing left behind; and two plantings being
+refused at once. The catalogue gains one entry, so the bijection test and the
+gallery's counts move with it. Two baselines are added, and which two frames they
+are is itself the decision: the **seed** in the soil with the rays lengthening --
+the only frame in the whole suite where `seed` is on screen, and the finished
+flower deliberately not spent here because the reduced-motion scene is already
+that picture -- and the reduced-motion **still**, a full flower standing beside
+her. Both were re-rendered under `node:22-bookworm` and are byte-identical there.
