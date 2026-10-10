@@ -9,6 +9,7 @@ export * from './types.js';
 export * from './machine.js';
 export * from './scheduler.js';
 export * from './sequences.js';
+export * from './catalogue.js';
 export * from './engine.js';
 
 import type { MachineEvent } from './machine.js';
