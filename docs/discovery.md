@@ -131,7 +131,7 @@ not exist).
 | `apps/widget-demo`                            | Implemented    | Plain-HTML host fixture that loads the built widget bundle from `packages/widget/dist`.                                                                                                                                            |
 | `apps/widget-demo-react`                      | Implemented    | React 19 host fixture (React + `StrictMode`, bundled by esbuild), driven by `tests/e2e/react-host.spec.ts`. Its bundle is gitignored rather than committed, unlike the character lab's.                                            |
 | `apps/widget-demo-next`                       | Implemented    | Next.js 16 (App Router) host fixture, served as a production build by `next start`. Two routes: the documented snippet, and `next/script`. Driven by `tests/e2e/next-host.spec.ts`. Its bundle and `.next/` output are gitignored. |
-| `apps/marketing`                              | Stub           | Directory + `package.json` only. Its `dev`/`build` scripts point at `scripts/dev.mjs` and `scripts/build.mjs`, which **do not exist**; `src/` is empty.                                                                            |
+| `apps/marketing`                              | Implemented    | Next.js 16 marketing site: hero with the live character, a working demo that mounts the real widget, the theme presets, and an honest pricing shell. Built with webpack (D-15). Driven by `tests/e2e/marketing.spec.ts`.           |
 | `apps/dashboard`                              | Absent         | The plan's §3.2 layout calls for it; there is no such directory.                                                                                                                                                                   |
 | `packages/contracts`                          | Implemented    | Zod schemas as the single source of truth: error envelope (9 codes), chat stream events, widget/session schemas, closed tool-name and page-action lists.                                                                           |
 | `packages/character`                          | Implemented    | Rig, geometry constants, pure SVG renderer, colour tokens, sample-pose rasteriser.                                                                                                                                                 |
@@ -257,13 +257,19 @@ Where the plan's assumptions met reality and did not match.
   in `packages/widget/src/widget.ts`. No FPS measurement has been recorded.
 - **Evidence:** `packages/widget/src/widget.ts` line 35.
 
-### 4.9 `apps/marketing` cannot build
+### 4.9 `apps/marketing` — resolved this session
 
 - **Plan assumption** (§6.1): a complete Next.js marketing site.
-- **Reality:** `apps/marketing/package.json` references `scripts/dev.mjs` and
-  `scripts/build.mjs`, neither of which exists, and `src/` is empty. The root
-  `dev:marketing` script therefore fails.
-- **Evidence:** `apps/marketing/`; root `package.json`.
+- **Reality then:** `apps/marketing/package.json` referenced `scripts/dev.mjs`
+  and `scripts/build.mjs`, neither of which existed, and `src/` was empty. The
+  root `dev:marketing` script failed.
+- **Now:** the site is built and served, and `npm run build:marketing` is part
+  of the browser suite (30 checks, 9 of them on this site). Two of the plan's
+  §6.1 items are deliberately **not** built, and the reasons are recorded rather
+  than glossed: an animation gallery (the theme presets are shown, but there is
+  no gallery of every sequence) and any marketing claim that would need a
+  customer to be true.
+- **Evidence:** `apps/marketing/`; `tests/e2e/marketing.spec.ts`; D-15.
 
 ### 4.10 Minor wording mismatches
 

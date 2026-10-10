@@ -11,12 +11,14 @@ blockers below are stated first and in full.
 
 ## The one-paragraph version
 
-The character rig, the animation engine and the API's first vertical slice are
-built, tested and green: **280 tests across 9 files**, a real fidelity comparison
+The character rig, the animation engine, the API's first vertical slice and the
+public marketing site are built, tested and green: **285 tests across 10 files**,
+a real fidelity comparison
 against the supplied artwork, **26/26 API smoke checks** against a running server,
-and **21 browser end-to-end checks** — including an axe accessibility pass — over
-the widget mounted by its own embed snippet, in a React host page, and in a
-Next.js host page. The
+and **30 browser end-to-end checks** — including an axe accessibility pass — over
+the widget mounted by its own embed snippet, in a React host page, in a Next.js
+host page, and on the marketing site, which runs the real widget and the real
+character rather than pictures of them. The
 assistant itself **has never answered a prompt**, because there is no model
 credential in this environment — the deployment correctly refuses instead of
 simulating. Terraform exists and has
@@ -28,19 +30,19 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                              | Result                                                                     |
-| ------------------------------ | ------------------------------------ | -------------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                                |
-| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                                 |
-| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                |
-| Unit / contract / visual tests | `npm run test`                       | **280 passed (9 files)**                                                   |
-| Browser end-to-end             | `npm run verify:all`                 | **21 passed** (Chromium, three real host pages, real API, real shadow DOM) |
-| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                             |
-| Character lab bundle           | `npm run build`                      | 65.0 kB                                                                    |
-| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                            |
-| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                                      |
-| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                         |
-| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)        |
+| Check                          | Command                              | Result                                                                    |
+| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                               |
+| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                                |
+| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)               |
+| Unit / contract / visual tests | `npm run test`                       | **285 passed (10 files)**                                                 |
+| Browser end-to-end             | `npm run verify:all`                 | **30 passed** (Chromium, four real host pages, real API, real shadow DOM) |
+| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                            |
+| Character lab bundle           | `npm run build`                      | 65.0 kB                                                                   |
+| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                           |
+| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                                     |
+| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                        |
+| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)       |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -95,8 +97,41 @@ first real finding should not be the one that matters.
   `next/script`, which creates the element after hydration rather than during the
   server render. Plus client-side routing between the two routes, which exercises
   the dedupe rule through a router instead of a hand-removed tag.
+- **Browser, marketing site** (`tests/e2e/marketing.spec.ts`) — the one page that
+  drives the character engine directly rather than only through the widget, so it
+  is where a broken frame loop would be caught: the hero is asserted to paint the
+  canonical colours and to redraw, the visitor's own buttons are asserted to make
+  it react, and the real widget is asserted to mount and open. It also asserts the
+  page's _honesty_ — that the pricing section carries no figure and the page
+  carries no customer claim — because those are the two ways this page could lie
+  without any test noticing.
 
-### Fixed in this session
+### Fixed in this session (the marketing site)
+
+Three findings, all of them caught by the checks rather than by reading the code:
+
+- **Two colour-contrast failures on the new page.** Axe failed the first run:
+  the eyebrow label at 2.66:1 (deep orange on pale orange) and the browser-chrome
+  URL bar at 4.25:1. The second is the instructive one — the muted token is
+  calibrated against the warm-white page background where it passes, and was
+  being used on a tinted bar, where it does not by a hair. A token is only valid
+  on the surface it was measured against, so it is overridden locally with the
+  measurement written next to it. Both are now ink.
+- **The marketing page broke a different test by doing its job.** It mounts the
+  real widget, so every page load in the suite spent a session from the API's
+  per-address rate-limit bucket. At the shipped default the last widget test to
+  run got a 429 and failed with "loads without console errors". The limit is
+  raised explicitly for the e2e server rather than worked around in the tests,
+  because the limiter's own coverage lives in `apps/api/test`, where the
+  threshold is the subject rather than an obstacle.
+- **A test read the character mid-redraw.** The hero's frame loop replaces the
+  stage's markup about thirty times a second, so a node located a moment earlier
+  can be detached by the time it is read — and a detached element has no computed
+  style, so the read comes back empty. It passed alone and failed in the full
+  run. The assertion now polls, which retries a read that lost the race; it was
+  run three times afterwards to confirm the fix rather than assuming it.
+
+### Fixed in the previous session
 
 - **The demo page had never actually loaded the widget.** The bundle was mounted
   under the URL `/sunny-widget.js`, but `serveStatic` treats a mount's prefix as a
@@ -327,13 +362,14 @@ belongs to a different codebase. **This needs a decision from the user** — see
 
 ### 8. Not built at all
 
-`packages/ui`, `packages/solar-rules` and `packages/sunscan-adapter` are
-`package.json`-only stubs. `apps/dashboard` and `apps/marketing` do not exist.
-`tests/security` and `tests/visual` are empty directories. (`tests/e2e` is not —
-it holds the Playwright suites.) The plan calls for those two apps to be Next.js
-sites. Next 16 is now in the repository and the widget is tested under it
-(D-14), so the framework is no longer a guess — what remains is building the
-surfaces themselves, which is the largest piece of unblocked work left.
+`packages/solar-rules` and `packages/sunscan-adapter` are `package.json`-only
+stubs. `packages/ui` is real but only holds tokens — no components yet.
+`apps/dashboard` does not exist. `tests/security` and `tests/visual` are empty
+directories. (`tests/e2e` is not — it holds the Playwright suites.) `apps/marketing`
+now exists and is built (D-15), which makes the dashboard the larger remaining
+gap of the two: it is the one the plan's P10 blocks on a product decision rather
+than on code, and it is the only surface that still needs a data source that has
+not been designed.
 
 ### 9. Section 12's required checks, honestly accounted
 
@@ -429,13 +465,16 @@ properly rather than sketched.
    contract (item 5) or a model credential (item 2) — each of which turns a
    mocked or refusing surface into a real one.
 
-7. **The product surfaces the plan names do not exist yet**, and this is now the
-   largest piece of remaining work that needs nothing from outside the
-   repository: `apps/marketing` (plan P3, whose exit gate is a visual regression
-   and a Lighthouse/accessibility baseline) and `apps/dashboard` (plan P10).
-   The framework question is settled rather than open — the plan says Next.js,
-   the widget is now tested under Next 16 in two integrations (D-14), and the
-   repository already carries the dependency. What remains is the surfaces
-   themselves, and `apps/marketing` comes first because `apps/dashboard` is
-   behind `GET /v1/dashboard/metrics`, which is a product decision before it is
-   a route.
+7. **The dashboard does not exist** (plan P10), and it is the largest piece of
+   remaining work that needs nothing from outside the repository. It sits behind
+   `GET /v1/dashboard/metrics`, which is a product decision before it is a route:
+   until someone decides what an installer should see on opening the tool, there
+   is no schema to build against.
+
+   `apps/marketing` (P3) was the other half of this item and is now built. Its
+   exit gate in the plan is "a visual regression and a Lighthouse/accessibility
+   baseline" and it is **half met**: axe passes at `serious` and above, and the
+   hero's motion is asserted in a browser. There is no Lighthouse run and no
+   visual regression against the reference artwork, so the gate should be
+   described as half met rather than met — the accessibility half is real, the
+   performance half has never been measured.

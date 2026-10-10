@@ -395,7 +395,7 @@ framework is a security decision here, not a preference.
 The plan asks for plain-HTML, React and Next.js host fixtures before the widget's
 embed story can be called done, on the reasoning that a widget which works in one
 host shape is not evidence that it works in another. Both framework fixtures now
-exist (`apps/widget-demo-react`, `apps/widget-demo-next`) and all 21 browser
+exist (`apps/widget-demo-react`, `apps/widget-demo-next`) and all 30 browser
 checks pass.
 
 **The version is load-bearing.** `next@15.5.27` — the version installed first,
@@ -425,3 +425,54 @@ What this does **not** settle is where the product surfaces go. `apps/marketing`
 Next.js sites. What has changed is that this is no longer an assumption: the
 widget's behaviour under Next, under both supported integrations and under
 client-side routing, is now a tested fact rather than a hope.
+
+## D-15. The marketing site, and why it builds with webpack rather than Turbopack
+
+`apps/marketing` is the first product surface in this repository, and the first
+thing built with the plan's Next.js rather than a fixture that embeds the
+widget. Three decisions came out of it.
+
+**The site builds with webpack, and that is a build-tool concession, not a
+preference.** Every package here points `main` at TypeScript source and writes
+relative imports with a `.js` extension, which is what Node's ESM resolver
+requires of the emitted JavaScript. Bundlers normally infer the mapping back to
+`.ts`; esbuild does, which is why the widget bundle has never needed
+configuration. Next's webpack build does not, and neither does Turbopack — both
+fail with `Can't resolve './tokens.js'` on the first shared package they reach.
+Webpack exposes the switch for it (`resolve.extensionAlias`); Turbopack has no
+equivalent. So the choice was:
+
+1. build every shared package to `dist/` purely so the bundler can find it, or
+2. run this one app on webpack and set the alias.
+
+Option 1 would mean the page and the tests no longer consume the same artefact —
+the property that makes "there is no compiled copy that can fall behind" true.
+That is a real property, and it was traded for a build-tool detail only in the
+direction that keeps it. If Turbopack gains an extension alias, this decision
+should be revisited and the alias deleted, not preserved out of habit.
+
+**The colour tokens are generated, not written.** `packages/character` already
+describes itself as the single source of truth for colour "so the rig, the
+widget and the marketing site cannot drift apart". A second copy of `#FF7900` in
+`packages/ui` would have falsified that sentence the moment either changed.
+So `packages/ui/src/tokens.css` is an artefact of `cssVariables()`, written by
+`npm run build:tokens`, and a test asserts the file on disk is byte-identical to
+the function's output. It is in `.prettierignore` for the same reason snapshots
+are: its exact bytes are the assertion, so reformatting it would rewrite the
+expectation instead of the code.
+
+**The site publishes no pricing and claims no customers.** The plan forbids
+inventing pricing, and there is no price list to publish, so the pricing section
+says exactly that and stops. There are likewise no logos, testimonials, ratings
+or install counts, because there are no customers yet. These are asserted in
+`tests/e2e/marketing.spec.ts` rather than left to review: a currency symbol
+appearing in the pricing section, or the words "trusted by" anywhere on the
+page, fails the build. The point is not that the copy is finished — it is that
+adding a claim later has to be deliberate.
+
+Axe found two genuine contrast failures on the first run, both since fixed: the
+eyebrow label at 2.66:1 (deep orange on pale orange) and the URL bar at 4.25:1
+(the muted token, which is calibrated against the warm-white page background and
+was being used on a tinted bar). The second is the more interesting one — a
+token is only valid on the surface it was measured against, and the fix was to
+override it locally rather than to trust the name.
