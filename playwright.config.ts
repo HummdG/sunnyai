@@ -18,6 +18,7 @@ const API_PORT = Number(process.env.API_PORT ?? 8787);
 const DEMO_PORT = Number(process.env.DEMO_PORT ?? 4173);
 const REACT_PORT = Number(process.env.REACT_PORT ?? 4174);
 const NEXT_PORT = Number(process.env.NEXT_PORT ?? 4175);
+const MARKETING_PORT = Number(process.env.MARKETING_PORT ?? 4176);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -54,6 +55,21 @@ export default defineConfig({
         PORT: String(API_PORT),
         SUNNY_DATA_DIR: '.data-e2e',
         LOG_LEVEL: 'warn',
+        // The limiter is per address in memory, and a test run is one address
+        // making every request in the suite: five servers, dozens of page loads,
+        // most of them mounting a widget that opens a session. At the shipped
+        // defaults the run spends a whole minute's allowance and the last
+        // widget test to run gets a 429 -- a failure that says nothing about the
+        // widget and everything about the harness.
+        //
+        // Raised here rather than worked around in the tests, because the tests
+        // are then free to load a page as often as they need to, and the limiter
+        // keeps its own coverage in `apps/api/test` where the threshold is the
+        // subject rather than an obstacle.
+        SUNNY_RL_SESSION_LIMIT: '10000',
+        SUNNY_RL_CHAT_LIMIT: '10000',
+        SUNNY_RL_LEADS_LIMIT: '10000',
+        SUNNY_RL_QUALIFICATION_LIMIT: '10000',
       },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
@@ -92,6 +108,25 @@ export default defineConfig({
         `npm run build:widget && npm run build -w @sunny/widget-demo-next && ` +
         `npm run start -w @sunny/widget-demo-next`,
       url: `http://127.0.0.1:${NEXT_PORT}/`,
+      reuseExistingServer: false,
+      timeout: 240_000,
+    },
+    {
+      // The marketing site, as a production build like the fixture above.
+      //
+      // It is a product surface rather than a host fixture, but it is started
+      // here for the same reason: it is the only page that mounts the widget
+      // *and* drives the character directly, so it is where an accessibility
+      // regression in either would be caught.
+      command:
+        `npm run build:widget && npm run build -w @sunny/marketing && ` +
+        `npm run start -w @sunny/marketing`,
+      url: `http://127.0.0.1:${MARKETING_PORT}/`,
+      // The site reads its API address at build time, so it must be told the
+      // port the API server above is actually on.
+      env: {
+        NEXT_PUBLIC_SUNNY_API_URL: `http://localhost:${API_PORT}`,
+      },
       reuseExistingServer: false,
       timeout: 240_000,
     },

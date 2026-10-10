@@ -10,6 +10,11 @@ coverage
 # them would rewrite the expectation rather than the code.
 **/__snapshots__/**
 
+# The generated token stylesheet, for the same reason: a test asserts it is
+# byte-identical to what `cssVariables()` produces, so formatting it here would
+# turn that test into a description of Prettier's output instead.
+packages/ui/src/tokens.css
+
 # The reference artwork and any image the docs embed.
 *.png
 *.jpg
@@ -30,3 +35,6 @@ apps/widget-demo-next/public/widget
 apps/widget-demo-next/next-env.d.ts
 apps/widget-demo-next/.next
 packages/widget/dist
+apps/marketing/public/widget
+apps/marketing/next-env.d.ts
+apps/marketing/.next

@@ -2,7 +2,7 @@
   "name": "sunny-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Sunny.ai â€” multi-tenant AI assistant platform for solar installers",
+  "description": "Sunny.ai \u00e2\u20ac\u201d multi-tenant AI assistant platform for solar installers",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -33,8 +33,10 @@
     "dev:marketing": "npm run dev -w @sunny/marketing",
     "smoke": "node scripts/smoke-api.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
-    "verify:all": "npm run verify && npm run build:widget && npm run build:widget-demo-react && npm run build:widget-demo-next && npm run test:e2e",
-    "render:samples": "npm run render -w @sunny/character"
+    "verify:all": "npm run verify && npm run build:widget && npm run build:widget-demo-react && npm run build:widget-demo-next && npm run build:marketing && npm run test:e2e",
+    "render:samples": "npm run render -w @sunny/character",
+    "build:marketing": "npm run build -w @sunny/marketing",
+    "build:tokens": "npm run build:tokens -w @sunny/ui"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

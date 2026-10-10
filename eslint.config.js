@@ -35,9 +35,11 @@ export default tseslint.config(
       // gitignored, so this only matters for a developer who has just built it;
       // without the ignore, `npm run lint` fails on a generated file.
       'apps/widget-demo-react/public/**',
-      // The same bundle, copied here for the Next fixture. Twice on purpose:
-      // these are the two origins the widget has been tested against.
+      // The same bundle, copied in for the Next fixture and the marketing site.
+      // Listed per app because each is a separate origin the widget is served
+      // from, and a new host means a new entry rather than a broad ignore.
       'apps/widget-demo-next/public/**',
+      'apps/marketing/public/**',
       'packages/widget/dist/**',
       '**/*.d.ts',
       // Linting the lint config itself buys nothing, and the file belongs to no

@@ -89,14 +89,16 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      # The demo pages serve built bundles, so they have to exist first. Both are
-      # built explicitly here so that a build failure is reported as a build
-      # failure, rather than surfacing as a browser test that cannot find a file.
-      - name: Build the widget and the host fixtures
+      # The demo pages, the fixtures and the marketing site all serve built
+      # bundles, so those have to exist first. Each is built explicitly here so
+      # that a build failure is reported as a build failure, rather than
+      # surfacing as a browser test that cannot find a file.
+      - name: Build the widget, the host fixtures and the marketing site
         run: |
           npm run build:widget
           npm run build:widget-demo-react
           npm run build:widget-demo-next
+          npm run build:marketing
 
       # `playwright.config.ts` starts the API and the demo page itself, so there
       # is no orchestration here: no service containers, no waiting, no ports.

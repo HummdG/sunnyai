@@ -1,0 +1,6 @@
+# The widget bundle, copied here by `scripts/copy-widget.mjs` so the marketing
+# site can embed the real thing from its own origin. Ignored by a local rule so
+# the directory itself stays in the repository and the build does not need
+# `mkdir` first.
+sunny-widget.js
+sunny-widget.js.map

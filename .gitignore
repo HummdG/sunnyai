@@ -51,3 +51,10 @@ apps/widget-demo-react/public/app.js.map
 # Written by `next build`, and the build is a prerequisite for serving the
 # fixture either way. Committing it would add a file to every Next upgrade diff.
 apps/widget-demo-next/next-env.d.ts
+apps/marketing/next-env.d.ts
+
+# The widget bundle the marketing site embeds, copied there by
+# `npm run prepare-widget`. Same reasoning as the fixture above: a build
+# artefact, rebuilt before the site is served.
+apps/marketing/public/widget/sunny-widget.js
+apps/marketing/public/widget/sunny-widget.js.map
