@@ -26,17 +26,19 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                        | Result                                                              |
-| ------------------------------ | ------------------------------ | ------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`         | _All matched files use Prettier code style_                         |
-| Lint                           | `npm run lint`                 | clean (ESLint, type-aware)                                          |
-| Types                          | `npm run typecheck`            | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)         |
-| Unit / contract / visual tests | `npm run test`                 | **280 passed (9 files)**                                            |
-| Browser end-to-end             | `npm run verify:all`           | **11 passed** (Chromium, real page, real API, real shadow DOM)      |
-| Widget bundle                  | `npm run build`                | 112.1 kB — **30.8 kB gzipped**                                      |
-| Character lab bundle           | `npm run build`                | 65.0 kB                                                             |
-| API smoke                      | `npm run smoke`                | **26/26 checks passed, exit 0**                                     |
-| Character fidelity             | `scripts/compare-reference.py` | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`) |
+| Check                          | Command                              | Result                                                              |
+| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                         |
+| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                          |
+| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)         |
+| Unit / contract / visual tests | `npm run test`                       | **280 passed (9 files)**                                            |
+| Browser end-to-end             | `npm run verify:all`                 | **11 passed** (Chromium, real page, real API, real shadow DOM)      |
+| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                      |
+| Character lab bundle           | `npm run build`                      | 65.0 kB                                                             |
+| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                     |
+| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                               |
+| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                  |
+| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`) |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -44,6 +46,13 @@ Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 adds the widget build and the browser suite. They are separate because the browser
 suite needs a downloaded Chromium (`npm run test:e2e:install`), and a gate that
 cannot run on a fresh checkout is a gate people learn to skip.
+
+The two security checks are the CI job's own commands, run locally because the
+job itself cannot run until something is pushed (D-9). A scanner that has never
+reported anything is an unverified scanner, so the secret grep was checked
+against canaries — a Google-key shape, an `sk-` shape and a PEM header — in a
+gitignored directory, and it caught all three while ignoring a benign line. Its
+first real finding should not be the one that matters.
 
 ### What the tests actually cover
 
@@ -294,7 +303,7 @@ belongs to a different codebase. **This needs a decision from the user** — see
 | E2E (Playwright)               | **done** — 11 checks in Chromium against the real page, API and shadow DOM |
 | Visual snapshots               | **done** as Vitest snapshots; not pixel-diffed against the reference in CI |
 | Accessibility (axe)            | **done** — three widget states, failing at `serious` and above             |
-| Dependency / security scanning | **written, never executed** — the CI job has not run once                  |
+| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run             |
 | Terraform validation           | **written, never executed**                                                |
 | Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                 |
 

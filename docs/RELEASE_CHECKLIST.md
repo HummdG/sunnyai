@@ -52,10 +52,13 @@ Run `npm run verify` — it chains the first four.
   - [ ] the visitor's own chat bubble is **not** covered here — it needs a
         model credential to exist. Its colour is asserted directly instead
         (D-12), so removing that assertion would silently drop the coverage
-- [ ] Dependency and security scanning — **written, never executed.** The CI job
-      also greps for credential-shaped strings (`AIza…`, `BEGIN … PRIVATE KEY`,
-      `sk-…`) and fails the build on a hit. Run it at least once before trusting
-      it.
+- [ ] Dependency and security scanning — **the commands have been run and pass**;
+      the CI _job_ has still never executed
+  - [ ] `npm audit --audit-level=high` → **0 vulnerabilities**
+  - [ ] the committed-secret `git grep` → clean, and verified to fire on canaries
+        for all three shapes (`AIza…`, `BEGIN … PRIVATE KEY`, `sk-…`). Re-check
+        that it still fires if the pattern is ever edited, because a grep that
+        matches nothing looks identical to a grep that is broken
 - [ ] Terraform `fmt -check`, `init -backend=false`, `validate` — **written,
       never executed**; no `terraform`, `tofu` or `gcloud` binary is installed in
       the development environment.

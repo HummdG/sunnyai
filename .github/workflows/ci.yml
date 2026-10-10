@@ -67,6 +67,50 @@ jobs:
             echo "| ${raw} B | ${gz} B |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Separated from `verify` because it needs a downloaded browser: the fast job
+  # stays fast, and a failure here is unmistakably about the browser rather than
+  # about the code the other job already checked.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # `--with-deps` installs the shared libraries Chromium needs on a bare
+      # runner. Without it the browser starts and immediately dies.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The demo page serves the built bundle, so it has to exist first. Run
+      # directly rather than through `verify:all`, which would repeat the whole
+      # fast job's work.
+      - name: Build the widget bundle
+        run: npm run build:widget
+
+      # `playwright.config.ts` starts the API and the demo page itself, so there
+      # is no orchestration here: no service containers, no waiting, no ports.
+      - name: Browser end-to-end and accessibility
+        run: npm run test:e2e
+
+      # Traces and screenshots, which are the only way to diagnose a failure that
+      # only happens in a browser and only sometimes. Kept short-lived because a
+      # trace carries a recording of the run.
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
+
   # Job permissions are the default (read). The API needs no cloud credentials
   # to be typechecked, linted or tested, and this job is deliberately not given
   # an identity that could deploy anything.
