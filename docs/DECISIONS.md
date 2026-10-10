@@ -342,3 +342,47 @@ a model credential and the widget correctly refuses to invent one; a unit test
 proves the maths, and the browser test proves the widget applied it. And the
 palette the widget ships with is now measurably correct rather than assumed to be,
 which is the more useful outcome of the whole exercise.
+
+## D-13. The widget belongs to the document, not to the snippet's parent
+
+**Status: decided and built** (2026-10-10). Recorded because the previous
+behaviour was invisible in exactly the placement integrators are told to use.
+
+The widget used to insert its host element beside its own script tag —
+`script.parentNode.insertBefore(host, script.nextSibling)`. That reads as the
+tidy choice: the widget appears where the integrator put the snippet. It is right
+in one placement, the one our demo page happens to use, where the snippet sits at
+the end of the body.
+
+Two things break it. A snippet pasted into `<head>` — where an embed is usually
+told to go — leaves a `<div>` in the document head, which the browser never
+renders. And a framework is entitled to move the tag: React 19 hoists
+`<script async src>` into the head itself, so a widget that "respects the
+snippet's position" is placed wherever the framework decided, not wherever the
+integrator wrote it.
+
+That is not hypothetical. The React host fixture in `apps/widget-demo-react`
+mounted the widget, the widget fetched its config, registered itself on
+`window.sunny` and reported one instance — and was **invisible**, because the host
+was in the head with a zero-sized bounding box. Every existing test passed, since
+they only ever asserted the element was attached.
+
+**Decided: append the host to `document.body`.** The widget is fixed-positioned
+and painted inside a shadow root, so its place in the document affects nothing
+except paint order, and the end of the body is where an overlay belongs. The
+fallback is `document.documentElement`, for the case where there is no body yet.
+
+**A second decision came out of the same fixture.** Removing the script tag does
+not tear the widget down, and that is deliberate: a widget belongs to the
+_document_, so a single-page app changing route underneath it leaves the assistant
+where it was. The alternative — watching the whole document for the tag's removal
+— is a `MutationObserver` on every customer's page, which is too high a price for
+a teardown nobody asked for. But it means a route change that remounts the
+snippet re-executes the bundle and mounts a second widget, so `boot()` now skips
+a public id that is already present in the document. Several widgets on one page
+remain supported, keyed by id; two of the _same_ widget was never what anyone
+meant, and it looks like two launchers stacked on each other.
+
+Both are pinned in the browser suite: one test asserts the host's parent is
+`BODY` on the plain demo page, and five drive the widget through a React page
+under `StrictMode`, a re-render, and an unmount-and-remount.

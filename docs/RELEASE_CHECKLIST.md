@@ -42,8 +42,8 @@ Run `npm run verify` — it chains the first four.
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **11 passing**
-      in Chromium
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **17 passing**
+      in Chromium, over the plain-HTML demo and the React host fixture
   - [ ] requires `npm run test:e2e:install` once per machine; a release
         that skipped it has never driven the embed snippet in a browser
   - [ ] axe fails the run at `serious` and above. Passing it is a floor, not a
@@ -52,6 +52,9 @@ Run `npm run verify` — it chains the first four.
   - [ ] the visitor's own chat bubble is **not** covered here — it needs a
         model credential to exist. Its colour is asserted directly instead
         (D-12), so removing that assertion would silently drop the coverage
+  - [ ] the React page is the one that catches a host-framework break
+        (D-13). It is also the only fixture that exercises `StrictMode`, so
+        dropping it would leave the double-mount path untested
 - [ ] Dependency and security scanning — **the commands have been run and pass**;
       the CI _job_ has still never executed
   - [ ] `npm audit --audit-level=high` → **0 vulnerabilities**

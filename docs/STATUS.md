@@ -14,10 +14,11 @@ blockers below are stated first and in full.
 The character rig, the animation engine and the API's first vertical slice are
 built, tested and green: **280 tests across 9 files**, a real fidelity comparison
 against the supplied artwork, **26/26 API smoke checks** against a running server,
-and **11 browser end-to-end checks** — including an axe accessibility pass — over
-the widget mounted by its own embed snippet. The assistant itself **has never
-answered a prompt**, because there is no model credential in this environment —
-the deployment correctly refuses instead of simulating. Terraform exists and has
+and **17 browser end-to-end checks** — including an axe accessibility pass — over
+the widget mounted by its own embed snippet and in a React host page. The
+assistant itself **has never answered a prompt**, because there is no model
+credential in this environment — the deployment correctly refuses instead of
+simulating. Terraform exists and has
 never been run. Five of the plan's fourteen API routes exist. Nothing has been
 deployed anywhere. Sunny is not reachable by any customer, and by the plan's own
 standard it must not be described as working until it is.
@@ -26,19 +27,19 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                              | Result                                                              |
-| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                         |
-| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                          |
-| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)         |
-| Unit / contract / visual tests | `npm run test`                       | **280 passed (9 files)**                                            |
-| Browser end-to-end             | `npm run verify:all`                 | **11 passed** (Chromium, real page, real API, real shadow DOM)      |
-| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                      |
-| Character lab bundle           | `npm run build`                      | 65.0 kB                                                             |
-| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                     |
-| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                               |
-| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                  |
-| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`) |
+| Check                          | Command                              | Result                                                                   |
+| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------ |
+| Formatting                     | `npm run format:check`               | _All matched files use Prettier code style_                              |
+| Lint                           | `npm run lint`                       | clean (ESLint, type-aware)                                               |
+| Types                          | `npm run typecheck`                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)              |
+| Unit / contract / visual tests | `npm run test`                       | **280 passed (9 files)**                                                 |
+| Browser end-to-end             | `npm run verify:all`                 | **17 passed** (Chromium, two real host pages, real API, real shadow DOM) |
+| Widget bundle                  | `npm run build`                      | 112.1 kB — **30.8 kB gzipped**                                           |
+| Character lab bundle           | `npm run build`                      | 65.0 kB                                                                  |
+| API smoke                      | `npm run smoke`                      | **26/26 checks passed, exit 0**                                          |
+| Dependency audit               | `npm audit --audit-level=high`       | **0 vulnerabilities**                                                    |
+| Committed secrets              | the CI job's `git grep`, run locally | clean — and proven to fire (below)                                       |
+| Character fidelity             | `scripts/compare-reference.py`       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)      |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -76,11 +77,17 @@ first real finding should not be the one that matters.
 - **Widget** (`packages/widget`) — the embed snippet's attributes and which wins,
   and the colour maths that keeps an arbitrary tenant brand legible.
 - **Browser** (`tests/e2e`, Playwright + axe) — the widget mounted from its own
-  snippet inside a shadow root, named from the API rather than the page, leaking
-  no tenant internals, openable and closable from the keyboard, exposing the
-  documented `window.sunny` handle, and audited by axe in three states (closed,
-  open, and open with the composer enabled — the last because axe skips disabled
-  controls, so the send button's contrast is only checked when it is live).
+  snippet inside a shadow root, mounted on the body rather than beside the script
+  tag, named from the API rather than the page, leaking no tenant internals,
+  openable and closable from the keyboard, exposing the documented `window.sunny`
+  handle, and audited by axe in three states (closed, open, and open with the
+  composer enabled — the last because axe skips disabled controls, so the send
+  button's contrast is only checked when it is live).
+- **Browser, React host** (`tests/e2e/react-host.spec.ts`) — the same widget in a
+  page React 19 owns, under `StrictMode`: exactly one mount, a re-render over a
+  live widget, a route-change unmount and remount that must not leave two, opening
+  from host-page state through `window.sunny`, and no console error across the
+  whole lifecycle.
 
 ### Fixed in this session
 
@@ -121,6 +128,23 @@ first real finding should not be the one that matters.
   but the installer dashboard reads leads, so a committed one is a phantom enquiry
   in history, and every smoke run dirtied the working tree. Now ignored, along with
   the browser suite's `.data-e2e/`.
+
+- **The widget mounted itself in the document head, invisibly.** The host element
+  was inserted next to the snippet's own script tag — `script.parentNode` — which
+  works in exactly one placement: the tag sitting in the body, which is what the
+  demo page happens to do. A snippet pasted into `<head>` would have left a `<div>`
+  in the head, where the browser never renders it. React 19 makes that the default
+  case rather than an unusual one, because it hoists `<script async src>` into the
+  head itself: on the new React host fixture the widget mounted, registered itself
+  on `window.sunny`, answered its config request, and was _invisible_. The host is
+  now appended to the body (D-13), which costs nothing — the widget is
+  fixed-positioned inside a shadow root, so it only affects paint order.
+- **A remounted snippet produced a second widget.** Removing the snippet's script
+  tag does nothing, by design, so a single-page app navigating away and back
+  re-executed the bundle and mounted again — leaving two launchers stacked and two
+  entries on `window.sunny`. `boot()` now skips a public id that is already in the
+  document (D-13). Two widgets on one page remain supported; two of the _same_
+  widget was never what anyone meant.
 
 - **`POST /v1/qualification/answer` now exists**, and records the answer without
   inventing dialogue. The obvious implementation was to append a synthetic user
@@ -289,23 +313,27 @@ belongs to a different codebase. **This needs a decision from the user** — see
 
 `packages/ui`, `packages/solar-rules` and `packages/sunscan-adapter` are
 `package.json`-only stubs. `apps/dashboard` and `apps/marketing` do not exist.
-`tests/e2e`, `tests/security` and `tests/visual` are empty directories.
+`tests/security` and `tests/visual` are empty directories. (`tests/e2e` is not —
+it holds the Playwright suites.) The plan's own design note calls for a Next.js
+marketing site and dashboard; nothing in the repository uses a framework yet
+except the new React host fixture, which is a test page rather than a product
+surface, so that decision is still open.
 
 ### 9. Section 12's required checks, honestly accounted
 
-| Required check                 | State                                                                      |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| Formatting / lint              | **done**, in CI and locally                                                |
-| Typecheck                      | **done**                                                                   |
-| Unit tests                     | **done** — 280                                                             |
-| Contract tests                 | **done** — Zod schemas exercised through the routes                        |
-| Integration tests              | **partial** — the API is exercised in-process, not across a network        |
-| E2E (Playwright)               | **done** — 11 checks in Chromium against the real page, API and shadow DOM |
-| Visual snapshots               | **done** as Vitest snapshots; not pixel-diffed against the reference in CI |
-| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above             |
-| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run             |
-| Terraform validation           | **written, never executed**                                                |
-| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                 |
+| Required check                 | State                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------- |
+| Formatting / lint              | **done**, in CI and locally                                                              |
+| Typecheck                      | **done**                                                                                 |
+| Unit tests                     | **done** — 280                                                                           |
+| Contract tests                 | **done** — Zod schemas exercised through the routes                                      |
+| Integration tests              | **partial** — the API is exercised in-process, not across a network                      |
+| E2E (Playwright)               | **done** — 17 checks in Chromium against two real host pages, the API and the shadow DOM |
+| Visual snapshots               | **done** as Vitest snapshots; not pixel-diffed against the reference in CI               |
+| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                           |
+| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                           |
+| Terraform validation           | **written, never executed**                                                              |
+| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                               |
 
 Two honest footnotes on the rows above. The axe pass is a floor: it finds a
 missing label, a contrast failure or a role-less dialog, and it cannot tell you
@@ -384,3 +412,14 @@ properly rather than sketched.
    So the next honest step is not another route. It is either the SunScan
    contract (item 5) or a model credential (item 2) — each of which turns a
    mocked or refusing surface into a real one.
+
+7. **The product surfaces the plan names do not exist yet**, and these are the
+   largest pieces of remaining work that need nothing from outside the
+   repository: `apps/marketing` (plan P3, whose exit gate is a visual regression
+   and a Lighthouse/accessibility baseline) and `apps/dashboard` (plan P10). Both
+   are written as Next.js sites in the plan, and nothing in this repository uses
+   a framework yet — the React host fixture added this session is a test page,
+   not a product surface. Choosing that stack is a real decision, not an
+   implementation detail, and it is the next thing worth deciding deliberately.
+   The React fixture does at least mean the widget's behaviour under a framework
+   is now a settled question rather than an assumption.
