@@ -12,9 +12,9 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **350 tests across 12 files**,
+public marketing site are built, tested and green: **379 tests across 12 files**,
 a real fidelity comparison
-against the supplied artwork, **13 committed visual baselines** of the character
+against the supplied artwork, **14 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
 and **30 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
@@ -31,20 +31,20 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                                                                                     | Result                                                                                   |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                              |
-| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                               |
-| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                              |
-| Unit / contract / visual tests | `npm run test`                                                                              | **350 passed (12 files)**                                                                |
-| Browser end-to-end             | `npm run verify:all`                                                                        | **33 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                |
-| Widget bundle                  | `npm run build`                                                                             | 112.1 kB — **30.8 kB gzipped**                                                           |
-| Character lab bundle           | `npm run build`                                                                             | 65.0 kB                                                                                  |
-| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                          |
-| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                    |
-| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                       |
-| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                      |
-| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **15 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces |
+| Check                          | Command                                                                                     | Result                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                  |
+| Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                   |
+| Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                  |
+| Unit / contract / visual tests | `npm run test`                                                                              | **379 passed (12 files)**                                                                    |
+| Browser end-to-end             | `npm run verify:all`                                                                        | **33 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
+| Widget bundle                  | `npm run build`                                                                             | 112.1 kB — **30.8 kB gzipped**                                                               |
+| Character lab bundle           | `npm run build`                                                                             | 65.0 kB                                                                                      |
+| API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                              |
+| Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                        |
+| Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                           |
+| Character fidelity             | `scripts/compare-reference.py`                                                              | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                          |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`) | **16 passed** — the Windows-generated PNGs are byte-identical to the ones Linux produces     |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -74,11 +74,16 @@ first real finding should not be the one that matters.
   `states`, because a moment can be requestable, eligible and still never drawn.
   The eureka was, for its whole life. The moments nothing asks for are asserted
   as a list — `charge` and `listen` today — so wiring one up, or letting another
-  rot, shows up as a diff rather than as silence.
-- **Visual regression** (`tests/visual`, 15 tests) — thirteen scenes, one per
-  visually distinct state plus the intensity extremes and the reduced-motion
-  fallback, each rasterised and compared byte for byte against a committed PNG.
-  Aimed at the character rather than at a page, for the reason in D-16.
+  rot, shows up as a diff rather than as silence. Plus **the play moves** (A07,
+  D-19): three short moves in one group, so two can never collide, asked for by
+  `play_started` — which until now moved the machine and changed no pixel,
+  because the playing state borrowed the resting layer and had no behaviour of
+  its own.
+- **Visual regression** (`tests/visual`, 16 tests) — fourteen scenarios, one per
+  visually distinct state plus the intensity extremes, the reduced-motion
+  fallback and the playful play move, each rasterised and compared byte for byte
+  against a committed PNG. Aimed at the character rather than at a page, for the
+  reason in D-16, and re-verified on Linux `resvg` whenever a baseline moves.
 - **API** (`apps/api`) — config and capability reporting, the SSE contract,
   session tokens, tenant isolation, tool dispatch, lead capture (including that a
   submission without consent writes nothing, and that the caller cannot name the
@@ -121,13 +126,44 @@ first real finding should not be the one that matters.
   which is the only surface where the catalogue is something a person can click.
   Every catalogued moment is asserted to be listed under its catalogue name and
   description, the moments nothing asks for are asserted to be marked rather than
-  hidden, and **every moment is played**: the spec clicks `Play` on all thirteen
+  hidden, and **every moment is played**: the spec clicks `Play` on all fourteen
   and waits for the page to record that it drew each one. It is the half of P11's
   gate that a unit test cannot reach, and it found three things (D-18) — including
   a moment that was dropped rather than deferred, and a bug in the lab's own
   preview clock that made a working moment look broken.
 
-### Fixed in this session (the visual baselines)
+### Fixed in this session (A07: the play moves)
+
+The increment started as "add the three play animations" and turned into
+"A07 asks for a state that had no behaviour", which is the more useful shape:
+
+- **`play_started` moved the machine and changed no pixel.** The playing state
+  borrowed the resting layer and no sequence declared it, so a game could start
+  and Sunny would carry on breathing as if nothing had been said (D-19). The
+  catalogue's playability test could not see it — the frame it produced was a
+  perfectly valid resting pose — and neither could any assertion about the
+  machine's state, because the state _was_ right. It took rendering the state
+  and looking at it.
+- **A07's "no animation collisions" is now structural, not timed.** The three
+  moves are intensity variants of one group, and the scheduler refuses a second
+  instance of a group that is already running, so a shuffle cannot be drawn over
+  a dance. The test asserts the refusal rather than the durations.
+- **The run did not read as running in the first frame that was captured, and
+  the way it failed is the instructive part.** Its lean and its ray-wind were
+  multiplied by the stride, and the stride is a rectified sine that is zero at
+  the midpoint — so the frame at the middle of the move, which is the one worth
+  capturing, showed a character leaning by nothing. A character with no legs
+  cannot show a stride; the lean and the wind are what carry the meaning and the
+  bob only says how fast, so they are now held for the whole move and merely
+  scaled. This was found by rendering the frames and looking at them, not by
+  reasoning about the pose functions.
+- **The `playing` baseline's capture time moved 950 → 550 ms.** At 950 ms a
+  1.1 s move has already tapered back towards rest, so the new baseline would
+  have shown a standing character with slightly lowered brows and the scene
+  would have proved nothing. The scene's content changed with this commit
+  regardless; the time was re-chosen against the frames.
+
+### Fixed in the previous session (the visual baselines)
 
 The increment that closed §12's visual-snapshot gap found a mistake in itself,
 which is the useful kind of finding:
@@ -154,7 +190,9 @@ which is the useful kind of finding:
   a red build someone then deletes. The committed tree was run in a
   `node:22-bookworm` container and all thirteen comparisons pass, so `resvg` on
   Linux produces byte-identical PNGs to Windows. Docker was already running on
-  this machine; without it the honest line would have been "unverified".
+  this machine; without it the honest line would have been "unverified". Re-run
+  after the play moves added two scenes: **16/16 in the container**, so the
+  premise held for the new baselines too rather than only for the first set.
 
 ### Fixed in the previous session (the marketing site)
 
@@ -527,7 +565,7 @@ properly rather than sketched.
    baseline", and it is **better than half met but not met**: axe passes at
    `serious` and above; the hero's motion, its canonical colour and its use of
    the real widget are all asserted in a browser; and the character now has
-   thirteen committed visual baselines (D-16). What is still missing is the
+   fourteen committed visual baselines (D-16). What is still missing is the
    _performance_ half — there is no Lighthouse run and no Core Web Vitals figure,
    so nothing has measured how fast the page is. Page-level screenshots are
    deliberately not used as the visual regression, for the operating-system
@@ -543,9 +581,13 @@ properly rather than sketched.
    and `eureka` — and the eureka has since been wired (D-17). **Both halves of
    the gate are now met**: the catalogue exists and is tested, and playability is
    demonstrated in a browser as well as proven by test. The lab grew a gallery
-   built from `CATALOGUE`, with a route per moment so that the seven moments
+   built from `CATALOGUE`, with a route per moment so that the eight moments
    unreachable from rest can be demonstrated rather than appearing broken, and a
-   Playwright spec clicks all thirteen and waits for the page to record that it
-   drew each one (D-18). What remains of P11 is what the gate does not cover:
-   A05–A18, the three games and the seasonal cosmetics, none of which are blocked
-   on anything outside this repository.
+   Playwright spec clicks all fourteen and waits for the page to record that it
+   drew each one (D-18). **A07 is now done** (D-19): the playing state had no
+   behaviour of its own — `play_started` moved the machine and changed no pixel —
+   so it gained three short moves, one per intensity, which is also how A07's "no
+   animation collisions" holds without timing anything. What remains of P11 is
+   what the gate does not cover: A05, A06, A08–A18, the three games and the
+   seasonal cosmetics, none of which are blocked on anything outside this
+   repository.

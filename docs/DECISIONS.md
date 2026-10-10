@@ -659,3 +659,66 @@ since the click, not on the live highlight, because the mark cannot be missed:
 the listening perk is on screen for under a third of a second, and a polling
 assertion that sampled the class at the wrong moment would report a moment that
 plays perfectly well as broken.
+
+## D-19. A07, the play moves, and the state that changed nothing
+
+The animation catalogue's own gallery made the gap obvious the moment the
+moment could be clicked: `play_started` moved the machine into `playing` and
+**changed no pixel**. The playing state borrowed the resting layer, so a game
+could start and Sunny would carry on breathing as if nothing had been said. That
+was not a missing animation -- the engine had none for the state -- it was a
+state with no behaviour, which is the kind of defect a scheduler test cannot see
+because the frame it produces is a perfectly valid resting pose.
+
+Three moves close it, one per intensity, and they are the plan's A07:
+
+| Move           | Intensity  | What it is                                     |
+| -------------- | ---------- | ---------------------------------------------- |
+| `play-shuffle` | `minimal`  | Two small side-steps, gaze and head leaning in |
+| `play-run`     | `balanced` | A run on the spot: lean, wind in the rays, bob |
+| `play-dance`   | `playful`  | A rock with the head lagging, rays rippling    |
+
+**They are finite bursts, not loops, and the state's ambient stays the resting
+layer.** A game lasts minutes; a character that hops for the whole of it is
+exhausting and competes with the board the visitor is trying to read. So the
+move is a burst at the start of the session, and `idle-breathe` carries the wait
+between moves -- which is also why `AMBIENT_GROUP.playing` still points at the
+idle group rather than at the play group. Every pose is enveloped by `bump(t)`
+so a move leaves and returns to the resting pose: one that started mid-hop would
+snap into it on its first frame, and one that ended mid-hop would leave the
+character in the air.
+
+**"No animation collisions" holds structurally.** The three moves are variants
+of a single group, and the scheduler refuses a second instance of a group that
+is already running, so a shuffle cannot be drawn over a dance. A07's acceptance
+criterion is met by the data model rather than by making the sequences shorter
+than each other, and the test asserts the refusal rather than the durations.
+
+**A07's "stops immediately on user interaction" holds by a different mechanism
+than the one the plan names.** The plan's §5.2 contract has `canInterrupt` doing
+that work, and, as D-18 records, nothing reads `canInterrupt`. What actually
+happens is that the moves declare `states: ['playing']`, so an event that moves
+the machine anywhere else retires them on the next frame. The behaviour is right
+and the field is still inert; the two are worth telling apart, because the next
+sequence that has to survive a state change cannot rely on the field either.
+
+**Blinking is enabled in `playing`.** The moves outrank a blink, so during the
+one-second burst there is no blink -- the move is the behaviour. But a game
+lasting minutes would otherwise be spent by a character that never blinks, which
+reads as switched off rather than as attentive, so `blink` declares `playing`
+and the animator's blinkable list includes it.
+
+**The intensity dial means more here than anywhere else.** For every other
+group, lowering the intensity gives a quieter version of the same moment; for
+this one it selects a different move. That is why the play group gets its own
+scene at `playful` in the visual baselines while no other group does, and why
+there is no `playing-off` scene: `off` and reduced motion both resolve to
+`play-still`, which is the resting pose, and a baseline for that already exists.
+
+**The `playing` scene's capture time moved from 950 ms to 550 ms.** The scene
+exists to catch a state mid-behaviour, and 950 ms is past the midpoint of a
+1.1 s burst: the run had already tapered back towards rest, so the new baseline
+would have shown a standing character with slightly lowered brows. The scene's
+content changed with this commit regardless, so the capture time was re-chosen
+by looking at the frames -- which is how `scenes.ts` says the times were chosen
+in the first place.

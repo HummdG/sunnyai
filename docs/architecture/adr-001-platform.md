@@ -172,4 +172,6 @@ construction rather than by a cleanup callback
   to games (A06, A08, A09) with real collision and scoring, or does the state
   machine gain a `playing` subsystem? Today `playing` is a state with a single
   ambient layer and no game loop (`packages/animation-engine/src/types.ts`,
-  `scheduler.ts`).
+  `scheduler.ts`). A07's play moves (D-19) are still poses on a clock — a short
+  burst at the start of a session, holding no state between frames — so they do
+  not answer this; a game that has to remember a board will.

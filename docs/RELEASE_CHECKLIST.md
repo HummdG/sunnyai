@@ -27,18 +27,24 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **350 passing across 12 files**
+- [ ] `npm run test` — currently **379 passing across 12 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
         network boundary_
-  - [ ] visual snapshots — **13 committed PNG baselines** of the character,
+  - [ ] visual snapshots — **14 committed PNG baselines** of the character,
         compared byte for byte. Aimed at the rig rather than at a page, for the
         reason in D-16: a page screenshot differs by operating system and the
         test gets deleted. Regenerate with `npm run test:visual:update` only
         after looking at what moved.
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **112.1 kB (30.8 kB gzipped)**, lab 65.0 kB
+      release. Last known: widget **117.3 kB (32.3 kB gzipped)**, lab 80.9 kB.
+      Both have grown since the figures this line used to carry (112.1 kB and
+      65.0 kB): the widget by the marketing site's use of it, the lab by the
+      catalogue gallery, and neither has a budget yet. Nothing about either
+      number is alarming at this size, but a figure nobody re-measures becomes a
+      figure nobody can trust, so the next release should set the budget rather
+      than only re-read the number.
 - [ ] `npm run smoke` — against a **running** deployment
   - [ ] exits **0**, not 127 (the exit-code bug is fixed; confirm it stays
         fixed, because a gate that always fails gets deleted, and one that
@@ -46,8 +52,8 @@ Run `npm run verify` — it chains the first four.
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
 - [ ] `npm run verify:all` — the browser suite (Playwright + axe), **33 passing**
-      in Chromium, over the plain-HTML demo, the two host fixtures and the
-      marketing site
+      in Chromium, over the plain-HTML demo, the two host fixtures, the marketing
+      site and the character lab
   - [ ] requires `npm run test:e2e:install` once per machine; a release
         that skipped it has never driven the embed snippet in a browser
   - [ ] axe fails the run at `serious` and above. Passing it is a floor, not a
