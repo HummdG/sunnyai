@@ -11,6 +11,9 @@ import {
 import type { Intensity, MachineEvent, Sequence } from '@sunny/animation-engine';
 import { defaultRig, renderSunny, SUNNY_THEME, type SunnyRig } from '@sunny/character';
 
+import { el } from './dom.js';
+import { gamePanel, type GamePanel } from './game.js';
+
 /**
  * The animation playground.
  *
@@ -48,22 +51,6 @@ const state = {
   scrubLength: 6000,
   zoom: 1,
 };
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string | number | boolean | undefined> = {},
-  children: (Node | string)[] = [],
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs)) {
-    if (value === undefined || value === false) continue;
-    if (key === 'class') node.className = String(value);
-    else if (key === 'text') node.textContent = String(value);
-    else node.setAttribute(key, value === true ? '' : String(value));
-  }
-  node.append(...children);
-  return node;
-}
 
 // ─── rendering ───────────────────────────────────────────────────────────────
 
@@ -290,6 +277,8 @@ function refreshCatalogue(): void {
 let stageSvg: SVGSVGElement | null = null;
 let stageLabel: HTMLElement | null = null;
 let animator = new SunnyAnimator(defaultRig(), { intensity: 'balanced' });
+/** A06's board. Null until `start()` has built it. */
+let board: GamePanel | null = null;
 
 function renderBigStage(): void {
   if (!stageSvg) return;
@@ -550,6 +539,16 @@ export function start(): void {
     }
   });
 
+  // A06's board, driven on the stage's own clock: the lab can be paused and
+  // scrubbed, and the board has to pause and scrub with it rather than playing
+  // on against a character that is standing still.
+  board = gamePanel({
+    animator: () => animator,
+    now: () => state.t,
+    redraw: () => renderBigStage(),
+  });
+  document.getElementById('game')!.append(board.element);
+
   document.getElementById('controls')!.append(controls());
   document.getElementById('scrubber')!.append(scrubber());
 
@@ -599,6 +598,9 @@ export function start(): void {
       if (scrubInput) scrubInput.value = String(Math.min(state.t, state.scrubLength));
       renderScrubber();
     }
+    // Before the frame, so a move Sunny makes and the thinking she did on the
+    // way to it are drawn in the same tick as the clock that caused them.
+    board?.tick(state.t);
     frame();
   };
   requestAnimationFrame(tick);

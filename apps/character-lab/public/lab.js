@@ -2468,6 +2468,225 @@
     }
   }
 
+  // apps/character-lab/src/dom.ts
+  function el(tag, attrs = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value === void 0 || value === false) continue;
+      if (key === "class") node.className = String(value);
+      else if (key === "text") node.textContent = String(value);
+      else node.setAttribute(key, value === true ? "" : String(value));
+    }
+    node.append(...children);
+    return node;
+  }
+
+  // packages/games/src/tic-tac-toe.ts
+  var CELLS = 9;
+  var LINES = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6]
+  ];
+  var CENTRE = 4;
+  var CORNERS = [0, 2, 6, 8];
+  function freeCells(squares) {
+    const out = [];
+    for (let cell = 0; cell < CELLS; cell++) {
+      if (squares[cell] === null) out.push(cell);
+    }
+    return out;
+  }
+  var other = (mark) => mark === "X" ? "O" : "X";
+  function judge(squares) {
+    for (const line of LINES) {
+      const [a, b, c] = line;
+      const mark = squares[a];
+      if (!mark) continue;
+      if (mark === squares[b] && mark === squares[c]) {
+        return { status: "won", winner: mark, line };
+      }
+    }
+    return freeCells(squares).length > 0 ? { status: "playing", winner: null, line: null } : { status: "drawn", winner: null, line: null };
+  }
+  function newGame(first = "X") {
+    return {
+      squares: Array.from({ length: CELLS }, () => null),
+      turn: first,
+      moves: [],
+      status: "playing",
+      winner: null,
+      line: null
+    };
+  }
+  function isLegal(game, cell) {
+    return Number.isInteger(cell) && cell >= 0 && cell < CELLS && game.status === "playing" && game.squares[cell] === null;
+  }
+  function move(game, cell) {
+    if (!Number.isInteger(cell) || cell < 0 || cell >= CELLS) {
+      throw new RangeError(`${cell} is not a cell`);
+    }
+    if (game.status !== "playing") {
+      throw new Error(`the game is over (${game.status})`);
+    }
+    if (game.squares[cell] !== null) {
+      throw new Error(`cell ${cell} is already taken`);
+    }
+    const squares = [...game.squares];
+    squares[cell] = game.turn;
+    const verdict = judge(squares);
+    return {
+      squares,
+      turn: other(game.turn),
+      moves: [...game.moves, cell],
+      ...verdict
+    };
+  }
+  function winningCell(squares, mark) {
+    for (const line of LINES) {
+      let owned = 0;
+      let empty = -1;
+      for (const cell of line) {
+        const square = squares[cell];
+        if (square === mark) owned++;
+        else if (square === null) empty = cell;
+        else {
+          owned = -1;
+          break;
+        }
+      }
+      if (owned === 2 && empty !== -1) return empty;
+    }
+    return null;
+  }
+  function pick(cells, random) {
+    const index = Math.min(cells.length - 1, Math.floor(random() * cells.length));
+    return cells[index];
+  }
+  function sunnyMove(game, random = Math.random) {
+    if (game.status !== "playing") {
+      throw new Error(`the game is over (${game.status})`);
+    }
+    const win = winningCell(game.squares, game.turn);
+    if (win !== null) return win;
+    const block = winningCell(game.squares, other(game.turn));
+    if (block !== null) return block;
+    const free = freeCells(game.squares);
+    if (free.includes(CENTRE)) return CENTRE;
+    const corners = free.filter((cell) => CORNERS.includes(cell));
+    if (corners.length > 0) return pick(corners, random);
+    return pick(free, random);
+  }
+
+  // apps/character-lab/src/game.ts
+  var HUMAN = "X";
+  var SUNNY = "O";
+  var THINK_MS = 700;
+  function gamePanel(host2) {
+    let game = newGame(HUMAN);
+    let dueAt = null;
+    let lastSeen = 0;
+    const status = el("p", { class: "game-status" });
+    const log = el("div", { class: "mono game-log" });
+    const board2 = el("div", { class: "board", role: "grid", "aria-label": "Tic-tac-toe board" });
+    const cells = [];
+    for (let cell = 0; cell < CELLS; cell++) {
+      const button = el("button", {
+        class: "cell",
+        type: "button",
+        "data-cell": String(cell),
+        "aria-label": `Square ${cell}`
+      });
+      button.addEventListener("click", () => play(cell));
+      cells.push(button);
+      board2.append(button);
+    }
+    const fresh = el("button", { class: "btn", type: "button", text: "New game" });
+    fresh.addEventListener("click", () => start2());
+    const element = el("div", { class: "game" }, [
+      board2,
+      el("div", { class: "game-side" }, [
+        status,
+        fresh,
+        log,
+        el("p", {
+          class: "note",
+          text: "You are X and move first. Sunny plays a heuristic \u2014 she takes a win, blocks yours, prefers the centre, then a corner \u2014 so she punishes a slip but cannot see a fork. The log below is the move history the rules can replay from."
+        })
+      ])
+    ]);
+    function visitorToPlay() {
+      return game.status === "playing" && game.turn === HUMAN && dueAt === null;
+    }
+    function statusText() {
+      if (game.status === "drawn") return "A draw. Neither of us got three.";
+      if (game.status === "won") return game.winner === SUNNY ? "Sunny wins." : "You win!";
+      if (dueAt !== null) return "Sunny is thinking\u2026";
+      return game.turn === HUMAN ? "Your turn \u2014 you are X" : "Sunny\u2019s turn";
+    }
+    function render() {
+      for (let cell = 0; cell < CELLS; cell++) {
+        const button = cells[cell];
+        const mark = game.squares[cell];
+        button.textContent = mark ?? "";
+        button.dataset.square = mark ?? "empty";
+        button.disabled = !visitorToPlay() || mark !== null;
+        if (game.line?.includes(cell)) button.dataset.win = "1";
+        else delete button.dataset.win;
+      }
+      status.textContent = statusText();
+      status.dataset.outcome = game.status === "playing" ? "playing" : game.status === "drawn" ? "drawn" : game.winner;
+      log.textContent = game.moves.length === 0 ? "no moves yet" : game.moves.map((cell, i) => `${i % 2 === 0 ? HUMAN : SUNNY}${cell}`).join("  ");
+      log.dataset.moves = game.moves.join(",");
+    }
+    function settle() {
+      if (game.status === "won") {
+        host2.animator().dispatch({ type: game.winner === SUNNY ? "impress" : "celebrate" }, host2.now());
+      }
+      host2.redraw();
+    }
+    function play(cell) {
+      if (!visitorToPlay() || !isLegal(game, cell)) return;
+      const now = host2.now();
+      game = move(game, cell);
+      if (game.status === "playing") {
+        dueAt = now + THINK_MS;
+        host2.animator().dispatch({ type: "turn_started" }, now);
+      }
+      render();
+      if (game.status === "playing") host2.redraw();
+      else settle();
+    }
+    function start2() {
+      game = newGame(HUMAN);
+      dueAt = null;
+      host2.animator().dispatch({ type: "play_started" }, host2.now());
+      render();
+      host2.redraw();
+    }
+    start2();
+    return {
+      element,
+      tick(now) {
+        if (now < lastSeen && dueAt !== null) dueAt = now + THINK_MS;
+        lastSeen = now;
+        if (dueAt === null || now < dueAt) return false;
+        dueAt = null;
+        game = move(game, sunnyMove(game));
+        host2.animator().dispatch({ type: "turn_finished" }, now);
+        render();
+        if (game.status === "playing") host2.redraw();
+        else settle();
+        return true;
+      }
+    };
+  }
+
   // apps/character-lab/src/lab.ts
   var FLAGSHIPS = ["idle", "think", "eureka", "cool", "charge", "open"];
   var RANK2 = { off: 0, minimal: 1, balanced: 2, playful: 3 };
@@ -2481,17 +2700,6 @@
     scrubLength: 6e3,
     zoom: 1
   };
-  function el(tag, attrs = {}, children = []) {
-    const node = document.createElement(tag);
-    for (const [key, value] of Object.entries(attrs)) {
-      if (value === void 0 || value === false) continue;
-      if (key === "class") node.className = String(value);
-      else if (key === "text") node.textContent = String(value);
-      else node.setAttribute(key, value === true ? "" : String(value));
-    }
-    node.append(...children);
-    return node;
-  }
   function poseAt(sequence, base, t) {
     const progress = sequence.loop ? t / sequence.duration % 1 : Math.min(1, t / sequence.duration);
     return sequence.pose(base, progress);
@@ -2634,6 +2842,7 @@
   var stageSvg = null;
   var stageLabel = null;
   var animator = new SunnyAnimator(defaultRig(), { intensity: "balanced" });
+  var board = null;
   function renderBigStage() {
     if (!stageSvg) return;
     const rig = animator.frame(state.t, {
@@ -2851,6 +3060,12 @@
         eventLog.textContent = hit ? `${state.t.toFixed(0)}ms  tap ${at} \u2192 ${animator.lastFrame?.sequenceId ?? "requested"}` : `${state.t.toFixed(0)}ms  tap ${at} \u2192 nothing there`;
       }
     });
+    board = gamePanel({
+      animator: () => animator,
+      now: () => state.t,
+      redraw: () => renderBigStage()
+    });
+    document.getElementById("game").append(board.element);
     document.getElementById("controls").append(controls());
     document.getElementById("scrubber").append(scrubber());
     const flagshipRow = el("div", { class: "btn-row" });
@@ -2889,6 +3104,7 @@
         if (scrubInput) scrubInput.value = String(Math.min(state.t, state.scrubLength));
         renderScrubber();
       }
+      board?.tick(state.t);
       frame();
     };
     requestAnimationFrame(tick);

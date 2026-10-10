@@ -27,6 +27,7 @@ const options = {
     '@sunny/animation-engine': here('../../../packages/animation-engine/src/index.ts'),
     '@sunny/character': here('../../../packages/character/src/index.ts'),
     '@sunny/contracts': here('../../../packages/contracts/src/index.ts'),
+    '@sunny/games': here('../../../packages/games/src/index.ts'),
   },
 };
 

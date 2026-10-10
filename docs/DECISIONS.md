@@ -901,3 +901,64 @@ pop it", which is the documentation of a channel nothing in production forwards
 yet. An end-to-end test taps the body centre and then taps the balloon where it
 is _painted_ -- read page-side in one call, because the lab replaces the stage
 markup every frame and an element handle is detached before it can be measured.
+
+## D-22. A06 is a game, so the rules get a package of their own
+
+The plan's gate for A06 is "legal turns, win/draw/replay tests". None of those
+four words is about animation, and the first thing that fell out of taking that
+seriously is that the rules have no business living in the animation engine.
+
+**A new package, `@sunny/games`.** `packages/games/src/tic-tac-toe.ts` imports
+nothing: a position goes in, a position comes out, and the whole thing is
+immutable so the move log cannot be edited underneath the game it describes.
+That is what makes the gate testable in the way the gate is written -- eight
+lines checked by looping over the same `LINES` the board draws its strike-through
+from, a draw, an illegal move that throws, and `replay()` rebuilding a position
+from its history. The plan calls A08's arcade game "lazy-loaded", and a package
+boundary is the thing that makes lazy-loading honest later rather than a
+reorganisation nobody wants to do then.
+
+**The board is a surface, not a pose.** The tempting version of this increment
+draws a 3x3 grid as nine props on the character -- the prop system already
+draws sparkles and balloons, so it would have worked. It would also have been a
+lie about what props are: a prop is a mark, a sign or an object _the character
+holds or wears_, and bending the vocabulary to mean "a board game floating in
+the same viewBox" would make `assets` stop describing what a sequence draws. So
+the board is page markup in the lab and the character contributes her
+_reactions_, which the catalogue already had: `play_started` when the game
+begins (the plan's own description of that moment is "a game the visitor asked
+for"), the thinking spin on her turn, `impress` if she wins and `celebrate` if
+the visitor does. A draw gets no moment, because nothing in the vocabulary means
+"evenly matched" and borrowing `confused` would say she got something wrong.
+
+**A game therefore has no state of its own in the machine.** The machine's states
+are conversational, and the board drives it exactly as a stream event would --
+which is why the mapping above is four `dispatch` calls rather than a `playing`
+mode with a lifetime. The one that already existed, `play_started` -> `playing`,
+is used for what it says: the opening move of a game.
+
+**Sunny is a heuristic, not a solver, and that is a product decision.** Tic-tac-
+toe is a solved draw, so an opponent that plays perfectly cannot be beaten, and a
+game you cannot win is a wall rather than a game. She takes a win, blocks the
+visitor's, prefers the centre, then a corner; the tie-break is the only place
+chance enters and it is injected, so a caller with a seeded generator gets a
+reproducible game. The tests pin both halves of that claim -- she blocks a single
+threat, and she loses to a two-move fork, which is the one thing the visitor has
+to _see_ to win. A first draft of the fork test used two of her marks that
+shared a line, which quietly gave her an immediate win and made the test pass for
+the wrong reason; the comment on it now says so.
+
+**The board runs on the stage's clock.** The lab can be paused and scrubbed, and
+the stage is driven at `state.t`, so a board on `performance.now()` would go on
+playing while everything the visitor can see stood still. Sunny's turn is
+therefore a _deadline_ in stage milliseconds rather than a `setTimeout`, and a
+rewind of the clock re-arms it: a visitor who scrubbed back far enough would
+otherwise leave her thinking for ever.
+
+**Two new browser tests, and the replay one is the claim worth having.** One
+plays a mark, checks the square cannot be played twice, watches the stage label
+say the thinking sequence is the one being drawn -- a claim about the character
+rather than about a class the board put on a paragraph -- and waits for her
+answer. The other plays to the end and then runs the history the page _published_
+back through the same rules and compares the result with the marks on screen, so
+"the log can replay the game" is checked rather than asserted in prose.

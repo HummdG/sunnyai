@@ -27,6 +27,7 @@
       "@sunny/contracts": ["./packages/contracts/src/index.ts"],
       "@sunny/character": ["./packages/character/src/index.ts"],
       "@sunny/animation-engine": ["./packages/animation-engine/src/index.ts"],
+      "@sunny/games": ["./packages/games/src/index.ts"],
       "@sunny/ui": ["./packages/ui/src/index.ts"],
       "@sunny/solar-rules": ["./packages/solar-rules/src/index.ts"],
       "@sunny/sunscan-adapter": ["./packages/sunscan-adapter/src/index.ts"]

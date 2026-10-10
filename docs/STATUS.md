@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **476 tests across 13 files**,
+public marketing site are built, tested and green: **505 tests across 14 files**,
 a real fidelity comparison
 against the supplied artwork, **20 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
-and **35 browser end-to-end checks** — including an axe accessibility pass — over
+and **37 browser end-to-end checks** — including an axe accessibility pass — over
 the widget mounted by its own embed snippet, in a React host page, in a Next.js
 host page, and on the marketing site, which runs the real widget and the real
 character rather than pictures of them. The
@@ -36,10 +36,10 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`                                                                      | _All matched files use Prettier code style_                                                  |
 | Lint                           | `npm run lint`                                                                              | clean (ESLint, type-aware)                                                                   |
 | Types                          | `npm run typecheck`                                                                         | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                  |
-| Unit / contract / visual tests | `npm run test`                                                                              | **476 passed (13 files)**                                                                    |
-| Browser end-to-end             | `npm run verify:all`                                                                        | **35 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
+| Unit / contract / visual tests | `npm run test`                                                                              | **505 passed (14 files)**                                                                    |
+| Browser end-to-end             | `npm run test:e2e`                                                                          | **37 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM) |
 | Widget bundle                  | `npm run build:widget`                                                                      | 125.1 kB — **34.7 kB gzipped**                                                               |
-| Character lab bundle           | `npm run build:lab`                                                                         | 99.3 kB                                                                                      |
+| Character lab bundle           | `npm run build:lab`                                                                         | 106.3 kB                                                                                     |
 | API smoke                      | `npm run smoke`                                                                             | **26/26 checks passed, exit 0**                                                              |
 | Dependency audit               | `npm audit --audit-level=high`                                                              | **0 vulnerabilities**                                                                        |
 | Committed secrets              | the CI job's `git grep`, run locally                                                        | clean — and proven to fire (below)                                                           |
@@ -107,6 +107,14 @@ first real finding should not be the one that matters.
   that the standing map survives a restart), rate limiting (both the counter and
   the address resolution it keys on, including the case where a caller forges
   `X-Forwarded-For`), and the persistence layer.
+- **Games** (`packages/games`, 29 tests) — tic-tac-toe, as rules rather than as
+  a picture: all eight lines (checked by looping over the same `LINES` the board
+  draws from), an illegal move on a taken square, a non-cell, or a finished game
+  each refused, the canonical draw, `replay()` rebuilding a position from its
+  history and `moves.slice(0, n)` being the undo, and Sunny's opponent. The
+  opponent suite pins both halves of her being a heuristic rather than a solver:
+  she takes a win and blocks a threat, and she **loses to a two-move fork**,
+  which is the one thing the visitor has to see to win (D-22).
 - **Contracts** (`packages/contracts`) — the Zod schemas that are the single
   source of truth for the wire format.
 - **Widget** (`packages/widget`) — the embed snippet's attributes and which wins,
@@ -149,9 +157,54 @@ first real finding should not be the one that matters.
   A05 checks that only a browser can make: a tap on the stage's own screen
   coordinates becomes the viewBox point the engine reasons in, and the balloon is
   popped by tapping it where it is _painted_ rather than at a coordinate the test
-  worked out.
+  worked out. And the two A06 checks: a click lands on the square it was aimed
+  at, Sunny answers on her own turn and not before (the stage label names the
+  thinking sequence while she does), and the history the page published rebuilds
+  the position it is showing.
 
-### Fixed in this session (A05: the balloon)
+### Fixed in this session (A06: tic-tac-toe)
+
+The increment was the plan's sixth row — "Real 3×3 game against Sunny", checked
+"Legal turns, win/draw/replay tests" — and it is the first one that is a _game_
+rather than a moment, which is what made the shape of it the whole problem:
+
+- **The rules are a new package, `@sunny/games`.** `packages/games/src/tic-tac-toe.ts`
+  imports nothing and holds a position as an immutable value, so the move log
+  cannot be edited underneath the game it describes. That is what makes the gate
+  testable the way the gate is written: all eight lines are checked by looping
+  over the same `LINES` the board draws its strike-through from, plus a draw, an
+  illegal move that throws, and `replay()` rebuilding a position from its
+  history. Twenty-nine tests, and the three-fold alias registration (Vitest,
+  tsconfig, the lab's esbuild) that every `@sunny/*` package needs.
+- **The board is a page surface, not a pose.** A 3×3 grid is not something a
+  character holds, and nine sparkles in a square would have been a lie about what
+  props are for. So the board is markup in the lab and the character contributes
+  her _reactions_, which the catalogue already had: `play_started` when a game
+  begins, the thinking spin on her turn, `impress` if she wins and `celebrate` if
+  the visitor does. A draw gets no moment, because nothing in the vocabulary
+  means "evenly matched" and `confused` would say she got something wrong.
+- **Sunny is a heuristic, not a solver.** Tic-tac-toe is a solved draw, so a
+  perfect opponent could never be beaten and a game you cannot win is a wall
+  rather than a game. She takes a win, blocks the visitor's, prefers the centre,
+  then a corner, with the tie-break injected so a seeded caller gets a
+  reproducible game. The tests pin both halves: she blocks a single threat, and
+  she loses to a two-move fork — the one thing the visitor has to _see_ to win.
+  A first draft of that fork test used two of her marks that shared a line, which
+  quietly gave her an immediate win and would have made the test pass for the
+  wrong reason (D-22).
+- **The board runs on the stage's clock, not `performance.now()`.** The lab can
+  be paused and scrubbed, so Sunny's turn is a deadline in stage milliseconds and
+  a rewind of the clock re-arms it; a visitor who scrubbed back far enough would
+  otherwise have left her thinking for ever.
+- **Two new browser checks, and the replay one is the claim worth having.** One
+  plays a mark, proves the square cannot be played twice, watches the stage label
+  say the thinking sequence is the one being drawn — a claim about the character,
+  not about a class the board put on a paragraph — and waits for her answer. The
+  other plays to the end and runs the history the page _published_ back through
+  the same rules, comparing the result with the marks on screen.
+- **The lab bundle grew 99.3 → 106.3 kB**, which is the rules plus the board.
+
+### Fixed in the previous session (A05: the balloon)
 
 The increment was the plan's fifth moment — "Balloon floats, gaze follows,
 optional tap/pop", checked "Pointer/touch + reduced motion" — and unlike every
@@ -587,10 +640,10 @@ not been designed.
 | ------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Formatting / lint              | **done**, in CI and locally                                                                        |
 | Typecheck                      | **done**                                                                                           |
-| Unit tests                     | **done** — 476                                                                                     |
+| Unit tests                     | **done** — 505 across 14 files                                                                     |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
-| E2E (Playwright)               | **done** — 35 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
+| E2E (Playwright)               | **done** — 37 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
 | Visual snapshots               | **done** — 20 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
 | Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
 | Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
@@ -717,10 +770,12 @@ properly rather than sketched.
    prop, because the character's first two cannot draw an object. **A05 is done**
    (D-21): it is the first moment a visitor starts, so the engine gained its first
    input — a tap hit-tested against the drawn frame — and with it the first
-   moment drawn somewhere the moment itself did not choose. What remains of P11 is
-   what the gate does not cover: A06, A08–A18, the three games and the seasonal
-   cosmetics, none of which are blocked on anything outside this repository. The
-   three games (A06, A08, A09) are the hard ones: they need state that outlives a
-   single frame, which is the open question ADR-001 leaves — whether a `playing`
-   subsystem owns it or the host does — and the balloon added the engine's _input_
-   channel without answering where a _board_ would live.
+   moment drawn somewhere the moment itself did not choose. **A06 is done**
+   (D-22), and it answers the question ADR-001 left open: state that outlives a
+   frame lives in the **host**, not in a `playing` subsystem inside the engine.
+   The rules are a package of their own (`@sunny/games`), the board is a page
+   surface, and the character contributes only its reactions through the four
+   machine events a board can reach — so the engine gained no new mode, and the
+   next two games get the same split rather than a redesign. What remains of P11
+   is what the gate does not cover: A08–A18, two more games and the seasonal
+   cosmetics, none of which are blocked on anything outside this repository.

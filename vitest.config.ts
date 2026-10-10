@@ -14,6 +14,7 @@ export default defineConfig({
       '@sunny/contracts': pkg('contracts'),
       '@sunny/character': pkg('character'),
       '@sunny/animation-engine': pkg('animation-engine'),
+      '@sunny/games': pkg('games'),
       '@sunny/ui': pkg('ui'),
       '@sunny/solar-rules': pkg('solar-rules'),
       '@sunny/sunscan-adapter': pkg('sunscan-adapter'),

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { CATALOGUE, UNWIRED_GROUPS } from '@sunny/animation-engine';
+import { replay } from '@sunny/games';
 
 /**
  * The animation catalogue, in a browser.
@@ -156,4 +157,122 @@ test('does nothing at all when the empty stage is tapped', async ({ page }) => {
   await page.mouse.click(corner.x, corner.y);
 
   await expect(page.locator('#scrubber .event-log')).toContainText('nothing there');
+});
+
+/**
+ * A06, played rather than asserted.
+ *
+ * The rules are proved in `packages/games`; what can only be proved here is that
+ * the board a visitor sees is *that* game -- that a click lands on the square it
+ * was aimed at, that Sunny answers on her own turn and not before, and that the
+ * history the page publishes rebuilds the position it is showing.
+ */
+
+const boardStatus = '#game .game-status';
+const cellAt = (cell: number) => `#game .cell[data-cell="${cell}"]`;
+
+/**
+ * Click the lowest-numbered square the visitor is allowed to play.
+ *
+ * Page-side rather than through a locator because the board is redrawn as marks
+ * land: a locator resolved a moment ago may name a square that is no longer
+ * playable, and the arithmetic of which square is free is the game's, not this
+ * test's.
+ */
+async function playLowestFreeSquare(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const cells = Array.from(document.querySelectorAll<HTMLButtonElement>('#game .cell'));
+    const free = cells.find((cell) => !cell.disabled && cell.dataset.square === 'empty');
+    if (!free) return false;
+    free.click();
+    return true;
+  });
+}
+
+/** Wait until it is the visitor's turn again, or the game is over. */
+async function waitForTheBoard(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const outcome =
+            document.querySelector<HTMLElement>('#game .game-status')?.dataset.outcome;
+          if (outcome !== 'playing') return true;
+          return Array.from(document.querySelectorAll<HTMLButtonElement>('#game .cell')).some(
+            (cell) => !cell.disabled && cell.dataset.square === 'empty',
+          );
+        }),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+}
+
+test('gives the visitor a real board, and takes a turn of her own', async ({ page }) => {
+  await page.goto(LAB_URL);
+
+  const cells = page.locator('#game .cell');
+  await expect(cells).toHaveCount(9);
+  await expect(page.locator('#game .cell[data-square="empty"]')).toHaveCount(9);
+  await expect(page.locator(boardStatus)).toHaveText(/Your turn/);
+
+  // The centre: her first answer is forced by the rules whatever the tie-break
+  // does, because a board with one X on it has no line to take or to block.
+  await page.locator(cellAt(4)).click();
+  await expect(page.locator(cellAt(4))).toHaveText('X');
+
+  // A square cannot be played twice: the mark is on the board and the square is
+  // no longer a target.
+  await expect(page.locator(cellAt(4))).toBeDisabled();
+
+  // Her turn is visible while it lasts. The label is the stage's own record of
+  // which sequence it drew, so this is a claim about the character rather than
+  // about a class the board put on a paragraph.
+  await expect(page.locator('#stage .stage-label')).toContainText('thinking-');
+
+  await expect(page.locator('#game .cell[data-square="O"]')).toHaveCount(1);
+  await expect(page.locator(cellAt(4))).toHaveText('X');
+  await expect(page.locator(boardStatus)).toHaveText(/Your turn/);
+  await expect(page.locator(boardStatus)).toHaveAttribute('data-outcome', 'playing');
+});
+
+test('plays a game to its end, and the history rebuilds the board', async ({ page }) => {
+  await page.goto(LAB_URL);
+  await waitForTheBoard(page);
+
+  // Five moves is the most X can ever make, so this either finishes the game or
+  // runs out of moves, and both are the end of it.
+  for (let i = 0; i < 5; i++) {
+    if (!(await playLowestFreeSquare(page))) break;
+    await waitForTheBoard(page);
+    if ((await page.locator(boardStatus).getAttribute('data-outcome')) !== 'playing') break;
+  }
+
+  const ended = await page.locator(boardStatus).getAttribute('data-outcome');
+  expect(['X', 'O', 'drawn'], 'the game reached no conclusion').toContain(ended);
+
+  // The replay, checked rather than described: the log the page published is run
+  // back through the same rules, and the position it produces is compared with
+  // the marks actually on screen.
+  const drawn = await page.evaluate(() => ({
+    moves: document
+      .querySelector<HTMLElement>('#game .game-log')!
+      .dataset.moves!.split(',')
+      .filter((m) => m !== '')
+      .map(Number),
+    squares: Array.from(document.querySelectorAll<HTMLButtonElement>('#game .cell')).map(
+      (cell) => cell.dataset.square,
+    ),
+  }));
+
+  const rebuilt = replay(drawn.moves).squares.map((square) => square ?? 'empty');
+  expect(rebuilt, 'the published history does not rebuild the board on screen').toEqual(
+    drawn.squares,
+  );
+  expect(drawn.moves.length).toBeGreaterThan(0);
+
+  // And a game can be started again: a fresh board, nobody to move but the
+  // visitor.
+  await page.locator('#game .btn', { hasText: 'New game' }).click();
+  await expect(page.locator('#game .cell[data-square="empty"]')).toHaveCount(9);
+  await expect(page.locator(boardStatus)).toHaveText(/Your turn/);
 });

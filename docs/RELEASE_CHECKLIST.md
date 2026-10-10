@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **476 passing across 13 files**
+- [ ] `npm run test` — currently **505 passing across 14 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
@@ -43,11 +43,12 @@ Run `npm run verify` — it chains the first four.
         committed rather than a screenshot test is the claim that they are
         platform-independent — which is only a claim until it is re-checked
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **125.1 kB (34.7 kB gzipped)**, lab 99.3 kB.
+      release. Last known: widget **125.1 kB (34.7 kB gzipped)**, lab 106.3 kB.
       Both have grown since the figures this line used to carry (119.8 kB and
       86.0 kB): the widget by two more moments of animation library (A04's break
       and A05's balloon and burst, D-20 and D-21), the lab by the eight
-      sequence variants those add to its grid. Neither has a budget yet. Nothing
+      sequence variants those add to its grid and, latterly, by the tic-tac-toe
+      board and the rules it imports (A06, D-22). Neither has a budget yet. Nothing
       about either number is alarming at this size, but a figure nobody
       re-measures becomes a figure nobody can trust, so the next release should
       set the budget rather than only re-read the number.
@@ -57,7 +58,7 @@ Run `npm run verify` — it chains the first four.
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **35 passing**
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **37 passing**
       in Chromium, over the plain-HTML demo, the two host fixtures, the marketing
       site and the character lab
   - [ ] requires `npm run test:e2e:install` once per machine; a release
