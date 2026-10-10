@@ -7,3 +7,4 @@ export * from './events.js';
 export * from './chat.js';
 export * from './widget.js';
 export * from './leads.js';
+export * from './qualification.js';

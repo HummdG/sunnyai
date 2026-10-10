@@ -12,11 +12,11 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine and the API's first vertical slice are
-built, tested and green: **243 tests across 7 files**, a real fidelity comparison
-against the supplied artwork, and **21/21 API smoke checks** against a running
+built, tested and green: **258 tests across 7 files**, a real fidelity comparison
+against the supplied artwork, and **26/26 API smoke checks** against a running
 server. The assistant itself **has never answered a prompt**, because there is no
 model credential in this environment — the deployment correctly refuses instead
-of simulating. Terraform exists and has never been run. Four of the plan's
+of simulating. Terraform exists and has never been run. Five of the plan's
 fourteen API routes exist. Nothing has been deployed anywhere. Sunny is not
 reachable by any customer, and by the plan's own standard it must not be
 described as working until it is.
@@ -30,10 +30,10 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`         | _All matched files use Prettier code style_                         |
 | Lint                           | `npm run lint`                 | clean (ESLint, type-aware)                                          |
 | Types                          | `npm run typecheck`            | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)         |
-| Unit / contract / visual tests | `npm run test`                 | **243 passed (7 files)**                                            |
+| Unit / contract / visual tests | `npm run test`                 | **258 passed (7 files)**                                            |
 | Widget bundle                  | `npm run build`                | 109.4 kB — **29.6 kB gzipped**                                      |
 | Character lab bundle           | `npm run build`                | 65.0 kB                                                             |
-| API smoke                      | `npm run smoke`                | **21/21 checks passed, exit 0**                                     |
+| API smoke                      | `npm run smoke`                | **26/26 checks passed, exit 0**                                     |
 | Character fidelity             | `scripts/compare-reference.py` | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`) |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
@@ -50,14 +50,27 @@ Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 - **API** (`apps/api`) — config and capability reporting, the SSE contract,
   session tokens, tenant isolation, tool dispatch, lead capture (including that a
   submission without consent writes nothing, and that the caller cannot name the
-  tenant it is filed against), rate limiting (both the counter and the address
-  resolution it keys on, including the case where a caller forges
+  tenant it is filed against), qualification capture (including that an answer
+  reaches the model's tool context and does **not** appear in the transcript, and
+  that the standing map survives a restart), rate limiting (both the counter and
+  the address resolution it keys on, including the case where a caller forges
   `X-Forwarded-For`), and the persistence layer.
 - **Contracts** (`packages/contracts`) — the Zod schemas that are the single
   source of truth for the wire format.
 
 ### Fixed in this session
 
+- **`POST /v1/qualification/answer` now exists**, and records the answer without
+  inventing dialogue. The obvious implementation was to append a synthetic user
+  turn (`"Roof direction: south"`), which would have let `answersFromHistory` pick
+  it up unchanged — and would have put words in the visitor's mouth and persisted
+  them where the model reads the transcript as fact. Instead the conversation
+  gained a first-class standing `answers` map (D-11). A test caught the first
+  version of the fold-back recording the _whole_ accumulated map on every
+  assistant turn rather than the delta, which made "what did this turn change"
+  unanswerable; it now records only what it set or changed. Also extracted
+  `validateAnswer`, so the tool and the route cannot drift apart about what counts
+  as a valid answer.
 - **`POST /v1/leads` now exists**, closing one of the two routes this document
   had falsely claimed was built. It reuses the `create_lead` rules rather than
   re-deciding them: consent must be exactly `true`, the tenant comes from the
@@ -129,31 +142,33 @@ installed in this environment. The CI job that runs `fmt -check` and
 on GitHub in a form CI can see (see blocker 7). Treat the infrastructure as a
 description of intent that compiles, not as infrastructure known to work.
 
-### 4. Four of the plan's fourteen API routes exist
+### 4. Five of the plan's fourteen API routes exist
 
 Implemented: `POST /v1/widget/session`, `POST /v1/chat/stream`,
-`GET /v1/widget/config/:publicId`, `POST /v1/leads`, plus `GET /healthz`,
-`GET /v1/conversation` and `GET /v1/leads` (none of those three is in the plan's
-list).
+`GET /v1/widget/config/:publicId`, `POST /v1/qualification/answer`,
+`POST /v1/leads`, plus `GET /healthz`, `GET /v1/conversation` and
+`GET /v1/leads` (none of those three is in the plan's list).
 
-**Corrected on 2026-10-10:** this section previously claimed `POST /v1/leads` was
-implemented. It was not — only `app.get('/v1/leads', …)` existed, so the count was
-**three**. The claim was wrong when written, and was fixed by correcting the count
-rather than by hurrying out a route to make the sentence true. `POST /v1/leads`
-now exists and the count is **four**. Creating a lead also still happens through
-the `create_lead` tool in the conversation; the two paths write the same record.
+**Corrected and then resolved on 2026-10-10:** this section previously claimed
+`POST /v1/leads` was implemented. It was not — only `app.get('/v1/leads', …)`
+existed, so the count was **three**. The claim was wrong when written, and was
+fixed by correcting the count rather than by hurrying out a route to make the
+sentence true. `POST /v1/leads` and then `POST /v1/qualification/answer` have
+since been built, so the count is now **five**. Both also still happen through the
+conversation, via the `create_lead` and `save_answer` tools; each pair writes the
+same record.
 
-Absent, each with nothing behind it: `POST /v1/qualification/answer`,
+Absent, each with nothing behind it:
 `GET /v1/catalog/products`, `POST /v1/recommendations`,
 `POST /v1/sunscan/assessments`, `GET /v1/sunscan/assessments/:id`,
 `GET /v1/dashboard/metrics`, `POST /v1/knowledge/sources`,
 `GET /v1/knowledge/jobs/:id`,
 `POST /v1/integrations/google-drive/connect`, `POST /v1/billing/webhook`.
 
-So qualification capture, catalogue search, recommendation,
-assessment hand-off, knowledge ingestion, Drive, billing and the dashboard are
-**not implemented**. The widget can hold a conversation and save a lead; it
-cannot yet recommend a package, and there is no product data to recommend from.
+So catalogue search, recommendation, assessment hand-off, knowledge ingestion,
+Drive, billing and the dashboard are **not implemented**. The widget can hold a
+conversation, capture qualification answers and save a lead; it cannot yet
+recommend a package, and there is no product data to recommend from.
 
 ### 5. There is no SunScan integration, only a model of one
 
@@ -271,12 +286,21 @@ properly rather than sketched.
    comments. The gap is not a missing route; it is a missing integration. The
    widget is genuinely less useful without it, but the fix is a SunScan contract
    and credentials, not more code in this repository.
-6. **`POST /v1/qualification/answer`** — the last of the plan's routes that does
-   **not** depend on SunScan data. It reuses the question set and its option
-   validation, which already exist. `POST /v1/leads`, the item that used to sit
-   here alongside it, is **done** (see "Fixed in this session"). The caveat found
-   while scoping this one is recorded in `docs/DECISIONS.md` D-11: an answer given
-   to the route needs somewhere to live that is not the chat transcript, so the
-   route wants a first-class answers map on the conversation rather than a
-   synthetic turn. That is a small schema decision, not a large one, but it should
-   be made deliberately rather than as a side effect of adding a route.
+6. **Nothing left in blocker 4 is reachable without external input.** Every
+   remaining route is blocked on something outside this repository:
+
+   - `GET /v1/catalog/products`, `POST /v1/recommendations` and
+     `POST /v1/sunscan/assessments` need a real SunScan contract and credentials.
+     The tools behind them **deliberately refuse** rather than invent prices, so
+     writing routes here would produce endpoints that return refusals.
+   - `POST /v1/knowledge/sources` and `GET /v1/knowledge/jobs/:id` need Vertex AI
+     Search. `POST /v1/integrations/google-drive/connect` needs a Google OAuth
+     client and a consent screen. `POST /v1/billing/webhook` needs a billing
+     provider and its signing secret. `GET /v1/dashboard/metrics` needs a
+     decision about what an installer should see, which is a product decision
+     before it is a route.
+   - `POST /v1/qualification/answer` and `POST /v1/leads` are **done**.
+
+   So the next honest step is not another route. It is either the SunScan
+   contract (item 5) or a model credential (item 2) — each of which turns a
+   mocked or refusing surface into a real one.

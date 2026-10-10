@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **243 passing across 7 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
+- [ ] `npm run test` — currently **258 passing across 7 files** - [ ] unit - [ ] contract (Zod schemas exercised through the routes) - [ ] integration — _partial: the API is exercised in-process, not across
       a network boundary_ - [ ] visual snapshots — Vitest snapshots only; **not** pixel-diffed against
       the reference artwork in CI
 - [ ] `npm run build` — record both bundle sizes and compare against the last
@@ -110,7 +110,10 @@ Run `npm run verify` — it chains the first four.
       set below about 3 will make the lead checks announce themselves as skipped.
       That is reported, not silent, but it is still lost coverage.
 - [ ] Confirm a visitor who hits a limit sees something humane, not a bare 429.
-      `retry-after` is set; nothing in the widget currently reads it.
+      `retry-after` is set; nothing in the widget currently reads it. Note that
+      `POST /v1/qualification/answer` is limited per address too, and its default
+      (40/min) is set to clear a whole fourteen-question form — a page that
+      submits answers in a loop of retries could still exhaust it.
 - [ ] Tool call the deployment did not declare → dropped, never executed
 - [ ] Lead save fails → the visitor is told, and the conversation is not silently
       lost
@@ -156,12 +159,12 @@ Run `npm run verify` — it chains the first four.
 
 ## 8. Known scope gaps to state plainly, not to discover
 
-- [ ] **4 of the plan's 14 API routes exist.** Qualification, catalogue,
-      recommendations, assessments, dashboard metrics, knowledge ingestion, Drive
-      integration and billing are **not implemented**. Lead creation by route
-      **is** implemented, and the conversational `create_lead` tool also exists;
-      the two write the same record. Do not describe the product as having the
-      rest.
+- [ ] **5 of the plan's 14 API routes exist.** Catalogue, recommendations,
+      assessments, dashboard metrics, knowledge ingestion, Drive integration and
+      billing are **not implemented**. Lead creation and qualification capture
+      **are** implemented by route, and the conversational `create_lead` /
+      `save_answer` tools also exist; the pairs write the same records. Do not
+      describe the product as having the rest.
 - [ ] **There is no SunScan integration.** No SunScan endpoint has ever been
       called from this code. `packages/sunscan-adapter` is a stub, and SunScan
       has no unified error envelope, so the adapter must translate per route.

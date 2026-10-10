@@ -51,6 +51,16 @@ export interface TurnInput {
   sessionId: string;
   conversationId: string | null;
   history: ConversationTurn[];
+  /**
+   * The conversation's standing answer map, if it has one.
+   *
+   * Authoritative where it overlaps `answersFromHistory`, because it is newer by
+   * construction: every turn folds its answers back into it (below), and the
+   * qualification route writes to it directly. The per-turn maps are still merged
+   * in underneath so a conversation written before the field existed resumes
+   * with its answers intact.
+   */
+  standingAnswers?: Record<string, string>;
   message: string;
   clientMessageId: string;
   sunscanConnected: boolean;
@@ -92,7 +102,9 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     sessionId: input.sessionId,
     conversationId: input.conversationId,
     store: input.store,
-    answers: answersFromHistory(input.history),
+    // Standing answers outrank the per-turn maps: they are the conversation's
+    // current state, and a turn is the thing that is about to change it.
+    answers: { ...answersFromHistory(input.history), ...input.standingAnswers },
     events,
     sunscanConnected: input.sunscanConnected,
     knowledgeSourceCount: input.tenant.knowledgeSourceIds.length,
@@ -102,6 +114,14 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   let usage: { inputTokens: number; outputTokens: number } | undefined;
   const toolsUsed: string[] = [];
   const declaredTools = new Set(TOOL_DECLARATIONS.map((t) => t.name));
+
+  // What the answers looked like before this turn ran.
+  //
+  // Kept so the turn can persist the *delta* rather than the whole map. The map a
+  // turn starts with is every answer ever given, and copying all of it onto each
+  // assistant turn would make the transcript's answer record a series of
+  // increasingly long repeats rather than a record of what was said when.
+  const answersBefore = { ...ctx.answers };
 
   {
     const stream = input.provider.stream({
@@ -154,13 +174,31 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     at: new Date().toISOString(),
     clientMessageId: input.clientMessageId,
   });
+  // Only the answers this turn set or changed. A key present before with the same
+  // value is not something this turn did.
+  const answersChanged: Record<string, string> = {};
+  for (const [questionId, value] of Object.entries(ctx.answers)) {
+    if (answersBefore[questionId] !== value) answersChanged[questionId] = value;
+  }
+
   await input.store.appendTurn(input.tenant.id, input.sessionId, {
     role: 'assistant',
     text,
     at: new Date().toISOString(),
     ...(toolsUsed.length > 0 ? { tools: toolsUsed } : {}),
-    ...(Object.keys(ctx.answers).length > 0 ? { answers: { ...ctx.answers } } : {}),
+    ...(Object.keys(answersChanged).length > 0 ? { answers: answersChanged } : {}),
   });
+
+  // Fold this turn's answers into the conversation's standing map.
+  //
+  // Written *after* the turns rather than instead of them, so the record keeps
+  // both facts: the standing map is what is currently true, and the per-turn map
+  // is which turn changed it. The alternative -- letting the route and the chat
+  // each keep their own map and merging them on read -- leaves no principled way
+  // to decide which of two contradictory answers wins.
+  if (Object.keys(answersChanged).length > 0) {
+    await input.store.mergeAnswers(input.tenant.id, input.sessionId, answersChanged);
+  }
 
   yield {
     type: 'message_finished',

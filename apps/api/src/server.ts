@@ -4,15 +4,18 @@ import {
   chatRequestSchema,
   leadRequestSchema,
   publicWidgetIdSchema,
+  qualificationAnswerSchema,
   sessionRequestSchema,
   STATUS_FOR_CODE,
   type ChatStreamEvent,
+  type QualificationAnswerResponse,
 } from '@sunny/contracts';
 import { Readable } from 'node:stream';
 
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { runTurn } from './agent/agent.js';
+import { QUESTIONS, validateAnswer } from './agent/tools.js';
 import {
   ProviderUnavailableError,
   UnconfiguredProvider,
@@ -330,6 +333,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           sessionId: sessionIdSnapshot,
           conversationId: existing?.id ?? null,
           history,
+          ...(existing?.answers ? { standingAnswers: existing.answers } : {}),
           message: userText,
           clientMessageId,
           sunscanConnected,
@@ -362,6 +366,77 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       conversationId: conversation?.id ?? null,
       turns: conversation?.turns ?? [],
     };
+  });
+
+  // ─── qualification ─────────────────────────────────────────────────────────
+
+  /**
+   * One answer, submitted by the host page rather than spoken in the chat.
+   *
+   * The answer goes onto the conversation's standing map and **not** into the
+   * transcript as a fabricated user turn. Appending "Roof direction: south" as if
+   * the visitor had typed it would put words in their mouth, and the model — which
+   * reads the transcript as the conversation so far — would believe them. See
+   * `docs/DECISIONS.md`, D-11.
+   */
+  app.post('/v1/qualification/answer', async (request, reply) => {
+    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
+    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
+
+    // Keyed by address, like session creation: an unauthenticated-looking write
+    // that grows a stored record, so a loop is a way to fill the store.
+    enforceRateLimit(
+      request,
+      reply,
+      'qualification',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.qualification,
+    );
+
+    const body = qualificationAnswerSchema.safeParse(request.body);
+    if (!body.success) throw badRequestFromZod(body.error);
+    if (body.data.sessionId !== claims.sessionId) {
+      throw new ApiError('forbidden', 'That session token is for a different session.');
+    }
+
+    const verdict = validateAnswer(body.data.questionId, body.data.value);
+    if (!verdict.ok) {
+      // `bad_request` rather than a silent 200: a page that believes it recorded
+      // an answer it did not will show the visitor a completed form and a gap the
+      // installer never sees. The message carries the vocabulary to use instead.
+      const detail = verdict.allowed
+        ? `${verdict.error}: ${verdict.allowed.join(', ')}`
+        : verdict.known
+          ? `${verdict.error}: ${verdict.known.join(', ')}`
+          : verdict.error;
+      throw new ApiError('bad_request', detail);
+    }
+
+    const tenant = tenants.all.find((t) => t.id === claims.tenantId);
+    if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
+
+    const conversation = await store.mergeAnswers(claims.tenantId, claims.sessionId, {
+      [verdict.questionId]: verdict.value,
+    });
+
+    const answers = conversation.answers ?? {};
+    const answered = new Set(Object.keys(answers));
+
+    // Derived from the question set itself, in its declared order, so this cannot
+    // drift from the journey the assistant asks. A suggestion for the page's next
+    // step rather than a rule it must follow; `null` once nothing is outstanding.
+    const payload: QualificationAnswerResponse = {
+      questionId: verdict.questionId,
+      answers,
+      nextQuestionId: Object.keys(QUESTIONS).find((id) => !answered.has(id)) ?? null,
+    };
+
+    reply.code(200);
+    return payload;
   });
 
   // ─── leads ─────────────────────────────────────────────────────────────────

@@ -40,6 +40,23 @@ export interface Conversation {
   tenantId: string;
   sessionId: string;
   turns: ConversationTurn[];
+  /**
+   * Qualification answers, independent of any turn.
+   *
+   * This is the standing map -- the current best answer to everything asked so
+   * far -- and it is *last write wins*. Both paths maintain it: a turn writes
+   * the map it ended with, and `POST /v1/qualification/answer` writes the single
+   * answer it was given. That is deliberate. Keeping the route's answers
+   * somewhere else, so that two maps had to be merged on read, would mean
+   * choosing a winner between "the visitor told the chat X" and "the visitor
+   * told the form Y" with nothing to decide it by except which code path ran
+   * last -- and the answer the visitor gave most recently is the one that
+   * should win.
+   *
+   * Absent on conversations written before the field existed. Readers fall back
+   * to the per-turn maps, so an old record still resumes correctly.
+   */
+  answers?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +85,20 @@ export interface Store {
   readonly kind: string;
   getConversation(tenantId: string, sessionId: string): Promise<Conversation | null>;
   appendTurn(tenantId: string, sessionId: string, turn: ConversationTurn): Promise<AppendResult>;
+  /**
+   * Merge answers into the conversation's standing map, creating the
+   * conversation if this is the first thing that has happened in it.
+   *
+   * A merge rather than a replace: the qualification route knows about one
+   * answer and must not blank the rest. Returns the conversation as it now
+   * stands, so a caller can report what is still outstanding without a second
+   * read that could race.
+   */
+  mergeAnswers(
+    tenantId: string,
+    sessionId: string,
+    answers: Record<string, string>,
+  ): Promise<Conversation>;
   saveLead(lead: LeadRecord): Promise<LeadRecord>;
   listLeads(tenantId: string, limit?: number): Promise<LeadRecord[]>;
   /** Diagnostics for `/healthz`; must never throw. */
@@ -155,6 +186,34 @@ export class FileStore implements Store {
     await appendFile(this.#conversationFile(tenantId), `${JSON.stringify(conversation)}\n`, 'utf8');
     this.#conversationCache.set(`${tenantId}:${sessionId}`, conversation);
     return { conversation, appended: true };
+  }
+
+  async mergeAnswers(
+    tenantId: string,
+    sessionId: string,
+    answers: Record<string, string>,
+  ): Promise<Conversation> {
+    await this.#ensure();
+    const existing = await this.getConversation(tenantId, sessionId);
+    const now = new Date().toISOString();
+    // Spread `existing` first so `turns` and `createdAt` survive; this write is
+    // an amendment to the conversation, not a replacement of it.
+    const conversation: Conversation = existing
+      ? { ...existing, answers: { ...existing.answers, ...answers }, updatedAt: now }
+      : {
+          id: newId('conv'),
+          tenantId,
+          sessionId,
+          turns: [],
+          answers: { ...answers },
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    await mkdir(join(this.#dir, 'conversations'), { recursive: true });
+    await appendFile(this.#conversationFile(tenantId), `${JSON.stringify(conversation)}\n`, 'utf8');
+    this.#conversationCache.set(`${tenantId}:${sessionId}`, conversation);
+    return conversation;
   }
 
   async saveLead(lead: LeadRecord): Promise<LeadRecord> {

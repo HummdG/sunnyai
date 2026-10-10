@@ -94,6 +94,7 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
         session: { limit: 100_000, windowMs: 60_000 },
         chat: { limit: 100_000, windowMs: 60_000 },
         leads: { limit: 100_000, windowMs: 60_000 },
+        qualification: { limit: 100_000, windowMs: 60_000 },
       },
       maxKeys: 10_000,
     },
@@ -483,6 +484,7 @@ describe('rate limiting', () => {
     session?: number;
     chat?: number;
     leads?: number;
+    qualification?: number;
     enabled?: boolean;
   }): ServerConfig {
     return makeConfig({
@@ -493,6 +495,7 @@ describe('rate limiting', () => {
           session: { limit: overrides.session ?? 100_000, windowMs: 60_000 },
           chat: { limit: overrides.chat ?? 100_000, windowMs: 60_000 },
           leads: { limit: overrides.leads ?? 100_000, windowMs: 60_000 },
+          qualification: { limit: 100_000, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },
@@ -746,6 +749,7 @@ describe('POST /v1/leads', () => {
           session: { limit: 100_000, windowMs: 60_000 },
           chat: { limit: 100_000, windowMs: 60_000 },
           leads: { limit: 2, windowMs: 60_000 },
+          qualification: { limit: 100_000, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },
@@ -764,5 +768,318 @@ describe('POST /v1/leads', () => {
     expect((await submit(1)).statusCode).toBe(201);
     expect((await submit(2)).statusCode).toBe(201);
     expect((await submit(3)).statusCode).toBe(429);
+  });
+});
+
+/**
+ * Qualification answers submitted by the host page.
+ *
+ * The property under test is not "the answer is stored". It is that an answer
+ * arrives without the API inventing dialogue: the standing map changes and the
+ * transcript does not. A synthetic user turn would be indistinguishable from the
+ * visitor having typed it, and the model reads the transcript as fact.
+ */
+describe('POST /v1/qualification/answer', () => {
+  const submit = (
+    app: Awaited<ReturnType<typeof h>>['app'],
+    token: string,
+    sessionId: string,
+    questionId: string,
+    value: string,
+  ) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/qualification/answer',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, questionId, value },
+    });
+
+  it('stores an answer and returns the standing map', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await submit(app, token, sessionId, 'roof_direction', 'south');
+    expect(response.statusCode).toBe(200);
+
+    const body = response.json<{
+      questionId: string;
+      answers: Record<string, string>;
+      nextQuestionId: string | null;
+    }>();
+    expect(body.questionId).toBe('roof_direction');
+    expect(body.answers['roof_direction']).toBe('south');
+    expect(body.nextQuestionId).toBe('address');
+  });
+
+  it('does not write the answer into the transcript', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    await submit(app, token, sessionId, 'property_type', 'detached');
+
+    const conversation = await app.inject({
+      method: 'GET',
+      url: '/v1/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const turns = conversation.json<{ turns: Array<{ text: string }> }>().turns;
+    // The whole point of D-11: nothing appears in the transcript, so nothing can
+    // be mistaken for something the visitor said.
+    expect(turns).toHaveLength(0);
+  });
+
+  it('merges rather than replaces, and advances the suggestion', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    await submit(app, token, sessionId, 'address', '1 Test Street');
+    const second = await submit(app, token, sessionId, 'roof_direction', 'west');
+
+    const body = second.json<{ answers: Record<string, string>; nextQuestionId: string | null }>();
+    expect(body.answers['address']).toBe('1 Test Street');
+    expect(body.answers['roof_direction']).toBe('west');
+    // `address` is now answered, so the suggestion moves on rather than repeating.
+    expect(body.nextQuestionId).toBe('roof_confidence');
+  });
+
+  it('rejects a value that is not one of the options, naming them', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await submit(app, token, sessionId, 'roof_direction', 'sideways');
+    expect(response.statusCode).toBe(400);
+
+    const error = response.json<{ error: { code: string; message: string } }>().error;
+    expect(error.code).toBe('bad_request');
+    expect(error.message).toContain('south');
+  });
+
+  it('rejects a question that does not exist, naming the real ones', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await submit(app, token, sessionId, 'roof_vibe', 'good');
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: { message: string } }>().error.message).toContain('roof_size');
+  });
+
+  it('refuses a token for another session', async () => {
+    const { app } = await h();
+    const { token } = await openSession(app);
+
+    const response = await submit(app, token, 'sess_someoneelse', 'address', '1 Test Street');
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('refuses an unauthenticated submission', async () => {
+    const { app } = await h();
+    const { sessionId } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/qualification/answer',
+      payload: { sessionId, questionId: 'address', value: '1 Test Street' },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('accepts a free-text answer to a question that has no options', async () => {
+    // `address` and `annual_kwh` are open questions. A validator that insisted on
+    // a known option would reject the two answers the installer needs most.
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await submit(app, token, sessionId, 'annual_kwh', '4200');
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ answers: Record<string, string> }>().answers['annual_kwh']).toBe('4200');
+  });
+
+  it('stops a script filling the store', async () => {
+    const config = makeConfig({
+      rateLimit: {
+        enabled: true,
+        trustProxyHops: 0,
+        rules: {
+          session: { limit: 100_000, windowMs: 60_000 },
+          chat: { limit: 100_000, windowMs: 60_000 },
+          leads: { limit: 100_000, windowMs: 60_000 },
+          qualification: { limit: 2, windowMs: 60_000 },
+        },
+        maxKeys: 10_000,
+      },
+    });
+    const { app } = await h(undefined, config);
+    const { sessionId, token } = await openSession(app);
+
+    expect((await submit(app, token, sessionId, 'annual_kwh', '1')).statusCode).toBe(200);
+    expect((await submit(app, token, sessionId, 'annual_kwh', '2')).statusCode).toBe(200);
+    expect((await submit(app, token, sessionId, 'annual_kwh', '3')).statusCode).toBe(429);
+  });
+});
+
+/**
+ * A page-submitted answer has to reach the model, not just the store.
+ *
+ * Otherwise the assistant re-asks a question the visitor already answered on the
+ * form, which is the specific failure the answers map exists to prevent.
+ */
+describe('qualification answers reach the conversation', () => {
+  it('gives the tool context the answers submitted by the route', async () => {
+    const captured: unknown[] = [];
+    const provider = new ScriptedProvider((request) => {
+      // Wrap `execute` so the tool result is inspectable. `save_answer` reports
+      // how many answers the context already held, which is the only place that
+      // number is visible from outside the turn.
+      const original = request.execute;
+      request.execute = async (call) => {
+        const result = await original(call);
+        captured.push(result);
+        return result;
+      };
+      return [
+        {
+          type: 'tool_started',
+          call: {
+            id: 'call_1',
+            name: 'save_answer',
+            args: { questionId: 'annual_kwh', value: '4200' },
+          },
+        },
+        { type: 'text', text: 'Noted.' },
+      ];
+    });
+
+    const { app } = await h(provider);
+    const { sessionId, token } = await openSession(app);
+
+    // One answer via the route, the way a host-page form would submit it.
+    await app.inject({
+      method: 'POST',
+      url: '/v1/qualification/answer',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, questionId: 'roof_direction', value: 'north' },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I use about 4200 kWh' },
+    });
+
+    // Two, not one: the context saw the route's answer as well as the turn's.
+    expect(captured[0]).toMatchObject({ answered: 2 });
+  });
+
+  it('keeps both answers after the turn, and records only the turn on the turn', async () => {
+    const provider = new ScriptedProvider(() => [
+      {
+        type: 'tool_started',
+        call: {
+          id: 'call_1',
+          name: 'save_answer',
+          args: { questionId: 'annual_kwh', value: '4200' },
+        },
+      },
+      { type: 'text', text: 'Noted.' },
+    ]);
+
+    const { app } = await h(provider);
+    const { sessionId, token } = await openSession(app);
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/qualification/answer',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, questionId: 'roof_direction', value: 'north' },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I use about 4200 kWh' },
+    });
+
+    const conversation = await app.inject({
+      method: 'GET',
+      url: '/v1/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const turns = conversation.json<{
+      turns: Array<{ role: string; answers?: Record<string, string> }>;
+    }>().turns;
+    const assistant = turns.find((t) => t.role === 'assistant');
+
+    // The per-turn map is the audit trail: it says what *this* turn changed.
+    expect(assistant?.answers).toEqual({ annual_kwh: '4200' });
+  });
+});
+
+/**
+ * The standing answer map, at the store rather than through a route.
+ *
+ * Tested directly because the property that matters is one a route test cannot
+ * see: that a conversation's answers survive a restart. The store is an
+ * append-only file, so "the answers are still there" means the last line written
+ * for that session carried them -- a race or a partial write would show up here
+ * and nowhere else.
+ */
+describe('store: mergeAnswers', () => {
+  it('creates a conversation when the visitor answers before ever chatting', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    const conversation = await store.mergeAnswers('t_demo0001', 'sess_a', {
+      roof_direction: 'south',
+    });
+    // A form submission happens before any turn, so there is no conversation to
+    // amend. Refusing to create one would silently drop the first few answers.
+    expect(conversation.turns).toEqual([]);
+    expect(conversation.answers).toEqual({ roof_direction: 'south' });
+  });
+
+  it('merges without blanking earlier answers, and survives a reload', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    await store.mergeAnswers('t_demo0001', 'sess_a', { address: '1 Test Street' });
+    await store.mergeAnswers('t_demo0001', 'sess_a', { roof_direction: 'west' });
+
+    // A fresh instance over the same directory: nothing is in memory.
+    const reloaded = new FileStore(dir);
+    const conversation = await reloaded.getConversation('t_demo0001', 'sess_a');
+    expect(conversation?.answers).toEqual({
+      address: '1 Test Street',
+      roof_direction: 'west',
+    });
+  });
+
+  it('does not lose turns when an answer is amended', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    await store.appendTurn('t_demo0001', 'sess_a', {
+      role: 'user',
+      text: 'hello',
+      at: new Date().toISOString(),
+      clientMessageId: 'c1',
+    });
+    await store.mergeAnswers('t_demo0001', 'sess_a', { address: '1 Test Street' });
+
+    const reloaded = new FileStore(dir);
+    const conversation = await reloaded.getConversation('t_demo0001', 'sess_a');
+    // The conversation record is rewritten whole on each change, so a merge that
+    // built a fresh object instead of spreading the existing one would drop the
+    // transcript here -- the failure mode worth a test.
+    expect(conversation?.turns).toHaveLength(1);
+    expect(conversation?.answers).toEqual({ address: '1 Test Street' });
+  });
+
+  it('keeps tenants apart', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    await store.mergeAnswers('t_demo0001', 'sess_a', { address: 'mine' });
+    expect(await store.getConversation('t_other', 'sess_a')).toBeNull();
   });
 });

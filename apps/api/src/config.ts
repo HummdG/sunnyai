@@ -72,6 +72,12 @@ export interface RateLimitConfig {
      * script wants, and is the one write a visitor cannot undo.
      */
     leads: RateLimitRule;
+    /**
+     * Per client address. Grows the stored conversation one answer at a time,
+     * and is driven by a page form rather than by a person typing, so it is
+     * likelier to be the target of a loop than the chat is.
+     */
+    qualification: RateLimitRule;
   };
   maxKeys: number;
 }
@@ -161,6 +167,14 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       leads: {
         limit: Number(env('SUNNY_RL_LEADS_LIMIT') ?? 10),
         windowMs: Number(env('SUNNY_RL_LEADS_WINDOW_MS') ?? 60_000),
+      },
+      // Higher than the others because the journey has fourteen questions and a
+      // page that submits them one at a time consumes one allowance each. The
+      // limit has to clear a whole questionnaire or it would cut off a genuine
+      // visitor partway through the form.
+      qualification: {
+        limit: Number(env('SUNNY_RL_QUALIFICATION_LIMIT') ?? 40),
+        windowMs: Number(env('SUNNY_RL_QUALIFICATION_WINDOW_MS') ?? 60_000),
       },
     },
     maxKeys: Number(env('SUNNY_RL_MAX_KEYS') ?? 10_000),

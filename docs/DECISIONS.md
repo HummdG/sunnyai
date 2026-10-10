@@ -217,9 +217,9 @@ over-limits rather than under-limits. The spoofing case is a unit test.
 
 ## D-11. Answers belong on the conversation, not in the transcript
 
-**Status: decided in principle, not yet built.** `POST /v1/qualification/answer`
-does not exist yet; this records where an answer should go when it does, so the
-route is not written the convenient way.
+**Status: decided and built** (2026-10-10). `POST /v1/qualification/answer` exists;
+this records what it does and why, because the convenient implementation was
+available and wrong.
 
 **The problem.** In the conversational flow, `save_answer` records into a map that
 the turn persists as structured data, and the next turn recovers it from history
@@ -236,14 +236,35 @@ untidy: it is the assistant being told the visitor said something they did not.
 It also cannot be un-said, and it would be indistinguishable from a real turn to
 every later reader of the same conversation.
 
-**Decision.** Answers become a property of the conversation (`Conversation.answers`)
-written through a store method, merged with the turn-derived map when a turn
-runs. A route then records an answer without inventing dialogue.
+**Decision.** `Conversation.answers` is a first-class standing map, written through
+`Store.mergeAnswers`. It is **last write wins** and both paths maintain it:
 
-**Why it is not done yet.** It changes the store interface and the on-disk record
-shape, which is a decision worth making on purpose rather than as a side effect of
-adding a route. The conversational path already covers qualification end to end,
-so nothing is blocked by the delay.
+- the route writes the single answer it was given;
+- a turn reads the map, and folds back the answers it changed when it finishes.
+
+That last point is the one worth stating, because the obvious alternative — leave
+the map to the route, keep the transcript to the chat, merge them on read — has no
+defensible tie-break. Two maps can disagree ("the visitor told the chat south, the
+form east"), and the only thing available to decide between them is which code
+path happened to run last, which is exactly the answer you should not want. With a
+single map, whichever write was later wins, and that is the right rule.
+
+**The per-turn map stays, holding only the delta.** A turn persists just the
+answers it set or changed, not the whole accumulated map. A test caught the first
+version doing the latter: the assistant turn was recording every answer ever given,
+so "what did this turn change" was unanswerable from the transcript. The delta is
+what makes the record an audit trail rather than a series of lengthening repeats.
+`answersFromHistory` still merges the per-turn maps underneath the standing map,
+so a conversation written before this field existed resumes with its answers
+intact.
+
+**One deliberate looseness.** The contract's Zod schema does not enumerate the
+questions or their options. That vocabulary is SunScan's, it lives in the API
+beside the question set, and `@sunny/contracts` ships to the browser — a copy
+there would be public as well as a second thing to keep in step. The route
+validates against the real question set and answers `400` naming the permitted
+values, which is more useful to a caller than a schema error. There is now one
+`validateAnswer` for both the tool and the route, so the two cannot drift.
 
 ---
 

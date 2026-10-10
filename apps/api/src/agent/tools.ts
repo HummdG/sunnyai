@@ -166,6 +166,36 @@ export const STEP_ORDER = [
   'motivation',
 ] as const;
 
+/**
+ * The one place an answer is judged acceptable.
+ *
+ * Extracted from `save_answer` rather than duplicated for the qualification
+ * route, because two copies of "is this a real answer" drift: the tool would
+ * keep accepting an option the route had stopped accepting, and the difference
+ * would surface only as a question the visitor appears to have answered twice.
+ * Both callers now apply the same rule by construction.
+ *
+ * Pure on purpose -- strings in, verdict out -- so it can be tested without a
+ * tenant, a store or a model.
+ */
+export type AnswerVerdict =
+  | { ok: true; questionId: string; value: string }
+  | { ok: false; error: string; known?: readonly string[]; allowed?: readonly string[] };
+
+export function validateAnswer(questionId: string, value: string): AnswerVerdict {
+  if (!questionId || !value) {
+    return { ok: false, error: 'questionId and value are required' };
+  }
+  const question = QUESTIONS[questionId];
+  if (!question) {
+    return { ok: false, error: 'unknown question', known: Object.keys(QUESTIONS) };
+  }
+  if (question.options && !question.options.includes(value)) {
+    return { ok: false, error: 'value not among the allowed options', allowed: question.options };
+  }
+  return { ok: true, questionId, value };
+}
+
 // ─── the tool implementations ────────────────────────────────────────────────
 
 const DEFINITIONS: ToolDefinition[] = [
@@ -243,33 +273,35 @@ const DEFINITIONS: ToolDefinition[] = [
     async run(args, ctx) {
       const questionId = str(args, 'questionId');
       const value = str(args, 'value');
-      if (!questionId || !value) {
+      const verdict = validateAnswer(questionId ?? '', value ?? '');
+      if (!verdict.ok) {
+        // The step is kept short: the model reads it to decide what to do next,
+        // and the structured detail it needs is in `data`.
+        const summary =
+          verdict.error === 'unknown question'
+            ? `"${questionId}" is not a question I ask.`
+            : verdict.error === 'value not among the allowed options'
+              ? `"${value}" is not one of the options for that question.`
+              : 'Not saved.';
         return {
           ok: false,
-          data: { error: 'questionId and value are required' },
-          summary: 'Not saved.',
+          data: {
+            error: verdict.error,
+            ...(verdict.known ? { known: verdict.known } : {}),
+            ...(verdict.allowed ? { allowed: verdict.allowed } : {}),
+          },
+          summary,
         };
       }
-      const question = QUESTIONS[questionId];
-      if (!question) {
-        return {
-          ok: false,
-          data: { error: 'unknown question', known: Object.keys(QUESTIONS) },
-          summary: `"${questionId}" is not a question I ask.`,
-        };
-      }
-      if (question.options && !question.options.includes(value)) {
-        return {
-          ok: false,
-          data: { error: 'value not among the allowed options', allowed: question.options },
-          summary: `"${value}" is not one of the options for that question.`,
-        };
-      }
-      ctx.answers[questionId] = value;
+      ctx.answers[verdict.questionId] = verdict.value;
       return {
         ok: true,
-        data: { questionId, value, answered: Object.keys(ctx.answers).length },
-        summary: `Saved ${questionId} = ${value}.`,
+        data: {
+          questionId: verdict.questionId,
+          value: verdict.value,
+          answered: Object.keys(ctx.answers).length,
+        },
+        summary: `Saved ${verdict.questionId} = ${verdict.value}.`,
       };
     },
   },

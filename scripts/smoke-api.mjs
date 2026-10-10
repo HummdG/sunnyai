@@ -160,6 +160,42 @@ async function main() {
     }
   }
 
+  // ── qualification ─────────────────────────────────────────────────────────
+  const badAnswer = await call('/v1/qualification/answer', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionId, questionId: 'roof_direction', value: 'sideways' }),
+  });
+  check(
+    'an answer outside the options is refused',
+    badAnswer.status === 400,
+    `got ${badAnswer.status}`,
+  );
+
+  const answer = await call('/v1/qualification/answer', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionId, questionId: 'roof_direction', value: 'south' }),
+  });
+  check('a valid answer is accepted', answer.status === 200, `got ${answer.status}`);
+  check(
+    'the answer comes back on the standing map',
+    answer.json?.answers?.roof_direction === 'south',
+  );
+  check('the response suggests a next question', typeof answer.json?.nextQuestionId === 'string');
+
+  // The property D-11 exists for: the answer is recorded without the API putting
+  // words in the visitor's mouth. Checked here rather than only in the unit tests
+  // because it is the kind of thing a well-meaning refactor "simplifies" back out.
+  const afterAnswer = await call('/v1/conversation', {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  check(
+    'the answer did not invent a transcript turn',
+    (afterAnswer.json?.turns?.length ?? -1) === 0,
+    `got ${afterAnswer.json?.turns?.length} turns`,
+  );
+
   // ── authorisation ─────────────────────────────────────────────────────────
   const unauthed = await call('/v1/chat/stream', {
     method: 'POST',
