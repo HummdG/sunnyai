@@ -12,7 +12,7 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **732 tests across 21 files**,
+public marketing site are built, tested and green: **772 tests across 23 files**,
 a real fidelity comparison
 against the supplied artwork, **25 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
@@ -26,7 +26,9 @@ so they are pre-existing rather than a regression; they are the last item under
 assistant itself **has never answered a prompt**, because there is no model
 credential in this environment — the deployment correctly refuses instead of
 simulating. Terraform exists and has
-never been run. Seven of the plan's fourteen API routes exist. Nothing has been
+never been run. Nine of the plan's fourteen API routes exist, and the two that
+reach an installer's own documents answer from a lexical index built here rather
+than the managed retrieval service the plan names. Nothing has been
 deployed anywhere. Sunny is not reachable by any customer, and by the plan's own
 standard it must not be described as working until it is.
 
@@ -34,22 +36,23 @@ standard it must not be described as working until it is.
 
 Every line below is a command that ran and its output.
 
-| Check                          | Command                                                                                                              | Result                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Formatting                     | `npm run format:check`                                                                                               | _All matched files use Prettier code style_                                                                                                                                                                                                                                                                                                      |
-| Lint                           | `npm run lint`                                                                                                       | clean (ESLint, type-aware)                                                                                                                                                                                                                                                                                                                       |
-| Types                          | `npm run typecheck`                                                                                                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                                                                                                                                                                                                                                      |
-| Unit / contract / visual tests | `npm run test`                                                                                                       | **732 passed (21 files)**                                                                                                                                                                                                                                                                                                                        |
-| Browser end-to-end             | `npm run test:e2e`                                                                                                   | **44 passed, 2 failed** — both failures are in `lab.spec.ts` and both reproduce at HEAD without this increment's changes (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                                                                                                                          |
-| Widget bundle                  | `npm run build:widget`                                                                                               | 131.5 kB — **36.5 kB gzipped**                                                                                                                                                                                                                                                                                                                   |
-| Character lab bundle           | `npm run build:lab`                                                                                                  | 140.8 kB, plus the lazily-loaded arcade chunk at 11.9 kB (A08)                                                                                                                                                                                                                                                                                   |
-| API smoke                      | `npm run smoke`                                                                                                      | **26/26 checks passed, exit 0**                                                                                                                                                                                                                                                                                                                  |
-| Dependency audit               | `npm audit --audit-level=high`                                                                                       | **0 vulnerabilities**                                                                                                                                                                                                                                                                                                                            |
-| Committed secrets              | the CI job's `git grep`, run locally                                                                                 | clean — and proven to fire (below)                                                                                                                                                                                                                                                                                                               |
-| Character fidelity             | `scripts/compare-reference.py`                                                                                       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                                                                                                                                                                                                                              |
-| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`)                          | **27 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09), the two arcade-spin scenes (A10) and the two planting scenes (A11), are byte-identical to the ones Linux produces                                                                                                                                       |
-| Catalogue & recommendations    | the running API on 8787, seeded with `npm run seed:catalogue fixtures/demo-catalogue.csv` (10 _fictional_ demo rows) | **the golden scenario, live**: 3 priced options at 4 kWp; `{"requireBattery":true}` and then `{"preferCheaper":true}` each merge onto the stored want (`{"targetKwp":4}` → `+requireBattery` → `+preferCheaper`) and add a 5 kWh battery to every option; adding a GBP 3,000 budget on top honestly returns **no** options rather than exceed it |
-| Option cards (widget surface)  | `npm run verify` + `npx playwright test tests/e2e/widget.spec.ts tests/e2e/accessibility.spec.ts`                    | **732 unit tests green**, and **16 browser checks green** over the rendered cards — the widget reads `GET /v1/recommendations` back at mount and paints the option set, with the axe audit over the card-bearing panel clean at `serious` and above (D-28)                                                                                       |
+| Check                          | Command                                                                                                              | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formatting                     | `npm run format:check`                                                                                               | _All matched files use Prettier code style_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Lint                           | `npm run lint`                                                                                                       | clean (ESLint, type-aware)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Types                          | `npm run typecheck`                                                                                                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Unit / contract / visual tests | `npm run test`                                                                                                       | **772 passed (23 files)**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Browser end-to-end             | `npm run test:e2e`                                                                                                   | **44 passed, 2 failed** — both failures are in `lab.spec.ts` and both reproduce at HEAD without this increment's changes (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Widget bundle                  | `npm run build:widget`                                                                                               | 131.5 kB — **36.5 kB gzipped**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Character lab bundle           | `npm run build:lab`                                                                                                  | 140.8 kB, plus the lazily-loaded arcade chunk at 11.9 kB (A08)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| API smoke                      | `npm run smoke`                                                                                                      | **26/26 checks passed, exit 0** — the admin routes are skipped and the skip is printed, because this run passes no `SMOKE_ADMIN_TOKEN` to a deployment that has one. With the secret in the run the same script reports **33/33**, exercising knowledge onboarding end to end; against a token-less deployment, **28/28**, where the admin routes are asserted to refuse rather than half-work                                                                                                                                                                                                                                                                        |
+| Dependency audit               | `npm audit --audit-level=high`                                                                                       | **0 vulnerabilities**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Committed secrets              | the CI job's `git grep`, run locally                                                                                 | clean — and proven to fire (below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Character fidelity             | `scripts/compare-reference.py`                                                                                       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`)                          | **27 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09), the two arcade-spin scenes (A10) and the two planting scenes (A11), are byte-identical to the ones Linux produces                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Catalogue & recommendations    | the running API on 8787, seeded with `npm run seed:catalogue fixtures/demo-catalogue.csv` (10 _fictional_ demo rows) | **the golden scenario, live**: 3 priced options at 4 kWp; `{"requireBattery":true}` and then `{"preferCheaper":true}` each merge onto the stored want (`{"targetKwp":4}` → `+requireBattery` → `+preferCheaper`) and add a 5 kWh battery to every option; adding a GBP 3,000 budget on top honestly returns **no** options rather than exceed it                                                                                                                                                                                                                                                                                                                      |
+| Option cards (widget surface)  | `npm run verify` + `npx playwright test tests/e2e/widget.spec.ts tests/e2e/accessibility.spec.ts`                    | **732 unit tests green**, and **16 browser checks green** over the rendered cards — the widget reads `GET /v1/recommendations` back at mount and paints the option set, with the axe audit over the card-bearing panel clean at `serious` and above (D-28)                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Knowledge sources (P6)         | `npm run verify` + `node scripts/smoke-api.mjs` + `curl` against the running API on 8787                             | **772 unit tests green across 23 files**, and the two routes exercised over real HTTP two ways: the smoke script, which now covers them in all three modes (33/33 with the admin token in the run, 28/28 against a token-less deployment, 26/26 plus a printed skip when the token is configured but withheld), and `curl` directly — `POST /v1/knowledge/sources` refuses without the admin token (401) and with it returns 3 passages for a 340-character warranty page, read back by job id, with the same job id under another tenant a 404. Retrieval through a chat turn is covered by a scripted provider only — chat needs the credential in blocker 1 (D-29) |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -127,6 +130,28 @@ first real finding should not be the one that matters.
   standing options back (D-28): `GET /v1/recommendations` refused without a
   session token, returning the same options the POST did, writing nothing, and
   scoped to the caller's own session so one visitor's token cannot read another's.
+  And the knowledge routes (D-29): ingestion refused without an admin token and
+  refused entirely when the token is unset, a document stored, chunked and given a
+  succeeded job, a replacement keeping its `createdAt` and appending to the job
+  log rather than replacing it, a named source that does not exist being a 404
+  rather than a silent second copy, an empty document failing its job and storing
+  nothing, a stub heading warning without blocking, a job read back by id and the
+  same id under another tenant a 404, and — the phase's actual gate — installer
+  B's index empty and its `retrieve_knowledge` refusing, with a replacement and a
+  deletion both visible on the very next lookup. Plus the injection defence: a
+  fixture document that ends in an instruction aimed at the assistant, and a
+  chat-turn test asserting that sentence reaches neither the transcript nor the
+  tool's summary.
+- **Knowledge** (`packages/knowledge`, 22 tests) — chunking that keeps a heading
+  with its passage and leaves the text exactly as written, so a part number a
+  cleaner would tidy into two words is still quotable; a heading with no body
+  dropped rather than emitted empty; an over-long paragraph split rather than
+  truncated; a table kept whole. And retrieval, documented as **lexical** rather
+  than semantic (D-29): the best passage ranked first, a passage found by the
+  words under its heading even when the body never repeats them, `missingTerms`
+  so "not documented" is distinguishable from "wrong word", zero-score chunks
+  dropped rather than ranked last, deterministic order with ties broken by chunk
+  id, and `tokenize('SB-430')` holding both `sb-430` and `430`.
 - **Solar rules** (`packages/solar-rules`, 55 tests) — the part of the product
   that decides without asking a model, and what it refuses (D-27). The CSV reader
   (a BOM, semicolons, a quoted delimiter containing one, CRLF, a value spanning
@@ -809,11 +834,12 @@ installed in this environment. The CI job that runs `fmt -check` and
 on GitHub in a form CI can see (see blocker 7). Treat the infrastructure as a
 description of intent that compiles, not as infrastructure known to work.
 
-### 4. Seven of the plan's fourteen API routes exist
+### 4. Nine of the plan's fourteen API routes exist
 
 Implemented: `POST /v1/widget/session`, `POST /v1/chat/stream`,
 `GET /v1/widget/config/:publicId`, `POST /v1/qualification/answer`,
-`POST /v1/leads`, `GET /v1/catalog/products` and `POST /v1/recommendations`,
+`POST /v1/leads`, `GET /v1/catalog/products`, `POST /v1/recommendations`,
+`POST /v1/knowledge/sources` and `GET /v1/knowledge/jobs/:id`,
 plus `GET /healthz`, `GET /v1/conversation`, `GET /v1/leads` and
 `GET /v1/recommendations` (none of those four is in the plan's list: each reads
 back what the plan's own POST route already wrote, so the count is unmoved).
@@ -833,14 +859,22 @@ tools behind them no longer refuse, because an installer's own uploaded rows are
 real source rather than invented commercial data — and with no rows uploaded they
 refuse in as many words rather than guess.
 
+**On 2026-10-11 the knowledge pair took it to nine** (P6, D-29). The plan names
+both `POST /v1/knowledge/sources` and `GET /v1/knowledge/jobs/:id`, so both count.
+What they do _not_ do is anything in the phase's name beyond onboarding and
+ingestion from text the caller supplies: no Google retrieval, no Drive, no
+website crawl, no sync. That gap is the honest one to leave open, and it is
+recorded in D-29 rather than papered over with a route that accepts a URL it
+would never fetch.
+
 Absent, each with nothing behind it:
 `POST /v1/sunscan/assessments`, `GET /v1/sunscan/assessments/:id`,
-`GET /v1/dashboard/metrics`, `POST /v1/knowledge/sources`,
-`GET /v1/knowledge/jobs/:id`,
+`GET /v1/dashboard/metrics`,
 `POST /v1/integrations/google-drive/connect`, `POST /v1/billing/webhook`.
 
-So assessment hand-off, knowledge ingestion, Drive, billing and the dashboard are
-**not implemented**. The widget can hold a conversation, capture qualification
+So assessment hand-off, Drive, billing and the dashboard are **not implemented**,
+and the knowledge routes ingest text rather than retrieving from the installer's
+own sites. The widget can hold a conversation, capture qualification
 answers, save a lead, and — from whatever an installer has uploaded — search the
 catalogue and price package options. What it cannot do is anything that needs
 SunScan, Google or a payment provider, and it has no product data until someone
@@ -927,7 +961,7 @@ not been designed.
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Formatting / lint              | **done**, in CI and locally                                                                                                                                                    |
 | Typecheck                      | **done**                                                                                                                                                                       |
-| Unit tests                     | **done** — 732 across 21 files                                                                                                                                                 |
+| Unit tests                     | **done** — 772 across 23 files                                                                                                                                                 |
 | Contract tests                 | **done** — Zod schemas exercised through the routes                                                                                                                            |
 | Integration tests              | **partial** — the API is exercised in-process, not across a network                                                                                                            |
 | E2E (Playwright)               | **done** — 44 of 46 checks in Chromium against four real host pages, the API, the lab and the shadow DOM; the two failures are in the lab and reproduce without this increment |
@@ -1010,14 +1044,14 @@ properly rather than sketched.
    item is first among the unblocked ones, is the survey half: the widget is
    genuinely less useful without a real assessment, and with no adapter every
    option is an assumption rather than a survey-confirmed figure.
-6. **Nothing left in blocker 4 is reachable without external input.** Every
-   remaining route is blocked on something outside this repository:
+6. **Little in blocker 4 is reachable without external input, and less than
+   before.** What is left, with what each needs:
 
    - `POST /v1/sunscan/assessments` and `GET /v1/sunscan/assessments/:id` need a
      real SunScan contract and credentials.
-   - `POST /v1/knowledge/sources` and `GET /v1/knowledge/jobs/:id` need Vertex AI
-     Search. `POST /v1/integrations/google-drive/connect` needs a Google OAuth
-     client and a consent screen. `POST /v1/billing/webhook` needs a billing
+   - `POST /v1/integrations/google-drive/connect` needs a Google OAuth
+     client and a consent screen — and, per ADR-004, the mechanism itself is
+     `v1alpha` and UNVERIFIED as GA. `POST /v1/billing/webhook` needs a billing
      provider and its signing secret. `GET /v1/dashboard/metrics` needs a
      decision about what an installer should see, which is a product decision
      before it is a route.
@@ -1025,6 +1059,13 @@ properly rather than sketched.
      `GET /v1/catalog/products` and `POST /v1/recommendations` are **done**
      (the last two by P8, D-27 — they needed the installer's upload, not SunScan,
      and the earlier version of this list was wrong to say otherwise).
+   - **Corrected 2026-10-11.** This list previously said the two knowledge routes
+     "need Vertex AI Search", which was the wrong reason to leave them unbuilt:
+     the managed service is a better retriev*er*, not a prerequisite for ingestion
+     or for the tenant isolation the phase is gated on. Both routes now exist
+     against a lexical index (P6, D-29). The part that genuinely needs Vertex AI
+     Search — and the Drive connector and a crawl — is the _retrieval quality_ and
+     the _sources_, and that remainder is what is still blocked.
 
    So the next honest step is not another route. It is either the SunScan
    contract (item 5) or a model credential (item 2) — each of which turns a

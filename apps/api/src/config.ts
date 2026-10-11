@@ -84,6 +84,12 @@ export interface RateLimitConfig {
      * token should not also be an unlimited write amplifier.
      */
     catalogue: RateLimitRule;
+    /**
+     * Per client address. Onboards an installer's own document, which is a
+     * multi-megabyte body behind an admin token -- limited for the same reason
+     * the catalogue is: a leaked token should not be an unlimited write.
+     */
+    knowledge: RateLimitRule;
   };
   maxKeys: number;
 }
@@ -198,6 +204,14 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       catalogue: {
         limit: Number(env('SUNNY_RL_CATALOGUE_LIMIT') ?? 20),
         windowMs: Number(env('SUNNY_RL_CATALOGUE_WINDOW_MS') ?? 60_000),
+      },
+      // Like the catalogue: token-guarded, and a document is onboarded when it
+      // changes rather than on a schedule. Kept separate from the catalogue's
+      // counter so a season of price-list uploads cannot exhaust the allowance
+      // for a warranty that needs re-ingesting the same afternoon.
+      knowledge: {
+        limit: Number(env('SUNNY_RL_KNOWLEDGE_LIMIT') ?? 20),
+        windowMs: Number(env('SUNNY_RL_KNOWLEDGE_WINDOW_MS') ?? 60_000),
       },
     },
     maxKeys: Number(env('SUNNY_RL_MAX_KEYS') ?? 10_000),

@@ -15,6 +15,7 @@
   "dependencies": {
     "@google/genai": "^2.28.0",
     "@sunny/contracts": "*",
+    "@sunny/knowledge": "*",
     "@sunny/solar-rules": "*",
     "fastify": "^5.12.5"
   }

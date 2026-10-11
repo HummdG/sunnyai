@@ -28,8 +28,6 @@ export interface Tenant {
    * to SunScan at all until an operator sets `SUNSCAN_BASE_URL`.
    */
   sunscanUrl: string | null;
-  /** Knowledge sources are scoped by tenant; empty until ingestion is wired. */
-  knowledgeSourceIds: string[];
 }
 
 const DEMO_TENANT: Tenant = {
@@ -37,7 +35,6 @@ const DEMO_TENANT: Tenant = {
   publicId: 'w_demo000001',
   sunscanSlug: 'demo-solar',
   sunscanUrl: null,
-  knowledgeSourceIds: [],
   config: {
     publicId: 'w_demo000001',
     companyName: 'Northwind Solar',

@@ -1,7 +1,10 @@
 # ADR-004: Knowledge retrieval and tenant isolation — do not depend on a Preview ACL as the tenant boundary
 
-- **Status:** Proposed (the retrieval mechanism is not built; the isolation
-  principle is stated but not yet exercised by a test)
+- **Status:** Proposed, **amended 2026-10-11** (D-29): retrieval is now built as
+  an in-process lexical index, so §2 below no longer describes the tree, and the
+  isolation principle is exercised by tests in both directions. The decision
+  itself — a Preview ACL is never the sole tenant boundary — is unchanged and is
+  what the built layer relies on. See the amendment at the end.
 - **Date:** 2026-10-10
 - **Related:** ADR-003 (agent runtime), ADR-006 (data and consent)
 
@@ -63,11 +66,20 @@ The boundary is enforced in Sunny's own layer instead:
   `apps/api/src/tenants.ts`).
 - Tool calls take `tenantId` from the server-side `ToolContext`, never from the
   model's arguments (`apps/api/src/agent/tools.ts`, header comment).
-- Knowledge sources are already scoped per tenant in the tenant model
-  (`knowledgeSourceIds`, `apps/api/src/tenants.ts`) and the count is passed into
-  the tool context (`apps/api/src/agent/agent.ts`).
+- Knowledge sources are scoped per tenant in the tenant model and in the store:
+  every read of a source or an ingestion job takes a `tenantId` and is scoped by
+  it inside the interface (`apps/api/src/store.ts`), and the index a turn searches
+  is built from one tenant's rows only (`apps/api/src/knowledge.ts`). _(Amended
+  2026-10-11: this bullet previously pointed at `knowledgeSourceIds` on the tenant
+  model — an unused list that nothing read and that has since been deleted. A
+  field naming sources is not an isolation mechanism; the store's scoping is.)_
 
 ### 2. Retrieval stays disabled until isolation is verifiable
+
+> **Superseded on 2026-10-11 by D-29 — see the amendment at the end of this
+> record.** The decision below was the position while there was no retrieval
+> implementation at all. Read it as the reasoning that held _until_ retrieval was
+> built, not as a description of the tree today.
 
 There is no retrieval implementation. `retrieve_knowledge` returns one of two
 honest failures (`apps/api/src/agent/tools.ts`):
@@ -110,6 +122,8 @@ claims "live" Drive knowledge is wrong today.
   and the smoke script's check that the public config never contains the SunScan
   slug or an internal tenant id (`scripts/smoke-api.mjs`). No cross-tenant
   _knowledge_ test could exist yet, since there is no knowledge layer.
+  _(Amended 2026-10-11: a cross-tenant knowledge test now exists — see the
+  amendment below. `scripts/verify-isolation` still does not.)_
 
 ## Alternatives considered
 
@@ -145,3 +159,43 @@ claims "live" Drive knowledge is wrong today.
 - Where does the "treat retrieved text as untrusted" rule (§7.2) get enforced? No
   prompt-injection defence exists in the tool layer yet; today the tools simply do
   not return retrieved text.
+
+## Amendment — 2026-10-11 (D-29): retrieval is built, and it is not managed search
+
+Retrieval now exists, so §2 above and the "no cross-tenant knowledge test could
+exist yet" consequence are superseded. What changed, and what it does to this
+record's decision:
+
+- **The index is in-process and lexical.** `packages/knowledge` is BM25 over the
+  words a tenant's own documents contain, built per turn from stored text. It is
+  **not** Vertex AI Search and it is not semantic; the package's doc comment says
+  so rather than leaving a reader to infer it. This ADR's rejection of the
+  Preview-ACL path is untouched, and its rejection of "index everything into one
+  store and filter in application code" is why the index is built _per tenant_
+  from that tenant's rows: the isolation is structural, not a filter applied after
+  a shared search.
+- **The tenant boundary this ADR chose is the one doing the work.** Sources and
+  ingestion jobs are read through the store's tenant-scoped interface, and the
+  index a turn searches is assembled from one tenant's rows
+  (`apps/api/src/knowledge.ts`). The ACL question this ADR could not settle has
+  not been settled; it has stopped being load-bearing, because there is no
+  managed data store whose ACLs are being trusted.
+- **The isolation principle is now exercised, in both directions.** Two tests:
+  installer B's index is empty and B's `retrieve_knowledge` refuses even though A's
+  documents exist (`apps/api/test/knowledge.test.ts`, "keeps one installer's
+  documents out of another installer's turn"), and a job id A holds is a 404 when
+  asked for under B's tenant. Both are in the same language as acceptance
+  scenario 4, and neither is a substitute for `scripts/verify-isolation`, which is
+  still unwritten.
+- **The "treat retrieved text as untrusted" open question is part-answered.** The
+  tool now returns retrieved text, so the §7.2 rule has somewhere to be enforced
+  and is enforced in three places: the system instruction tells the model the text
+  is the installer's words and not instructions to it; passages are bounded
+  (4 per lookup, 900 characters each); and the tool's _summary_ — the only part of
+  a result that reaches the transcript — is built from titles and counts and never
+  from the text. None of the three makes injection impossible, and the threat
+  model's warning is not discharged, only answered.
+- **What is still unbuilt, and still blocked on the same verifications:** Drive
+  ingestion, website crawling, Document AI conversion, scheduled sync, and managed
+  retrieval. Nothing here should be read as having verified `acl_info`, the
+  `v1alpha` OAuth resource, or Drive folder scoping.

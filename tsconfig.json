@@ -30,6 +30,7 @@
       "@sunny/games": ["./packages/games/src/index.ts"],
       "@sunny/ui": ["./packages/ui/src/index.ts"],
       "@sunny/solar-rules": ["./packages/solar-rules/src/index.ts"],
+      "@sunny/knowledge": ["./packages/knowledge/src/index.ts"],
       "@sunny/sunscan-adapter": ["./packages/sunscan-adapter/src/index.ts"]
     }
   },

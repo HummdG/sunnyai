@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { Product, RecommendationWant } from '@sunny/contracts';
+import type { IngestionJob, Product, RecommendationWant } from '@sunny/contracts';
 
 /**
  * Persistence, behind an interface.
@@ -70,6 +70,25 @@ export interface Conversation {
    * instead of against the model's recollection of the conversation.
    */
   want?: RecommendationWant;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One of an installer's own documents, as stored.
+ *
+ * `text` is kept whole rather than as chunks. The chunks are derived -- they
+ * change when the chunker changes, and a stored derivation is a second copy of
+ * the document that can disagree with the first. Deriving them on read is what
+ * makes "the index reflects the stored document" true by construction.
+ */
+export interface KnowledgeSourceRecord {
+  id: string;
+  tenantId: string;
+  title: string;
+  url: string | null;
+  version: string;
+  text: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -143,6 +162,35 @@ export interface Store {
     sessionId: string,
     want: RecommendationWant,
   ): Promise<RecommendationWant>;
+  /**
+   * This tenant's documents.
+   *
+   * Tenant-scoped for the same reason the catalogue is, and one step further: a
+   * document is what the assistant answers *from*, so a read that could cross
+   * tenants would not merely show one installer another's prices -- it would put
+   * another installer's warranty terms in a customer's transcript.
+   */
+  listKnowledgeSources(tenantId: string): Promise<KnowledgeSourceRecord[]>;
+  getKnowledgeSource(tenantId: string, sourceId: string): Promise<KnowledgeSourceRecord | null>;
+  /**
+   * Create or replace one source, by id.
+   *
+   * Upsert rather than insert-or-throw, because re-uploading a document that
+   * changed is the normal case: the warranty was revised, the version string
+   * moves, and the index has to follow. A caller that wants a *new* source
+   * omits the id, so a replace can never be an accident of an id colliding.
+   */
+  putKnowledgeSource(source: KnowledgeSourceRecord): Promise<KnowledgeSourceRecord[]>;
+  /**
+   * Remove one source, and answer whether there was one.
+   *
+   * Deleting is a distinct operation rather than an upsert with empty text: a
+   * document an installer withdraws must stop being quotable, and a stored empty
+   * document would still be a source the assistant believes it has.
+   */
+  deleteKnowledgeSource(tenantId: string, sourceId: string): Promise<boolean>;
+  saveIngestionJob(job: IngestionJob): Promise<IngestionJob>;
+  getIngestionJob(tenantId: string, jobId: string): Promise<IngestionJob | null>;
   /** Diagnostics for `/healthz`; must never throw. */
   health(): Promise<{ ok: boolean; detail: string }>;
 }
@@ -161,6 +209,9 @@ export class FileStore implements Store {
   #leads: LeadRecord[] = [];
   /** Loaded per tenant, on first read: a big catalogue is not loaded at boot. */
   #products = new Map<string, Product[]>();
+  /** Loaded per tenant, on first read, for the same reason. */
+  #knowledge = new Map<string, KnowledgeSourceRecord[]>();
+  #jobs: IngestionJob[] = [];
   #loaded = false;
 
   constructor(dataDir: string) {
@@ -195,6 +246,7 @@ export class FileStore implements Store {
     if (this.#loaded) return;
     await mkdir(this.#dir, { recursive: true });
     await this.#loadLeads();
+    await this.#loadJobs();
     this.#loaded = true;
   }
 
@@ -366,6 +418,101 @@ export class FileStore implements Store {
     return conversation.want ?? {};
   }
 
+  get #knowledgeDir(): string {
+    return join(this.#dir, 'knowledge');
+  }
+
+  #knowledgeFile(tenantId: string): string {
+    return join(this.#knowledgeDir, `${encodeURIComponent(tenantId)}.json`);
+  }
+
+  #jobFile(tenantId: string): string {
+    return join(this.#dir, 'knowledge-jobs', `${encodeURIComponent(tenantId)}.jsonl`);
+  }
+
+  async #readKnowledgeSources(tenantId: string): Promise<KnowledgeSourceRecord[]> {
+    try {
+      const raw = await readFile(this.#knowledgeFile(tenantId), 'utf8');
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      // The same defence the catalogue reader makes: a row naming another tenant
+      // is not evidence that this tenant owns it.
+      return parsed.filter(
+        (row): row is KnowledgeSourceRecord =>
+          typeof row === 'object' &&
+          row !== null &&
+          (row as KnowledgeSourceRecord).tenantId === tenantId,
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  async listKnowledgeSources(tenantId: string): Promise<KnowledgeSourceRecord[]> {
+    await this.#ensure();
+    const cached = this.#knowledge.get(tenantId);
+    if (cached) return [...cached];
+    const loaded = await this.#readKnowledgeSources(tenantId);
+    this.#knowledge.set(tenantId, loaded);
+    return [...loaded];
+  }
+
+  async getKnowledgeSource(
+    tenantId: string,
+    sourceId: string,
+  ): Promise<KnowledgeSourceRecord | null> {
+    const sources = await this.listKnowledgeSources(tenantId);
+    return sources.find((source) => source.id === sourceId) ?? null;
+  }
+
+  async putKnowledgeSource(source: KnowledgeSourceRecord): Promise<KnowledgeSourceRecord[]> {
+    await this.#ensure();
+    const existing = await this.listKnowledgeSources(source.tenantId);
+    const index = existing.findIndex((row) => row.id === source.id);
+    const merged =
+      index === -1
+        ? [...existing, { ...source }]
+        : existing.map((row, at) => (at === index ? { ...source } : row));
+
+    // A whole-file rewrite, like the catalogue and unlike the job log: sources
+    // are a state an installer curates, and deleting one has to be expressible.
+    await mkdir(this.#knowledgeDir, { recursive: true });
+    await writeFile(this.#knowledgeFile(source.tenantId), JSON.stringify(merged), 'utf8');
+    this.#knowledge.set(source.tenantId, merged);
+    return [...merged];
+  }
+
+  async deleteKnowledgeSource(tenantId: string, sourceId: string): Promise<boolean> {
+    await this.#ensure();
+    const existing = await this.listKnowledgeSources(tenantId);
+    const remaining = existing.filter((row) => row.id !== sourceId);
+    if (remaining.length === existing.length) return false;
+
+    await mkdir(this.#knowledgeDir, { recursive: true });
+    await writeFile(this.#knowledgeFile(tenantId), JSON.stringify(remaining), 'utf8');
+    this.#knowledge.set(tenantId, remaining);
+    return true;
+  }
+
+  async saveIngestionJob(job: IngestionJob): Promise<IngestionJob> {
+    await this.#ensure();
+    await mkdir(join(this.#dir, 'knowledge-jobs'), { recursive: true });
+    // Append-only, like leads: a job is a record that something happened, and a
+    // failed run is worth keeping even when a later run of the same document
+    // succeeded.
+    await appendFile(this.#jobFile(job.tenantId), `${JSON.stringify(job)}\n`, 'utf8');
+    this.#jobs.push(job);
+    return job;
+  }
+
+  async getIngestionJob(tenantId: string, jobId: string): Promise<IngestionJob | null> {
+    await this.#ensure();
+    // Scoped by tenant *and* id: a job id is unguessable, but a read that is
+    // only keyed by id would still hand another installer's job to a caller who
+    // had one, which is exactly the cross-tenant read the plan forbids.
+    return this.#jobs.find((job) => job.id === jobId && job.tenantId === tenantId) ?? null;
+  }
+
   async health(): Promise<{ ok: boolean; detail: string }> {
     try {
       await mkdir(this.#dir, { recursive: true });
@@ -419,6 +566,25 @@ export class FileStore implements Store {
       }
     } catch {
       /* no leads yet */
+    }
+  }
+
+  async #loadJobs(): Promise<void> {
+    const dir = join(this.#dir, 'knowledge-jobs');
+    try {
+      for (const name of await readdir(dir)) {
+        const raw = await readFile(join(dir, name), 'utf8');
+        for (const line of raw.split('\n')) {
+          if (line.trim() === '') continue;
+          try {
+            this.#jobs.push(JSON.parse(line) as IngestionJob);
+          } catch {
+            /* skip a torn line */
+          }
+        }
+      }
+    } catch {
+      /* no ingestion jobs yet */
     }
   }
 }

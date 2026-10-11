@@ -8,13 +8,19 @@ import {
   qualificationAnswerSchema,
   recommendationRequestSchema,
   sessionRequestSchema,
+  knowledgeSourceRequestSchema,
   STATUS_FOR_CODE,
   type CatalogueIssue,
   type CatalogueResponse,
   type CatalogueUploadResponse,
   type ChatStreamEvent,
+  type IngestionJob,
+  type KnowledgeIssue,
+  type KnowledgeJobResponse,
+  type KnowledgeSourceResponse,
   type QualificationAnswerResponse,
 } from '@sunny/contracts';
+import { chunkWithReport } from '@sunny/knowledge';
 import { importProducts, importRecords, mergeWant, parseCsv, recommend } from '@sunny/solar-rules';
 import { timingSafeEqual } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -29,6 +35,7 @@ import {
   type ChatProvider,
 } from './agent/provider.js';
 import { capabilityReport, type ServerConfig } from './config.js';
+import { createKnowledgeLoader } from './knowledge.js';
 import {
   clientAddress,
   createRateLimiter,
@@ -63,6 +70,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   const { config, store, tenants } = deps;
   const now = deps.now ?? (() => Date.now());
   const limiter = deps.rateLimiter ?? createRateLimiter({ now, maxKeys: config.rateLimit.maxKeys });
+
+  // Built once per server, so the chunk cache survives across requests and a
+  // turn does not re-split a two-megabyte document every time it looks something
+  // up. It holds no state that can go stale: the loader keys its cache on the
+  // sources' own `updatedAt`, so an edit or a delete is visible on the next turn
+  // with nothing to invalidate by hand.
+  const loadKnowledgeIndex = createKnowledgeLoader(store);
 
   /**
    * Count one request against `key` and refuse it once the budget is spent.
@@ -333,6 +347,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     async function* frames(): AsyncGenerator<string> {
       const frame = (event: ChatStreamEvent): string => `data: ${JSON.stringify(event)}\n\n`;
       try {
+        // Loaded inside the stream rather than before it, so a store that cannot
+        // be read produces the same `error` frame as any other turn failure
+        // instead of a bare 500 the widget's transport has no case for.
+        const knowledge = await loadKnowledgeIndex(tenantSnapshot.id);
         for await (const event of runTurn({
           tenant: tenantSnapshot,
           provider: chat,
@@ -344,6 +362,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           message: userText,
           clientMessageId,
           sunscanConnected,
+          knowledge,
           signal: abort.signal,
         })) {
           if (abort.signal.aborted) break;
@@ -624,6 +643,188 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       dryRun: body.data.dryRun,
     };
     reply.code(body.data.dryRun || failed ? 200 : 201);
+    return payload;
+  });
+
+  // ─── knowledge ─────────────────────────────────────────────────────────────
+
+  /**
+   * Onboard one of the installer's own documents.
+   *
+   * An installer's document is their commercial and legal copy -- warranty terms
+   * they are bound by, areas they will not travel to -- so this is the same kind
+   * of route as the catalogue upload: behind the admin token, addressed by the
+   * tenant the caller names, and refusing entirely rather than half-working when
+   * no token is configured.
+   *
+   * A document that produces no passages is **not stored**. Storing it would
+   * leave a source the assistant believes it has and can never quote from, which
+   * is worse than refusing: the installer would see their document listed and
+   * conclude the assistant knows it. The job says `failed` and carries the
+   * reason, and the response's `source` is null so there is nothing to mistake.
+   */
+  app.post('/v1/knowledge/sources', { bodyLimit: 4 * 1024 * 1024 }, async (request, reply) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'Knowledge ingestion is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+    enforceRateLimit(
+      request,
+      reply,
+      'knowledge',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.knowledge,
+    );
+
+    const body = knowledgeSourceRequestSchema.safeParse(request.body);
+    if (!body.success) throw badRequestFromZod(body.error);
+
+    const tenant = tenants.all.find((t) => t.id === body.data.tenantId);
+    if (!tenant) throw new ApiError('not_found', 'Unknown tenant.');
+
+    // A named source must exist. Creating it instead would turn a typo in an id
+    // into a second copy of a document the installer thought they were replacing.
+    const existing = body.data.sourceId
+      ? await store.getKnowledgeSource(tenant.id, body.data.sourceId)
+      : null;
+    if (body.data.sourceId && !existing) {
+      throw new ApiError('not_found', 'No such knowledge source for this installer.');
+    }
+
+    const at = new Date(now()).toISOString();
+    const sourceId = existing?.id ?? newId('ks');
+    const { chunks, emptySections } = chunkWithReport({
+      id: sourceId,
+      title: body.data.title,
+      url: body.data.url ?? null,
+      version: body.data.version,
+      text: body.data.text,
+    });
+
+    const issues: KnowledgeIssue[] = [];
+    if (emptySections > 0) {
+      issues.push({
+        code: 'empty-section',
+        severity: 'warning',
+        message: `${emptySections} heading(s) in this document had no text under them.`,
+        detail: 'They were kept out of the index and are not quotable. Check the conversion.',
+      });
+    }
+
+    if (chunks.length === 0) {
+      issues.unshift({
+        code: 'empty-document',
+        severity: 'error',
+        message: 'This document contained no text that could be indexed.',
+        detail: 'Nothing was stored. The assistant would have nothing to quote from.',
+      });
+      const job: IngestionJob = {
+        id: newId('job'),
+        tenantId: tenant.id,
+        sourceId: null,
+        status: 'failed',
+        documents: 1,
+        chunks: 0,
+        issues,
+        startedAt: at,
+        finishedAt: new Date(now()).toISOString(),
+      };
+      await store.saveIngestionJob(job);
+      const failed: KnowledgeSourceResponse = { source: null, job };
+      reply.code(200);
+      return failed;
+    }
+
+    const saved = await store.putKnowledgeSource({
+      id: sourceId,
+      tenantId: tenant.id,
+      title: body.data.title,
+      url: body.data.url ?? null,
+      version: body.data.version,
+      text: body.data.text,
+      createdAt: existing?.createdAt ?? at,
+      updatedAt: at,
+    });
+    const record = saved.find((row) => row.id === sourceId);
+
+    const job: IngestionJob = {
+      id: newId('job'),
+      tenantId: tenant.id,
+      sourceId,
+      status: 'succeeded',
+      documents: 1,
+      chunks: chunks.length,
+      issues,
+      startedAt: at,
+      finishedAt: new Date(now()).toISOString(),
+    };
+    await store.saveIngestionJob(job);
+
+    const payload: KnowledgeSourceResponse = {
+      source: {
+        id: sourceId,
+        tenantId: tenant.id,
+        title: body.data.title,
+        url: body.data.url ?? null,
+        version: body.data.version,
+        characters: body.data.text.length,
+        chunkCount: chunks.length,
+        createdAt: record?.createdAt ?? at,
+        updatedAt: at,
+      },
+      job,
+    };
+    reply.code(existing ? 200 : 201);
+    return payload;
+  });
+
+  /**
+   * What happened to one ingestion job.
+   *
+   * Ingestion completes inside the request above, so this is not yet a polling
+   * endpoint -- it is the read half of a pair whose other half is meant to
+   * outlive the request once crawling a site or a Drive folder is in scope. It
+   * is built now because the client contract should not have to change then, and
+   * because "which job was that" is already a question worth being able to ask.
+   *
+   * The tenant is named by the caller, exactly as the upload names it, and the
+   * read is scoped by that name: a job id from one installer, asked for under
+   * another installer's tenant, is a 404 rather than a leak.
+   */
+  app.get('/v1/knowledge/jobs/:id', async (request) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'Knowledge ingestion is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+
+    const params = request.params as { id?: string };
+    const query = request.query as { tenantId?: string };
+    const tenantId = query.tenantId ?? '';
+    if (!params.id || !tenantId) {
+      throw new ApiError('bad_request', 'A job id and a tenantId are required.');
+    }
+    if (!tenants.all.some((t) => t.id === tenantId)) {
+      throw new ApiError('not_found', 'Unknown tenant.');
+    }
+
+    const job = await store.getIngestionJob(tenantId, params.id);
+    if (!job) throw new ApiError('not_found', 'No such ingestion job.');
+
+    const payload: KnowledgeJobResponse = { job };
     return payload;
   });
 

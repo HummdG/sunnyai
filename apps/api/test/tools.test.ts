@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { EMPTY_KNOWLEDGE } from '@sunny/knowledge';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
@@ -53,7 +54,7 @@ function context(store: FileStore, events: ToolEvent[]): ToolContext {
     answers: {},
     events,
     sunscanConnected: false,
-    knowledgeSourceCount: 0,
+    knowledge: EMPTY_KNOWLEDGE,
   };
 }
 

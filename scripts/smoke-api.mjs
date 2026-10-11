@@ -14,6 +14,13 @@
  *                              to be reachable. Without this the script passes
  *                              on a deployment that reports chat unavailable,
  *                              which is the honest state of an un-keyed install.
+ *   SMOKE_ADMIN_TOKEN          the deployment's SUNNY_ADMIN_TOKEN, for the admin
+ *                              routes (knowledge onboarding, catalogue upload).
+ *                              Without it those routes are checked for their
+ *                              refusal when the deployment has no token, and
+ *                              skipped when it has one -- the same two-mode shape
+ *                              the chat section uses. A smoke run must never fail
+ *                              because the operator held a secret back.
  */
 
 const base = (process.argv[2] ?? process.env.BASE ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
@@ -298,6 +305,109 @@ async function main() {
       'a retried message does not duplicate the transcript',
       (after.json?.turns?.length ?? 0) === before + 2,
       `went from ${before} to ${after.json?.turns?.length}`,
+    );
+  }
+
+  // ── knowledge ─────────────────────────────────────────────────────────────
+  //
+  // The admin routes, which the sections above never touch. Two modes, matching
+  // the chat section: with no token configured the honest state is a refusal, and
+  // the check is that it refuses rather than half-working. With a token the round
+  // trip runs for real.
+  //
+  // One thing this cannot show: the deployment seeds a single tenant, so the
+  // two-directional isolation property is only really exercised by the unit tests
+  // (`apps/api/test/knowledge.test.ts`), which can stand up a rival tenant. What
+  // is checked here is the weaker, still-worth-checking version -- a job id is not
+  // readable under a tenant it was not ingested for -- and it is labelled as what
+  // it is rather than as the stronger claim.
+  //
+  // It also cannot clean up after itself. A source id is minted by the server and
+  // there is no list or delete route for sources yet, so each run against a store
+  // that persists leaves one document behind. That accumulation is the cost of
+  // exercising the route for real rather than trusting it; the disposal of a smoke
+  // store belongs to whoever runs it.
+  const adminToken = process.env.SMOKE_ADMIN_TOKEN;
+  const knowledgeInit = {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(adminToken ? { authorization: `Bearer ${adminToken}` } : {}),
+    },
+    body: JSON.stringify({
+      tenantId: 't_demo0001',
+      title: 'Smoke test warranty page',
+      url: 'https://example.test/warranty',
+      version: 'smoke-1',
+      text:
+        '# Warranty terms\n\nWorkmanship on the roof mounting is covered for 25-YEAR.\n\n' +
+        '# Panel product\n\nThe SB-430 panel carries a 12-year product warranty.\n',
+    }),
+  };
+
+  if (!adminToken) {
+    const refused = await call('/v1/knowledge/sources', knowledgeInit);
+    // Three outcomes, and only two of them are about the deployment. A 403 means
+    // no token is configured and the route is refusing to half-work, which is the
+    // thing worth asserting. A 401 means the deployment *has* a token and this run
+    // was not given it -- the operator withholding a secret, not a broken service.
+    // Treating that as a failure would make `npm run smoke` red on every correctly
+    // configured deployment, which is the fastest way to teach people to ignore it.
+    // So it is a skip, printed rather than silent, in the same spirit as the spent
+    // lead budget above. Anything else -- 404, 5xx -- still fails, so "route
+    // missing" is not filed under "secret withheld".
+    if (refused.status === 401) {
+      console.log(
+        '  ..   this deployment requires an admin token and SMOKE_ADMIN_TOKEN is unset; skipping the admin routes.',
+      );
+    } else {
+      check(
+        'ingestion refuses rather than half-working when no admin token is set',
+        refused.status === 403,
+        `expected 403 not_enabled, got ${refused.status}`,
+      );
+      check(
+        'the refusal names the missing configuration',
+        refused.json?.error?.code === 'not_enabled',
+      );
+      console.log('  ..   no SMOKE_ADMIN_TOKEN; skipping the live ingestion round trip.');
+    }
+  } else {
+    const ingested = await call('/v1/knowledge/sources', knowledgeInit);
+    check('an onboarded document is accepted', ingested.status === 201, `got ${ingested.status}`);
+    check(
+      'the document is chunked into quotable passages',
+      (ingested.json?.source?.chunkCount ?? 0) > 0,
+    );
+    check('the ingestion job succeeded', ingested.json?.job?.status === 'succeeded');
+    check(
+      'the job counts the passages the source reports',
+      ingested.json?.job?.chunks === ingested.json?.source?.chunkCount,
+    );
+
+    const jobId = ingested.json?.job?.id;
+    const mine = await call(`/v1/knowledge/jobs/${jobId}?tenantId=t_demo0001`, {
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    check('the job reads back by id', mine.status === 200 && mine.json?.job?.id === jobId);
+
+    const theirs = await call(`/v1/knowledge/jobs/${jobId}?tenantId=t_smoke_other`, {
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    check(
+      'a job id is not readable under another tenant id',
+      theirs.status === 404,
+      `got ${theirs.status}`,
+    );
+
+    const unauthedIngest = await call('/v1/knowledge/sources', {
+      ...knowledgeInit,
+      headers: { 'content-type': 'application/json' },
+    });
+    check(
+      'ingestion without the admin token is refused',
+      unauthedIngest.status === 401,
+      `got ${unauthedIngest.status}`,
     );
   }
 

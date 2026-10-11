@@ -17,6 +17,7 @@ export default defineConfig({
       '@sunny/games': pkg('games'),
       '@sunny/ui': pkg('ui'),
       '@sunny/solar-rules': pkg('solar-rules'),
+      '@sunny/knowledge': pkg('knowledge'),
       '@sunny/sunscan-adapter': pkg('sunscan-adapter'),
     },
   },

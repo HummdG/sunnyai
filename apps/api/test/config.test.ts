@@ -179,6 +179,7 @@ describe('rate limit configuration', () => {
           leads: { limit: 10, windowMs: 60_000 },
           qualification: { limit: 40, windowMs: 60_000 },
           catalogue: { limit: 20, windowMs: 60_000 },
+          knowledge: { limit: 20, windowMs: 60_000 },
         },
         maxKeys: 10_000,
       },

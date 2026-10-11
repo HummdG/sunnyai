@@ -62,6 +62,7 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
         leads: { limit: 100_000, windowMs: 60_000 },
         qualification: { limit: 100_000, windowMs: 60_000 },
         catalogue: { limit: 100_000, windowMs: 60_000 },
+        knowledge: { limit: 100_000, windowMs: 60_000 },
       },
       maxKeys: 10_000,
     },
