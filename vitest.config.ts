@@ -33,6 +33,11 @@ export default defineConfig({
       // subject is the route table itself rather than one feature, and a route
       // added without a case there is meant to fail rather than go unnoticed.
       'tests/security/**/*.test.ts',
+      // The build scripts. Here because one of them guards a download, and the
+      // guard was wrong in the one direction a green run never shows: it refused
+      // a byte-perfect emulator JAR as corrupt. A check with no test of its own
+      // had been firing correctly for nobody.
+      'tests/tooling/**/*.test.ts',
     ],
     // The Playwright suite in tests/e2e is run by `npm run test:e2e`, not here.
     exclude: ['**/node_modules/**', 'tests/e2e/**'],

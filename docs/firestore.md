@@ -66,6 +66,20 @@ publishes and cached in `.cache/` (already gitignored). Nothing depends on
 If none of the three is present the script says so and exits rather than
 starting a run that cannot work.
 
+**The download is checked by its end, not its start.** The artefact is a
+_self-executing archive_: its first four bytes are `7f 45 4c 46` (ELF) and the
+ZIP payload sits behind that preamble, with the central directory at the very
+end. That is what lets the same file run directly on Linux and under
+`java -jar`, and it means a check for the ZIP magic at offset 0 rejects a perfect
+download. The first version of this check did exactly that, and the first CI run
+of the `firestore` job failed on it: a byte-for-byte correct 64,322,030-byte
+download, refused as corrupt. So the check looks for the end-of-central-directory
+record in the file's last 65,557 bytes, which is true of any JAR with or without
+a preamble, and compares the length against the response's `Content-Length` when
+the server sent one. `tests/tooling/jar-archive.test.ts` holds it to both
+answers — an archive accepted, and the nearest thing to it refused — because a
+guard tested in one direction is how this one came to be wrong.
+
 **Skipped is not passed.** Without an emulator the Firestore half of the suite is
 reported as **skipped, with the reason in the suite's own name**, pointing at
 this command. A green `npm test` that had silently skipped the production store

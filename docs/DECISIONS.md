@@ -3540,10 +3540,25 @@ moved off **Not started**.
 **Verified.** `npm run test:firestore` — which boots its own emulator, on a free port, and tears it down —
 gives **44 passed (44)**: the 21-case contract against both stores, plus the two Firestore-specific cases
 (purge removes the turns, and every tenant record lives under its tenant path). `npm test` without an
-emulator gives **1102 passed | 21 skipped**, the skip naming the command to run. `npm run typecheck` is
+emulator gives **1119 passed | 21 skipped**, the skip naming the command to run. `npm run typecheck` is
 clean. The teardown was checked by looking for the JVM afterwards, not by reading the `finally` block. The
-store's JAR is fetched at ~60 MB on first use and cached; a corrupted or truncated download is rejected on
-its ZIP magic rather than handed to `java`.
+store's JAR is fetched at ~60 MB on first use and cached.
+
+**A fourth defect, found by CI on the first run of the job, in the check rather than in the store.** The
+`firestore` job went red on _"the emulator download is not an archive (64322030 bytes)"_ — a guard firing,
+on a download that was byte-for-byte correct, which is the worst way for a guard to be wrong. The check
+required the ZIP magic `PK` at offset 0, and the published artefact does not have it.
+`cloud-firestore-emulator-*.jar` is a **self-executing archive**: `7f 45 4c 46` (ELF) first, the ZIP payload
+behind that preamble, and the central directory at the very end — the layout that lets one file be run
+directly on Linux _and_ with `java -jar`, since the JVM reads the directory from the end and never looks at
+byte 0. The archive's own `PK\x03\x04` sits at offset 356,575. What is true of a JAR with or without a
+preamble is the end-of-central-directory record near the file's end, so that is what
+`scripts/lib/jar-archive.mjs` checks now, together with the response's own `Content-Length` when the server
+sent one. It is held to both answers by `tests/tooling/jar-archive.test.ts`: the self-executing shape
+accepted, and the nearest things to it — an HTML error body, a download that stopped short of the closing
+record, a length that disagrees — refused. The local pass had hidden this, because the cached JAR predated
+the check: the download path had never been exercised against the real artefact. It has been now, from an
+emptied cache, on the way to the same 44 green.
 
 **Open, and not resolvable from inside the repository.** Nothing has run against real Firestore: the
 project, its **location/region**, its Security Rules and its indexes are all still to be chosen, and no

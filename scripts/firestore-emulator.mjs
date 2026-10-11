@@ -34,6 +34,8 @@ import { constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { looksLikeJar } from './lib/jar-archive.mjs';
+
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cache = join(repo, '.cache');
 const JAR = join(cache, 'cloud-firestore-emulator-v1.19.9.jar');
@@ -109,10 +111,12 @@ async function isFile(path) {
 /**
  * The emulator JAR, fetched once.
  *
- * A downloaded file is untrusted input, so the first two bytes are checked
- * against the ZIP magic: what is cached is either an archive or not used. The
- * alternative -- trusting a 60 MB download because the URL looked right -- would
- * turn a truncated or substituted file into a confusing Java stack trace.
+ * A downloaded file is untrusted input, so it is checked before it is used: what
+ * is cached is either a whole archive or nothing. The alternative -- trusting a
+ * 60 MB download because the URL looked right -- would turn a truncated or
+ * substituted file into a confusing Java stack trace. `looksLikeJar` carries the
+ * detail of what "whole" means here, and the reason it is not just a leading
+ * `PK` (the artefact is self-executing, so it does not start with one).
  */
 async function ensureJar() {
   if (await isFile(JAR)) return;
@@ -122,9 +126,10 @@ async function ensureJar() {
   if (!response.ok) {
     throw new Error(`the emulator download failed: HTTP ${response.status} from ${JAR_URL}`);
   }
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-    throw new Error(`the emulator download is not an archive (${bytes.length} bytes)`);
+  const declared = response.headers.get('content-length');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!looksLikeJar(bytes, declared === null ? undefined : Number(declared))) {
+    throw new Error(`the emulator download is not a whole jar (${bytes.length} bytes)`);
   }
   await writeFile(JAR, bytes);
 }
