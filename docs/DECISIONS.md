@@ -3273,7 +3273,9 @@ the job that does _not_ have a local equivalent.
 in the check table, blocker 3, blocker 7, next action 4), and the workflow run itself —
 `https://github.com/HummdG/sunnyai/actions/runs/38161788376`.
 
-**Verified.** CI run `38161788376`: `verify`, `e2e` and `security` **success**, `terraform` **failure** at
-step 4 of 6. Locally afterwards: `terraform fmt -check -recursive` silent, exit 0; `terraform validate`
-exit 0. A re-push is required to see the `terraform` job green in CI itself, and that green run does not
-yet exist.
+**Verified.** CI run `38161788376` (the first push): `verify`, `e2e` and `security` **success**,
+`terraform` **failure** at step 4 of 6. CI run `38162484827` (the re-push carrying the `main.tf` fix):
+**all four jobs success** — `verify`, `e2e`, `security` and `terraform`, the last now running
+`init -backend=false` and `validate` inside CI and not only here. Locally: `terraform fmt -check -recursive`
+silent, exit 0; `terraform validate` exit 0; `npm run verify` green at 1062 tests across 33 files.
+`terraform plan` and `apply` have still never been run, by CI or by anyone.
