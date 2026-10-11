@@ -1,0 +1,172 @@
+<!doctype html>
+<!--
+  The WordPress host fixture.
+
+  This page is not WordPress. It is the *output* a WordPress site with an
+  ordinary block theme and two plugins would emit -- the class names, the
+  `#page` wrapper, the `wp_head`/`wp_footer` script placement, the theme's
+  `!important` global rules and the consent plugin's fixed banner -- reproduced
+  so the widget's isolation can be tested against markup and CSS that a real
+  customer's site actually ships. Running the PHP is not what changes the
+  widget's behaviour; the DOM and the cascade are, and those are what is here.
+
+  Two placements in this page are deliberate and load-bearing:
+
+    - The embed snippet sits *inside* `#page`, which carries a `transform` and
+      `overflow: hidden`. That is where a theme rendering `wp_footer` inside its
+      wrapper puts it, and it is the placement that would break a widget that
+      mounted itself beside its script tag.
+    - The consent plugin's banner is fixed in the opposite corner at
+      `z-index: 99999`, so "the launcher is the thing you click" is tested
+      against the page clutter rather than asserted about the widget alone.
+-->
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Harborough Solar — WordPress host fixture</title>
+    <meta name="description" content="A WordPress-shaped host page for the Sunny widget isolation fixture." />
+    <meta name="generator" content="WordPress 6.7.1" />
+    <link rel="stylesheet" href="/wordpress-theme.css" />
+    <!-- wp_head -->
+  </head>
+
+  <body class="home page-template-default page page-id-42 wp-embed-responsive singular" data-fixture="wordpress">
+    <div id="page" class="site">
+      <a class="skip-link screen-reader-text" href="#primary">Skip to content</a>
+
+      <header id="masthead" class="site-header">
+        <div class="site-branding">
+          <a class="custom-logo-link" href="#primary" rel="home">
+            <span class="site-title">Harborough Solar</span>
+          </a>
+        </div>
+        <nav id="site-navigation" class="main-navigation" aria-label="Primary">
+          <ul id="primary-menu" class="menu">
+            <li class="menu-item"><a href="#panels">Panels</a></li>
+            <li class="menu-item"><a href="#pricing">Pricing</a></li>
+            <li class="menu-item"><a href="#quote">Contact</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <div id="content" class="site-content">
+        <main id="primary" class="site-main">
+          <article id="post-42" class="post-42 page type-page status-publish hentry">
+            <header class="entry-header">
+              <h1 class="entry-title">Solar panels in Leicestershire</h1>
+            </header>
+
+            <div class="entry-content wp-block-post-content">
+              <p>
+                This is a stand-in for a real installer's WordPress site: same theme globals, same plugin clutter, same
+                enqueue points. Nothing on this page knows the widget exists.
+              </p>
+
+              <div class="wp-block-group">
+                <div class="wp-block-group__inner-container">
+                  <h2 id="panels">What we install</h2>
+                  <p class="has-text-align-left">
+                    We fit panels, batteries and inverters across Leicestershire, Rutland and Northamptonshire. Ask the
+                    assistant anything you would ask us.
+                  </p>
+                  <div class="wp-block-buttons">
+                    <div class="wp-block-button">
+                      <a class="wp-block-button__link wp-element-button" href="#quote">Get a quote</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <h2 id="pricing">Pricing</h2>
+              <p>
+                A typical four-bedroom semi here takes ten to fourteen panels. Ask the assistant what a system costs and
+                it will point at the relevant part of this page rather than describing where to look.
+              </p>
+
+              <figure class="wp-block-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">System</th>
+                      <th scope="col">Panels</th>
+                      <th scope="col">From</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Starter</td>
+                      <td>8</td>
+                      <td>£5,900</td>
+                    </tr>
+                    <tr>
+                      <td>Standard</td>
+                      <td>12</td>
+                      <td>£8,400</td>
+                    </tr>
+                    <tr>
+                      <td>With battery</td>
+                      <td>14 + 5 kWh</td>
+                      <td>£12,200</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </figure>
+
+              <h2 id="quote" data-sunny-landmark="quote-form">Get a quote</h2>
+              <form class="wp-block-search" data-sunny-landmark="quote-form" onsubmit="event.preventDefault()">
+                <p>
+                  <label for="wp-name">Name</label><br />
+                  <input id="wp-name" name="name" type="text" autocomplete="name" />
+                </p>
+                <p>
+                  <label for="wp-postcode">Postcode</label><br />
+                  <input id="wp-postcode" name="postcode" type="text" autocomplete="postal-code" />
+                </p>
+                <p>
+                  <button class="wp-element-button" type="submit">Request a survey</button>
+                </p>
+              </form>
+            </div>
+          </article>
+        </main>
+
+        <aside id="secondary" class="widget-area">
+          <section class="widget widget_text">
+            <h2 class="widget-title">Opening hours</h2>
+            <p>Monday to Friday, 8am – 5pm.</p>
+          </section>
+          <section class="widget widget_block">
+            <h2 class="widget-title">MCS certified</h2>
+            <p>Registration number 0000-0000.</p>
+          </section>
+        </aside>
+      </div>
+
+      <footer id="colophon" class="site-footer">
+        <div class="site-info">A host-page fixture for Sunny. Not a real installer, and not really WordPress.</div>
+      </footer>
+
+      <!--
+        wp_footer, inside the theme's `#page` wrapper -- the placement that
+        matters. The snippet is exactly what an installer pastes; nothing about
+        this page changes it.
+      -->
+      <script
+        src="/widget/sunny-widget.js"
+        data-widget-id="w_demo000001"
+        data-api-url="http://localhost:8787"
+        async
+      ></script>
+    </div>
+
+    <!-- wp_footer -->
+    <div id="cookie-notice" role="region" aria-label="Cookie notice">
+      <p>We use cookies to keep this site working.</p>
+      <button type="button" id="cookie-accept">Accept</button>
+    </div>
+
+    <script src="/wordpress-plugins.js" defer></script>
+    <!-- /wp_footer -->
+  </body>
+</html>

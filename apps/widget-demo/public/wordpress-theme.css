@@ -1,0 +1,262 @@
+/*
+ * The "theme" stylesheet for the WordPress host fixture.
+ *
+ * This is not a real WordPress theme and this page is not WordPress: it is a
+ * reproduction of what a WordPress page *emits*, written so the widget's
+ * isolation claim can be tested against the styles a real site actually ships
+ * rather than against the tidy CSS of our own demo page.
+ *
+ * The rules below are a composite of patterns taken from themes and plugins in
+ * the wild, chosen for what they can reach rather than for their looks:
+ *
+ *   - `body > div` and `.entry-content > div`, which match the widget's own host
+ *     element -- it is a `<div>` appended to the body -- and so are the rules
+ *     that can actually leak into the widget.
+ *   - a bare `button` rule carrying `!important`, because a page-builder's
+ *     stylesheet usually writes one, and because it is the half of the isolation
+ *     claim that has to hold for the *inside* of the shadow root.
+ *   - `#page { transform: ... }` with `overflow: hidden`, which theme frameworks
+ *     add to fix subpixel rendering. It is here because it makes the snippet's
+ *     placement matter: the snippet sits inside `#page`, and a widget that
+ *     mounted itself beside its script tag would be a `position: fixed` element
+ *     inside a transformed, clipping ancestor -- pinned to `#page` rather than
+ *     to the viewport, and cut off at its overflow edge.
+ *
+ * Every rule here is inert on the page it does not match. The spec proves that
+ * by asserting the theme has visibly styled a page element first, and only then
+ * asserting the widget is unaffected -- a theme that stopped applying would
+ * otherwise make the widget's isolation look proven when nothing was tested.
+ */
+
+:root {
+  --wp--preset--color--base: #ffffff;
+  --wp--preset--color--contrast: #1a1a1a;
+  --wp--preset--color--primary: #2271b1;
+  --wp--preset--font-family--body: Georgia, 'Times New Roman', serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif !important;
+  font-size: 17px !important;
+  line-height: 1.7 !important;
+  color: #3c434a !important;
+  background: #fff;
+}
+
+/* The theme's page wrapper. `transform` here is the whole reason the widget's
+   mount point is tested rather than assumed. */
+#page {
+  transform: translateZ(0);
+  overflow: hidden;
+  max-width: 1160px;
+  margin: 0 auto;
+  background: #fff;
+}
+
+/*
+ * A page-builder's global rule. `body > div` matches the widget's host element,
+ * `.entry-content > div` matches the page's own blocks, and the `!important` is
+ * the page builder's, not ours: the property values below are the ones a real
+ * plugin ships.
+ */
+body > div,
+.entry-content > div {
+  background-color: #fbfbfb !important;
+  border: 1px solid #dcdcde !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+
+/*
+ * ...and the same builder also wants every div's positioning to be its own
+ * business, which is the rule that would take a fixed-position widget out of the
+ * viewport corner and put it in the document flow.
+ */
+body > div,
+.entry-content > div {
+  position: relative !important;
+}
+
+/* A block theme's button styling. Inside the page this is what a
+   `.wp-block-button__link` gets; the shadow root is where it must not apply. */
+.wp-element-button,
+.wp-block-button__link,
+button,
+input[type='submit'] {
+  font-family: inherit !important;
+  font-size: 15px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background-color: #2271b1 !important;
+  color: #ffffff !important;
+  padding: 12px 24px !important;
+  cursor: pointer !important;
+}
+
+a {
+  color: #2271b1;
+}
+
+a:focus {
+  outline: 2px dotted #2271b1;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 0;
+  top: 0;
+  background: #fff;
+  padding: 8px 12px;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 28px;
+  border-bottom: 1px solid #dcdcde;
+}
+
+.site-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #1a1a1a;
+}
+
+.main-navigation {
+  margin-left: auto;
+}
+
+.main-navigation ul {
+  display: flex;
+  gap: 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+}
+
+.main-navigation a {
+  text-decoration: none;
+}
+
+.site-content {
+  display: grid;
+  grid-template-columns: minmax(0, 2.4fr) minmax(180px, 1fr);
+  gap: 32px;
+  padding: 32px 28px 80px;
+  align-items: start;
+}
+
+.entry-title {
+  font-size: clamp(26px, 3.6vw, 38px);
+  line-height: 1.2;
+  margin: 0 0 14px;
+}
+
+.entry-content > p {
+  max-width: 64ch;
+}
+
+.wp-block-group {
+  padding: 20px;
+  margin: 22px 0;
+}
+
+figure.wp-block-table {
+  margin: 24px 0;
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+}
+
+th,
+td {
+  border: 1px solid #dcdcde;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+th {
+  background: #f0f0f1;
+}
+
+.widget-area {
+  font-size: 15px;
+}
+
+.widget {
+  border-top: 3px solid #1a1a1a;
+  padding-top: 10px;
+  margin-bottom: 28px;
+}
+
+.widget-title {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+.site-footer {
+  border-top: 1px solid #dcdcde;
+  padding: 22px 28px 40px;
+  font-size: 14px;
+  color: #646970;
+}
+
+/*
+ * The cookie/consent plugin: fixed to a corner, with a z-index in the
+ * hundred-thousands, which is the thing the widget has to sit above. It is here
+ * so "the launcher is on top" is a browser assertion about `elementFromPoint`
+ * rather than a claim about a number in a stylesheet.
+ */
+#cookie-notice {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 99999;
+  max-width: 320px;
+  background: #1a1a1a;
+  color: #fff;
+  padding: 14px 16px;
+  border-radius: 4px;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#cookie-notice button {
+  margin-top: 10px;
+  background-color: #f0f0f1 !important;
+  color: #1a1a1a !important;
+}
+
+/* The page's own marker for a landmark the assistant may point at, painted the
+   way a theme would paint it: with `!important`, so the widget's own outline
+   style cannot be mistaken for the page's. */
+[data-sunny-highlight] {
+  outline: 3px solid #d63638 !important;
+  outline-offset: 4px !important;
+  border-radius: 4px;
+}

@@ -249,6 +249,20 @@ first real finding should not be the one that matters.
   `next/script`, which creates the element after hydration rather than during the
   server render. Plus client-side routing between the two routes, which exercises
   the dedupe rule through a router instead of a hand-removed tag.
+- **Browser, WordPress host** (`tests/e2e/wordpress-host.spec.ts`) — the same
+  widget on a page with what an ordinary WordPress site actually ships: a theme
+  whose globals are `!important` (including a `body > div` rule that matches the
+  widget's host element), a plugin that injects a stylesheet into the head after
+  load and re-renders a sidebar widget on a timer, `wp_footer` rendered inside a
+  theme wrapper that carries a `transform` and `overflow: hidden`, and a consent
+  banner fixed in the opposite corner at `z-index: 99999`. The page reproduces a
+  WordPress site's _output_ rather than being WordPress -- what the widget reacts
+  to is the DOM and the cascade, and both are faithful. Every isolation claim is
+  paired with a control proving the theme and plugin are live, so a stylesheet
+  that had stopped applying cannot make the widget look immune for free. It found
+  a real defect: the host element was being repositioned and painted by the
+  theme's `body > div` rule, which the shadow stylesheet's `:host` block only
+  survives because every declaration in it is `!important` (D-36).
 - **Browser, marketing site** (`tests/e2e/marketing.spec.ts`) — the one page that
   drives the character engine directly rather than only through the widget, so it
   is where a broken frame loop would be caught: the hero is asserted to paint the

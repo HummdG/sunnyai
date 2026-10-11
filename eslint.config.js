@@ -31,6 +31,13 @@ export default tseslint.config(
       // parse-or-unsafe-access error that describes the code Next emitted.
       '**/.next/**',
       'apps/character-lab/public/**',
+      // The plain-HTML and WordPress fixtures' own browser scripts -- the
+      // WordPress page's "plugin", which is an IIFE with `var` and a `window`
+      // global because that is what a plugin looks like. They belong to no
+      // tsconfig project, so leaving them in reports a parse failure that says
+      // nothing about them, and rewriting them as TypeScript would make the
+      // fixture less like the thing it exists to imitate.
+      'apps/widget-demo/public/**/*.js',
       // The React fixture's bundle, built next to the page that loads it. It is
       // gitignored, so this only matters for a developer who has just built it;
       // without the ignore, `npm run lint` fails on a generated file.

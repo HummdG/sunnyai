@@ -2150,3 +2150,71 @@ instruction the neighbour's model never sees cannot steer it.
 **Evidence.** 107 tests in `tests/security/tenant-isolation.test.ts`, wired into `npm run verify` by
 its own `include` entry in `vitest.config.ts` (so the sweep is not silently skipped by a glob that
 stopped matching). `npm run verify` is **940 tests across 25 files**, up from 833 across 24.
+
+## D-36. The widget owns its host element's box, and `!important` is what makes that true
+
+**Context.** §6.2 asks for CSS/JS isolation tested against "WordPress, React, Next.js and plain HTML",
+and passed `Partial` for one reason: there was no WordPress fixture. The other three were covered --
+plain HTML in `apps/widget-demo`, React under `StrictMode` (which is what caught the head-placement
+and double-mount defects, D-13) and Next.js against a production `next build` (D-14) -- and all three
+are _friendly_ hosts. Ours is a page written by the same team that wrote the widget: no `!important`
+globals, no plugin injecting styles after load, no fixed banner competing for the corner. Shadow DOM
+had been relied on since the beginning, and the `:host` block carried a comment claiming the host was
+a bare marker the page's CSS could not collide with. Nothing had ever tried to collide with it.
+
+**What the fixture is.** `apps/widget-demo/public/wordpress.html` is a reproduction of a WordPress
+site's _output_: a block theme's globals, `#page` wrapping everything with `transform: translateZ(0)`
+and `overflow: hidden`, the embed snippet placed where a theme rendering `wp_footer` inside that
+wrapper would put it, a plugin that injects a stylesheet into the head _after_ load and then re-renders
+a sidebar widget on a 250 ms timer, and a consent banner fixed in the opposite corner at
+`z-index: 99999`. It is not WordPress: there is no PHP, no database, no CDN. That is the honest
+framing, and it is also the reason the fixture is still worth having -- what the widget reacts to is
+the DOM and the cascade, and both are faithful here. The PHP that would have produced them is not what
+changes the answer.
+
+**The defect, measured rather than reasoned about.** On that page the host element came back
+`position: relative` with `inset` resolving as relative offsets, `background-color: rgb(251, 251, 251)`,
+a 1px dashed border, a 6px radius and a box-shadow -- a grey card with the launcher inside it, sitting
+20px in from the _document's_ corner rather than the viewport's, and scrolling away with the page. The
+cause is a cascade rule that is easy to know in the abstract and easy to forget in practice: for the
+host element the outer tree comes first, so a page's normal declaration beats this shadow root's
+normal one and a page's `!important` beats it outright. `all: initial`, unmarked, was never the
+defence its comment claimed to be. The page's `body > div { position: relative !important; … }` reached
+it exactly as written.
+
+**Decision.** Every declaration in the `:host` block carries `!important`, `all: initial !important`
+included, and the `data-position` variants carry it too (they override the block's `inset`, so they had
+to match its strength or they would have lost). Custom properties survive `all`, so a tenant's
+`--sunny-primary-color` still themes the widget: that remains the supported channel, and the only one.
+
+**What it costs, stated as a trade-off rather than hidden.** A host page can no longer restyle,
+reposition or hide the widget with CSS, and no longer has a supported way to opt out of the launcher's
+corner. That is a real loss of control for an integrator, and it was still the right side of the
+choice: a widget a page builder can silently push out of the viewport and paint a card behind is not a
+widget. Behaviour is unaffected -- the page keeps `window.sunny`, the `data-*` attributes and
+`--sunny-primary-color`, which is to say every channel that was ever meant to be used.
+
+**Falsified before it was trusted.** The fix was measured, reverted and measured again: with the
+`!important`s stashed and the bundle rebuilt, two of the fixture's seven tests went red -- _the theme
+cannot reach the widget's host element either_, and _stays in the viewport corner after the visitor
+scrolls to the bottom_, the latter reporting `after.x` of `-20` -- and the other five stayed green. So
+the suite localises this defect to the host element rather than reddening wholesale, and none of the
+five passing tests is passing because the theme stopped applying: the first test in the file exists to
+prove the theme and the plugin are live (the theme's blue on `.wp-block-button__link`, the plugin's
+late `border-radius: 0` winning over it, the `body > div` rule proven on `#page`, which is the other
+body-child `div` on the page).
+
+**What it does not establish, stated plainly.** A real WordPress install -- an aged theme, a plugin
+set nobody enumerated, a CDN rewriting CSS -- is still untested; this fixture is one composite theme
+and two behavioural plugins chosen for reach, not a survey. And one case genuinely remains broken by
+construction: a theme that puts a `transform` on `<body>` itself. The widget mounts on the body, there
+is nowhere outside the body to mount, and a transformed body makes `position: fixed` resolve against it
+-- so the widget would scroll with the page. No fixture here does that and the mechanism is recorded
+rather than fixed, because the fix would be an iframe overlay (a larger change than §6.2 asks for) or a
+decision to accept it.
+
+**Evidence.** `tests/e2e/wordpress-host.spec.ts`, 7 tests, all passing, each isolation claim paired
+with a control that proves the page's own CSS is applying. The e2e run reddens exactly the two host
+tests without the fix and green across all seven with it. `npm run verify` is green at 940 tests across
+25 files; `npm run lint` and `npx prettier --check` are clean; the widget bundle is 148.6 kB (41.2 kB
+gzipped) with the shadow stylesheet still inlined, so the embed snippet remains one file.

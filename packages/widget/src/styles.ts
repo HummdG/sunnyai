@@ -46,19 +46,42 @@ export function styles(): string {
      honest failure rather than an invisible one. */
   --sunny-accent-ink: var(--sunny-accent);
 
-  all: initial;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--sunny-ink);
-  position: fixed;
-  z-index: 2147483000;
-  inset: auto 20px 20px auto;
-  display: block;
-  line-height: 1.45;
+  /* Every declaration below carries \`!important\`, and that is not belt-and-
+     braces: it is the only thing that makes the widget's isolation claim true
+     for the host element.
+
+     The host is the one part of the widget that lives in the *page's* tree, so
+     it is the one part a page's selectors can match. And for the host element
+     the cascade puts the outer tree first: a page's normal declarations beat
+     this shadow root's normal ones, and a page's \`!important\` beats them
+     outright. The first version of this block had no \`!important\` at all, which
+     was fine on our own demo page and broken on an ordinary WordPress one --
+     a page builder's \`body > div { position: relative !important ... }\`
+     reached the host, took it out of the viewport corner and painted a grey
+     card behind the launcher. Measured, not guessed: see the WordPress host
+     fixture in \`apps/widget-demo/public/wordpress.html\` and the test that
+     pins this (D-36).
+
+     \`all: initial !important\` is the deliberate "the page may not style this
+     element" rule -- it is what the non-important \`all: initial\` was always
+     meant to be. Custom properties survive it, so a tenant's
+     \`--sunny-primary-color\` still themes the widget: that is the supported
+     channel, and the only one. The geometry declarations follow it because
+     \`initial\` for \`position\` is \`static\`, and one longhand later in the same
+     rule overrides the shorthand's value for that property. */
+  all: initial !important;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
+  color: var(--sunny-ink) !important;
+  line-height: 1.45 !important;
+  display: block !important;
+  position: fixed !important;
+  z-index: 2147483000 !important;
+  inset: auto 20px 20px auto !important;
 }
 
-:host([data-position="bottom-left"]) { inset: auto auto 20px 20px; }
-:host([data-position="top-right"]) { inset: 20px 20px auto auto; }
-:host([data-position="top-left"]) { inset: 20px auto auto 20px; }
+:host([data-position="bottom-left"]) { inset: auto auto 20px 20px !important; }
+:host([data-position="top-right"]) { inset: 20px 20px auto auto !important; }
+:host([data-position="top-left"]) { inset: 20px auto auto 20px !important; }
 
 * { box-sizing: border-box; }
 
