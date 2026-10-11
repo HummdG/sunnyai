@@ -433,4 +433,33 @@ describe('get_questionnaire and save_answer', () => {
     expect(result.ok).toBe(false);
     expect(result.summary).toContain('kWh');
   });
+
+  it('takes away an answer the correction ruled out, and tells the model it did', async () => {
+    // The model reads the tool result and nothing else, so a removed answer that
+    // is not mentioned here is one it will go on believing.
+    const result = await run(
+      'save_answer',
+      { questionId: 'usage_source', value: 'household' },
+      { usage_source: 'monthly_cost', monthly_cost: '150' },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.data['removed']).toEqual(['monthly_cost']);
+    expect(result.data['answered']).toBe(1);
+    expect(result.summary).toContain('monthly_cost');
+    expect(result.summary).toContain('removed');
+  });
+
+  it('says nothing about removals when a correction stranded nothing', async () => {
+    const result = await run(
+      'save_answer',
+      { questionId: 'roof_direction', value: 'west' },
+      { roof_direction: 'south' },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.data['removed']).toBeUndefined();
+    // The bare confirmation, with no dangling clause about answers that stayed.
+    expect(result.summary).toBe('Saved roof_direction = west.');
+  });
 });

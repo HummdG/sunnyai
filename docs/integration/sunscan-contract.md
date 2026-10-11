@@ -95,6 +95,17 @@ it on a _derived_ roof's low confidence, and Sunny has no roof derivation, so th
 visitor's self-reported `roof_confidence` is a different quantity and is deliberately
 not used as the gate.
 
+**Reconciled since: correctness on correction (D-31).** The branch made a correction
+possible to get wrong — change the usage source and the previous branch's answer is no
+longer an answer to anything — and Sunny now reconciles the standing map after every
+write, dropping and reporting the answers the visitor's own later answer ruled out. This
+is not read off SunScan's journey, which publishes no equivalent rule; it is the
+consequence of implementing the branch, and it is recorded here because an adapter
+mapping Sunny's answers onto SunScan's journey has to decide what to send for a question
+the visitor changed their mind about. Sunny sends nothing for an answer it has dropped
+(it is not in the map), which is the only reading consistent with the journey's own
+conditionality.
+
 ### 2.2 Field unions (authoritative names)
 
 `PropertyType`, `Ownership`, `RoofConfidence`, `RoofSizeBand`, `RoofDirection`,

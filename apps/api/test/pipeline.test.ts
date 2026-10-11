@@ -947,6 +947,96 @@ describe('POST /v1/qualification/answer', () => {
     expect((await submit(app, token, sessionId, 'annual_kwh', '2')).statusCode).toBe(200);
     expect((await submit(app, token, sessionId, 'annual_kwh', '3')).statusCode).toBe(429);
   });
+
+  /**
+   * Correcting an answer, which is the half a merge cannot do.
+   *
+   * The standing map only ever grew, so a visitor who changed a gate answer left
+   * the answers that depended on it behind -- `{usage_source: 'household',
+   * monthly_cost: '150'}`, a figure their own later answer had withdrawn, sitting
+   * there indistinguishable from a live one and riding into the lead. These pin
+   * that a correction takes the orphan with it, and says so.
+   */
+  describe('correcting an answer', () => {
+    interface CorrectionBody {
+      answers: Record<string, string>;
+      removedAnswers: Array<{
+        questionId: string;
+        value: string;
+        ruledOutBy: { questionId: string; value: string };
+      }>;
+    }
+
+    it('takes away the answer the correction ruled out, and names it', async () => {
+      const { app } = await h();
+      const { sessionId, token } = await openSession(app);
+
+      await submit(app, token, sessionId, 'usage_source', 'monthly_cost');
+      await submit(app, token, sessionId, 'monthly_cost', '150');
+      const corrected = await submit(app, token, sessionId, 'usage_source', 'household');
+
+      expect(corrected.statusCode).toBe(200);
+      const body = corrected.json<CorrectionBody>();
+      expect(body.answers).toEqual({ usage_source: 'household' });
+      expect(body.removedAnswers).toEqual([
+        {
+          questionId: 'monthly_cost',
+          value: '150',
+          ruledOutBy: { questionId: 'usage_source', value: 'household' },
+        },
+      ]);
+    });
+
+    it('has taken it out of the store, not just out of the response', async () => {
+      const { app, store } = await h();
+      const { sessionId, token } = await openSession(app);
+
+      await submit(app, token, sessionId, 'usage_source', 'monthly_cost');
+      await submit(app, token, sessionId, 'monthly_cost', '150');
+      await submit(app, token, sessionId, 'usage_source', 'household');
+
+      // Read the persisted conversation, not the route's own response: a response
+      // that under-reports while the store keeps the orphan is exactly the failure
+      // mode being guarded against, so the assertion cannot be made against the
+      // response alone.
+      const conversation = await store.getConversation('t_demo0001', sessionId);
+      expect(conversation?.answers).toEqual({ usage_source: 'household' });
+    });
+
+    it('reports nothing removed when the correction orphaned nothing', async () => {
+      const { app } = await h();
+      const { sessionId, token } = await openSession(app);
+
+      // `roof_direction` gates nothing and is not a gate, so changing it takes
+      // nothing with it -- and the field is present as an empty array rather than
+      // omitted, so a page can read it without a null check.
+      await submit(app, token, sessionId, 'roof_direction', 'south');
+      const corrected = await submit(app, token, sessionId, 'roof_direction', 'west');
+
+      const body = corrected.json<CorrectionBody>();
+      expect(body.answers['roof_direction']).toBe('west');
+      expect(body.removedAnswers).toEqual([]);
+    });
+
+    it('keeps an answer that was given ahead of its gate, until the gate is answered against it', async () => {
+      const { app } = await h();
+      const { sessionId, token } = await openSession(app);
+
+      // Answered in the page's own order: the kWh figure first. Pending, not
+      // conflicting, so it stands -- and stays standing through an unrelated
+      // write.
+      await submit(app, token, sessionId, 'annual_kwh', '4200');
+      const other = await submit(app, token, sessionId, 'roof_direction', 'west');
+      expect(other.json<CorrectionBody>().answers['annual_kwh']).toBe('4200');
+
+      // Then the gate is answered the other way, and the figure it settled
+      // against goes.
+      const gate = await submit(app, token, sessionId, 'usage_source', 'household');
+      const body = gate.json<CorrectionBody>();
+      expect(body.answers['annual_kwh']).toBeUndefined();
+      expect(body.removedAnswers.map((entry) => entry.questionId)).toEqual(['annual_kwh']);
+    });
+  });
 });
 
 /**
@@ -1045,6 +1135,51 @@ describe('qualification answers reach the conversation', () => {
     // The per-turn map is the audit trail: it says what *this* turn changed.
     expect(assistant?.answers).toEqual({ annual_kwh: '4200' });
   });
+
+  it('persists an answer a correction inside the turn took away', async () => {
+    // A correction made in chat has to reach the store the same way one made by
+    // the route does. The tool deletes the stranded answer from the context, so
+    // the turn's "what changed" diff has to notice a key that vanished as well as
+    // ones that appeared -- otherwise the store keeps an answer the visitor has
+    // just withdrawn, and only the chat path does.
+    const provider = new ScriptedProvider(() => [
+      {
+        type: 'tool_started',
+        call: {
+          id: 'call_1',
+          name: 'save_answer',
+          args: { questionId: 'usage_source', value: 'household' },
+        },
+      },
+      { type: 'text', text: 'Changed that to a household estimate.' },
+    ]);
+
+    const { app, store } = await h(provider);
+    const { sessionId, token } = await openSession(app);
+
+    // Two answers the visitor gave earlier, through the route.
+    for (const [questionId, value] of [
+      ['usage_source', 'monthly_cost'],
+      ['monthly_cost', '150'],
+    ] as const) {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/qualification/answer',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { sessionId, questionId, value },
+      });
+    }
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'Actually, just use household size' },
+    });
+
+    const conversation = await store.getConversation('t_demo0001', sessionId);
+    expect(conversation?.answers).toEqual({ usage_source: 'household' });
+  });
 });
 
 /**
@@ -1113,5 +1248,51 @@ describe('store: mergeAnswers', () => {
 
     await store.mergeAnswers('t_demo0001', 'sess_a', { address: 'mine' });
     expect(await store.getConversation('t_other', 'sess_a')).toBeNull();
+  });
+
+  it('removes the answers a correction names, in the same write as the merge', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    await store.mergeAnswers('t_demo0001', 'sess_a', {
+      usage_source: 'monthly_cost',
+      monthly_cost: '150',
+    });
+    const conversation = await store.mergeAnswers(
+      't_demo0001',
+      'sess_a',
+      { usage_source: 'household' },
+      ['monthly_cost'],
+    );
+
+    expect(conversation.answers).toEqual({ usage_source: 'household' });
+    // And on disk, not only in the returned object.
+    const reloaded = new FileStore(dir);
+    expect((await reloaded.getConversation('t_demo0001', 'sess_a'))?.answers).toEqual({
+      usage_source: 'household',
+    });
+  });
+
+  it('lets a removal win when a key is both set and removed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    // The route never does this -- the reconciler cannot name the answer just
+    // given -- but a store whose result depends on the order of a spread is a
+    // trap for the next caller, so the precedence is pinned rather than left to
+    // whoever reads the implementation.
+    const conversation = await store.mergeAnswers('t_demo0001', 'sess_a', { monthly_cost: '150' }, [
+      'monthly_cost',
+    ]);
+    expect(conversation.answers).toEqual({});
+  });
+
+  it('removes nothing and creates the conversation when asked for an empty removal', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    const conversation = await store.mergeAnswers('t_demo0001', 'sess_a', {}, []);
+    expect(conversation.answers).toEqual({});
+    expect(conversation.turns).toEqual([]);
   });
 });

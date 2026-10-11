@@ -1725,10 +1725,13 @@ started to diverge. The tool's summary was rewritten to use it, which is a behav
 change to what the model reads on a refusal -- the vocabulary is now in the summary
 rather than only in `data`.
 
-**What this does not do.** Skips, corrections and a view-before-submit review are
-still absent, so §7.3's list is only part-covered; the answers map already supports
-re-answering (last write wins) but there is no _skip_ state -- "the visitor declined"
-is not the same as "unsure", and the answers map cannot hold the difference. The roof
+**What this does not do.** Skips and a view-before-submit review are still absent, so
+§7.3's list is only part-covered; the answers map already supports re-answering (last
+write wins) but there is no _skip_ state -- "the visitor declined" is not the same as
+"unsure", and the answers map cannot hold the difference. (**Corrected 2026-10-11:**
+this paragraph also listed corrections as absent. The stored map was corrected by D-31
+once the re-answering it describes was found to leave stranded answers behind; skips
+and the review remain absent.) The roof
 branch is deliberately **not** conditionalised: SunScan shows `roofFallback` when a
 _derived_ roof is low-confidence, and Sunny has no roof derivation, so the visitor's
 self-reported `roof_confidence` is a different quantity and treating it as the same
@@ -1745,3 +1748,97 @@ exercised over real HTTP against the running API: `usage_source=monthly_cost` th
 `annual_kwh=4200` is a 400 naming the gate; `monthly_cost=£150` is accepted and stored
 verbatim; `annual_kwh=4,200` is accepted, `quite a lot` and `999999` are refused with
 the expected form; `household_size=6` is refused with the option list.
+
+## D-31. A correction takes its dependants with it, and says so
+
+**Context.** D-30 gave the questionnaire a conditional branch and a three-valued
+`applicability`. The standing answer map, though, only ever grew: `mergeAnswers`
+spreads new keys over old ones and has no way to remove one. That is fine while every
+answer is final, and it stops being fine the moment a visitor can change one -- which
+§7.3 requires ("a user can view and correct the collected details before lead
+submission") and which the phase's own gate names ("E2E qualification + **correction**
+
+- consent").
+
+The gap was real and reproduced live before anything was written. Three requests
+against the running API:
+
+```
+usage_source=monthly_cost  -> {usage_source: 'monthly_cost'}
+monthly_cost=150           -> {usage_source: 'monthly_cost', monthly_cost: '150'}
+usage_source=household     -> {usage_source: 'household', monthly_cost: '150'}   ← the bug
+```
+
+The last line is `applicability('monthly_cost', …) === 'conflicts'`: a stored answer
+to a question the visitor's own later answer has ruled out. It is indistinguishable
+from a live answer, it rides into the lead summary, and nothing ever offers it again
+-- `outstandingQuestions` lists only questions with _no_ answer, so a conflicting
+stored answer is invisible to every reader that feeds off the module. D-30's rule was
+enforced in one direction only: a new answer was checked against the standing map;
+the standing map was never checked against itself.
+
+**Decision: after every write, the standing map holds no answer its own question
+rules out.** `reconcile(answers)` (in `apps/api/src/questionnaire.ts`) drops each
+stored answer whose `applicability` is `conflicts`, and reports what it dropped and
+which answer ruled it out. Every writer calls it: the qualification route and the
+`save_answer` tool. It is the same shape D-30 chose for `validateAnswer` -- one rule,
+in one function, applied by every caller by construction rather than copied.
+
+**Removal, not a dormant state.** The alternative was to keep the stranded value in
+the map and mark it inert. Rejected: it creates a second way for an answer to be
+half-true, and every reader would have to know to skip it -- the same "three chances
+to disagree" that made the module worth having. The visitor who changes their usage
+source has said the monthly figure no longer describes them; the honest response is to
+stop holding it, and to _say_ that it stopped, which is what the returned report is
+for. The dropped value travels back to the page so it can either explain the removal
+or offer the figure back if the visitor changes their mind again.
+
+**`pending` is kept.** Only `conflicts` is removed. An answer given ahead of its gate
+-- the documented freedom of a host page to ask in its own order (D-30) -- is
+`pending`, and dropping it would take back a freedom that was deliberately given. The
+test that pins this answers `annual_kwh` first, writes an unrelated answer, and checks
+the figure is still there; then answers the gate the other way and checks it goes.
+
+**The store learned to subtract, in one write.** `mergeAnswers` gained an optional
+`remove` list rather than a second "delete answers" call: a correction is one atomic
+amendment, and a merge followed by a separate cleanup is a window where a failure
+leaves the orphan behind -- exactly the state being fixed. When a key is both set and
+removed the removal wins, which the route never relies on but which pins the
+precedence instead of leaving it to the order of a spread.
+
+**The chat path needed its own half.** `save_answer` mutates the model's working
+context; the _agent_, not the tool, persists the diff, and it computed only keys that
+appeared or changed. A removal is a key that _vanished_ from the context, so the
+turn's diff gained a second half (`answersRemoved`). This is the subtle one, and it is
+covered by a test that was checked against a reverted implementation: without it, a
+correction made in chat leaves the orphan in the store while the same correction made
+by the route does not, and only the chat path is wrong.
+
+**The per-turn record keeps the set, not the removal.** The assistant turn records
+which answers _that turn_ set. It does not record removals, deliberately: a removal is
+not an independent fact, it is what the question set makes of the set, and the turn
+already records the answer that caused it. Anyone replaying the turns has that answer
+and the module's rules, so the removal is derivable; writing it onto the turn as well
+would be a second copy of the conditional logic, free to drift from the first.
+
+**What this does not do.** Skips and the view-before-submit review are still absent,
+so §7.3 is still part-covered -- "the visitor declined" and "the visitor is unsure" are
+different facts and the answers map still cannot hold the difference. Corrections are
+now handled for the _stored_ map, both paths; a correction UI is a host-page concern
+Sunny does not ship, and the wire now carries what such a UI needs
+(`removedAnswers`).
+
+**Evidence.** 5 tests in `questionnaire.test.ts` (the drop and its reason; applies and
+pending kept; nothing-conflicting is a no-op; the report's order is the question set's,
+not insertion order; and the invariant asserted over a map with every gated question
+answered against its gate), 4 through the route in `pipeline.test.ts` (the drop and its
+report; the store read back directly, not through the response; a correction that
+strands nothing; an answer given ahead of its gate surviving until the gate is answered
+against it), 1 through a chat turn (the store after a correction made in the tool, which
+fails against a reverted agent), 2 through `executeTool`, and 2 at the store
+(`remove` in the same write; removal winning over a set). `npm run verify` is **820
+tests across 24 files**. Verified live against the running API on 8787: the three-request
+sequence above now returns `{usage_source: 'household'}` with
+`removedAnswers: [{questionId: 'monthly_cost', value: '150', ruledOutBy: {questionId:
+'usage_source', value: 'household'}}]`, and an unrelated write still returns
+`removedAnswers: []`.

@@ -7,6 +7,7 @@ import {
   explain,
   nextQuestion,
   outstandingQuestions,
+  reconcile,
   validateAnswer,
 } from '../src/questionnaire.js';
 
@@ -221,5 +222,82 @@ describe('the sentence a refusal becomes', () => {
     expect(explain(verdict)).toBe(
       'that question is not asked, given an earlier answer — it needs usage_source to be one of bill_ocr, manual_kwh (it is "household")',
     );
+  });
+});
+
+/**
+ * Reconciliation: the answers a correction has left behind.
+ *
+ * `validateAnswer` guards a new answer against the standing map. These pin the
+ * other direction -- the standing map against itself -- because that is the half
+ * a correction can break. Everything here is a variation on one invariant: after
+ * a write, no stored answer may be one the visitor's own answers ruled out.
+ */
+describe('reconcile', () => {
+  it('drops the answer a corrected gate has ruled out, and says which answer did it', () => {
+    // The live repro, in miniature: a monthly cost, then a change of mind about
+    // how usage would be given.
+    const { answers, dropped } = reconcile({
+      usage_source: 'household',
+      monthly_cost: '150',
+    });
+
+    expect(answers).toEqual({ usage_source: 'household' });
+    expect(dropped).toEqual([
+      {
+        questionId: 'monthly_cost',
+        value: '150',
+        ruledOutBy: { questionId: 'usage_source', value: 'household', anyOf: ['monthly_cost'] },
+      },
+    ]);
+  });
+
+  it('leaves an answer its gate still admits, and one whose gate has not been answered', () => {
+    // `monthly_cost` applies; `annual_kwh` is pending -- answered ahead of the
+    // question it waits on, which the page is allowed to do.
+    const { answers, dropped } = reconcile({
+      usage_source: 'monthly_cost',
+      monthly_cost: '150',
+      annual_kwh: '4200',
+    });
+
+    // `annual_kwh` conflicts with the answered source, so it goes; the point of
+    // this test is the *pending* case below, with no source given at all.
+    expect(answers).toEqual({ usage_source: 'monthly_cost', monthly_cost: '150' });
+    expect(dropped.map((entry) => entry.questionId)).toEqual(['annual_kwh']);
+
+    const open = reconcile({ monthly_cost: '150' });
+    expect(open.answers).toEqual({ monthly_cost: '150' });
+    expect(open.dropped).toEqual([]);
+  });
+
+  it('changes nothing when nothing conflicts', () => {
+    const given = { address: '1 Test Street', roof_direction: 'west', usage_source: 'household' };
+    const { answers, dropped } = reconcile(given);
+    expect(answers).toEqual(given);
+    expect(dropped).toEqual([]);
+  });
+
+  it('reports in the question set’s order, however the answers arrived', () => {
+    // Both of these conflict. Insertion order would give one order for each map;
+    // a stable report is what lets a test and a page rely on it.
+    const one = reconcile({ usage_source: 'household', monthly_cost: '150', annual_kwh: '4' });
+    const two = reconcile({ annual_kwh: '4', monthly_cost: '150', usage_source: 'household' });
+    expect(one.dropped.map((entry) => entry.questionId)).toEqual(['annual_kwh', 'monthly_cost']);
+    expect(two.dropped.map((entry) => entry.questionId)).toEqual(['annual_kwh', 'monthly_cost']);
+  });
+
+  it('leaves a map where no answer is one its own question ruled out', () => {
+    // The invariant, asserted over a map built to be as broken as the set allows:
+    // every gated question answered, all at once, under a gate that admits none
+    // of them.
+    const gated = Object.keys(QUESTIONS).filter((id) => QUESTIONS[id]!.appearsWhen);
+    const mess: Record<string, string> = { usage_source: 'unsure' };
+    for (const id of gated) mess[id] = '1';
+
+    const { answers } = reconcile(mess);
+    for (const id of Object.keys(answers)) {
+      expect(applicability(id, answers)).not.toBe('conflicts');
+    }
   });
 });

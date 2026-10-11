@@ -41,7 +41,7 @@ import {
   type RateLimiter,
   type RateLimitRule,
 } from './ratelimit.js';
-import { explain, nextQuestion, validateAnswer } from './questionnaire.js';
+import { explain, nextQuestion, reconcile, validateAnswer } from './questionnaire.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
 import { newId, type Store } from './store.js';
 import type { TenantRegistry } from './tenants.js';
@@ -447,9 +447,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       throw new ApiError('bad_request', explain(verdict));
     }
 
-    const conversation = await store.mergeAnswers(claims.tenantId, claims.sessionId, {
-      [verdict.questionId]: verdict.value,
-    });
+    const reconciled = reconcile({ ...before, [verdict.questionId]: verdict.value });
+    const conversation = await store.mergeAnswers(
+      claims.tenantId,
+      claims.sessionId,
+      { [verdict.questionId]: verdict.value },
+      reconciled.dropped.map((entry) => entry.questionId),
+    );
 
     const answers = conversation.answers ?? {};
 
@@ -462,6 +466,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       questionId: verdict.questionId,
       answers,
       nextQuestionId: nextQuestion(answers),
+      // A correction is the one write that can take an answer away, so it is the
+      // one that has anything to report here. Every other response carries [].
+      removedAnswers: reconciled.dropped.map(({ questionId, value, ruledOutBy }) => ({
+        questionId,
+        value,
+        ruledOutBy: { questionId: ruledOutBy.questionId, value: ruledOutBy.value },
+      })),
     };
 
     reply.code(200);

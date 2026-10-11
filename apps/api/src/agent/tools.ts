@@ -10,6 +10,7 @@ import {
   STEP_ORDER,
   applicability,
   explain,
+  reconcile,
   validateAnswer,
 } from '../questionnaire.js';
 import type { Tenant } from '../tenants.js';
@@ -399,14 +400,34 @@ const DEFINITIONS: ToolDefinition[] = [
         };
       }
       ctx.answers[verdict.questionId] = verdict.value;
+      // Correcting an answer can strand the answers that depended on it, and this
+      // is the same reconciliation the host-page route runs -- over the map the
+      // model sees, so the assistant's picture of what is standing cannot drift
+      // from the store's (D-31). Done here, at the one place the questionnaire
+      // mutates the context, rather than by every reader filtering defensively.
+      const { answers: kept, dropped } = reconcile(ctx.answers);
+      for (const questionId of Object.keys(ctx.answers)) {
+        if (!(questionId in kept)) delete ctx.answers[questionId];
+      }
+      const removed = dropped.map((entry) => entry.questionId);
       return {
         ok: true,
         data: {
           questionId: verdict.questionId,
           value: verdict.value,
           answered: Object.keys(ctx.answers).length,
+          ...(removed.length > 0 ? { removed } : {}),
         },
-        summary: `Saved ${verdict.questionId} = ${verdict.value}.`,
+        // The model is told what its own correction took away, because the tool
+        // result is the only place it would find out: the answer is gone from the
+        // map it reads, and nothing else in the turn would mention it.
+        summary: `Saved ${verdict.questionId} = ${verdict.value}.${
+          removed.length > 0
+            ? ` That left ${removed.join(', ')} no longer applying, so ${
+                removed.length === 1 ? 'it was' : 'they were'
+              } removed.`
+            : ''
+        }`,
       };
     },
   },

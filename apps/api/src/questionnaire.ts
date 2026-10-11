@@ -230,6 +230,72 @@ export function nextQuestion(answers: Record<string, string>): string | null {
   return outstandingQuestions(answers)[0] ?? null;
 }
 
+/** An answer removed because a later answer ruled its question out. */
+export interface DroppedAnswer {
+  questionId: string;
+  /** What the visitor had said, kept so a page can offer to restore it. */
+  value: string;
+  /** The answer that ruled it out, so the visitor can be told which one. */
+  ruledOutBy: { questionId: string; value: string; anyOf: readonly string[] };
+}
+
+/**
+ * Drop every stored answer the visitor's own answers have since ruled out.
+ *
+ * `validateAnswer` guards a *new* answer against the standing ones. This guards
+ * the standing ones against each other, and it is needed the moment an answer can
+ * be corrected. Change the usage source from a monthly cost to a household size
+ * and the monthly cost is no longer an answer to a question anybody asked -- yet
+ * a plain merge leaves it in the map, where it is indistinguishable from a live
+ * answer, rides into the lead summary, and is never offered again because
+ * `outstandingQuestions` only lists questions with no answer.
+ *
+ * The invariant this establishes is the one `applicability` already describes:
+ * **the standing map never holds an answer its own question says was not asked.**
+ * `pending` answers are kept -- they are answerable in any order, so refusing to
+ * store one would take back a freedom the page is given.
+ *
+ * Removal is the right answer rather than keeping the value dormant: a dormant
+ * second tier would be a second way for an answer to be half-true, and the
+ * visitor who corrects their usage source has said the monthly figure no longer
+ * describes them. The dropped value is returned so the page can say so out loud
+ * and, if it likes, offer it back.
+ */
+export function reconcile(answers: Record<string, string>): {
+  answers: Record<string, string>;
+  dropped: DroppedAnswer[];
+} {
+  const kept: Record<string, string> = { ...answers };
+  const dropped: DroppedAnswer[] = [];
+  // A pass can only ever turn a dependent from `applies` to `pending` (dropping a
+  // gate answer leaves the gate unanswered, and unanswered is pending, never a
+  // conflict), so this cannot cascade. It loops anyway rather than assuming that:
+  // each pass removes at least one answer or ends, and a question set that later
+  // nests gates stays correct without anyone re-deriving that argument.
+  for (let pass = 0; pass < Object.keys(QUESTIONS).length; pass++) {
+    // Question-set order, not insertion order, so the report is the same for the
+    // same map however the answers arrived.
+    const conflicting = Object.keys(QUESTIONS).filter(
+      (id) => kept[id] !== undefined && applicability(id, kept) === 'conflicts',
+    );
+    if (conflicting.length === 0) break;
+    for (const id of conflicting) {
+      const gate = QUESTIONS[id]!.appearsWhen!;
+      dropped.push({
+        questionId: id,
+        value: kept[id]!,
+        ruledOutBy: {
+          questionId: gate.questionId,
+          value: kept[gate.questionId]!,
+          anyOf: gate.anyOf,
+        },
+      });
+      delete kept[id];
+    }
+  }
+  return { answers: kept, dropped };
+}
+
 /**
  * The one place an answer is judged acceptable.
  *

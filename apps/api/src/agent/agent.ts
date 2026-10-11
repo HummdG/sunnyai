@@ -196,6 +196,13 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   for (const [questionId, value] of Object.entries(ctx.answers)) {
     if (answersBefore[questionId] !== value) answersChanged[questionId] = value;
   }
+  // A correction in the turn can also take an answer *away*: `save_answer`
+  // reconciles the context as it writes, so an answer that no longer applies is
+  // simply gone from `ctx.answers`. Nothing "set" it, so it never appears in
+  // `answersChanged` -- but a merge alone could not remove it, and the store
+  // would keep an answer the visitor had just withdrawn. So the turn's diff has
+  // two halves, and this is the second (D-31).
+  const answersRemoved = Object.keys(answersBefore).filter((id) => !(id in ctx.answers));
 
   await input.store.appendTurn(input.tenant.id, input.sessionId, {
     role: 'assistant',
@@ -212,8 +219,19 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   // is which turn changed it. The alternative -- letting the route and the chat
   // each keep their own map and merging them on read -- leaves no principled way
   // to decide which of two contradictory answers wins.
-  if (Object.keys(answersChanged).length > 0) {
-    await input.store.mergeAnswers(input.tenant.id, input.sessionId, answersChanged);
+  //
+  // The per-turn record carries the set, not the removal, and that is deliberate:
+  // a removal is not an independent fact to log, it is what the question set
+  // makes of the set. Anyone replaying the turns has the answer that caused it
+  // and the module's rules, so the removal is derivable; duplicating it onto the
+  // turn would be a second copy of the question set's logic, free to disagree.
+  if (Object.keys(answersChanged).length > 0 || answersRemoved.length > 0) {
+    await input.store.mergeAnswers(
+      input.tenant.id,
+      input.sessionId,
+      answersChanged,
+      answersRemoved,
+    );
   }
 
   yield {

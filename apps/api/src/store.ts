@@ -125,11 +125,19 @@ export interface Store {
    * answer and must not blank the rest. Returns the conversation as it now
    * stands, so a caller can report what is still outstanding without a second
    * read that could race.
+   *
+   * `remove` is the correction's other half. When a visitor changes an answer,
+   * the answers that depended on it may no longer apply, and a merge alone can
+   * only ever add -- so the keys to delete are named here in the same write, and
+   * a correction stays one atomic amendment rather than a merge and a cleanup
+   * that a failure could come between. The decision of *which* keys is the
+   * questionnaire's (`reconcile`); this only carries it out.
    */
   mergeAnswers(
     tenantId: string,
     sessionId: string,
     answers: Record<string, string>,
+    remove?: readonly string[],
   ): Promise<Conversation>;
   saveLead(lead: LeadRecord): Promise<LeadRecord>;
   listLeads(tenantId: string, limit?: number): Promise<LeadRecord[]>;
@@ -312,20 +320,28 @@ export class FileStore implements Store {
     tenantId: string,
     sessionId: string,
     answers: Record<string, string>,
+    remove?: readonly string[],
   ): Promise<Conversation> {
     await this.#ensure();
     const existing = await this.getConversation(tenantId, sessionId);
     const now = new Date().toISOString();
+    // Merged first, then the named keys deleted: a key that is both set and
+    // removed ends up gone, which is the only reading that makes sense -- the
+    // "remove" list is the reconciler's verdict on the state after the merge,
+    // and it never names the answer just given (that answer's own applicability
+    // is `applies` or `pending`, never `conflicts`).
+    const merged = { ...existing?.answers, ...answers };
+    for (const key of remove ?? []) delete merged[key];
     // Spread `existing` first so `turns` and `createdAt` survive; this write is
     // an amendment to the conversation, not a replacement of it.
     const conversation: Conversation = existing
-      ? { ...existing, answers: { ...existing.answers, ...answers }, updatedAt: now }
+      ? { ...existing, answers: merged, updatedAt: now }
       : {
           id: newId('conv'),
           tenantId,
           sessionId,
           turns: [],
-          answers: { ...answers },
+          answers: merged,
           createdAt: now,
           updatedAt: now,
         };
