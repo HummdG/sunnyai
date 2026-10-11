@@ -2855,3 +2855,73 @@ naming its id.
 `apps/api/test/consent.test.ts`, `apps/api/test/retention.test.ts`, `apps/api/test/config.test.ts`,
 `tests/security/tenant-isolation.test.ts`, `docs/requirements-matrix.md` (§4's consent row,
 `Partial` → `Done`).
+
+## D-45. The marketing budget is set above the measured variance, and one metric is short of the goal
+
+**Context.** §12 asks that the marketing site's "Core Web Vitals [be] in good range", and adds
+that thresholds are to be "established after first measured staging build". P3's exit gate names
+"a Lighthouse/accessibility baseline" alongside the visual regression. Two of those three existed:
+the character's 25 PNG baselines (D-16) and the axe pass over the page. Performance had nothing --
+no Lighthouse run, no budget, no measurement of any kind -- and the requirements-matrix row for it
+read `Not started` with the note "the site exists but nothing measures it", which was the whole of
+the truth.
+
+The reason this was deferred rather than dismissed is that a performance number is easy to produce
+and almost as easy to produce dishonestly. One run, one number, a threshold set just under it, and
+a document that reads like a promise. The thing that makes it worth doing is doing it in a way that
+survives being checked, which here means three decisions: what to measure, where the threshold
+comes from, and what the number is claimed to mean.
+
+**Decision -- measure the production build in a browser, and let the first measurement set the
+ceiling rather than the goal.** `scripts/lighthouse-marketing.mjs` (run as `npm run perf:marketing`)
+drives Lighthouse 13.5.0 over the built site with the mobile preset -- Lighthouse's own throttling
+and 4x CPU slowdown, without which every figure reads good on every site -- using the Chromium
+Playwright already keeps on the machine rather than a second browser download. It reports the
+performance score, the five Core Web Vitals metrics a lab run can measure, and Time to First Byte.
+
+Each metric carries two numbers rather than one. `target` is the Lighthouse "good" boundary, printed
+beside the measured value so a reader can see which metrics already meet the goal and which do not.
+`budget` is a regression ceiling, and it is set from the **worst of five runs** of the same build
+at roughly 1.5x, because the first thing five runs showed was that the spread is wide enough to
+matter: TBT read 162, 205, 259, 299 and 386 ms on an unchanged build, a factor of 2.4, and the
+score read 0.89 to 0.97. A budget set from one run would have been a budget on run-to-run variance
+rather than on the site -- and a gate that fails on variance is one people re-run until it passes,
+which is a gate that has stopped being one. The plan's own ordering ("thresholds after first
+measured build") is the same reasoning: a budget that fails on the day it is written is a wish.
+
+The script is a measurer, not a supervisor. It does not start the server (`verify-isolation` sets
+the same precedent): starting a Next.js production server and an API from inside a Node script
+means signal handling and process trees on Windows, a second and worse problem than the one being
+measured, and precisely the sort of ambient flakiness a performance baseline must not have. It
+prints the two commands to start when the site does not answer.
+
+**What it found.** Five of the six metrics already meet the good-range boundary, layout shift is
+exactly **zero** in every run, and the largest contentful paint lands 250-650 ms inside the range.
+**Total Blocking Time is the one that does not**: 162-386 ms against a 200 ms target. That is not a
+measurement artefact -- it is the main thread blocked after first paint by the page's own
+JavaScript, React hydration plus the character's render loop, and it is the metric a mid-range
+phone would feel as input lag. It is recorded as short of the goal rather than given a lenient
+budget, and the two candidate fixes (moving the character's loop off the critical path, deferring
+the hero's hydration) are named in the docs and not done.
+
+**What the numbers are claimed to mean, and not.** They are lab figures from one machine, not
+field data: there is no real-user p75, so they cannot be quoted against the Core Web Vitals
+thresholds as though real users had been measured. Time to First Byte in particular reads 3-15 ms,
+which is a local `next start` reading a file, and a Cloud Run cold start is a different number the
+script will not see until a deployment exists. And nothing enforces the budget in CI, because
+nothing runs in CI while the repository has no remote (D-9). The baseline is a developer's command
+run by hand, and the document says so rather than implying a gate that is not there.
+
+**What was deliberately not done.** No Lighthouse score target of 100, and no attempt to raise the
+score by removing the character -- the character is the product, and a performance budget that
+argues against the thing being sold is the wrong budget. No desktop-preset baseline was committed;
+`--desktop` exists for anyone who wants it, but the promise §6.1 makes is a mobile-first page and
+two baselines for one promise double the maintenance for no extra coverage. And no synthetic
+field-data imitation: the numbers are lab numbers and are labelled as such.
+
+**Evidence.** `scripts/lighthouse-marketing.mjs` (the runner, the budgets and their reasoning),
+`docs/performance/marketing.md` (the baseline, the five runs, the verdicts and the limits),
+`docs/performance/marketing-baseline.json` (the machine-readable baseline, with the machine that
+produced it), `package.json` (`perf:marketing`, and `lighthouse`/`chrome-launcher` as
+devDependencies), `docs/requirements-matrix.md` (§12's Core Web Vitals row, `Not started` →
+`Partial`).

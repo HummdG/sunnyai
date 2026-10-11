@@ -72,6 +72,25 @@ Run `npm run verify` — it chains the first four.
       about either number is alarming at this size, but a figure nobody
       re-measures becomes a figure nobody can trust, so the next release should
       set the budget rather than only re-read the number.
+- [ ] `npm run perf:marketing` — the marketing site's performance budget, against a
+      **running production build**: `npm run build:widget` first, then
+      `npm run build -w @sunny/marketing` and `npm run start -w @sunny/marketing`,
+      with the API up so the widget finds one. Last measured 2026-10-11 over five
+      runs: score 0.89–0.97, LCP 1857–2249 ms, **CLS exactly 0**, FCP 755–768 ms,
+      SI 777–1040 ms, TTFB 3–15 ms. It exits non-zero when a metric passes its
+      budget.
+  - [ ] **Total blocking time is the metric short of the goal** — 162–386 ms against
+        the Lighthouse 200 ms target. It is the main thread blocked after first
+        paint (React hydration plus the character's render loop), it is in budget
+        but not in the good range, and a release that does not address it is
+        shipping a page that a mid-range phone feels as input lag (D-45).
+  - [ ] these are **lab numbers from one machine**: no real-user p75, no mid-range
+        phone, and TTFB is a local `next start` reading a file rather than a Cloud
+        Run cold start. Re-measure against the first real deployment before quoting
+        any of them as a property of the deployed site.
+  - [ ] **nothing runs this in CI**, because there is no CI (D-9). Until there is,
+        this box is ticked by a person who ran the command, and the budget is a
+        habit rather than a gate.
 - [ ] `npm run smoke` — against a **running** deployment
   - [ ] exits **0**, not 127 (the exit-code bug is fixed; confirm it stays
         fixed, because a gate that always fails gets deleted, and one that

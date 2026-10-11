@@ -1,0 +1,46 @@
+{
+  "url": "http://127.0.0.1:4176/",
+  "formFactor": "mobile",
+  "measuredAt": "2026-10-11T15:01:27.363Z",
+  "node": "v24.12.0",
+  "platform": "win32 x64",
+  "metrics": {
+    "performance": 0.94,
+    "largest-contentful-paint": 2140.1440000000002,
+    "cumulative-layout-shift": 0,
+    "total-blocking-time": 259,
+    "first-contentful-paint": 755.144,
+    "speed-index": 777.0014545088103,
+    "server-response-time": 4
+  },
+  "budgets": {
+    "performance": {
+      "budget": 0.85,
+      "target": 0.9
+    },
+    "largest-contentful-paint": {
+      "budget": 3400,
+      "target": 2500
+    },
+    "cumulative-layout-shift": {
+      "budget": 0.1,
+      "target": 0.1
+    },
+    "total-blocking-time": {
+      "budget": 600,
+      "target": 200
+    },
+    "first-contentful-paint": {
+      "budget": 1200,
+      "target": 1800
+    },
+    "speed-index": {
+      "budget": 1600,
+      "target": 3400
+    },
+    "server-response-time": {
+      "budget": 100,
+      "target": 800
+    }
+  }
+}

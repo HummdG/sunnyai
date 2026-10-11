@@ -2,7 +2,7 @@
   "name": "sunny-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Sunny.ai \u00e2\u20ac\u201d multi-tenant AI assistant platform for solar installers",
+  "description": "Sunny.ai â€” multi-tenant AI assistant platform for solar installers",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -40,7 +40,8 @@
     "test:visual:update": "tsx scripts/update-visual-baselines.ts",
     "seed:catalogue": "tsx scripts/seed-catalogue.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "verify:isolation": "tsx scripts/verify-isolation.ts"
+    "verify:isolation": "tsx scripts/verify-isolation.ts",
+    "perf:marketing": "node scripts/lighthouse-marketing.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -48,8 +49,10 @@
     "@playwright/test": "^1.64.0",
     "@resvg/resvg-js": "2.6.2",
     "@types/node": "^26.6.5",
+    "chrome-launcher": "^1.2.2",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
+    "lighthouse": "^13.5.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
