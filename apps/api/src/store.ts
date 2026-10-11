@@ -41,6 +41,78 @@ export interface ConversationTurn {
    * question, or worse, recording the wrong one.
    */
   answers?: Record<string, string>;
+  /**
+   * What the model call behind this turn cost in time and tokens.
+   *
+   * Present on assistant turns written since this field existed; absent on older
+   * records, which readers must tolerate for the same reason `answers` above is
+   * optional. It is operational telemetry and **not visitor content**: numbers
+   * and two identifiers, no message text and no tool arguments.
+   *
+   * It lives on the turn rather than in a store of its own because the turn is
+   * already the record the dashboard's window is counted over, so a second
+   * collection would be a second thing to keep tenant-scoped, retention-swept and
+   * backed up — and the two would be free to disagree about how many calls
+   * happened. See `ModelCall` for what each number means, including why there is
+   * no cost in it.
+   */
+  call?: ModelCall;
+}
+
+/**
+ * One model call, as measured around the provider boundary.
+ *
+ * ## Why there is no cost here
+ *
+ * §12 asks to "record p50/p95 latency **and costs** by tenant and model". The
+ * latency half is recorded; the cost half is not, and cannot be, because no
+ * price for any model appears anywhere in this repository and the plan forbids
+ * inventing one. A `cost` field would have to be a number multiplied out of a
+ * rate somebody guessed — and a wrong cost on a dashboard is indistinguishable
+ * from a right one to the person reading it.
+ *
+ * What is recorded instead is the pair of counts a cost figure is *computed
+ * from*: the tokens the provider accounted and the model that accounted them.
+ * Multiply them by a real rate, when a real rate exists, and the answer is
+ * correct without this file having guessed at anything. The token counts are
+ * also useful on their own, which a currency figure derived from a stale rate
+ * would not be.
+ *
+ * ## Why two durations and not one
+ *
+ * `ttfbMs` and `totalMs` measure different things and the difference is the
+ * useful part. Tools execute *inside* the stream — the widget animates their
+ * events during the turn rather than after it — so `totalMs` includes however
+ * long an installer's own tools took, which is not the model's latency at all. A
+ * p50 over `totalMs` alone would move when a knowledge lookup got slower and
+ * look like the model had.
+ *
+ * `ttfbMs` is the clean measurement: at the first chunk no tool has run yet,
+ * because a tool runs only once a function call has arrived in a chunk.
+ */
+export interface ModelCall {
+  /** The model identifier the provider named, or null when it names none. */
+  model: string | null;
+  /** Which provider implementation served it (`gemini`, a scripted one, ...). */
+  provider: string;
+  /**
+   * Milliseconds from starting the provider to its first chunk.
+   *
+   * The first call in a process also carries the provider SDK's dynamic import,
+   * which is real latency and is left in rather than subtracted out — a p95 that
+   * excluded it would describe every process except the one that just started.
+   */
+  ttfbMs: number;
+  /** Milliseconds to the end of the stream, tool execution included. */
+  totalMs: number;
+  /**
+   * Token accounting, when the provider reported any.
+   *
+   * Absent when it reported none, which is a fact of its own and not "zero
+   * tokens": a deployment whose provider says nothing would otherwise look
+   * maximally cheap.
+   */
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface Conversation {

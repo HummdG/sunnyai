@@ -1,6 +1,6 @@
 import { EMPTY_KNOWLEDGE, type KnowledgeIndex } from '@sunny/knowledge';
 
-import { newId, type ConversationTurn, type Store } from '../store.js';
+import { newId, type ConversationTurn, type ModelCall, type Store } from '../store.js';
 import type { Auditor } from '../audit.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatProvider } from './provider.js';
@@ -152,6 +152,19 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   const toolsUsed: string[] = [];
   const declaredTools = new Set(TOOL_DECLARATIONS.map((t) => t.name));
 
+  // A monotonic clock, not `Date.now()`.
+  //
+  // A duration subtracted from two wall-clock readings is wrong whenever the
+  // clock steps -- NTP correcting a drifting VM, a laptop resuming from sleep --
+  // and wrong in the direction that produces a negative or absurd latency on the
+  // dashboard. `performance.now()` only moves forward, which is the only property
+  // a stopwatch needs.
+  const startedAt = performance.now();
+  // Set by the first chunk the provider produces, whatever kind it is. A tool
+  // runs only once a function-call chunk has arrived, so at this instant nothing
+  // but the model has taken any time -- see `ModelCall`.
+  let firstChunkAt: number | null = null;
+
   // What the answers looked like before this turn ran.
   //
   // Kept so the turn can persist the *delta* rather than the whole map. The map a
@@ -177,6 +190,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     });
 
     for await (const chunk of stream) {
+      firstChunkAt ??= performance.now();
       for (const event of drain(events, messageId)) yield event;
       if (chunk.type === 'text') {
         text += chunk.text;
@@ -202,6 +216,20 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
 
     for (const event of drain(events, messageId)) yield event;
   }
+
+  const totalMs = performance.now() - startedAt;
+  // The stream is spent by here, so this is the call's whole duration -- tool
+  // execution included, because tools run inside the stream. A stream that
+  // produced no chunk at all has no time-to-first-token to report; falling back
+  // to the total keeps `ttfbMs` a real measurement of a real wait rather than a
+  // zero that would read as instant.
+  const call: ModelCall = {
+    model: input.provider.model,
+    provider: input.provider.kind,
+    ttfbMs: Math.round((firstChunkAt ?? startedAt + totalMs) - startedAt),
+    totalMs: Math.round(totalMs),
+    ...(usage ? { usage } : {}),
+  };
 
   // Persist both halves of the turn together. The user turn is written first so
   // that a failure mid-answer still leaves the visitor's own words recorded.
@@ -231,6 +259,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     at: new Date().toISOString(),
     ...(toolsUsed.length > 0 ? { tools: toolsUsed } : {}),
     ...(Object.keys(answersChanged).length > 0 ? { answers: answersChanged } : {}),
+    call,
   });
 
   // Fold this turn's answers into the conversation's standing map.

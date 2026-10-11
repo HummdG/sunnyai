@@ -22,9 +22,11 @@ import { z } from 'zod';
  *     Health in the plan's sense -- is the sync running, did the last job fail --
  *     needs the Drive integration, which is blocked (see STATUS blocker 4), and a
  *     count of documents is not a substitute for it.
- *   - **usage** -> **absent entirely.** Nothing meters usage: there is no quota
- *     consumption counter, no token accounting per tenant, no request total kept
- *     over time. A "usage" block here would have to be invented, so there is none.
+ *   - **usage** -> `usage`: what the model calls actually cost, in time and in
+ *     tokens. It reports p50/p95 latency, token sums and call counts, grouped by
+ *     the model that answered. There is still **no cost in currency** and no
+ *     quota consumption counter, and the `usage` block's own doc comment says
+ *     why the missing half is missing rather than guessed at.
  *
  * ## Denominators and ranges
  *
@@ -52,6 +54,121 @@ export const dashboardRangeSchema = z.object({
   /** The width of the window in days, after the query's value was clamped. */
   days: z.number().int(),
 });
+
+/**
+ * p50 and p95 over a set of model-call durations.
+ *
+ * Both percentiles are computed twice over the same calls: once for
+ * time-to-first-token and once for the whole call. They answer different
+ * questions and the gap between them is the point -- see `usage.latency`.
+ *
+ * Null when the set is empty, following the contract's rule: a percentile over
+ * no calls is unknown, not zero. Within a `byModel` entry this cannot happen,
+ * because a group exists only because a call created it; the fields are typed
+ * permissively anyway so that "no measurements" has exactly one representation
+ * in this file rather than two.
+ */
+export const modelLatencySchema = z.object({
+  ttfbMsP50: z.number().nullable(),
+  ttfbMsP95: z.number().nullable(),
+  totalMsP50: z.number().nullable(),
+  totalMsP95: z.number().nullable(),
+});
+
+export type ModelLatency = z.infer<typeof modelLatencySchema>;
+
+/**
+ * One model's calls within the window.
+ *
+ * The group key is `(provider, model)` and not the model alone, because the same
+ * model name served by a different provider -- or by a scripted provider in a
+ * test -- is a different thing being measured and averaging them together would
+ * describe neither.
+ */
+export const modelUsageSchema = z.object({
+  /** Which provider implementation served the calls (`gemini`, a scripted one). */
+  provider: z.string(),
+  /** The model identifier as the provider named it, or null when it names none. */
+  model: z.string().nullable(),
+  /** Calls in the window served by this provider and model. */
+  calls: z.number().int(),
+  /**
+   * How many of those calls reported token counts.
+   *
+   * Carried alongside the sums because a sum of zero is ambiguous: it is what
+   * "the provider reported nothing" produces, and it is also what "the provider
+   * reported zero tokens" produces, and those mean different things about
+   * whether the accounting is working at all.
+   */
+  callsWithTokens: z.number().int(),
+  /** Input tokens summed over the calls that reported them; 0 if none did. */
+  inputTokens: z.number().int(),
+  /** Output tokens summed over the calls that reported them; 0 if none did. */
+  outputTokens: z.number().int(),
+  latency: modelLatencySchema,
+});
+
+export type ModelUsage = z.infer<typeof modelUsageSchema>;
+
+/**
+ * What the window's model calls cost in time and tokens -- §12's "p50/p95
+ * latency and costs by tenant and model".
+ *
+ * ## Where the costs are
+ *
+ * The plan asks for latency **and costs**. Latency is here. Cost, as a figure in
+ * currency, is **deliberately absent**, because nothing in this repository knows
+ * any model's price and the plan forbids inventing one (see the `ModelCall`
+ * docblock in `apps/api/src/store.ts`, which records the reasoning where the
+ * data is written). A wrong cost is indistinguishable from a right one to the
+ * person reading the dashboard, which makes it worse than no cost.
+ *
+ * What is here instead is everything a cost is *made of*: the tokens each
+ * provider actually accounted, and the model that accounted them. Supply a real
+ * rate and the multiplication is arithmetic; until then the token counts are
+ * themselves factual and useful.
+ *
+ * ## Why two latencies
+ *
+ * `ttfbMs` is time to the model's first chunk and is the clean measure of model
+ * responsiveness. `totalMs` is the whole call and includes tool execution, which
+ * happens inside the stream. Read together they separate "the model got slow"
+ * from "a tool got slow" -- a distinction a single number would erase, and the
+ * reason a p95 over `totalMs` alone can move for a reason that has nothing to do
+ * with the model.
+ *
+ * Both are **nearest-rank** percentiles: the reported number is always a call
+ * that actually happened, never an interpolation between two of them.
+ *
+ * ## What is not counted
+ *
+ * Calls made before this field existed have no `call` on their turn and are not
+ * counted, so a window reaching back past the first deployment that recorded
+ * them under-reports rather than inventing. `calls` is therefore the honest
+ * denominator for everything else in the block.
+ */
+export const dashboardUsageSchema = z.object({
+  /** Assistant turns written in the window that recorded a model call. */
+  calls: z.number().int(),
+  /** How many of those reported token counts; see `byModel[].callsWithTokens`. */
+  callsWithTokens: z.number().int(),
+  /** Input tokens summed over the window's calls; 0 when none reported any. */
+  inputTokens: z.number().int(),
+  /** Output tokens summed over the window's calls; 0 when none reported any. */
+  outputTokens: z.number().int(),
+  /** Over every call in the window, all models together. */
+  latency: modelLatencySchema,
+  /**
+   * The same figures per `(provider, model)`, most-used model first.
+   *
+   * Sorted by call count descending, then provider, then model, so the order is
+   * total and a reader comparing two responses is comparing the same rows in the
+   * same places. Empty when the window saw no calls.
+   */
+  byModel: z.array(modelUsageSchema),
+});
+
+export type DashboardUsage = z.infer<typeof dashboardUsageSchema>;
 
 export const dashboardMetricsSchema = z.object({
   range: dashboardRangeSchema,
@@ -117,6 +234,7 @@ export const dashboardMetricsSchema = z.object({
     /** Product rows the installer has today. A state, not a windowed count. */
     products: z.number().int(),
   }),
+  usage: dashboardUsageSchema,
 });
 
 export type DashboardMetrics = z.infer<typeof dashboardMetricsSchema>;

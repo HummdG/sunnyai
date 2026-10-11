@@ -200,6 +200,52 @@ describe('the vertical slice', () => {
     expect(turns[1]!.text).toContain('£600–£900');
   });
 
+  it('records what the model call cost, and keeps it off the visitor’s read', async () => {
+    // §12's latency half, measured where it is actually measured: around the
+    // provider. The scripted provider reports a usage chunk, so the recorded
+    // call must carry those tokens -- which is the link between "the provider
+    // accounted for something" and "the dashboard can sum it".
+    const provider = new ScriptedProvider(() => [
+      { type: 'text', text: 'Sure.' },
+      { type: 'usage', inputTokens: 120, outputTokens: 22 },
+    ]);
+    const { app, store } = await h(provider);
+    const { sessionId, token } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'Hello?' },
+    });
+    expect(response.statusCode).toBe(200);
+
+    // Read from the store, because the visitor route strips `call` -- asserting
+    // it through that route would prove nothing about what was persisted.
+    const conversation = await store.getConversation('t_demo0001', sessionId);
+    const assistant = conversation?.turns.find((turn) => turn.role === 'assistant');
+    expect(assistant?.call).toBeDefined();
+    const call = assistant!.call!;
+    // The provider names both, and the scripted one names them honestly.
+    expect(call.provider).toBe('scripted');
+    expect(call.model).toBe('scripted-1');
+    expect(call.usage).toEqual({ inputTokens: 120, outputTokens: 22 });
+    // Durations are measured, not constants: a monotonic clock was read around a
+    // real stream, so they are finite, non-negative, and ordered.
+    expect(Number.isFinite(call.ttfbMs)).toBe(true);
+    expect(call.ttfbMs).toBeGreaterThanOrEqual(0);
+    expect(call.totalMs).toBeGreaterThanOrEqual(call.ttfbMs);
+
+    // The visitor's own transcript read never sees it.
+    const read = await app.inject({
+      method: 'GET',
+      url: '/v1/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const turns = read.json<{ turns: Array<Record<string, unknown>> }>().turns;
+    expect(turns.find((turn) => turn.role === 'assistant')).not.toHaveProperty('call');
+  });
+
   it('does not duplicate the transcript when a request is retried', async () => {
     const provider = new ScriptedProvider(() => [{ type: 'text', text: 'Hello.' }]);
     const { app } = await h(provider);

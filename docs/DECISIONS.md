@@ -2979,6 +2979,10 @@ guess:
 - **usage** → **absent entirely.** Nothing meters usage: no quota consumption counter, no per-tenant
   token accounting, no request total kept over time. A usage block would have to be invented, so
   there is none, and the contract says so in those words.
+  **Superseded by D-50**, which gave the block real figures — measured latency and the token sums the
+  providers actually report — and left only the cost-in-currency half absent. This bullet is kept as
+  written because it was the correct reading of the tree at D-46, and the correction belongs in the
+  entry that made it.
 
 **Decision -- a ratio with no denominator is `null`, never `0`.** `leadConversion` and
 `turnsPerActiveConversation` are `number | null` in the contract and return null exactly when the
@@ -3279,3 +3283,83 @@ in the check table, blocker 3, blocker 7, next action 4), and the workflow run i
 `init -backend=false` and `validate` inside CI and not only here. Locally: `terraform fmt -check -recursive`
 silent, exit 0; `terraform validate` exit 0; `npm run verify` green at 1062 tests across 33 files.
 `terraform plan` and `apply` have still never been run, by CI or by anyone.
+
+## D-50. Latency is measured at the provider boundary and persisted on the turn; cost is left out rather than guessed at
+
+**Context.** §12 asks to "establish specific bundle/latency/error-rate thresholds after first measured
+staging build" and to "record p50/p95 latency and costs by tenant and model". The bundle and error-rate
+halves were already met or blocked; the latency half was **not started** (`docs/requirements-matrix.md`
+line 290), and tracing the data showed why it was not merely unwritten but impossible from what existed:
+`GeminiProvider` already yielded `{ type: 'usage', inputTokens, outputTokens }`, `runTurn` already
+captured it, and `message_finished` already carried it to the browser — and then **the persisted assistant
+turn dropped it**. Tokens reached the browser and evaporated. Nothing anywhere measured a duration.
+
+**Decision.** Measure each model call around the provider boundary, persist it on the assistant turn it
+belongs to, and aggregate it in the dashboard:
+
+- A `ModelCall` on `ConversationTurn` (`apps/api/src/store.ts`) carrying `provider`, `model`, `ttfbMs`,
+  `totalMs` and the optional `usage`. It lives **on the turn** rather than in a telemetry collection of
+  its own, because the turn is already the record the dashboard's window is counted over; a second store
+  would be a second thing to keep tenant-scoped, retention-swept and backed up, and the two would be free
+  to disagree about how many calls happened.
+- Two durations, not one. `ttfbMs` is time to the model's first chunk and is the clean measure of model
+  responsiveness, because **no tool has run at that instant** — a tool runs only once a function-call chunk
+  has arrived. `totalMs` is the whole call and **includes tool execution**, which happens inside the
+  stream on purpose (the widget animates tool events during the turn). Reporting only `totalMs` would make
+  a p50 jump when a knowledge lookup got slower and read as the model having got slower.
+- A monotonic clock (`performance.now()`), not `Date.now()`. A duration subtracted from two wall-clock
+  readings is wrong whenever the clock steps — NTP on a drifting VM, a laptop waking from sleep — and wrong
+  in the direction that produces negative or absurd latencies on a dashboard.
+- **Nearest-rank** percentiles (`apps/api/src/latency.ts`): the reported number is the ⌈p·n⌉-th sorted
+  measurement, always a latency that actually happened, never an interpolation between two. Interpolated
+  p95 over 40 calls is a number no request took, which is exactly what an installer asking "why was it
+  slow at 2pm" cannot act on. The cost is a coarser figure that moves in visible steps — which is the
+  honest shape of an estimate from a small sample.
+- A `usage` block on `dashboardMetricsSchema` (`packages/contracts/src/dashboard.ts`) with the window-wide
+  figures plus `byModel[]` grouped by `(provider, model)` — provider _and_ model, because the same model
+  name served by a scripted provider in a test is a different thing being measured. The rows sort by call
+  count descending, then provider, then model, so two responses over one window list the same rows in the
+  same places.
+- `callsWithTokens` beside the token sums. A sum of zero is ambiguous: it is what "the provider reported
+  nothing" produces and what "the provider reported zero" produces, and those say different things about
+  whether the accounting works at all.
+
+**Costs are deliberately absent, and this is the decision rather than an omission.** No price for any
+model appears anywhere in this repository, and the plan forbids inventing one. A `cost` field would have to
+be a number multiplied out of a guessed rate, and a wrong cost on a dashboard is indistinguishable from a
+right one to the person reading it. What is recorded instead is everything a cost is _computed from_: the
+tokens each provider actually accounted and the model that accounted them. Supply a real rate and the
+multiplication is arithmetic.
+
+**The visitor-wire leak, closed at the same time.** `GET /v1/conversation` returns the store's turn objects
+**verbatim** to the visitor's own session token, so adding telemetry to `ConversationTurn` would have put
+"which model answered, how long it took, how many tokens" into the visitor's browser. The field is dropped
+on that route (`server.ts`, a rest-destructure that strips `call`) and kept on disk, where the dashboard
+still reads it. A route test asserts both halves — present in the store, absent from the response — because
+the strip and the persistence are the pair that a future edit is most likely to break one of.
+
+**Alternatives rejected.** (1) A separate `modelCalls` collection: rejected above, on the grounds that it
+duplicates the window's definition and the tenant-scoping and retention obligations. (2) Wall-clock timing:
+rejected on correctness. (3) Interpolated percentiles: rejected because the reported figure would correspond
+to nothing in the log. (4) A cost field with a placeholder rate: rejected as the one thing the plan
+explicitly forbids and the one kind of number a reader cannot tell is wrong. (5) Dropping `call` at the
+store so it could never leak: rejected because the dashboard needs it, which turns the strip into a
+route-level concern by necessity rather than by preference.
+
+**Consequences.** The dashboard's `usage` block is real on the next turn written; turns recorded before
+this commit have no `call` and are not counted, so a window reaching back past it **under-reports rather
+than inventing**, and `calls` is the honest denominator for everything in the block. Adding a cost figure
+later is a pure addition — the inputs are already persisted. A surface that displays any of this (plan
+§6.4) still does not exist; §12 asks to _record_, and recording is what this is.
+
+**Evidence.** `apps/api/src/latency.ts`, `apps/api/src/usage.ts`, `apps/api/src/agent/agent.ts` (the
+measured region), `apps/api/src/store.ts` (`ModelCall`), `packages/contracts/src/dashboard.ts` (the `usage`
+schema and the rewritten top-of-file note that previously read "usage -> absent entirely"),
+`apps/api/src/server.ts` (the metrics aggregation and the `/v1/conversation` strip),
+`apps/api/test/latency.test.ts`, `apps/api/test/usage.test.ts`, `apps/api/test/dashboard.test.ts`,
+`apps/api/test/pipeline.test.ts`.
+
+**Verified.** `npm run verify` green: formatting and lint clean, `tsc --noEmit` clean, **1081 tests across
+35 files** (up from 1062/33 — the two new files are `latency.test.ts` and `usage.test.ts`). The whole suite,
+including `tests/security/tenant-isolation.test.ts`, passes with the `usage` block present and the strip in
+place.

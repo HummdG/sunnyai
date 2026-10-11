@@ -53,8 +53,9 @@ import {
 import { explain, nextQuestion, reconcile, validateAnswer } from './questionnaire.js';
 import { startRetention } from './retention.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
-import { newId, type DeletedConversation, type Store } from './store.js';
+import { newId, type DeletedConversation, type ModelCall, type Store } from './store.js';
 import type { TenantRegistry } from './tenants.js';
+import { summariseUsage } from './usage.js';
 
 export interface ServerDeps {
   config: ServerConfig;
@@ -503,7 +504,14 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const conversation = await store.getConversation(claims.tenantId, claims.sessionId);
     return {
       conversationId: conversation?.id ?? null,
-      turns: conversation?.turns ?? [],
+      // The turn record is the store's shape, and it carries operational
+      // telemetry (`call`: which model answered, how long it took, how many
+      // tokens) that is the *installer's* business, not the visitor's. This
+      // route hands the array back to the visitor's own browser, so the field
+      // is dropped here rather than at the store, where the dashboard still
+      // needs it. Everything the widget reads -- `text`, `role`, `at`, `tools`,
+      // `answers` -- is passed through untouched.
+      turns: (conversation?.turns ?? []).map(({ call: _call, ...turn }) => turn),
     };
   });
 
@@ -1411,11 +1419,18 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
     let visitorTurns = 0;
     let assistantTurns = 0;
+    // Collected in the same nested scan rather than in a second pass: the turns
+    // are already in hand, and a second scan would be a second place for the
+    // window predicate to be applied -- two definitions free to disagree about
+    // which calls the figures below are over.
+    const calls: ModelCall[] = [];
     for (const conversation of conversations) {
       for (const turn of conversation.turns) {
         if (!inWindow(turn.at)) continue;
         if (turn.role === 'user') visitorTurns += 1;
         else assistantTurns += 1;
+        // Only assistant turns ever carry one; older ones predate the field.
+        if (turn.call) calls.push(turn.call);
       }
     }
 
@@ -1451,6 +1466,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       // the field mean what its name says.
       knowledge: { sources: sources.length },
       catalogue: { products: products.length },
+      usage: summariseUsage(calls),
     };
     return metrics;
   });

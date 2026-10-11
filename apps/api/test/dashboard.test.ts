@@ -42,6 +42,8 @@ import type { FastifyInstance } from 'fastify';
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
 const DAY = 24 * 60 * 60 * 1000;
 const SANDBOX_TENANT_ID = 't_sandbox001';
+/** The demo tenant's public widget id, which is what opens a visitor session. */
+const DEMO_WIDGET_ID = 'w_demo000001';
 
 /** A timestamp `days` before the pinned clock. */
 function ago(days: number): string {
@@ -120,7 +122,7 @@ function conversationRow(overrides: {
   sessionId: string;
   createdAt: string;
   updatedAt: string;
-  turns?: Array<{ role: 'user' | 'assistant'; at: string }>;
+  turns?: Array<{ role: 'user' | 'assistant'; at: string; call?: Record<string, unknown> }>;
 }): Record<string, unknown> {
   return {
     id: overrides.id,
@@ -130,9 +132,41 @@ function conversationRow(overrides: {
       role: turn.role,
       text: `turn ${index}`,
       at: turn.at,
+      ...(turn.call ? { call: turn.call } : {}),
     })),
     createdAt: overrides.createdAt,
     updatedAt: overrides.updatedAt,
+  };
+}
+
+/**
+ * A recorded model call, in the shape `runTurn` writes onto an assistant turn.
+ *
+ * `usage` is left out unless the caller names tokens, which is what makes the
+ * "provider reported nothing" case representable: a call that carried no
+ * accounting has no `usage` key at all, exactly as the store writes it.
+ */
+function modelCall(overrides: {
+  provider?: string;
+  model?: string | null;
+  ttfbMs: number;
+  totalMs: number;
+  inputTokens?: number;
+  outputTokens?: number;
+}): Record<string, unknown> {
+  return {
+    provider: overrides.provider ?? 'gemini',
+    model: overrides.model === undefined ? 'gemini-2.5-flash' : overrides.model,
+    ttfbMs: overrides.ttfbMs,
+    totalMs: overrides.totalMs,
+    ...(overrides.inputTokens === undefined && overrides.outputTokens === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: overrides.inputTokens ?? 0,
+            outputTokens: overrides.outputTokens ?? 0,
+          },
+        }),
   };
 }
 
@@ -288,6 +322,17 @@ describe('GET /v1/dashboard/metrics — an empty tenant', () => {
     expect(body.leadConversion).toBeNull();
     expect(body.knowledge).toEqual({ sources: 0 });
     expect(body.catalogue).toEqual({ products: 0 });
+    // No calls means no latency to report, so all four percentiles are null --
+    // the same "cannot say" as the two ratios above, and not a 0 ms that would
+    // read as an instantaneous answer.
+    expect(body.usage).toEqual({
+      calls: 0,
+      callsWithTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      latency: { ttfbMsP50: null, ttfbMsP95: null, totalMsP50: null, totalMsP95: null },
+      byModel: [],
+    });
   });
 
   it('echoes the window it used, defaulting to thirty days', async () => {
@@ -438,6 +483,183 @@ describe('GET /v1/dashboard/metrics — the ratios', () => {
     expect(body.leadConversion).toBe(
       Math.round((body.leads.captured / body.conversations.started) * 1000) / 1000,
     );
+  });
+});
+
+describe('GET /v1/dashboard/metrics — usage by tenant and model', () => {
+  it('counts a call only when its turn is in the window', async () => {
+    // The call rides on the turn, so it inherits the turn's window decision. A
+    // call counted from an out-of-window turn would be the one figure on the page
+    // that ignored `from` and `to`.
+    const { app } = await h({
+      conversations: {
+        [DEMO_TENANT_ID]: [
+          conversationRow({
+            id: 'conv_inside',
+            sessionId: 'sess_inside',
+            createdAt: ago(2),
+            updatedAt: ago(2),
+            turns: [
+              {
+                role: 'assistant',
+                at: ago(2),
+                call: modelCall({ ttfbMs: 100, totalMs: 400, inputTokens: 30, outputTokens: 12 }),
+              },
+            ],
+          }),
+          conversationRow({
+            id: 'conv_old',
+            sessionId: 'sess_old',
+            createdAt: ago(90),
+            updatedAt: ago(90),
+            turns: [
+              {
+                role: 'assistant',
+                at: ago(90),
+                call: modelCall({ ttfbMs: 5, totalMs: 9, inputTokens: 999, outputTokens: 999 }),
+              },
+            ],
+          }),
+        ],
+      },
+    });
+
+    const { body } = await metrics(app);
+    expect(body.usage.calls).toBe(1);
+    // The 90-day-old call's tokens are not in the sum, and its 9 ms total does not
+    // become the median of a set it is not part of.
+    expect(body.usage.inputTokens).toBe(30);
+    expect(body.usage.outputTokens).toBe(12);
+    expect(body.usage.latency.totalMsP50).toBe(400);
+  });
+
+  it('groups by model, sums only the reported tokens, and orders rows deterministically', async () => {
+    // Three calls on the flash model and one on the pro model. The pro call
+    // reports no tokens at all, which is the case a sum alone cannot distinguish
+    // from "reported zero" -- hence `callsWithTokens`.
+    const { app } = await h({
+      conversations: {
+        [DEMO_TENANT_ID]: [
+          conversationRow({
+            id: 'conv_a',
+            sessionId: 'sess_a',
+            createdAt: ago(1),
+            updatedAt: ago(1),
+            turns: [
+              {
+                role: 'assistant',
+                at: ago(1),
+                call: modelCall({ ttfbMs: 100, totalMs: 400, inputTokens: 10, outputTokens: 5 }),
+              },
+              {
+                role: 'assistant',
+                at: ago(1),
+                call: modelCall({ ttfbMs: 200, totalMs: 800, inputTokens: 20, outputTokens: 10 }),
+              },
+            ],
+          }),
+          conversationRow({
+            id: 'conv_b',
+            sessionId: 'sess_b',
+            createdAt: ago(1),
+            updatedAt: ago(1),
+            turns: [
+              {
+                role: 'assistant',
+                at: ago(1),
+                call: modelCall({ ttfbMs: 300, totalMs: 1200, inputTokens: 30, outputTokens: 15 }),
+              },
+              // The pro call: no `usage` key at all.
+              {
+                role: 'assistant',
+                at: ago(1),
+                call: modelCall({ model: 'gemini-2.5-pro', ttfbMs: 50, totalMs: 90 }),
+              },
+            ],
+          }),
+        ],
+      },
+    });
+
+    const { body } = await metrics(app);
+    expect(body.usage.calls).toBe(4);
+    expect(body.usage.callsWithTokens).toBe(3);
+    expect(body.usage.inputTokens).toBe(60);
+    expect(body.usage.outputTokens).toBe(30);
+
+    // Most-used model first; the flash row precedes the pro row on call count.
+    expect(body.usage.byModel.map((row) => row.model)).toEqual([
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+    ]);
+
+    const flash = body.usage.byModel[0]!;
+    expect(flash).toMatchObject({ provider: 'gemini', calls: 3, callsWithTokens: 3 });
+    // Nearest rank over [100, 200, 300]: p50 is the 2nd of 3, p95 is the 3rd.
+    expect(flash.latency).toEqual({
+      ttfbMsP50: 200,
+      ttfbMsP95: 300,
+      totalMsP50: 800,
+      totalMsP95: 1200,
+    });
+
+    const pro = body.usage.byModel[1]!;
+    expect(pro).toMatchObject({ calls: 1, callsWithTokens: 0, inputTokens: 0, outputTokens: 0 });
+    expect(pro.latency).toEqual({
+      ttfbMsP50: 50,
+      ttfbMsP95: 50,
+      totalMsP50: 90,
+      totalMsP95: 90,
+    });
+
+    // The whole-window figures are the calls together, across models.
+    // ttfb over [100, 200, 300, 50] sorted is [50, 100, 200, 300]; nearest rank
+    // takes the 2nd for p50 and the 4th for p95.
+    expect(body.usage.latency.ttfbMsP50).toBe(100);
+    expect(body.usage.latency.ttfbMsP95).toBe(300);
+    expect(body.usage.latency.totalMsP50).toBe(400);
+  });
+
+  it('keeps the model call off the visitor’s own conversation read', async () => {
+    // `GET /v1/conversation` returns the store's turn objects to the visitor's
+    // browser. The timing and token figures are the installer's operational data,
+    // so the field must be dropped on that route even though it is kept on disk
+    // for the dashboard -- and this is the pair of assertions that catches a
+    // future edit which removes the strip.
+    const { app, store } = await h();
+    const session = await app.inject({
+      method: 'POST',
+      url: '/v1/widget/session',
+      payload: { publicId: DEMO_WIDGET_ID, origin: 'http://localhost:4173' },
+      headers: { origin: 'http://localhost:4173' },
+    });
+    expect(session.statusCode).toBe(200);
+    const { sessionId, sessionToken } = session.json<{
+      sessionId: string;
+      sessionToken: string;
+    }>();
+
+    await store.appendTurn(DEMO_TENANT_ID, sessionId, {
+      role: 'assistant',
+      text: 'Hello.',
+      at: ago(1),
+      call: { provider: 'gemini', model: 'gemini-2.5-flash', ttfbMs: 120, totalMs: 500 },
+    });
+
+    const read = await app.inject({
+      method: 'GET',
+      url: '/v1/conversation',
+      headers: { authorization: `Bearer ${sessionToken}` },
+    });
+    expect(read.statusCode).toBe(200);
+    const turn = read.json<{ turns: Array<Record<string, unknown>> }>().turns[0]!;
+    expect(turn).not.toHaveProperty('call');
+    // The content the widget does read is untouched.
+    expect(turn).toMatchObject({ role: 'assistant', text: 'Hello.' });
+
+    // ...while the dashboard over the same record still sees it.
+    const { body } = await metrics(app);
+    expect(body.usage.calls).toBe(1);
   });
 });
 
