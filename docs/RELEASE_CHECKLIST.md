@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **1016 passing across 30 files**
+- [ ] `npm run test` — currently **1034 passing across 31 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
@@ -97,9 +97,12 @@ Run `npm run verify` — it chains the first four.
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **58 passing**
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **58 checks**
       in Chromium, over the plain-HTML demo, the WordPress-shaped host page, the
-      React and Next.js fixtures, the marketing site and the character lab
+      React and Next.js fixtures, the marketing site and the character lab.
+      **Two of them were failing on 2026-10-11, ahead of the day's change
+      (STATUS item 10), so this box is not ticked: a release that passed the
+      suite with those two red would be shipping the lab's own defects.**
   - [ ] requires `npm run test:e2e:install` once per machine; a release
         that skipped it has never driven the embed snippet in a browser
   - [ ] axe fails the run at `serious` and above. Passing it is a floor, not a
@@ -250,7 +253,15 @@ Run `npm run verify` — it chains the first four.
       happened from what _a person_ did only once dashboard authentication exists
       (blocker 4). Refusals that named no valid credential are stored under no
       tenant, and no route serves them.
-- [ ] A dashboard exists for `GET /v1/dashboard/metrics` — the route is not built
+- [ ] **Something renders the dashboard.** `GET /v1/dashboard/metrics` is built
+      (D-46) — admin-scoped, windowed and tested — but it is reachable only by an
+      operator holding the deployment's admin token, and **nothing calls it**:
+      there is no `apps/dashboard`, because a browser is the one place that token
+      cannot be, which is the dashboard-authentication blocker (4). Do not mistake
+      the route for the product. Two of §6.4's five words also have no figure
+      behind them anywhere in the deployment — "usage", because nothing meters
+      usage, and "qualified leads", because nothing scores a lead — and the route
+      omits both rather than printing a plausible zero (D-46).
 
 ## 7. Rollback
 
@@ -266,11 +277,11 @@ Run `npm run verify` — it chains the first four.
 
 ## 8. Known scope gaps to state plainly, not to discover
 
-- [ ] **9 of the plan's 14 API routes exist.** Assessments, dashboard metrics,
-      Drive integration and billing are **not implemented**, and the two knowledge
+- [ ] **10 of the plan's 14 API routes exist.** Assessments, Drive integration
+      and billing are **not implemented**, and the two knowledge
       routes exist as ingestion from text the caller supplies rather than as
-      managed retrieval. Lead creation, qualification capture, the catalogue pair
-      and the knowledge pair **are** implemented by route, and the conversational
+      managed retrieval. Lead creation, qualification capture, the catalogue pair,
+      the knowledge pair and the dashboard metrics read **are** implemented by route, and the conversational
       `create_lead` / `save_answer` tools also exist; the pairs write the same
       records. Do not describe the product as having the rest.
 - [ ] **There is no SunScan integration.** No SunScan endpoint has ever been
@@ -279,8 +290,10 @@ Run `npm run verify` — it chains the first four.
 - [ ] **SunScan has no finance/APR calculators and no grants logic.** A tool
       named `calculate_approved_estimate` has nothing to call. Either build it or
       remove the promise.
-- [ ] The dashboard does not exist. The marketing site does (D-15) — it builds
-      and it is served locally, but it is not deployed anywhere.
+- [ ] The dashboard does not exist **as a surface**. Its data half does —
+      `GET /v1/dashboard/metrics` (D-46) — and nothing renders it. The marketing
+      site is the only front end that exists (D-15): it builds and it is served
+      locally, but it is not deployed anywhere.
 - [ ] Animation runs at **30 FPS**, not the plan's ~60 (D-7). Re-measure on a
       real mid-range device before launch.
 - [ ] Multi-tenant retrieval isolation rests on a **Preview** ACL feature with no

@@ -4,6 +4,7 @@ import {
   catalogueUploadRequestSchema,
   chatRequestSchema,
   CONSENT_VERSION,
+  dashboardMetricsQuerySchema,
   leadRequestSchema,
   publicWidgetIdSchema,
   qualificationAnswerSchema,
@@ -20,6 +21,7 @@ import {
   type CatalogueResponse,
   type CatalogueUploadResponse,
   type ChatStreamEvent,
+  type DashboardMetrics,
   type IngestionJob,
   type KnowledgeIssue,
   type KnowledgeJobResponse,
@@ -73,6 +75,18 @@ const SSE_HEADERS: Readonly<Record<string, string>> = {
   // live stream into one delivery at the end.
   'x-accel-buffering': 'no',
 };
+
+/** A day in milliseconds, for turning the dashboard's `days` into a window. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The window the dashboard counts over when the caller names none.
+ *
+ * A month is what an installer opening an overview expects to see, and it is
+ * deliberately a constant rather than a magic 30 in the route: the response echoes
+ * the window it used, and the test that checks the default reads this name.
+ */
+const DEFAULT_DASHBOARD_DAYS = 30;
 
 export function buildServer(deps: ServerDeps): FastifyInstance {
   const { config, store, tenants } = deps;
@@ -1297,6 +1311,148 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     );
     const payload: AuditEventsResponse = { events };
     return payload;
+  });
+
+  // ─── dashboard ─────────────────────────────────────────────────────────────
+
+  /**
+   * The installer's overview figures.
+   *
+   * The plan's §6.4 gives the dashboard an "Overview (real conversations,
+   * qualified leads, engagement, source health, usage)" and §12 asks for analytics
+   * "based on events, with clear denominators and date ranges". This is the
+   * overview's data half. It is *only* the data half: the dashboard *app* is
+   * blocked on blocker 4 (dashboard authentication), and building a UI over an
+   * admin-token API would put that token in a browser, which is the one place it
+   * cannot be. So this route exists and is reachable exactly as `GET /v1/leads` is
+   * -- by an operator holding the deployment's admin token -- and the surface that
+   * would call it is not built.
+   *
+   * ## What it does and does not answer
+   *
+   * `packages/contracts/src/dashboard.ts` carries the field-by-field argument.
+   * The short version: conversations and engagement are counted from records, the
+   * lead figures are counted and honest about not being scored, and two of the
+   * plan's five words are deliberately left unanswered rather than filled with a
+   * plausible number -- **source health** is a count of documents and not a health
+   * verdict (the real one needs Drive, which is blocked), and **usage** is absent
+   * entirely because nothing meters it. A dashboard that invented a usage figure
+   * would be wrong in the one way a person cannot check.
+   *
+   * ## Why it is not audited
+   *
+   * Every other admin route that hands over a *record* writes an audit event, and
+   * `leads.read` is the clearest case: reading the list gives away every visitor's
+   * name and phone, so it is recorded even though the plan says "changes". This
+   * route exposes no visitor data at all -- only counts -- so there is nothing
+   * here for a trail to explain, and adding an action would either bloat the closed
+   * `AUDIT_ACTIONS` vocabulary with an event nobody investigates or make the one
+   * list that is supposed to mean something mean less. The reasoning that made
+   * `leads.read` an exception does not reach a route that cannot name a person.
+   *
+   * ## The window
+   *
+   * A rolling window ending at the instant the request is served, in UTC, half-open
+   * `[from, to)`. `days` is bounded by the query contract (a bad value is a 400,
+   * not a clamp) and defaults to {@link DEFAULT_DASHBOARD_DAYS}; the response echoes
+   * whichever window was used in `range`, so a caller never has to guess. The
+   * boundaries are the server's clock, not the caller's -- a client that wants
+   * "October" in its own timezone can count to the instants given back.
+   */
+  app.get('/v1/dashboard/metrics', async (request) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'The dashboard is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+
+    const query = dashboardMetricsQuerySchema.safeParse(request.query);
+    if (!query.success) throw badRequestFromZod(query.error);
+    const { tenantId, days } = query.data;
+    if (!tenants.all.some((tenant) => tenant.id === tenantId)) {
+      throw new ApiError('not_found', 'Unknown tenant.');
+    }
+
+    const windowDays = days ?? DEFAULT_DASHBOARD_DAYS;
+    const to = now();
+    const from = to - windowDays * DAY_MS;
+
+    /**
+     * Whether a record's timestamp falls inside the window.
+     *
+     * Half-open on purpose: an enquiry filed at exactly `to` belongs to the next
+     * window, which is what makes two consecutive windows partition a history
+     * instead of double-counting the instant they share.
+     *
+     * An unparseable timestamp is *excluded*, and that direction is worth stating:
+     * `Date.parse` gives NaN and every comparison with NaN is false, so a row this
+     * test cannot date is left out of the window rather than arbitrarily included.
+     * The retention sweep makes the opposite choice for the same reason in reverse
+     * -- there, an undateable row is *kept*, because the operation is a deletion.
+     */
+    const inWindow = (at: string): boolean => {
+      const ms = Date.parse(at);
+      return Number.isFinite(ms) && ms >= from && ms < to;
+    };
+
+    const [conversations, leads, sources, products] = await Promise.all([
+      store.listConversations(tenantId),
+      store.listAllLeads(tenantId),
+      store.listKnowledgeSources(tenantId),
+      store.listProducts(tenantId),
+    ]);
+
+    const started = conversations.filter((conversation) => inWindow(conversation.createdAt));
+    const active = conversations.filter((conversation) => inWindow(conversation.updatedAt));
+
+    let visitorTurns = 0;
+    let assistantTurns = 0;
+    for (const conversation of conversations) {
+      for (const turn of conversation.turns) {
+        if (!inWindow(turn.at)) continue;
+        if (turn.role === 'user') visitorTurns += 1;
+        else assistantTurns += 1;
+      }
+    }
+
+    const captured = leads.filter((lead) => inWindow(lead.createdAt));
+    const withContact = captured.filter((lead) => lead.email !== null || lead.phone !== null);
+
+    /**
+     * A ratio, or null when its denominator is zero.
+     *
+     * Rounded to three decimals so the JSON is a number a person can read rather
+     * than a float tail; three is enough to tell 0.667 from 0.666 and more than a
+     * dashboard ever shows.
+     */
+    const ratio = (numerator: number, denominator: number): number | null =>
+      denominator === 0 ? null : Math.round((numerator / denominator) * 1000) / 1000;
+
+    const metrics: DashboardMetrics = {
+      range: {
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
+        days: windowDays,
+      },
+      conversations: { started: started.length, active: active.length },
+      engagement: {
+        visitorTurns,
+        assistantTurns,
+        turnsPerActiveConversation: ratio(visitorTurns + assistantTurns, active.length),
+      },
+      leads: { captured: captured.length, withContact: withContact.length },
+      leadConversion: ratio(captured.length, started.length),
+      // Present-state counts: these two are not filtered by the window, and the
+      // contract says why. Returning the *whole* set's length here is what makes
+      // the field mean what its name says.
+      knowledge: { sources: sources.length },
+      catalogue: { products: products.length },
+    };
+    return metrics;
   });
 
   // ─── recommendations ───────────────────────────────────────────────────────

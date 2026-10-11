@@ -386,6 +386,18 @@ const ROUTES: RouteSpec[] = [
     kind: 'admin',
   },
   {
+    method: 'GET',
+    pattern: '/v1/dashboard/metrics',
+    url: (ids) => `/v1/dashboard/metrics?tenantId=${ids.tenantId}`,
+    // Admin, like the audit read above and for the same reason: these are counts
+    // of one installer's deployment -- how many conversations, how many enquiries
+    // -- and no visitor credential should see them. That the response carries no
+    // visitor data at all is why the route is not *audited* (see the route's own
+    // note), but "no data" is not "no credential": the shape of a tenant's
+    // activity is still the tenant's.
+    kind: 'admin',
+  },
+  {
     method: 'POST',
     pattern: '/v1/recommendations',
     url: () => '/v1/recommendations',

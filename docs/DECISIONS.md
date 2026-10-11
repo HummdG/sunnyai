@@ -2925,3 +2925,82 @@ field-data imitation: the numbers are lab numbers and are labelled as such.
 produced it), `package.json` (`perf:marketing`, and `lighthouse`/`chrome-launcher` as
 devDependencies), `docs/requirements-matrix.md` (§12's Core Web Vitals row, `Not started` →
 `Partial`).
+
+## D-46. The dashboard's first figure is eleven counts and two ratios, and two of §6.4's five words are deliberately unanswered
+
+**Context.** §6.4 gives the dashboard an "Overview (real conversations, qualified leads,
+engagement, source health, usage)" and §12 asks that analytics be "based on events, with clear
+denominators and date ranges". `GET /v1/dashboard/metrics` was one of the five routes STATUS blocker
+4 listed as absent, and it was listed with the honest qualifier that it "needs a decision about what
+an installer should see, which is a product decision before it is a route".
+
+That qualifier was right, and the decision it asked for is not "which numbers" but "which of the
+plan's words this deployment can actually substantiate". Three of the five it can. Two it cannot,
+and the choice that matters here is what to do about the two -- invent a plausible figure, or leave
+a hole where the number would be.
+
+**Decision -- count what exists, and leave the rest absent.** The route answers with the figures the
+store can substantiate from records, over an explicit rolling window (default 30 days, UTC,
+half-open `[from, to)`, echoed back in `range`), and with nothing at all where it would have to
+guess:
+
+- **real conversations** → `conversations.started` (by `createdAt`) and `.active` (by `updatedAt`),
+  counted from transcripts rather than estimated. The two are neither subsets of each other, and the
+  contract says why rather than pretending one derives from the other.
+- **engagement** → visitor and assistant turn counts whose timestamps fall in the window, plus
+  turns per _active_ conversation.
+- **qualified leads** → `leads.captured` and `leads.withContact` -- and **no "qualified" count**.
+  Both lead-writing paths set `score` to `null` on purpose ("a number the installer cannot interpret
+  is worse than a blank"), so nothing in this deployment qualifies a lead. The honest figure is not
+  0 but _absent_, and the field is absent with it: a dashboard printing "0 qualified leads" would be
+  telling the most plausible kind of lie, the one nobody thinks to check.
+- **source health** → `knowledge.sources` is a **count** and is named for what it counts. Health in
+  the plan's sense -- is the sync running, did the last job fail -- needs the Drive integration,
+  which is blocked, and a count of documents is not a substitute for it.
+- **usage** → **absent entirely.** Nothing meters usage: no quota consumption counter, no per-tenant
+  token accounting, no request total kept over time. A usage block would have to be invented, so
+  there is none, and the contract says so in those words.
+
+**Decision -- a ratio with no denominator is `null`, never `0`.** `leadConversion` and
+`turnsPerActiveConversation` are `number | null` in the contract and return null exactly when the
+denominator is zero. "0%" and "no data yet" are different facts, and a dashboard that renders them
+the same way is the one place a missing denominator becomes invisible. The denominator each ratio
+divides by is named in its own doc comment, because a rate whose denominator a reader has to
+reconstruct is a rate two people will quote differently.
+
+**Decision -- the two present-state counts are not windowed, and say so.** `knowledge.sources` and
+`catalogue.products` count what the installer has _now_: a document uploaded last year is still a
+document they have. They are the only pair in the response not filtered by the window, which is
+exactly why the contract states the exception rather than leaving a reader to wonder.
+
+**Decision -- the route is not audited, and this is a departure.** Every other admin route that
+hands over a _record_ writes an audit event, and D-43's `leads.read` is the clearest case: reading
+the lead list gives away every visitor's name and phone, so it is recorded even though the plan says
+"changes". This route exposes no visitor data at all -- only counts. There is nothing for a trail to
+explain, and adding an action would either bloat the closed `AUDIT_ACTIONS` vocabulary with an event
+nobody investigates or make the one list that is meant to mean something mean less. The reasoning
+that made `leads.read` an exception does not reach a route that cannot name a person. It is still
+_behind the admin token_, and the isolation sweep holds a row for it: "no data" is not "no
+credential".
+
+**Decision -- the route is built, the dashboard app is not.** Blocker 4 is dashboard
+authentication, and building a UI over an admin-token API would put that token in a browser, which
+is the one place it cannot be. So the data half exists and is reachable exactly as `GET /v1/leads`
+is -- by an operator holding the deployment's admin token -- and the surface that would call it is
+not built. That is the same line STATUS already drew, now with the half that does not need a
+credential on the other side of it.
+
+**What was deliberately not done.** No usage metering was invented to fill the missing block. No
+"qualified" threshold was introduced to make that word true -- the qualification score is the
+installer's judgement and the deployment does not hold one. No `from`/`to` query: `days` covers what
+a dashboard needs and one window shape is one thing to get right. And no caching: the file store
+already holds these rows in memory, and a cache over counts that change with every visitor is a
+stale figure waiting to be quoted.
+
+**Evidence.** `packages/contracts/src/dashboard.ts` (the contract, the field-by-field argument for
+what is present and absent, and the range/denominator rules), `apps/api/src/server.ts` (`GET
+/v1/dashboard/metrics`, and the note on why it is not audited), `apps/api/src/store.ts`
+(`listAllLeads` and `listConversations` -- the counting path, kept separate from the paged reading
+path so a dashboard cannot report a page as a total), `apps/api/test/dashboard.test.ts` (11 tests,
+including the null-denominator cases and the half-open boundary),
+`tests/security/tenant-isolation.test.ts` (the route's row in the sweep).

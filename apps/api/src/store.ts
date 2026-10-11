@@ -225,6 +225,31 @@ export interface Store {
   saveLead(lead: LeadRecord): Promise<LeadResult>;
   listLeads(tenantId: string, limit?: number): Promise<LeadRecord[]>;
   /**
+   * Every lead this tenant has, oldest first.
+   *
+   * Separate from `listLeads` on purpose, and the reason is the whole point of
+   * having two: that one is the *reading* path -- it is paged so a response stays
+   * a page -- and a dashboard that counted its page would report "50 enquiries"
+   * forever without anything in the code looking wrong. This one is the *counting*
+   * path, complete by construction, which is what makes "38 enquiries this month"
+   * a fact about the tenant rather than a property of a default argument.
+   *
+   * It is not paged and not capped, so it is not for a response body. The only
+   * caller is the metrics route, which reduces it to counts.
+   */
+  listAllLeads(tenantId: string): Promise<LeadRecord[]>;
+  /**
+   * Every conversation this tenant has, one entry per session.
+   *
+   * The store keeps one line per append and replays them, so this is the same
+   * newest-wins view `getConversation` returns, for every session at once. The
+   * dashboard needs it because "how many conversations did this tenant have in a
+   * window" cannot be asked one session id at a time when the caller does not know
+   * the session ids -- and the sessions are the tenant's visitors, whose ids are
+   * exactly what no installer should have to enumerate.
+   */
+  listConversations(tenantId: string): Promise<Conversation[]>;
+  /**
    * Erase one lead, scoped to the tenant that is allowed to see it.
    *
    * Returns the row that was removed, or null when there was none -- and null is
@@ -571,6 +596,28 @@ export class FileStore implements Store {
 
   #leadFile(tenantId: string): string {
     return join(this.#dir, 'leads', `${encodeURIComponent(tenantId)}.jsonl`);
+  }
+
+  /**
+   * The counting path over leads -- see the interface note.
+   *
+   * Scoped by tenant like `listLeads`, and for the same reason: a figure that
+   * counted another installer's enquiries would be a leak with a number on it.
+   */
+  async listAllLeads(tenantId: string): Promise<LeadRecord[]> {
+    await this.#ensure();
+    return this.#leads.filter((lead) => lead.tenantId === tenantId);
+  }
+
+  /**
+   * Every conversation this tenant has -- the interface note explains why.
+   *
+   * Reads through the same replay `getConversation` does, so the view cannot
+   * disagree with a single-session read: both take the last line per session.
+   */
+  async listConversations(tenantId: string): Promise<Conversation[]> {
+    await this.#ensure();
+    return this.#readConversations(tenantId);
   }
 
   /**
