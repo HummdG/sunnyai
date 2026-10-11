@@ -5,7 +5,7 @@ provider "google" {
 
 locals {
   # A stable suffix keeps two environments in one project from colliding.
-  name_suffix = "${var.environment}"
+  name_suffix = var.environment
   api_name    = "sunny-api-${local.name_suffix}"
   labels = {
     app         = "sunny"

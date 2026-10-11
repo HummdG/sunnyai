@@ -125,9 +125,9 @@ the surface in use.
 project came from Vertex AI documentation. None has been checked against the
 Developer API's catalogue.
 
-## D-9. **OPEN** — where does this code live?
+## D-9. **RESOLVED 2026-10-11** — where does this code live?
 
-**Updated 2026-10-10.** Part of this entry is now resolved: `sunny-ai` **is** a git
+**Updated 2026-10-10.** Part of this entry was resolved then: `sunny-ai` **is** a git
 repository, on branch `main`, with real history (`b1edc17`, `61eb3f2`, …). Earlier
 in the day it was not — it had a `.gitignore` and a `.github/workflows/ci.yml` but
 no `.git`, so the work was unversioned and one bad command from being lost. That
@@ -135,25 +135,44 @@ gap was closed by initialising a repository here, which is the only one of the
 candidate options that touches nothing outside this directory and commits to
 nothing outward-facing.
 
-**What is still open, and still needs the user:** this repository has **no
-remote**, and **none of its history has been pushed anywhere**. The original
-concern stands unchanged —
+**Resolved 2026-10-11: the user chose the destination.** The remote is
+`https://github.com/HummdG/sunnyai.git` — a **separate, new, public** repository,
+created for this project. `main` was pushed to it with `-u`, so all 58 commits of
+this history are now on GitHub and the branch tracks `origin/main`. `sunny-ai` is
+not merged into `SunScanV2`'s history and `SunScanV2`'s remote is untouched.
 
-`C:\Work\Arkalith\SunScanV2` is a repository with remote
-`https://github.com/HummdG/sunny.git` — a repo **named `sunny`** holding
-**SunScanV2's** history (roof geometry, cross-gable fitting). The implementation,
-the plan document (`SUNNY_AI_IMPLEMENTATION_PLAN.md`) and `sunny.png` live in
-different directories from that history.
+The repository the user named was checked before anything was written to it:
+`GET /repos/HummdG/sunnyai` returned `"private": false`, `"visibility": "public"`,
+`"size": 0`, default branch `main`, created the same day — an empty, deliberately
+created target rather than an existing repository that a push would conflict with.
+Because a push to a public repository is permanent and indexable even if later
+deleted, the tree was scanned for credentials first: no tracked file matched
+`.env`, `*.pem`, `*.key`, `service-account*.json` or `credentials.json`, and a
+`git grep` for Google API keys, `sk-`, `ghp_`, `github_pat_`, Slack, AWS key IDs,
+PEM private-key headers and JWT prefixes returned nothing. The committed tree is
+public-safe by that scan; the scan is not a guarantee about history written before
+today, so it is stated as what it was.
 
-**Why this still needs the user.** Every remaining option is outward-facing:
-push `sunny-ai` to a new repository, add it as a second remote on the existing
-one, or move the tree into `SunScanV2` and push there. The last writes this
-project's files into the history of a repository that currently belongs to a
-different project. None of that is derivable from the code, and getting it wrong
-is not cheaply undone.
+Note on naming, because it is the thing that made this ambiguous: the existing
+remote `https://github.com/HummdG/sunny.git` is a repo **named `sunny`** holding
+**SunScanV2's** history (roof geometry, cross-gable fitting). The new one is
+`sunnyai`, and the two are unrelated repositories with unrelated histories.
 
-**Until it is decided:** the history exists on one machine and nowhere else. Local
-commits protect against a bad edit; they do not protect against the machine.
+**Consequences that were open and are now closed or changed.**
+
+- Blocker 7 (STATUS §7, "the history exists on one machine and nowhere else") is
+  closed. The history is off the machine.
+- The CI job at `/.github/workflows/ci.yml` can now run — it is triggered on
+  push, and until today nothing had ever been pushed anywhere (blocker 3, D-9 in
+  STATUS). It still has to be _seen_ to run green at least once.
+- The push means `SUNNY_AI_IMPLEMENTATION_PLAN.md` and `sunny.png` — which live in
+  `C:\Work\Arkalith\SunScanV2`, not here — are still **not** in this history. They
+  are the plan document and the character reference; if they are meant to travel
+  with the implementation, that is a separate decision and a separate copy.
+
+**Until 2026-10-11:** the history existed on one machine and nowhere else. Local
+commits protect against a bad edit; they do not protect against the machine. That
+is what the push above ends.
 
 ## D-10. Rate limiting is an in-memory fixed window, and is not a quota
 
@@ -3187,3 +3206,74 @@ numbers that describe this laptop. It has to be re-measured on an idle machine.
 widget now requests exactly one font, from its own script's directory, before the panel is opened, and
 measures 234.1 px against the 204.0 px a family that does not exist measures for the same string -- the
 difference is the evidence the fallback is no longer what is being rendered.
+
+## D-49. The first CI run found what no local gate could, and that is the argument for it
+
+**Context.** D-9 closed: the user named `https://github.com/HummdG/sunnyai` as the destination and all 58
+commits of `main` were pushed to it. That push was the first thing this project has ever put anywhere,
+and it triggered `/.github/workflows/ci.yml` — a workflow that had been committed for weeks and had never
+executed, because nothing had ever been pushed for it to execute against. Blocker 3 in `docs/STATUS.md`
+had recorded exactly that: the security and Terraform checks were being run by hand "because the job
+itself cannot run until something is pushed".
+
+**Decision -- check and scan before the first push, because a public push is not undone by deleting it.**
+`GET /repos/HummdG/sunnyai` was read first and returned `"private": false`, `"visibility": "public"`,
+`"size": 0`, default branch `main`, created the same day: an empty repository made for this purpose, not
+an existing one a push would collide with. Because anything pushed to a public repository is permanent
+and indexable — cached, forked, archived — and because this history contains nothing that was ever
+written with publication in mind, the tree was scanned before the push: no tracked file matched `.env`,
+`*.pem`, `*.key`, `service-account*.json` or `credentials.json`, and a `git grep` for Google API keys,
+`sk-`/`ghp_`/`github_pat_`/Slack/AWS-key shapes, PEM private-key headers and JWT prefixes returned
+nothing. The scan is a statement about what it looked for and found, which is why it is written down
+rather than summarised as "it's clean".
+
+**The finding: CI was red, and only CI could have said so.** Four jobs ran. Three passed —
+`verify` (format, lint, typecheck, 1062 tests, the bundle build and its size report), `e2e` (the whole
+Playwright suite **on Linux**, the four checks D-48 added included) and `security` (`npm audit` plus the
+secret grep). The fourth, `terraform`, failed on its first step, `terraform fmt -check -recursive`, so its
+`init` and `validate` never ran.
+
+The defect was a single redundant interpolation in `main.tf`:
+
+```hcl
+-  name_suffix = "${var.environment}"
++  name_suffix = var.environment
+```
+
+`npm run verify` is green with that line in the tree, and it always will be: nothing in the local gate
+parses HCL, and `terraform fmt` is the only thing in this repository that has an opinion about it. The
+line had been there since the file was written. **This is the whole argument for a CI job**, stated in
+the repository's own history rather than in the abstract — the check existed, was correct, and reported
+its first real finding within a minute of being allowed to run, on a file that had been reviewed locally
+several times.
+
+**Decision -- reproduce the failure with the real tool, checksum-verified, rather than hand-edit toward a
+formatter's taste.** Terraform v1.16.5 for `windows_amd64` was downloaded from
+`releases.hashicorp.com`, its SHA-256 compared against HashiCorp's published `SHA256SUMS` (**match**), and
+extracted into a scratch directory outside both repositories. Guessing at `terraform fmt`'s alignment
+rules would have meant pushing a second red run to a public repository to find out; running the actual
+formatter took less time and produced the diff above, which is small, readable and semantics-preserving
+(the value is already a `string`). The same binary then ran the two steps the failure had blocked:
+`init -backend=false` installed the pinned `hashicorp/google` 6.50.0 and `hashicorp/random` 3.9.1, and
+`validate` reported **"The configuration is valid."** Both had never executed anywhere before.
+
+**Decision -- say what is still unproven.** `validate` checks the configuration against the provider
+schemas; it does not say what `plan` would produce, and `apply` has never been run. So `docs/STATUS.md`
+blocker 3 now distinguishes formatted-and-valid, which is measured, from infrastructure-known-to-work,
+which is not: no resource in the graph has ever been created.
+
+**What this does not mean.** The `e2e` job passing on Linux is not evidence that the _visual_ baselines
+are portable — those are checked separately, in the `node:22-bookworm` container run recorded in
+`docs/STATUS.md`, and remain a Windows-local check. And a green `verify` job in CI does not make
+`npm run verify` redundant locally: the two agree here by construction, and the value of the run was in
+the job that does _not_ have a local equivalent.
+
+**Evidence.** `.github/workflows/ci.yml` (the `terraform` job's `fmt -check -recursive` step),
+`infrastructure/terraform/main.tf` (the interpolated line and its fix), `docs/STATUS.md` (the new CI row
+in the check table, blocker 3, blocker 7, next action 4), and the workflow run itself —
+`https://github.com/HummdG/sunnyai/actions/runs/38161788376`.
+
+**Verified.** CI run `38161788376`: `verify`, `e2e` and `security` **success**, `terraform` **failure** at
+step 4 of 6. Locally afterwards: `terraform fmt -check -recursive` silent, exit 0; `terraform validate`
+exit 0. A re-push is required to see the `terraform` job green in CI itself, and that green run does not
+yet exist.

@@ -50,6 +50,7 @@ Every line below is a command that ran and its output.
 | API smoke                                  | `npm run smoke`                                                                                                                | **27/27 checks passed, exit 0** — the admin routes are skipped and the skip is printed, because this run passes no `SMOKE_ADMIN_TOKEN` to a deployment that has one. With the secret in the run the same script reports **34/34**, exercising knowledge onboarding end to end; against a token-less deployment, **29/29**, where the admin routes are asserted to refuse rather than half-work. All three re-run today. The lead-list check is two-mode since `GET /v1/leads` became admin-only: with the token it reads the filed lead back the way the installer's dashboard will, without it it asserts the visitor is refused. It is the check that caught this change, having failed 26/27 on the visitor read-back it used to make (D-39)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Dependency audit                           | `npm audit --audit-level=high`                                                                                                 | **0 vulnerabilities**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Committed secrets                          | the CI job's `git grep`, run locally                                                                                           | clean — and proven to fire (below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| CI pipeline (first ever run)               | `https://github.com/HummdG/sunnyai/actions` — run `38161788376`, triggered by the first push of `main`                         | **4 jobs: 3 green, 1 red → fixed.** `verify` (format, lint, typecheck, the 1062 tests, the bundle build and its size report), `e2e` (the full Playwright suite on Linux, the new `typography.spec.ts` included) and `security` (`npm audit` plus the secret grep) all passed. `terraform` failed on its **Format check** — `terraform fmt -check -recursive` — so nothing after it ran. Re-run locally against the real toolchain: `main.tf` carried a redundant `"${var.environment}"` interpolation that `terraform fmt` rewrites to `var.environment`; with that applied `fmt -check` is silent (exit 0), `init -backend=false` installs the pinned `hashicorp/google` 6.50.0 and `hashicorp/random` 3.9.1, and **`validate` reports "The configuration is valid."** Those two steps had never executed before. A re-push is needed to see the job green in CI itself                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Character fidelity                         | `scripts/compare-reference.py`                                                                                                 | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Visual baselines on Linux                  | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`)                                    | **27 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09), the two arcade-spin scenes (A10) and the two planting scenes (A11), are byte-identical to the ones Linux produces                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Catalogue & recommendations                | the running API on 8787, seeded with `npm run seed:catalogue fixtures/demo-catalogue.csv` (10 _fictional_ demo rows)           | **the golden scenario, live**: 3 priced options at 4 kWp; `{"requireBattery":true}` and then `{"preferCheaper":true}` each merge onto the stored want (`{"targetKwp":4}` → `+requireBattery` → `+preferCheaper`) and add a 5 kWh battery to every option; adding a GBP 3,000 budget on top honestly returns **no** options rather than exceed it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -73,12 +74,14 @@ adds the widget build and the browser suite. They are separate because the brows
 suite needs a downloaded Chromium (`npm run test:e2e:install`), and a gate that
 cannot run on a fresh checkout is a gate people learn to skip.
 
-The two security checks are the CI job's own commands, run locally because the
-job itself cannot run until something is pushed (D-9). A scanner that has never
-reported anything is an unverified scanner, so the secret grep was checked
-against canaries — a Google-key shape, an `sk-` shape and a PEM header — in a
-gitignored directory, and it caught all three while ignoring a benign line. Its
-first real finding should not be the one that matters.
+The two security checks are the CI job's own commands, run locally. Until
+2026-10-11 the job itself could not run, because nothing had been pushed anywhere
+(D-9). The first push changed that: the `security` job ran in CI and passed both
+checks, which is the first time they have been executed by anything but this
+machine. A scanner that has never reported anything is an unverified scanner, so
+the secret grep was also checked against canaries — a Google-key shape, an `sk-`
+shape and a PEM header — in a gitignored directory, and it caught all three while
+ignoring a benign line. Its first real finding should not be the one that matters.
 
 ### What §13 verified this session
 
@@ -979,12 +982,25 @@ ADR set with a _"Unknown — needs verification"_ marker, but it is not an unkno
 
 ### 3. Nothing has been deployed, and Terraform has never been run
 
-`infrastructure/terraform/` is written and has never had `init`, `plan` or
-`validate` run against it, because no `terraform`, `tofu` or `gcloud` binary is
-installed in this environment. The CI job that runs `fmt -check` and
-`validate -backend=false` **has never executed either** — the repository is not
-on GitHub in a form CI can see (see blocker 7). Treat the infrastructure as a
-description of intent that compiles, not as infrastructure known to work.
+**Updated 2026-10-11: `fmt` and `validate` have now run, `plan` and `apply` have
+not.** `infrastructure/terraform/` was written and had never had `init`, `plan` or
+`validate` run against it, because no `terraform`, `tofu` or `gcloud` binary was
+installed in this environment. That is no longer true of the first two: Terraform
+**v1.16.5** (the official `windows_amd64` build, checksum-matched against
+HashiCorp's `SHA256SUMS`) was installed here to reproduce the CI job, and
+
+- `fmt -check -recursive` found `main.tf` carrying a redundant `"${var.environment}"`
+  interpolation — the one thing the CI push was red on — and is silent once
+  `terraform fmt` rewrites it;
+- `init -backend=false` succeeded, installing the pinned `hashicorp/google` 6.50.0
+  and `hashicorp/random` 3.9.1;
+- `validate` reports **"The configuration is valid."**
+
+So the configuration is now known to be _formatted_ and _valid_, which is more
+than "it compiles". What is still unknown is what `plan` would say: it needs a real
+project, and `apply` has never been run. Treat the resource graph as validated
+intent, not as infrastructure known to work — no resource in it has ever been
+created.
 
 `scripts/bootstrap-google-cloud.sh` is the front door to it: it checks the
 toolchain (refusing a Terraform older than the `>= 1.9` that `versions.tf`
@@ -992,8 +1008,10 @@ requires), the account, the project and the billing account, prints the resource
 `terraform apply` would create, and only then runs `init` / `plan` / `apply` —
 each behind a confirmation, and with the state bucket named by `TF_STATE_BUCKET`
 or a warning about local state. Its refusal paths were exercised here; with no
-`terraform` and no `gcloud` on the machine, it stops at the toolchain check with
-exit 2 and has never reached its first `init`.
+`gcloud` on the machine (and, at the time, no `terraform`) it stops at the
+toolchain check with exit 2 and has never reached its first `init`. Installing
+Terraform above was a direct `terraform` invocation to reproduce the CI job, not
+this script — the script still has no `gcloud` to get past.
 
 ### 4. Ten of the plan's fourteen API routes exist
 
@@ -1101,24 +1119,29 @@ vendor guarantee:
 - **Cloud Run buffers SSE at 300 s by default, 3600 s maximum.** Long
   conversations will be cut without an explicit timeout and keep-alive.
 
-### 7. The history exists on one machine and nowhere else
+### 7. ~~The history exists on one machine and nowhere else~~ — closed 2026-10-11
 
-**Corrected 2026-10-10.** This section previously said
-`C:\Work\Arkalith\sunny-ai` was not a git repository at all. That was true when it
-was written and is no longer: it is a repository on `main` with 27 commits, each
-increment committed as it landed. What remains missing is a **remote** — the
-history has never left this machine, so it is protected against a bad edit and
-not against the machine (D-9).
+**Resolved 2026-10-11.** The user named the destination — a new, public repository,
+`https://github.com/HummdG/sunnyai` — and `main` was pushed to it with `-u`. The 58
+commits of this history are on GitHub and the branch tracks `origin/main`. The
+target was checked and scanned before anything was written to it; the scan and the
+naming hazard it clears up (the older `sunny` remote belongs to SunScanV2, not to
+this project) are recorded in D-9.
 
-Meanwhile `C:\Work\Arkalith\SunScanV2` _is_ a repository whose remote is
-`https://github.com/HummdG/sunny.git` — a repository named **sunny** that
-currently holds **SunScanV2's** history (roof geometry, cross-gable fitting),
-not this project. The plan document and `sunny.png` also live in `SunScanV2`,
-while the implementation lives in the sibling directory.
+**What the section said before, kept because it explains why this took a decision
+from the user:** `C:\Work\Arkalith\sunny-ai` was a repository on `main` with no
+remote, so the history had never left this machine — protected against a bad edit
+and not against the machine. Meanwhile `C:\Work\Arkalith\SunScanV2` _is_ a
+repository whose remote is `https://github.com/HummdG/sunny.git` — a repository
+named **sunny** holding **SunScanV2's** history (roof geometry, cross-gable
+fitting), not this project. So "push the work" had no obvious destination and the
+one remote that existed belonged to a different codebase; that was a decision and
+not a fact derivable from the code.
 
-So "push the work" has no obvious destination, and the remote named `sunny`
-belongs to a different codebase. **This needs a decision from the user** — see
-`docs/DECISIONS.md`, D-9. It is not resolvable from inside the code.
+**Two things this does not close.** The CI job can now run and has never been seen
+to (blocker 3, and item 4 of the next actions below). And the plan document
+`SUNNY_AI_IMPLEMENTATION_PLAN.md` and `sunny.png` still live in `SunScanV2`, so
+this repository does not carry the plan or the character reference it implements.
 
 ### 8. Not built at all
 
@@ -1159,7 +1182,7 @@ this repository still has no `Dockerfile` (D-37, `README_DEPLOY.md`).
 | E2E (Playwright)               | **done** — 58 checks in Chromium against five real host pages, the API, the lab and the shadow DOM, none failing (D-47, item 10). The reading before it was **not done on 2026-10-11**: three `lab.spec.ts` checks were failing, reproduced with the day's change stashed, and then diagnosed and fixed as D-47 — the failing record is kept in item 10 rather than overwritten. The reading before _that_ one read "44 of 46 … the two failures are in the lab and reproduce without this increment"; that one **was** a stale dev API being reused rather than a failing test (item 9, D-40) — which is precisely why the later readings were controlled against a stashed tree instead of believed |
 | Visual snapshots               | **done** — 25 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Accessibility (axe)            | **done** — four widget states (one of them the card-bearing panel), failing at `serious` and above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Performance (Lighthouse)       | **measured, budgeted, not gated** — `npm run perf:marketing` over the production build; five of six metrics meet the good-range boundary, total blocking time does not (162–386 ms against 200 ms), and nothing runs the budget in CI because there is no CI (D-9, D-45)                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Performance (Lighthouse)       | **measured, budgeted, not gated** — `npm run perf:marketing` over the production build; five of six metrics meet the good-range boundary, total blocking time does not (162–386 ms against 200 ms), and nothing runs the budget in CI because the CI job, now runnable (D-9 as of 2026-10-11), does not include a Lighthouse step (D-45)                                                                                                                                                                                                                                                                                                                                                              |
 | Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Terraform validation           | **written, never executed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -1213,15 +1236,22 @@ properly rather than sketched.
 
 ## Next actions, in order
 
-1. **Decide where the repository should live** (blocker 7). The work is now
-   versioned locally and is still one machine away from being lost; every
-   remaining option — a new remote, a second remote, or merging into `SunScanV2`
-   — is outward-facing and needs the user (D-9).
+1. ~~**Decide where the repository should live** (blocker 7).~~ **Done
+   2026-10-11.** The user named the destination — `https://github.com/HummdG/sunnyai`,
+   a new public repository — and all 58 commits of `main` were pushed to it. The
+   repository was checked (empty, public, created the same day) and the tree
+   scanned for credentials before the push. See D-9 and blocker 7 above.
 2. **Set a model credential and run one live turn.** Everything downstream
    depends on whether the real model behaves like the scripted one.
 3. **Choose the escalation model** before 2026-10-20 (blocker 2).
-4. Run the CI job at least once, so Terraform and the security scan stop being
-   unexecuted code.
+4. **Watch the CI job go green.** It has now run once — the first push of `main`
+   triggered run `38161788376` (2026-10-11) — and **three of its four jobs passed**
+   (`verify`, `e2e`, `security`), so the tests, the browser suite and the secret
+   scan have all been executed by something other than this machine. The
+   `terraform` job was **red** on `fmt -check -recursive`; the fix (a redundant
+   `"${var.environment}"` interpolation in `main.tf`) is applied, and `fmt -check`
+   and `validate` were both re-run locally and are clean. What is left is the
+   re-push, and to see that job green in CI rather than only here.
 5. **Connect the SunScan adapter** (blocker 5). This replaces an earlier version
    of this item that said to "build the catalogue and recommendation routes" —
    that was wrong, and worth correcting rather than quietly dropping. The
