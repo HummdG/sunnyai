@@ -15,12 +15,19 @@
  *                              on a deployment that reports chat unavailable,
  *                              which is the honest state of an un-keyed install.
  *   SMOKE_ADMIN_TOKEN          the deployment's SUNNY_ADMIN_TOKEN, for the admin
- *                              routes (knowledge onboarding, catalogue upload).
- *                              Without it those routes are checked for their
- *                              refusal when the deployment has no token, and
- *                              skipped when it has one -- the same two-mode shape
- *                              the chat section uses. A smoke run must never fail
- *                              because the operator held a secret back.
+ *                              routes (the installer's lead list, knowledge
+ *                              onboarding, catalogue upload). Without it those
+ *                              routes are checked for their refusal when the
+ *                              deployment has no token, and skipped when it has
+ *                              one -- the same two-mode shape the chat section
+ *                              uses. A smoke run must never fail because the
+ *                              operator held a secret back.
+ *   SMOKE_TENANT_ID            the internal tenant id the admin routes are
+ *                              addressed with, default t_demo0001. It is not
+ *                              discoverable from the API, on purpose: the
+ *                              visitor-facing responses stopped carrying it
+ *                              (D-38), so a run that means to read an
+ *                              installer's own rows has to be told whose.
  */
 
 const base = (process.argv[2] ?? process.env.BASE ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
@@ -28,6 +35,12 @@ const expectChat = process.env.SMOKE_EXPECT_CHAT === '1';
 
 const PUBLIC_ID = process.env.SMOKE_PUBLIC_ID ?? 'w_demo000001';
 const ORIGIN = process.env.SMOKE_ORIGIN ?? 'http://localhost:4173';
+
+// Read here rather than beside the admin section it serves, because the lead
+// list is an admin route and the lead check below runs long before that section
+// does. Declaring it late would leave the read-back without a credential.
+const adminToken = process.env.SMOKE_ADMIN_TOKEN;
+const TENANT_ID = process.env.SMOKE_TENANT_ID ?? 't_demo0001';
 
 let failures = 0;
 let checks = 0;
@@ -168,11 +181,34 @@ async function main() {
       check('a consented lead is accepted', lead.status === 201, `got ${lead.status}`);
       check('the lead comes back with an id', typeof lead.json?.leadId === 'string');
 
-      const leads = await call('/v1/leads', { headers: { authorization: `Bearer ${token}` } });
-      check(
-        'the lead appears in the installer list',
-        leads.json?.leads?.some((l) => l.id === lead.json?.leadId) === true,
-      );
+      // The installer's list is not a visitor's route. It takes the
+      // deployment's admin token and names the tenant it wants, because a
+      // visitor token is scoped to one conversation and the list is every
+      // visitor's name, email and phone number on the site.
+      //
+      // So there are two claims here and which one is made depends on whether
+      // this run was given the secret. With it, the filed lead is read back the
+      // way the installer's dashboard would read it. Without it, the check is
+      // the other side of the same fact: the visitor who filed the lead cannot
+      // read the list themselves -- 401 on a deployment that has a token, 403
+      // on one that has none. A 200 here would mean the exposure is back, and
+      // that fails either way.
+      const listed = await call(`/v1/leads?tenantId=${TENANT_ID}`, {
+        headers: { authorization: `Bearer ${adminToken ?? token}` },
+      });
+      if (adminToken) {
+        check(
+          'the lead appears in the installer list',
+          listed.json?.leads?.some((l) => l.id === lead.json?.leadId) === true,
+          `GET /v1/leads?tenantId=${TENANT_ID} answered ${listed.status}`,
+        );
+      } else {
+        check(
+          'the installer list is refused to the visitor who filed the lead',
+          listed.status === 401 || listed.status === 403,
+          `expected 401 or 403, got ${listed.status}`,
+        );
+      }
 
       const replay = await call('/v1/leads', {
         method: 'POST',
@@ -360,7 +396,6 @@ async function main() {
   // that persists leaves one document behind. That accumulation is the cost of
   // exercising the route for real rather than trusting it; the disposal of a smoke
   // store belongs to whoever runs it.
-  const adminToken = process.env.SMOKE_ADMIN_TOKEN;
   const knowledgeInit = {
     method: 'POST',
     headers: {
@@ -368,7 +403,7 @@ async function main() {
       ...(adminToken ? { authorization: `Bearer ${adminToken}` } : {}),
     },
     body: JSON.stringify({
-      tenantId: 't_demo0001',
+      tenantId: TENANT_ID,
       title: 'Smoke test warranty page',
       url: 'https://example.test/warranty',
       version: 'smoke-1',
@@ -419,7 +454,7 @@ async function main() {
     );
 
     const jobId = ingested.json?.job?.id;
-    const mine = await call(`/v1/knowledge/jobs/${jobId}?tenantId=t_demo0001`, {
+    const mine = await call(`/v1/knowledge/jobs/${jobId}?tenantId=${TENANT_ID}`, {
       headers: { authorization: `Bearer ${adminToken}` },
     });
     check('the job reads back by id', mine.status === 200 && mine.json?.job?.id === jobId);

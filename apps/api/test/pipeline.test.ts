@@ -44,6 +44,8 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     // route into a refusal, which is a case of its own below.
     adminToken: 'test-admin-token',
     logLevel: 'silent',
+    // No sandbox tenant: these suites build the registry they mean to test.
+    sandboxTenant: false,
     // Enabled but effectively unlimited, so every other test still runs the
     // limiter's real code path while only the tests that deliberately set a small
     // limit can trip it. Written out rather than left to `loadConfig`, so the
@@ -93,6 +95,25 @@ async function openSession(app: FastifyInstance): Promise<{ sessionId: string; t
   });
   const body = response.json<{ sessionId: string; sessionToken: string }>();
   return { sessionId: body.sessionId, token: body.sessionToken };
+}
+
+/**
+ * Read the lead list the way the installer's dashboard will: with the
+ * deployment's admin token and an explicit tenant id.
+ *
+ * `GET /v1/leads` is admin-only, on purpose -- a visitor token is refused with a
+ * 401 and no body (D-35). Several tests below file a lead through the visitor
+ * route and then check what was actually stored, and those checks have to use
+ * the credential that can see the store rather than the one that wrote to it.
+ */
+async function leadsFiledFor(app: FastifyInstance, tenantId = 't_demo0001'): Promise<unknown[]> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/v1/leads?tenantId=${tenantId}`,
+    headers: { authorization: 'Bearer test-admin-token' },
+  });
+  expect(response.statusCode).toBe(200);
+  return response.json<{ leads: unknown[] }>().leads;
 }
 
 function parseSse(text: string): Array<Record<string, unknown>> {
@@ -599,14 +620,63 @@ describe('POST /v1/leads', () => {
     const { leadId } = response.json<{ leadId: string }>();
     expect(leadId).toMatch(/^lead_/);
 
+    // Read back the way the installer does, not the way the visitor does. The
+    // visitor's own token cannot read this list at all: it used to, and the list
+    // it returned named every visitor who had ever enquired. See the note on the
+    // route and the test below that pins the refusal.
     const listed = await app.inject({
       method: 'GET',
-      url: '/v1/leads',
-      headers: { authorization: `Bearer ${token}` },
+      url: '/v1/leads?tenantId=t_demo0001',
+      headers: { authorization: 'Bearer test-admin-token' },
     });
+    expect(listed.statusCode).toBe(200);
     const { leads } = listed.json<{ leads: Array<{ id: string; email: string | null }> }>();
     expect(leads.map((l) => l.id)).toContain(leadId);
     expect(leads.find((l) => l.id === leadId)?.email).toBe('sam@example.test');
+  });
+
+  it('refuses the lead list to a visitor, and to an admin with no tenant', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, consent: true, email: 'sam@example.test' },
+    });
+
+    // A visitor token is a credential for one conversation, and the enquiry list
+    // carries other people's contact details. This is the assertion that would
+    // have failed before the route was gated.
+    const asVisitor = await app.inject({
+      method: 'GET',
+      url: '/v1/leads?tenantId=t_demo0001',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(asVisitor.statusCode).toBe(401);
+    expect(asVisitor.body).not.toContain('sam@example.test');
+
+    // Anonymous is refused too, and the refusal is about the credential rather
+    // than about the missing query: naming a tenant does not earn a read.
+    const anonymous = await app.inject({ method: 'GET', url: '/v1/leads?tenantId=t_demo0001' });
+    expect(anonymous.statusCode).toBe(401);
+
+    // With the right credential the tenant is still required, and still checked:
+    // an id that names no tenant is a 404 rather than an empty list, which would
+    // read as "this installer has no enquiries".
+    const noTenant = await app.inject({
+      method: 'GET',
+      url: '/v1/leads',
+      headers: { authorization: 'Bearer test-admin-token' },
+    });
+    expect(noTenant.statusCode).toBe(400);
+    const unknown = await app.inject({
+      method: 'GET',
+      url: '/v1/leads?tenantId=t_nosuchtenant',
+      headers: { authorization: 'Bearer test-admin-token' },
+    });
+    expect(unknown.statusCode).toBe(404);
   });
 
   it('refuses a lead with no consent', async () => {
@@ -626,14 +696,9 @@ describe('POST /v1/leads', () => {
       expect(response.statusCode).toBe(400);
     }
 
-    const listed = await app.inject({
-      method: 'GET',
-      url: '/v1/leads',
-      headers: { authorization: `Bearer ${token}` },
-    });
     // Nothing was written, which is the part that matters: a 400 that still
     // stored the row would be the worst of both.
-    expect(listed.json<{ leads: unknown[] }>().leads).toHaveLength(0);
+    expect(await leadsFiledFor(app)).toHaveLength(0);
   });
 
   it('refuses a lead nobody can be contacted about', async () => {
@@ -696,13 +761,8 @@ describe('POST /v1/leads', () => {
     });
     expect(response.statusCode).toBe(201);
 
-    const listed = await app.inject({
-      method: 'GET',
-      url: '/v1/leads',
-      headers: { authorization: `Bearer ${token}` },
-    });
     // Visible to our own tenant, which it would not be if another id had won.
-    expect(listed.json<{ leads: unknown[] }>().leads).toHaveLength(1);
+    expect(await leadsFiledFor(app)).toHaveLength(1);
   });
 
   it('stops a script filing leads in a loop', async () => {
@@ -772,12 +832,7 @@ describe('POST /v1/leads', () => {
     expect(repeat.duplicate).toBe(true);
     expect(repeat.leadId).toBe(created.leadId);
 
-    const listed = await app.inject({
-      method: 'GET',
-      url: '/v1/leads',
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(listed.json<{ leads: Array<{ id: string }> }>().leads).toHaveLength(1);
+    expect(await leadsFiledFor(app)).toHaveLength(1);
   });
 
   it('refuses a key that comes back with different details', async () => {
@@ -796,12 +851,7 @@ describe('POST /v1/leads', () => {
     const conflicted = await submit('07700 900222');
     expect(conflicted.statusCode).toBe(400);
 
-    const listed = await app.inject({
-      method: 'GET',
-      url: '/v1/leads',
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const { leads } = listed.json<{ leads: Array<{ phone: string | null }> }>();
+    const leads = (await leadsFiledFor(app)) as Array<{ phone: string | null }>;
     // The first number stands. Succeeding here would have told the page the
     // second one had been sent when it had not.
     expect(leads).toHaveLength(1);

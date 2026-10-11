@@ -53,6 +53,8 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     sessionSecret: 'test-secret-not-used-in-production',
     adminToken: 'admin-token-for-tests',
     logLevel: 'silent',
+    // No sandbox tenant: these suites build the registry they mean to test.
+    sandboxTenant: false,
     rateLimit: {
       enabled: true,
       trustProxyHops: 0,
@@ -257,6 +259,29 @@ describe('loading a catalogue', () => {
     expect(body.products).toHaveLength(4);
     expect(body.currencies).toEqual(['GBP']);
     expect(body.categories.sort()).toEqual(['battery', 'inverter', 'panel']);
+  });
+
+  it('serves the rows without the tenant id they are stored under', async () => {
+    const { app, store } = await h();
+    await upload(app, { csv: CATALOGUE });
+    const { token } = await openSession(app);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/catalog/products',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    // The row on disk has it -- asserted first, so a body that happens to lack
+    // the field because nothing was stored cannot pass for stripping it.
+    expect((await store.listProducts('t_demo0001'))[0]).toHaveProperty('tenantId', 't_demo0001');
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ products: Record<string, unknown>[] }>();
+    expect(body.products.length).toBeGreaterThan(0);
+    for (const product of body.products) {
+      expect(product).not.toHaveProperty('tenantId');
+    }
   });
 
   it('refuses the catalogue read without a session token', async () => {

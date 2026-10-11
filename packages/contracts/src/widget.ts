@@ -55,11 +55,18 @@ export type WidgetConfig = z.infer<typeof widgetConfigSchema>;
  * `sessionToken` is short-lived and scoped to one tenant and one conversation.
  * It is issued server-side against a public widget id and is not interchangeable
  * with any dashboard credential.
+ *
+ * There is deliberately **no `tenantId` here**, and the reason is the same one
+ * that keeps the internal id out of a widget config: `t_...` is the string every
+ * store key is built from, and this response goes to a browser -- an
+ * unauthenticated caller who knows only a public id. Which tenant a session
+ * belongs to is carried by the signed token, where it is not a string a page can
+ * read and copy, and it is visible in what the token can read rather than in the
+ * body. `scripts/verify-isolation.ts` asserts this against a running server.
  */
 export const widgetSessionSchema = z.object({
   sessionId: z.string().min(1),
   sessionToken: z.string().min(1),
-  tenantId: tenantIdSchema,
   expiresAt: z.string().datetime(),
   /** The session that was resumed, if the visitor returned with a stored token. */
   resumed: z.boolean(),

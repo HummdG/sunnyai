@@ -72,6 +72,35 @@ against canaries — a Google-key shape, an `sk-` shape and a PEM header — in 
 gitignored directory, and it caught all three while ignoring a benign line. Its
 first real finding should not be the one that matters.
 
+### What §13 verified this session
+
+The scripts are not a deployment and do not claim to be, so what was actually
+executed is worth separating from what was merely written.
+
+Ran: `scripts/verify-isolation.ts` against a live local API — 8/8 checks green,
+then green→red→green with the fix it measures reverted and restored, so the
+sweep localises that defect instead of reddening wholesale; four configurations
+(including the two guards that make it refuse to report a sweep that would prove
+nothing) all with the documented exit codes. `scripts/seed-demo.ts` loaded the
+real demo catalogue and the fictional knowledge document through the real admin
+routes. `npm run build:marketing` compiled the site (Next 16.4.0, three static
+pages) and copied the widget bundle into it. Every script's argument and refusal
+path ran: `--help` 0, unknown argument 2, `--apply` without a project 2, a
+non-URL base 2, `rollback.sh` 3.
+
+Not ran, and said so where it matters: `terraform init`, `plan`, `apply`;
+anything needing `gcloud`; any request to any deployed service. There is no
+`terraform` and no `gcloud` binary here, so
+`scripts/bootstrap-google-cloud.sh --apply` has never got past its toolchain
+check.
+
+What the sweep found, and the reason it was worth writing before a deployment
+existed: `GET /v1/catalog/products` served `products[].tenantId` — the key the
+rows are stored under — to a visitor, while the route's own comment claimed no
+internal reference appeared. Fixed at the contract (`publicProductSchema`) with a
+test that proves the stored row still carries the field, so the strip is what is
+being measured rather than the data's absence.
+
 ### What the tests actually cover
 
 - **Character** (`packages/character`, 20 tests) — determinism, byte-identical
@@ -249,6 +278,20 @@ first real finding should not be the one that matters.
   `next/script`, which creates the element after hydration rather than during the
   server render. Plus client-side routing between the two routes, which exercises
   the dedupe rule through a router instead of a hand-removed tag.
+- **Browser, WordPress host** (`tests/e2e/wordpress-host.spec.ts`) — the same
+  widget on a page with what an ordinary WordPress site actually ships: a theme
+  whose globals are `!important` (including a `body > div` rule that matches the
+  widget's host element), a plugin that injects a stylesheet into the head after
+  load and re-renders a sidebar widget on a timer, `wp_footer` rendered inside a
+  theme wrapper that carries a `transform` and `overflow: hidden`, and a consent
+  banner fixed in the opposite corner at `z-index: 99999`. The page reproduces a
+  WordPress site's _output_ rather than being WordPress -- what the widget reacts
+  to is the DOM and the cascade, and both are faithful. Every isolation claim is
+  paired with a control proving the theme and plugin are live, so a stylesheet
+  that had stopped applying cannot make the widget look immune for free. It found
+  a real defect: the host element was being repositioned and painted by the
+  theme's `body > div` rule, which the shadow stylesheet's `:host` block only
+  survives because every declaration in it is `!important` (D-36).
 - **Browser, marketing site** (`tests/e2e/marketing.spec.ts`) — the one page that
   drives the character engine directly rather than only through the widget, so it
   is where a broken frame loop would be caught: the hero is asserted to paint the
@@ -888,7 +931,8 @@ Implemented: `POST /v1/widget/session`, `POST /v1/chat/stream`,
 `GET /v1/widget/config/:publicId`, `POST /v1/qualification/answer`,
 `POST /v1/leads`, `GET /v1/catalog/products`, `POST /v1/recommendations`,
 `POST /v1/knowledge/sources` and `GET /v1/knowledge/jobs/:id`,
-plus `GET /healthz`, `GET /v1/conversation`, `GET /v1/leads` and
+plus `GET /healthz`, `GET /v1/conversation`, `GET /v1/leads` (an installer's
+route, admin token and an explicit `tenantId`) and
 `GET /v1/recommendations` (none of those four is in the plan's list: each reads
 back what the plan's own POST route already wrote, so the count is unmoved).
 A further route, `POST /v1/catalog/products`, is
@@ -1006,7 +1050,8 @@ Two gaps closed since this section was last written, both from §13.
 `tests/security` holds the cross-tenant denial sweep (D-35), and
 `scripts/verify-isolation.ts` is now its deployment-facing counterpart: eight
 checks against a _running_ API, which is the thing an in-process test cannot do
-And the §13 scripts all exist:
+(it ran 8/8 green against a local API, and red on exactly one case when the fix
+it measures was reverted). And the §13 scripts all exist:
 `bootstrap-google-cloud.sh`, `deploy-staging`, `deploy-production`,
 `smoke-test`, `rollback` and `seed-demo`. They are not a deployment —
 `deploy-staging` and `deploy-production` build for real and then stop at the

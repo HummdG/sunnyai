@@ -277,7 +277,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return {
       sessionId,
       sessionToken,
-      tenantId: tenant.id,
+      // No `tenantId`: see the note on `widgetSessionSchema`. The token above
+      // carries the tenant in its signature, which is where it belongs.
       expiresAt: new Date(expiresAt).toISOString(),
       resumed: conversation !== null && conversation.turns.length > 0,
       greeting: tenant.config.greeting,
@@ -561,10 +562,45 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     };
   });
 
+  /**
+   * The installer's own list of enquiries.
+   *
+   * This used to take a **visitor** session token and return the whole tenant's
+   * leads, which meant any browser that opened a widget session on an installer's
+   * site could read every other visitor's name, email and phone number. The token
+   * was scoped to the tenant, so it kept two installers apart and no test
+   * complained -- the exposure was strictly *within* one installer, which is the
+   * direction a cross-tenant suite cannot see.
+   *
+   * So the credential is the installer's, not the visitor's, and the tenant is a
+   * caller's choice exactly as it is on `GET /v1/knowledge/jobs/:id`: one
+   * deployment-wide admin token means the caller names the tenant rather than
+   * being pinned to one. That is blocker 4 (dashboard authentication) and it is
+   * recorded rather than papered over -- what has changed here is that the wrong
+   * kind of caller can no longer read the data at all.
+   *
+   * A visitor does not need this read: `POST /v1/leads` hands back the `leadId`
+   * of the enquiry it just filed, which is the whole of what a host page's form
+   * needs to know.
+   */
   app.get('/v1/leads', async (request) => {
-    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
-    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
-    return { leads: await store.listLeads(claims.tenantId) };
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'The lead list is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+
+    const { tenantId } = request.query as { tenantId?: string };
+    if (!tenantId) throw new ApiError('bad_request', 'A tenantId is required.');
+    if (!tenants.all.some((tenant) => tenant.id === tenantId)) {
+      throw new ApiError('not_found', 'Unknown tenant.');
+    }
+
+    return { leads: await store.listLeads(tenantId) };
   });
 
   // ─── catalogue ─────────────────────────────────────────────────────────────
@@ -581,7 +617,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
     if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
 
-    const products = await store.listProducts(claims.tenantId);
+    // The tenant id comes out of every row before the response is built. The
+    // token already says which tenant this is, so the field carried nothing the
+    // reader could use -- and it is the key every catalogue row is stored under,
+    // which is not a thing to hand to an unauthenticated browser. See
+    // `publicProductSchema`; `scripts/verify-isolation.ts` checks for it in this
+    // response on a running deployment.
+    const products = (await store.listProducts(claims.tenantId)).map(
+      ({ tenantId: _tenantId, ...product }) => product,
+    );
     const payload: CatalogueResponse = {
       products,
       currencies: [

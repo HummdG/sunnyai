@@ -241,6 +241,28 @@ export const catalogueUploadRequestSchema = z
 export type CatalogueUploadRequest = z.infer<typeof catalogueUploadRequestSchema>;
 
 /**
+ * A product as the tenant's own visitors receive it.
+ *
+ * `tenantId` is removed, and it is the one field that had to be. The row is
+ * public -- it goes to an unauthenticated browser on the installer's site -- and
+ * `t_...` is the string every store key is built from. It is the same reason
+ * `widgetSessionSchema` carries no tenant id (see the note there): a value whose
+ * only use is addressing storage belongs on the server that addresses it. The
+ * reader here already *is* that tenant; the field told them nothing they could
+ * act on and named something they should not need to.
+ *
+ * Everything else stays, including `id`, `sourceRef` and `documentRefs`. Those
+ * are the installer's own references to their own rows and documents -- a
+ * product card and a "where did this price come from" link are built from them,
+ * no route accepts them as a parameter, and none of them is a tenant key. This
+ * schema omits one field for one reason rather than becoming a general-purpose
+ * cull of anything that looks internal.
+ */
+export const publicProductSchema = productSchema.omit({ tenantId: true });
+
+export type PublicProduct = z.infer<typeof publicProductSchema>;
+
+/**
  * The catalogue as the widget-facing route returns it.
  *
  * No `storeId` or internal reference appears here: the row is public to the
@@ -248,7 +270,7 @@ export type CatalogueUploadRequest = z.infer<typeof catalogueUploadRequestSchema
  * shows.
  */
 export const catalogueResponseSchema = z.object({
-  products: z.array(productSchema),
+  products: z.array(publicProductSchema),
   currencies: z.array(z.string()),
   categories: z.array(z.enum(PRODUCT_CATEGORIES)),
 });

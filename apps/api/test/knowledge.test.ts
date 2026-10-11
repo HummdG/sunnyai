@@ -612,6 +612,8 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     sessionSecret: 'test-secret-not-used-in-production',
     adminToken: 'admin-token-for-tests',
     logLevel: 'silent',
+    // No sandbox tenant: these suites build the registry they mean to test.
+    sandboxTenant: false,
     rateLimit: {
       enabled: true,
       trustProxyHops: 0,

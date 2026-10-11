@@ -54,6 +54,49 @@ const DEMO_TENANT: Tenant = {
 };
 
 /**
+ * A second fixture tenant, for the isolation sweep.
+ *
+ * D-35's suite proves cross-tenant denial in process, against a registry it
+ * builds itself. That is the right place for 98 cases, and it is not the same
+ * claim as the one an operator wants before a release: that *this* deployment --
+ * with its real session secret, its real data directory and its real origin list
+ * -- keeps two installers apart. `scripts/verify-isolation.ts` asks the running
+ * server, and a sweep needs a second tenant to ask about.
+ *
+ * Registered only when asked for, and refused in production (see
+ * `assertProductionReady`). It is demo data with a fictional installer's name on
+ * it: a production deployment that served it would be publishing a company that
+ * does not exist under a customer's own domain, which is not a mistake worth
+ * making available.
+ */
+const SANDBOX_TENANT: Tenant = {
+  id: 't_sandbox001',
+  publicId: 'w_sandbox0001',
+  sunscanSlug: 'sandbox-solar',
+  sunscanUrl: null,
+  config: {
+    ...DEMO_TENANT.config,
+    publicId: 'w_sandbox0001',
+    companyName: 'Southgate Solar',
+    tagline: 'The second installer in the isolation sweep',
+    primaryColor: '#1D4ED8',
+  },
+};
+
+/**
+ * The tenants a deployment serves.
+ *
+ * A list rather than a single tenant because the registry is already a map and
+ * the sweep needs two; a *parameter* rather than two exported registries because
+ * which set is served is a boot decision, and a boot decision that can differ
+ * between two code paths is how "the sandbox tenant is off in production" turns
+ * out to be true in one of them.
+ */
+export function defaultTenants(sandbox = false): Tenant[] {
+  return sandbox ? [DEMO_TENANT, SANDBOX_TENANT] : [DEMO_TENANT];
+}
+
+/**
  * Resolve a tenant's SunScan base URL from the environment.
  *
  * Two variables, both optional: the origin of the SunScan instance, and a
@@ -102,4 +145,4 @@ export class TenantRegistry {
   }
 }
 
-export { DEMO_TENANT };
+export { DEMO_TENANT, SANDBOX_TENANT };

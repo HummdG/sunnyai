@@ -2310,3 +2310,118 @@ that App Hosting has moved on.
 **Evidence.** `scripts/deploy-lib.sh`, `bootstrap-google-cloud.sh`, `deploy-staging.sh`,
 `deploy-production.sh`, `smoke-test.sh`, `rollback.sh`; `README_DEPLOY.md`; the exit codes above and
 the marketing build log.
+
+---
+
+## D-38. A visitor's catalogue response does not carry the store key it is filed under
+
+**Context.** Writing §13's isolation sweep meant deciding what a leak _is_, and the sweep's rule is
+that the internal tenant id (`t_...`) must appear in no response a visitor can reach. Applying that
+rule to the routes found one: `GET /v1/catalog/products` returned `products[].tenantId` -- the key
+the rows are stored under -- even though the route's own comment claimed no internal reference
+appeared in the payload. The id is not a secret in the sense of a credential, but it _is_ the
+identifier of another installer's partition, it is not needed by any caller to render a panel, and a
+route that names the partitions of the multi-tenant store hands an enumerating visitor the shape of
+the thing the isolation suite exists to protect (D-35, §9's threat model).
+
+**Decision.** `packages/contracts/src/catalogue.ts` gains `publicProductSchema = productSchema.omit({ tenantId: true })`, and `catalogueResponseSchema.products` is typed as that. The route strips
+the field on its way out:
+
+```ts
+const products = (await store.listProducts(claims.tenantId)).map(
+  ({ tenantId: _tenantId, ...product }) => product,
+);
+```
+
+**What deliberately stays.** `id`, `sourceRef` and `documentRefs` are not tenant keys -- they are the
+installer's own references to their own catalogue row, source spreadsheet and knowledge document.
+Stripping them would be a different decision with a different cost (the dashboard could not link a
+product back to the row it came from), and it is not what the leak was.
+
+**Tested from both sides.** `apps/api/test/catalogue.test.ts` asserts that the _stored_ row still
+carries `tenantId: 't_demo0001'` **before** asserting that no served product does -- so the test
+fails if the strip is done by not storing the field, which would be a different and worse change
+(products that cannot be addressed by tenant in the store).
+
+**Falsified before it was trusted.** With the strip reverted to `// MUTATION`, the sweep went from
+8/8 green to exactly one case red, naming `["t_demo0001"]` and exiting 1, with the other seven still
+green -- so the sweep localises this defect rather than reddening as a whole, and the fix is what
+the green run is measuring.
+
+**Evidence.** `packages/contracts/src/catalogue.ts`, `apps/api/src/server.ts` (the catalogue read),
+`apps/api/test/catalogue.test.ts`, `scripts/verify-isolation.ts` (its second case, "no internal
+tenant id in a visitor's payload"); 947 unit/contract/integration tests across 26 files green, and
+the sweep green on a live local API in its four configurations (0/0/2/2).
+
+---
+
+## D-39. A visitor credential reaches one conversation, and the installer's list needs the installer's
+
+**Context.** D-38's rule -- the internal tenant id appears in no response a visitor can reach, and a
+visitor credential reaches one tenant and no more -- turned out to have two more instances once it
+was applied by hand rather than trusted. Both were in the same direction as the catalogue field and
+neither was visible to the cross-tenant suite (D-35), because a suite that asks "can installer B read
+installer A's rows" is answered correctly by both of them. The exposure was strictly _within_ one
+installer, which is the direction that suite is not built to see:
+
+1. `POST /v1/widget/session` answered with `tenantId` -- the store key of the tenant the caller had
+   just presented a public widget id for. It told the caller nothing they could act on (the signed
+   token in the same body already carries the tenant, and it is not a string the page can read and
+   copy) and it named the partition key of the multi-tenant store to an unauthenticated browser.
+2. `GET /v1/leads` took a **visitor** session token and returned the tenant's whole lead list: every
+   other visitor's name, email, phone number and summary, to any browser that had opened a widget
+   session on the installer's site. This is the sharper one. The token was scoped to the tenant, so
+   the route kept installers apart and every test it had was passing -- the check that would have
+   caught it is "can the wrong _kind_ of caller read this", and the suite's route table recorded the
+   route as `visitor`, which is to say it recorded the defect as the intended design.
+
+**Decision, and the shape of each.** The session body drops the field; the catalogue read strips it
+(D-38); and the lead list takes the deployment's admin token plus an explicit `?tenantId=`, refusing
+401 to a visitor, 400 with no tenant named and 404 for a tenant that does not exist. The lead route
+now has the shape D-35 recorded on `POST /v1/catalog/products` and `POST /v1/knowledge/sources`, and
+that `GET /v1/knowledge/jobs/:id` already had: **one deployment-wide admin token means the tenant is
+named by the caller** rather than something they are pinned to. That is blocker 4 (dashboard
+authentication) and it is recorded rather than papered over -- what changed is that the wrong kind of
+caller can no longer read the data at all, which is a strictly smaller hole than "any visitor can
+read every visitor's". A visitor does not need the read: `POST /v1/leads` hands back the `leadId` of
+the enquiry it just filed, which is all a host page's form needs.
+
+**And the sweep needs two tenants.** `scripts/verify-isolation.ts` (§13) asks a _running_ deployment
+the question the in-process suite cannot: that this registry, this secret, this data directory and
+this origin list keep two installers apart. A sweep with one tenant cannot fail, which is worse than
+no sweep, so `SUNNY_SANDBOX_TENANT=1` registers a second fictional installer ("Southgate Solar") that
+the sweep uses as A and B. Three things make that safe rather than convenient: it is off unless asked
+for by writing `['1', 'true'].includes(...)` rather than "on unless production" (a default that
+depends on the environment is one a staging deployment can silently lose, and the sweep would then
+pass by having nothing to compare); `assertProductionReady` refuses to boot with it set, because it
+is demo data with a company name on it and a production deployment serving it would publish a firm
+that does not exist; and the sweep refuses to run at all when the two public ids resolve to the same
+installer or answer with the same company name.
+
+**What it cost, found rather than predicted.** `scripts/smoke-api.mjs` read the lead list with the
+visitor's token, and the next smoke run failed **26/27** on `the lead appears in the installer list`
+-- a check that had been passing for as long as it existed. That is the regression this change
+would otherwise have shipped, caught by the one script whose job is to run against a deployment
+somebody else configured. The check is now two-mode, like the chat and knowledge sections beside it:
+with `SMOKE_ADMIN_TOKEN` it reads the filed lead back the way the dashboard will, and without it it
+asserts the visitor is refused (401 on a deployment with a token, 403 on one without). Re-run in all
+three modes: **27/27**, **34/34** with the secret, **29/29** against a token-less deployment. The
+internal tenant id is not discoverable from the API, deliberately, so the smoke run is told it:
+`SMOKE_TENANT_ID`, default `t_demo0001`.
+
+**Falsified before it was trusted.** Restoring the old visitor gate on `GET /v1/leads` turned
+**11** tests red and no others: the four route-table cases for that route (the visitor, foreign
+session, foreign tenant and foreign-installer refusals, and the admin call that must be _served_, so
+a route that refuses everyone is not mistaken for a secure one), the behavioural case that files a
+lead and reads it back, and six in `apps/api/test/pipeline.test.ts` that file through the visitor
+route and then read the list. The session-body change is asserted from the other side:
+`tests/security/tenant-isolation.test.ts` checks the response body contains neither installer's
+internal id **and** that the token it does return reads the rival's own (empty) conversation, which
+is the binding the removed field used to stand for.
+
+**Evidence.** `apps/api/src/config.ts` (`sandboxTenant`), `apps/api/src/tenants.ts`
+(`defaultTenants`, `SANDBOX_TENANT`), `apps/api/src/server.ts` (the session response and the lead
+route), `packages/contracts/src/widget.ts`, `apps/api/test/tenants.test.ts`,
+`tests/security/tenant-isolation.test.ts` (107 tests), `apps/api/test/pipeline.test.ts`,
+`scripts/smoke-api.mjs`; 947 unit/contract/integration tests across 26 files green, and the smoke
+run green in all three of its modes.

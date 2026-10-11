@@ -87,6 +87,8 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     sessionSecret: SECRET,
     adminToken: ADMIN_TOKEN,
     logLevel: 'silent',
+    // No sandbox tenant: these suites build the registry they mean to test.
+    sandboxTenant: false,
     rateLimit: {
       // Unlimited, and deliberately: a refused request must not be refused
       // twice. The sweep makes ~90 requests from one address, and a 429 would
@@ -296,8 +298,13 @@ const ROUTES: RouteSpec[] = [
   {
     method: 'GET',
     pattern: '/v1/leads',
-    url: () => '/v1/leads',
-    kind: 'visitor',
+    url: (ids) => `/v1/leads?tenantId=${ids.tenantId}`,
+    // Admin, not visitor. This route used to take a *visitor* session token and
+    // return the whole tenant's enquiries -- which kept two installers apart and
+    // exposed every one of an installer's visitors to any browser that opened a
+    // widget session, a leak strictly inside one tenant that this table's
+    // visitor/admin distinction is what caught.
+    kind: 'admin',
   },
   {
     method: 'POST',
@@ -545,22 +552,34 @@ describe('data isolation', () => {
     });
     expect(filed.statusCode).toBe(201);
 
+    // Read back through the installer's route. The tenant named in the query is
+    // the only thing that decides which list is returned, so an unscoped store
+    // read is the one way the rival's copy could contain the demo's marker.
     const mine = await app.inject({
       method: 'GET',
-      url: '/v1/leads',
-      headers: { authorization: visitorToken(ISOLATION_DEMO) },
+      url: `/v1/leads?tenantId=${ISOLATION_DEMO.tenantId}`,
+      headers: adminHeader,
     });
     const theirs = await app.inject({
       method: 'GET',
-      url: '/v1/leads',
-      headers: { authorization: visitorToken(ISOLATION_RIVAL) },
+      url: `/v1/leads?tenantId=${ISOLATION_RIVAL.tenantId}`,
+      headers: adminHeader,
     });
 
     expect(JSON.stringify(json(mine))).toContain('TENANT-FIXTURE-LEAD');
-    // The lead carries no tenantId in the request at all -- the route reads it
-    // from the token -- so the only way it could appear here is if the store
-    // read were unscoped. This is the assertion that would catch that.
     expect(JSON.stringify(json(theirs))).not.toContain('TENANT-FIXTURE-LEAD');
+
+    // And the visitor who filed it cannot read the list at all -- not their own
+    // row, and certainly not anyone else's. This is the half that the tenant
+    // scoping above says nothing about: a correctly scoped list is still a leak
+    // if the wrong kind of caller can read it.
+    const asVisitor = await app.inject({
+      method: 'GET',
+      url: `/v1/leads?tenantId=${ISOLATION_DEMO.tenantId}`,
+      headers: { authorization: visitorToken(ISOLATION_DEMO) },
+    });
+    expect(asVisitor.statusCode).toBe(401);
+    expect(asVisitor.body).not.toContain('isolation@example.test');
   });
 
   it('prices a visitor from their own installer catalogue', async () => {
@@ -638,15 +657,31 @@ describe('data isolation', () => {
     expect(response.statusCode).toBe(200);
     const session = json<{
       sessionId: string;
+      sessionToken: string;
       resumed: boolean;
-      tenantId: string;
     }>(response);
 
     // The token is genuinely valid; it simply belongs to another installer, so
     // it must not reopen the conversation -- and must not be handed back.
     expect(session.resumed).toBe(false);
     expect(session.sessionId).not.toBe(ISOLATION_DEMO.sessionId);
-    expect(session.tenantId).toBe(RIVAL.id);
+
+    // The new session belongs to the installer whose widget id was presented,
+    // and that is asserted by what the token can read rather than by a field in
+    // the body: the body carries no internal identifier at all. `t_rival001` is
+    // the string every store key is built from, and this response goes to an
+    // unauthenticated browser, so it is the one place the id must not appear.
+    expect(response.body).not.toContain(RIVAL.id);
+    expect(response.body).not.toContain(DEMO_TENANT.id);
+    const theirs = await app.inject({
+      method: 'GET',
+      url: '/v1/conversation',
+      headers: { authorization: `Bearer ${session.sessionToken}` },
+    });
+    expect(theirs.statusCode).toBe(200);
+    // Empty because it is the rival's own conversation -- which is the binding
+    // the removed field used to stand for.
+    expect(json<{ turns: unknown[] }>(theirs).turns).toHaveLength(0);
   });
 
   it('serves a visitor their answers and nobody else their conversation', async () => {

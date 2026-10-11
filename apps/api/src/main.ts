@@ -6,7 +6,7 @@ import {
 } from './config.js';
 import { buildServer } from './server.js';
 import { FileStore } from './store.js';
-import { TenantRegistry } from './tenants.js';
+import { defaultTenants, TenantRegistry } from './tenants.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   }
 
   const store = new FileStore(config.dataDir);
-  const tenants = new TenantRegistry();
+  const tenants = new TenantRegistry(defaultTenants(config.sandboxTenant));
   const app = buildServer({ config, store, tenants });
 
   const capabilities = capabilityReport(config);

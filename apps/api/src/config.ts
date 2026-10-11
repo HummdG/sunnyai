@@ -117,6 +117,15 @@ export interface ServerConfig {
   adminToken: string | null;
   logLevel: string;
   rateLimit: RateLimitConfig;
+  /**
+   * Whether to serve the second, fictional installer as well as the demo one.
+   *
+   * Off unless `SUNNY_SANDBOX_TENANT=1`, and refused in production. It exists so
+   * that `scripts/verify-isolation.ts` has two tenants to hold apart on a
+   * running deployment: an isolation sweep against a server that knows one
+   * tenant cannot fail, which makes it worse than no sweep at all.
+   */
+  sandboxTenant: boolean;
 }
 
 function env(name: string): string | undefined {
@@ -230,6 +239,10 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     adminToken: env('SUNNY_ADMIN_TOKEN') ?? null,
     logLevel: env('LOG_LEVEL') ?? (nodeEnv === 'test' ? 'silent' : 'info'),
     rateLimit,
+    // Written as an explicit opt-in rather than "on unless production": a flag
+    // whose default depends on the environment is one a staging deployment can
+    // silently lose, and the sweep would then pass by having nothing to compare.
+    sandboxTenant: ['1', 'true'].includes(env('SUNNY_SANDBOX_TENANT') ?? ''),
     ...overrides,
   };
 }
@@ -256,6 +269,12 @@ export function assertProductionReady(config: ServerConfig): string[] {
   }
   if (config.allowedOrigins.length === 0) {
     problems.push('WIDGET_ALLOWED_ORIGINS must list the customer origins in production');
+  }
+  if (config.sandboxTenant) {
+    problems.push(
+      'SUNNY_SANDBOX_TENANT must be unset in production: it serves a fictional installer ' +
+        'alongside the real ones, and it exists for the isolation sweep rather than for visitors',
+    );
   }
   return problems;
 }
