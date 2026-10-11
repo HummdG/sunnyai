@@ -2468,3 +2468,122 @@ rather than three minutes and a wrong diagnosis.
 **Evidence.** `playwright.config.ts` (the entry's comment carries the same measurements),
 `README_DEPLOY.md` (the pre-deploy e2e gate), `docs/STATUS.md` (the scorecard row and item 9, both
 corrected).
+
+---
+
+## D-41. The widget adds the device cutout to its gutter, and a host may override it
+
+**Context.** §6.2 asks for the launcher to sit at a configurable corner, respect safe areas and
+carry a z-index. The first and the third were already real — four positions, `z-index:
+2147483000`, which the WordPress fixture measures against a consent banner at `99999` — and the
+`widgetPositionSchema` comment had said since it was written that "safe-area and viewport clamping
+is the client's job". It was not the client's job yet, and the §6.2 row said so: `Partial`, "no iOS
+`env(safe-area-inset-*)` handling". A launcher under a phone's home indicator is a launcher the
+visitor cannot hit, which is the failure a fixed corner produces on exactly the screens that most
+need a fixed corner.
+
+**Decision.** Read the platform's four insets once on `:host` —
+`--sunny-safe-{top,right,bottom,left}: env(safe-area-inset-…, 0px)` — and make every `inset` in the
+sheet `calc(gutter + safe)`. Three consequences are deliberate:
+
+- **The fallback is `0px`, and the gutter is _added_ to rather than replaced by the inset.** On the
+  overwhelming majority of screens there is no cutout, and the widget must be unmoved there. A
+  screen with one gets the plain gutter plus the strip it cannot use, which is the only arithmetic
+  that keeps the visual margin the same on both.
+- **The gutters are custom properties too** — `--sunny-gutter-x/y`, 20px, 12px under 420px wide —
+  because the small-screen breakpoint used to restate `inset: auto 12px 12px auto` in plain pixels.
+  Restating a shorthand is how the cutout would have been dropped on precisely the screens that
+  have one, and with the gutter as a property the breakpoint changes one number for all four
+  corners. The panel's own width and height subtract the same insets, so the last option card
+  cannot sit under the indicator either.
+- **Declared as custom properties, not written inline into the `inset`s**, for two reasons that are
+  the same reason. The host element is the one part of the widget in the page's own tree, and custom
+  properties are the one thing `all: initial !important` does not reset — so a page that knows its
+  chrome better than the browser reports it (an in-app webview, a native shell with its own toolbar)
+  can set one on the host and be believed. That is the supported override, and it is also the only
+  channel through which the arithmetic can be measured without a notched device: the test declares
+  a cutout on the host element and reads the resulting gap.
+
+**What the widget cannot do, and does not pretend to.** The insets are nonzero in a full-screen
+browser only when the _host page's_ `<meta name="viewport">` carries `viewport-fit=cover`, and that
+markup is the host's, not ours — the widget appends one element to the body and touches nothing
+else in the page. The two fixtures in `apps/widget-demo/public/` now ship that meta, so the
+configuration a modern host would have is the one the suite exercises; a host that omits it gets
+plain gutters, which is correct rather than broken.
+
+**Verified.** Five browser checks in `tests/e2e/resilience.spec.ts` and six unit checks in
+`packages/widget/test/styles.test.ts`. The measurement: the launcher is 20px from each viewport
+corner, and 68px once a 48px cutout is declared on the host (`20 + 48`); at 380px wide the gutter is
+12px, and 12 + 34 with a 34px inset on the bottom edge only — and the opposite edge does not move.
+The unit test holds the invariant rather than the strings: **every `inset` in the sheet carries both
+a gutter term and a safe-area term, and `!important`** — so a fifth corner, or a breakpoint that
+restates the shorthands, fails loudly instead of shipping. Falsified before it was trusted:
+restoring the plain `inset: auto 20px 20px auto` reddens the two geometry checks, measured as the
+48px ignored (1260 against 1212) and the breakpoint losing its 8px (360 against 368).
+
+**Cost.** The widget bundle goes from 148.6 kB / 41.2 kB gzipped to **152.1 kB / 42.4 kB gzipped**,
+against a 60 kB gzipped budget. Most of the increase is the explanatory comments, which ship inside
+the stylesheet string as every other comment in it does.
+
+**Honest limits.** No physical notched device was used. `env()` cannot be set from a test, so the
+insets are declared through the channel a host would use and the widget's _arithmetic_ is what is
+pinned; that the platform reports a real iPhone's insets as expected is taken from the spec, not
+measured here.
+
+**Evidence.** `packages/widget/src/styles.ts`, `packages/widget/test/styles.test.ts`,
+`tests/e2e/resilience.spec.ts`, `apps/widget-demo/public/{index,wordpress}.html` (the
+`viewport-fit=cover` metas), `docs/requirements-matrix.md` (§6.2's launcher row,
+`Partial` → `Done`).
+
+---
+
+## D-42. The host page's survival of a Sunny outage is a browser test, not an inspection
+
+**Context.** §6.2 asks the widget to keep the host page working if Sunny fails, and §11.2 makes it
+an acceptance criterion for the external embed. The row was `Done` — and its own note said why that
+was thin: "Fetch/session/chat failures are caught; no automated host-failure test, evidence is
+inspection." Inspection is not evidence for a claim about what a browser does with a rejected
+`fetch`, and this is a claim about a _customer's_ page, which is the one place the widget cannot
+afford to be wrong.
+
+**What the code already did — recorded, not changed.** `#loadConfig` catches and the widget runs on
+its built-in defaults; `#openSession` catches and `#chat` stays `null`, so `#submit` renders an
+honest in-panel error rather than throwing; and `ChatClient.send` catches everything except its own
+`AbortError` and routes it to `onError`, which draws an error turn and clears the pending state.
+This increment therefore changed **no widget behaviour** and says so: the work is the evidence.
+
+**Decision.** Pin the three degradations a visitor can meet, and falsify each. Three, because they
+fail differently and a widget can be robust against one while hanging on another:
+
+1. **The whole API unreachable.** The page's own script still runs and its own navigation still
+   works; the widget still mounts from its local rig — the character is never gated on a network
+   call — and opens with the built-in name and greeting rather than the installer's.
+2. **The session route refused while config answers.** The visitor gets a widget wearing the
+   installer's name, colour and suggestions and no assistant behind it. This is the state that has
+   to be _honest_ rather than the state that has to be hidden, so the test asserts the branding
+   landed and the conversation did not.
+3. **The stream dying mid-turn.** The case a widget with no error path hangs on: a typing indicator
+   that never stops and a send button that never comes back. The test asserts the error turn, that
+   the typing indicator is gone, and that the composer is no longer `aria-busy`.
+
+Each case also asserts the host page's own script ran and its own navigation works, and that no
+uncaught page error and no console error occurred _other than_ the requests the fixture deliberately
+failed — "the page survived" and "the page survived quietly" being different claims.
+
+**Falsified before it was trusted.** Reinstating the widget's two `throw`s in place of its catches
+reddens the whole-API and session cases with `uncaught: Failed to fetch`, which is the exact defect
+the checks exist to prevent. Removing `ChatClient`'s catch instead reddens the mid-turn case for a
+different reason — no error turn is drawn at all — which is what shows the three are testing the
+error paths rather than three spellings of one. Both breaks were reverted.
+
+**Recorded, not fixed.** The widget does not retry a failed session: a visitor whose API recovers
+mid-visit keeps the error until they reload. That is a policy decision (when to retry, how often,
+against what backoff) rather than a defect, and the outage the plan asks about is the host page's,
+not the visitor's.
+
+**Verified.** Five browser checks, green, in `tests/e2e/resilience.spec.ts`; `npm run verify` is
+**953 tests across 27 files**; the full browser suite is **58 passed, 0 failed** over five host
+pages.
+
+**Evidence.** `tests/e2e/resilience.spec.ts`, `packages/widget/src/{widget,chat}.ts` (unchanged),
+`docs/requirements-matrix.md` (§6.2's host-failure row), `docs/STATUS.md`.

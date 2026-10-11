@@ -46,6 +46,38 @@ export function styles(): string {
      honest failure rather than an invisible one. */
   --sunny-accent-ink: var(--sunny-accent);
 
+  /* ── the device cutout ───────────────────────────────────────────────────
+     A phone with a home indicator, a notch or rounded corners eats a strip of
+     the viewport, and a control placed under it is a control the visitor cannot
+     hit. \`env()\` is the platform's answer for that strip, and it is 0 on
+     everything without one -- which is why the gutters below *add* it rather
+     than replacing the fixed gutter with it, and why every fallback is \`0px\`
+     and not a guess. The widget cannot ask for the insets on its own: they are
+     nonzero only on a page whose own \`<meta name="viewport">\` says
+     \`viewport-fit=cover\`, and that markup is the host's, not ours. Reading them
+     faithfully and adding nothing when they are absent is the whole of what the
+     widget can honestly do.
+
+     They are declared as custom properties, and that is not only tidiness. The
+     host element is the one part of the widget in the page's own tree, custom
+     properties are the one thing \`all: initial\` does not reset, and so a page
+     that knows its own chrome better than the browser reports it -- an in-app
+     webview, a native shell with its own toolbar -- can set one on the host and
+     be believed. It is also how the behaviour is checkable: a browser test can
+     set \`--sunny-safe-bottom\` on the host and measure the resulting gap, which
+     pins the arithmetic without a notched device in CI (D-41). */
+  --sunny-safe-top: env(safe-area-inset-top, 0px);
+  --sunny-safe-right: env(safe-area-inset-right, 0px);
+  --sunny-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --sunny-safe-left: env(safe-area-inset-left, 0px);
+
+  /* The gutter between the launcher and the viewport edge, before the cutout.
+     A custom property so the small-screen breakpoint changes one number rather
+     than four \`inset\` shorthands -- and so every corner, not just the default
+     one, gets that change. */
+  --sunny-gutter-x: 20px;
+  --sunny-gutter-y: 20px;
+
   /* Every declaration below carries \`!important\`, and that is not belt-and-
      braces: it is the only thing that makes the widget's isolation claim true
      for the host element.
@@ -76,12 +108,32 @@ export function styles(): string {
   display: block !important;
   position: fixed !important;
   z-index: 2147483000 !important;
-  inset: auto 20px 20px auto !important;
+  /* One anchored edge = one gutter + that edge's cutout. Written out per corner
+     rather than folded into one value, because which edge is anchored is what
+     the four positions differ by. Every \`inset\` in this file has both terms;
+     a fifth corner added without them is the defect the widget's style test
+     looks for. */
+  inset:
+    auto calc(var(--sunny-gutter-x) + var(--sunny-safe-right))
+    calc(var(--sunny-gutter-y) + var(--sunny-safe-bottom))
+    auto !important;
 }
 
-:host([data-position="bottom-left"]) { inset: auto auto 20px 20px !important; }
-:host([data-position="top-right"]) { inset: 20px 20px auto auto !important; }
-:host([data-position="top-left"]) { inset: 20px auto auto 20px !important; }
+:host([data-position="bottom-left"]) {
+  inset:
+    auto auto calc(var(--sunny-gutter-y) + var(--sunny-safe-bottom))
+    calc(var(--sunny-gutter-x) + var(--sunny-safe-left)) !important;
+}
+:host([data-position="top-right"]) {
+  inset:
+    calc(var(--sunny-gutter-y) + var(--sunny-safe-top))
+    calc(var(--sunny-gutter-x) + var(--sunny-safe-right)) auto auto !important;
+}
+:host([data-position="top-left"]) {
+  inset:
+    calc(var(--sunny-gutter-y) + var(--sunny-safe-top)) auto auto
+    calc(var(--sunny-gutter-x) + var(--sunny-safe-left)) !important;
+}
 
 * { box-sizing: border-box; }
 
@@ -113,12 +165,16 @@ export function styles(): string {
 /* ── the panel ──────────────────────────────────────────────────────────── */
 
 .panel {
-  width: min(384px, calc(100vw - 40px));
+  width: min(384px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
   /* Taller than the conversation-only panel was. The options are a second
      surface inside the same frame, so the panel has to hold a transcript and a
      card list at once -- and a card that cannot be read without scrolling is a
-     card the visitor does not read. */
-  height: min(640px, calc(100vh - 140px));
+     card the visitor does not read.
+
+     The cutout is subtracted here as well as added to the gutters: a panel sized
+     only against the viewport would put its last card under the home indicator
+     on the one kind of screen that has one. */
+  height: min(640px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
   background: var(--sunny-warm-white);
   border-radius: var(--sunny-radius);
   box-shadow: var(--sunny-shadow);
@@ -327,8 +383,17 @@ export function styles(): string {
 }
 
 @media (max-width: 420px) {
-  :host { inset: auto 12px 12px auto; }
-  .panel { width: calc(100vw - 24px); height: min(70vh, 520px); }
+  /* Only the gutter narrows here. The \`inset\` declarations above keep their
+     cutout terms untouched, because a small screen is exactly where a cutout
+     is -- so this breakpoint must not restate the shorthands without them. */
+  :host {
+    --sunny-gutter-x: 12px;
+    --sunny-gutter-y: 12px;
+  }
+  .panel {
+    width: calc(100vw - 24px - var(--sunny-safe-left) - var(--sunny-safe-right));
+    height: min(70vh, 520px);
+  }
   .launcher { width: 60px; height: 60px; }
 }
 `;

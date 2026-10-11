@@ -23,7 +23,10 @@
 <html lang="en-GB">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- A block theme's `header.php` emits `viewport-fit=cover` when the
+         customiser's "edge-to-edge" option is on, which is the default for
+         newer themes; it is what makes `env(safe-area-inset-*)` nonzero. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Harborough Solar — WordPress host fixture</title>
     <meta name="description" content="A WordPress-shaped host page for the Sunny widget isolation fixture." />
     <meta name="generator" content="WordPress 6.7.1" />

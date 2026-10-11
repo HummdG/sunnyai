@@ -2,7 +2,12 @@
 <html lang="en-GB">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- `viewport-fit=cover` is what lets the page reach under a phone's cutout,
+         which is the only configuration in which `env(safe-area-inset-*)` is
+         nonzero. The widget reads those insets; without this meta they are 0
+         everywhere and the widget's gutter is the plain one. This is our own
+         stand-in page, so it ships the meta a modern host would. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Northwind Solar — the widget demo</title>
     <meta
       name="description"
