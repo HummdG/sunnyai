@@ -4,6 +4,14 @@ import { searchChunks, type KnowledgeIndex } from '@sunny/knowledge';
 import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
 import { newId, type LeadRecord, type Store } from '../store.js';
+import {
+  QUESTIONNAIRE_VERSION,
+  QUESTIONS,
+  STEP_ORDER,
+  applicability,
+  explain,
+  validateAnswer,
+} from '../questionnaire.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatToolCall, ToolDeclaration } from './provider.js';
 
@@ -212,130 +220,13 @@ function packageForModel(option: PackageOption): Record<string, unknown> {
   };
 }
 
-// ─── the questionnaire, as extracted from SunScan ────────────────────────────
+// ─── the questionnaire lives in ../questionnaire.ts ──────────────────────────
 //
-// The question set, the step order and the option values are SunScan's, taken
-// from its journey module rather than invented. Keeping them in a versioned
-// constant is what lets Sunny ask the same questions the host site's own wizard
-// asks, so an answer given to Sunny is an answer the installer can use.
-
-export const QUESTIONNAIRE_VERSION = 'sunscan-2026-01';
-
-export const QUESTIONS: Readonly<
-  Record<string, { step: string; prompt: string; options?: readonly string[] }>
-> = {
-  address: { step: 'address', prompt: 'What is the address you would like assessed?' },
-  roof_confidence: {
-    step: 'roof',
-    prompt: 'How confident are you about your roof details?',
-    options: ['high', 'medium', 'low'],
-  },
-  roof_size: {
-    step: 'roof',
-    prompt: 'Roughly how much roof space is available?',
-    options: ['small', 'medium', 'large', 'unsure'],
-  },
-  roof_direction: {
-    step: 'roof',
-    prompt: 'Which way does the main roof face?',
-    options: ['south', 'south_east', 'south_west', 'east', 'west', 'east_west', 'north', 'unsure'],
-  },
-  roof_shading: {
-    step: 'roof',
-    prompt: 'Is the roof shaded by trees or buildings?',
-    options: ['none', 'trees', 'buildings', 'heavy', 'unsure'],
-  },
-  property_type: {
-    step: 'property',
-    prompt: 'What kind of property is it?',
-    options: ['detached', 'semi', 'terraced', 'bungalow', 'flat', 'other'],
-  },
-  ownership: {
-    step: 'property',
-    prompt: 'Do you own the property?',
-    options: ['own', 'mortgage', 'rent', 'social', 'landlord', 'other'],
-  },
-  usage_source: {
-    step: 'usage',
-    prompt: 'How would you like to tell me about your electricity use?',
-    options: ['bill_ocr', 'manual_kwh', 'monthly_cost', 'household'],
-  },
-  annual_kwh: { step: 'usage', prompt: 'Roughly how many kWh do you use in a year?' },
-  tariff_type: {
-    step: 'tariff',
-    prompt: 'What kind of electricity tariff are you on?',
-    options: ['standard', 'economy7', 'smart_tou', 'import_export', 'already_exports', 'unknown'],
-  },
-  existing_system: {
-    step: 'existing',
-    prompt: 'Do you already have solar or a battery?',
-    options: ['none', 'solar', 'battery', 'solar_battery', 'unsure'],
-  },
-  motivation: {
-    step: 'motivation',
-    prompt: 'What matters most to you about going solar?',
-    options: [
-      'reduce_bills',
-      'price_protection',
-      'cheap_tariffs',
-      'earn_export',
-      'independence',
-      'carbon',
-      'home_value',
-      'exploring',
-    ],
-  },
-  budget_band: {
-    step: 'motivation',
-    prompt: 'What budget did you have in mind?',
-    options: ['under_6k', '6k_10k', '10k_15k', '15k_plus', 'unsure'],
-  },
-  finance_interest: {
-    step: 'motivation',
-    prompt: 'Would finance be of interest?',
-    options: ['yes', 'no', 'maybe', 'learn_more'],
-  },
-};
-
-export const STEP_ORDER = [
-  'address',
-  'roof',
-  'property',
-  'usage',
-  'tariff',
-  'existing',
-  'motivation',
-] as const;
-
-/**
- * The one place an answer is judged acceptable.
- *
- * Extracted from `save_answer` rather than duplicated for the qualification
- * route, because two copies of "is this a real answer" drift: the tool would
- * keep accepting an option the route had stopped accepting, and the difference
- * would surface only as a question the visitor appears to have answered twice.
- * Both callers now apply the same rule by construction.
- *
- * Pure on purpose -- strings in, verdict out -- so it can be tested without a
- * tenant, a store or a model.
- */
-export type AnswerVerdict =
-  | { ok: true; questionId: string; value: string }
-  | { ok: false; error: string; known?: readonly string[]; allowed?: readonly string[] };
-
-export function validateAnswer(questionId: string, value: string): AnswerVerdict {
-  if (!questionId || !value) {
-    return { ok: false, error: 'questionId and value are required' };
-  }
-  const question = QUESTIONS[questionId];
-  if (!question) {
-    return { ok: false, error: 'unknown question', known: Object.keys(QUESTIONS) };
-  }
-  if (question.options && !question.options.includes(value)) {
-    return { ok: false, error: 'value not among the allowed options', allowed: question.options };
-  }
-  return { ok: true, questionId, value };
-}
+// The question set, its one conditional branch and the rules for judging an
+// answer moved there when the branch arrived, because three callers now have to
+// agree about whether a visitor was ever asked something: this tool surface, the
+// route a host page calls, and the summary a lead is built from. See that file's
+// header for why the version string names SunScan's journey rather than itself.
 
 /**
  * How many passages one lookup may return, and how much of each goes to the
@@ -451,8 +342,16 @@ const DEFINITIONS: ToolDefinition[] = [
     required: [],
     async run(args, ctx) {
       const includeAnswered = args['includeAnswered'] === true;
+      // Only questions that apply. A question whose branch the visitor's answers
+      // have ruled out is not "still to be answered" -- asking it would be asking
+      // for a figure they have just said they will not give. Answered-but-ruled-out
+      // answers stay in the map; they are simply not offered again.
       const remaining = Object.entries(QUESTIONS)
-        .filter(([id]) => includeAnswered || ctx.answers[id] === undefined)
+        .filter(
+          ([id]) =>
+            applicability(id, ctx.answers) === 'applies' &&
+            (includeAnswered || ctx.answers[id] === undefined),
+        )
         .map(([id, q]) => ({ id, step: q.step, prompt: q.prompt, options: q.options ?? [] }));
       return {
         ok: true,
@@ -479,24 +378,24 @@ const DEFINITIONS: ToolDefinition[] = [
     async run(args, ctx) {
       const questionId = str(args, 'questionId');
       const value = str(args, 'value');
-      const verdict = validateAnswer(questionId ?? '', value ?? '');
+      // `ctx.answers` is passed because which answers are acceptable now depends
+      // on what has already been said: a kWh figure is a real answer from someone
+      // who chose to type one and not from someone who chose "I don't know".
+      const verdict = validateAnswer(questionId ?? '', value ?? '', ctx.answers);
       if (!verdict.ok) {
-        // The step is kept short: the model reads it to decide what to do next,
-        // and the structured detail it needs is in `data`.
-        const summary =
-          verdict.error === 'unknown question'
-            ? `"${questionId}" is not a question I ask.`
-            : verdict.error === 'value not among the allowed options'
-              ? `"${value}" is not one of the options for that question.`
-              : 'Not saved.';
         return {
           ok: false,
           data: {
             error: verdict.error,
             ...(verdict.known ? { known: verdict.known } : {}),
             ...(verdict.allowed ? { allowed: verdict.allowed } : {}),
+            ...(verdict.expects ? { expects: verdict.expects } : {}),
+            ...(verdict.needs ? { needs: verdict.needs } : {}),
           },
-          summary,
+          // One renderer: the model and a visitor reading the host page are told
+          // the same thing about the same refusal. Rewriting the verdict for the
+          // model is how the tool and the route drift apart again.
+          summary: explain(verdict),
         };
       }
       ctx.answers[verdict.questionId] = verdict.value;

@@ -77,10 +77,23 @@ const STEP_ORDER: StepId[] = [
 `roofFallback` is shown **only when** the derived roof confidence is `'low'`:
 `visibleSteps(state)` filters `roofFallback` on `state.roof?.confidence === 'low'`.
 
-**Note:** the question set Sunny ships in `apps/api/src/agent/tools.ts`
-(`QUESTIONNAIRE_VERSION = 'sunscan-2026-01'`) is a **subset** of SunScan's journey:
-it has no `lifestyle` step and folds `roofFallback` into `roof`. A future adapter must
-reconcile that difference; it is not reconciled today.
+**Note:** the question set Sunny ships in `apps/api/src/questionnaire.ts`
+(`QUESTIONNAIRE_VERSION = 'sunscan-2026-01'`, moved there from `agent/tools.ts` when
+the branch below arrived) is a **subset** of SunScan's journey: it has no `lifestyle`
+step and folds `roofFallback` into `roof`. A future adapter must reconcile that
+difference; it is not reconciled today.
+
+**Reconciled so far:** the usage branch. SunScan's `canAdvance` resolves the `usage`
+step with a `switch` on `usage.source` and requires a different value per branch
+(`docs/discovery-sunscan.md` §1.3); Sunny now mirrors that with three conditional
+follow-ups (`annual_kwh`, `monthly_cost`, `household_size`), exactly one of which
+applies per source, instead of asking every visitor for an annual kWh figure. The
+branch was mirrored, the _step_ was not: SunScan keeps these as sub-fields of
+`usage`, and Sunny keeps them as separate question ids, because Sunny's questionnaire
+has no nested field shapes. `roofFallback` is still folded into `roof` — SunScan gates
+it on a _derived_ roof's low confidence, and Sunny has no roof derivation, so the
+visitor's self-reported `roof_confidence` is a different quantity and is deliberately
+not used as the gate.
 
 ### 2.2 Field unions (authoritative names)
 

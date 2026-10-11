@@ -28,7 +28,6 @@ import { Readable } from 'node:stream';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { runTurn } from './agent/agent.js';
-import { QUESTIONS, validateAnswer } from './agent/tools.js';
 import {
   ProviderUnavailableError,
   UnconfiguredProvider,
@@ -42,6 +41,7 @@ import {
   type RateLimiter,
   type RateLimitRule,
 } from './ratelimit.js';
+import { explain, nextQuestion, validateAnswer } from './questionnaire.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
 import { newId, type Store } from './store.js';
 import type { TenantRegistry } from './tenants.js';
@@ -429,36 +429,39 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       throw new ApiError('forbidden', 'That session token is for a different session.');
     }
 
-    const verdict = validateAnswer(body.data.questionId, body.data.value);
+    const tenant = tenants.all.find((t) => t.id === claims.tenantId);
+    if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
+
+    // The answers standing before this one, so the verdict can see them. Read
+    // before the merge, because the question is whether this answer is acceptable
+    // *given* what the visitor has already said -- not given itself.
+    const before = (await store.getConversation(claims.tenantId, claims.sessionId))?.answers ?? {};
+
+    const verdict = validateAnswer(body.data.questionId, body.data.value, before);
     if (!verdict.ok) {
       // `bad_request` rather than a silent 200: a page that believes it recorded
       // an answer it did not will show the visitor a completed form and a gap the
-      // installer never sees. The message carries the vocabulary to use instead.
-      const detail = verdict.allowed
-        ? `${verdict.error}: ${verdict.allowed.join(', ')}`
-        : verdict.known
-          ? `${verdict.error}: ${verdict.known.join(', ')}`
-          : verdict.error;
-      throw new ApiError('bad_request', detail);
+      // installer never sees. The message carries the vocabulary to use instead --
+      // and it is the same sentence the model is given when `save_answer` refuses,
+      // so a host page and the assistant do not describe one refusal two ways.
+      throw new ApiError('bad_request', explain(verdict));
     }
-
-    const tenant = tenants.all.find((t) => t.id === claims.tenantId);
-    if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
 
     const conversation = await store.mergeAnswers(claims.tenantId, claims.sessionId, {
       [verdict.questionId]: verdict.value,
     });
 
     const answers = conversation.answers ?? {};
-    const answered = new Set(Object.keys(answers));
 
-    // Derived from the question set itself, in its declared order, so this cannot
-    // drift from the journey the assistant asks. A suggestion for the page's next
-    // step rather than a rule it must follow; `null` once nothing is outstanding.
+    // Derived from the question set itself, in its declared order, and skipping
+    // questions this visitor's answers have ruled out -- so a page following the
+    // suggestion is never sent to ask for a kWh figure from someone who just said
+    // they would give a monthly cost. A suggestion for the page's next step rather
+    // than a rule it must follow; `null` once nothing applies and is unanswered.
     const payload: QualificationAnswerResponse = {
       questionId: verdict.questionId,
       answers,
-      nextQuestionId: Object.keys(QUESTIONS).find((id) => !answered.has(id)) ?? null,
+      nextQuestionId: nextQuestion(answers),
     };
 
     reply.code(200);

@@ -830,6 +830,69 @@ describe('POST /v1/qualification/answer', () => {
     expect(response.json<{ error: { message: string } }>().error.message).toContain('roof_size');
   });
 
+  it('suggests the follow-up the usage answer actually opened', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    // Answer the whole usage step up to and including the source, so the only
+    // thing between this response and the end of the step is which follow-up
+    // applies. `annual_kwh` belongs to a typed or uploaded bill; a monthly cost
+    // is a different question, and the earlier build asked every visitor the kWh
+    // one.
+    for (const [questionId, value] of [
+      ['address', '1 Test Street'],
+      ['roof_confidence', 'high'],
+      ['roof_size', 'medium'],
+      ['roof_direction', 'south'],
+      ['roof_shading', 'none'],
+      ['property_type', 'detached'],
+      ['ownership', 'own'],
+    ] as const) {
+      await submit(app, token, sessionId, questionId, value);
+    }
+
+    const response = await submit(app, token, sessionId, 'usage_source', 'monthly_cost');
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ nextQuestionId: string | null }>();
+    expect(body.nextQuestionId).toBe('monthly_cost');
+  });
+
+  it('refuses an answer the visitor’s own earlier answer ruled out', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    await submit(app, token, sessionId, 'usage_source', 'household');
+
+    const response = await submit(app, token, sessionId, 'annual_kwh', '4200');
+    expect(response.statusCode).toBe(400);
+    const message = response.json<{ error: { message: string } }>().error.message;
+    // The page has to be able to act on this, so the message names the answer
+    // that stands in the way and what it would have to be.
+    expect(message).toContain('usage_source');
+    expect(message).toContain('household');
+  });
+
+  it('accepts an answer given before the question it depends on', async () => {
+    // A host page is free to ask in its own order, and the contracts say so. An
+    // answer ahead of its gate contradicts nothing, so it is stored; only an
+    // answer the visitor’s own earlier choice rules out is refused.
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await submit(app, token, sessionId, 'annual_kwh', '4200');
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ answers: Record<string, string> }>().answers['annual_kwh']).toBe('4200');
+  });
+
+  it('refuses a figure that is not a number', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const response = await submit(app, token, sessionId, 'annual_kwh', 'quite a lot');
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: { message: string } }>().error.message).toContain('kWh');
+  });
+
   it('refuses a token for another session', async () => {
     const { app } = await h();
     const { token } = await openSession(app);

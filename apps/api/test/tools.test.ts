@@ -367,3 +367,70 @@ describe('recommend_packages', () => {
     expect(result.summary).toMatch(/no total/i);
   });
 });
+
+/**
+ * The two questionnaire tools, through the same door the model uses.
+ *
+ * `questionnaire.test.ts` pins the rules themselves. What is checked here is that
+ * the tools *apply* them: that the question list the model is handed has already
+ * had the impossible questions taken out, so the model cannot be the thing that
+ * asks them, and that a refusal reaches the model as a sentence it can act on.
+ */
+describe('get_questionnaire and save_answer', () => {
+  async function run(
+    name: string,
+    args: Record<string, unknown>,
+    answers: Record<string, string> = {},
+  ): Promise<{ ok: boolean; summary: string; data: Record<string, unknown> }> {
+    const { store } = await makeStore();
+    const ctx: ToolContext = { ...context(store, []), answers: { ...answers } };
+    const result = await executeTool({ name, args }, ctx);
+    return { ok: result.ok, summary: result.summary, data: result.data as Record<string, unknown> };
+  }
+
+  it('leaves out a question the visitor’s answers have ruled out', async () => {
+    const { data } = await run('get_questionnaire', {}, { usage_source: 'household' });
+    const ids = (data['questions'] as Array<{ id: string }>).map((q) => q.id);
+    expect(ids).toContain('household_size');
+    expect(ids).not.toContain('annual_kwh');
+    expect(ids).not.toContain('monthly_cost');
+  });
+
+  it('does not offer a follow-up before the question it depends on', async () => {
+    const { data } = await run('get_questionnaire', {});
+    const ids = (data['questions'] as Array<{ id: string }>).map((q) => q.id);
+    expect(ids).toContain('usage_source');
+    expect(ids).not.toContain('annual_kwh');
+  });
+
+  it('refuses an answer the visitor’s earlier one ruled out, and says what to change', async () => {
+    const result = await run(
+      'save_answer',
+      { questionId: 'annual_kwh', value: '4200' },
+      {
+        usage_source: 'household',
+      },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.data['error']).toBe('that question is not asked, given an earlier answer');
+    expect(result.data['needs']).toContain('usage_source');
+    // The model reads the summary, so the summary has to carry the fix.
+    expect(result.summary).toContain('usage_source');
+  });
+
+  it('takes a figure the visitor typed the way they typed it', async () => {
+    const result = await run(
+      'save_answer',
+      { questionId: 'monthly_cost', value: '£150' },
+      { usage_source: 'monthly_cost' },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.data['value']).toBe('£150');
+  });
+
+  it('refuses a word where a number belongs, and says what a number of', async () => {
+    const result = await run('save_answer', { questionId: 'annual_kwh', value: 'a lot' });
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('kWh');
+  });
+});

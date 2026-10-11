@@ -1669,3 +1669,79 @@ approximated. Production integration acceptance stays blocked on them and on a
 credential, per D0. The live assistant path is untested end to end because chat is
 disabled on this deployment (blocker 1 in `STATUS.md`); the retrieval-through-a-turn
 path is covered by a scripted provider and not by a model.
+
+## D-30. The usage branch is conditional, and an answer nobody asked for is not stored
+
+Plan §7.3 asks for "versioned field definitions, **conditional logic**, validation,
+optional/skippable steps, corrections, resume and consent", and the extracted
+journey has the same shape: `canAdvance` (`docs/discovery-sunscan.md` §1.3) resolves
+the usage step with a `switch` on `usage.source` and requires a _different_ value for
+each branch -- an annual kWh for a bill upload or a typed figure, a monthly cost for
+a monthly cost, a household size for "I don't know". Sunny shipped one follow-up,
+`annual_kwh`, asked of everybody. A visitor who answered "I'd rather give my monthly
+cost" was then asked for their annual consumption, which is the one thing they had
+just declined to supply.
+
+**The questionnaire became a module.** `apps/api/src/questionnaire.ts` now holds the
+question set, the branch and the rules for judging an answer; `agent/tools.ts` keeps
+the tool surface and imports them. The move is not tidiness: a condition has to be
+evaluated in three places that must agree -- the tool the model calls, the route a
+host page calls, and the next-question suggestion the route returns -- and three
+evaluations of one condition is three chances to disagree about whether a visitor
+was ever asked something. Everything derived is derived once.
+
+**Applicability is three-valued, and that is the actual decision.** The obvious
+implementation is `if (!applies) refuse`, and it is wrong here, because the two ways
+a question can fail to apply call for opposite handling:
+
+- **pending** -- the question waits on an answer it has not been given. A host page
+  is free to ask in its own order (its contract says so, and did before this
+  change), so an answer given ahead of its gate is accepted and stored. Nothing is
+  contradicted.
+- **conflicts** -- the gate has been answered, and answered the other way. A kWh
+  figure from someone who chose "monthly cost" is an answer to a question nobody
+  asked, and storing it would put a number in the lead the visitor never gave for
+  that branch. Refused, with a message naming the gate, its value, and what it would
+  have to be instead.
+
+Collapsing those two into a boolean would either break the documented freedom of the
+host page's ordering or let contradictions into the lead, and both failures are
+silent in a conversation.
+
+**Numbers are validated, because they had no option list to be validated against.**
+`annual_kwh` and `monthly_cost` accept any free text, so `annual_kwh = "purple"`
+reached the lead. Both now carry a sanity range and a parser that tolerates the
+punctuation people type (a currency symbol, thousands separators, a trailing unit)
+and nothing more -- a wider grammar is a parser, and a parser that guesses is how
+"3200" and "3,200" become two answers to one question. **The value stored is the
+visitor's own text**, not a normalisation: Sunny has no business rewriting a figure
+the installer will read. The bounds (1-100,000 kWh, £1-5,000 a month) are sanity
+bounds, not product limits; they exist to catch a typo, and a real customer outside
+them would be a reason to widen them rather than to refuse them.
+
+**One renderer for a refusal.** `explain()` turns a verdict into the sentence the
+visitor and the model both see, replacing the two bespoke renderings that had already
+started to diverge. The tool's summary was rewritten to use it, which is a behaviour
+change to what the model reads on a refusal -- the vocabulary is now in the summary
+rather than only in `data`.
+
+**What this does not do.** Skips, corrections and a view-before-submit review are
+still absent, so §7.3's list is only part-covered; the answers map already supports
+re-answering (last write wins) but there is no _skip_ state -- "the visitor declined"
+is not the same as "unsure", and the answers map cannot hold the difference. The roof
+branch is deliberately **not** conditionalised: SunScan shows `roofFallback` when a
+_derived_ roof is low-confidence, and Sunny has no roof derivation, so the visitor's
+self-reported `roof_confidence` is a different quantity and treating it as the same
+one would be inventing a rule rather than implementing a documented one. And nothing
+yet consumes the usage answers -- they reach the lead and the installer, not Sunny's
+arithmetic, which prices from the catalogue.
+
+**Evidence.** 24 tests in `apps/api/test/questionnaire.test.ts` (the constants agree;
+exactly one usage follow-up per source; pending vs conflicts; the walk terminates; the
+punctuation a visitor types; the range refusals; the sentence a refusal becomes), 5
+more through `executeTool` in `tools.test.ts`, and 4 through the route in
+`pipeline.test.ts`. `npm run verify` is 805 tests across 24 files. The branch was also
+exercised over real HTTP against the running API: `usage_source=monthly_cost` then
+`annual_kwh=4200` is a 400 naming the gate; `monthly_cost=£150` is accepted and stored
+verbatim; `annual_kwh=4,200` is accepted, `quite a lot` and `999999` are refused with
+the expected form; `household_size=6` is refused with the option list.
