@@ -7,6 +7,7 @@ export * from './events.js';
 export * from './chat.js';
 export * from './widget.js';
 export * from './leads.js';
+export * from './consent.js';
 export * from './qualification.js';
 export * from './catalogue.js';
 export * from './knowledge.js';

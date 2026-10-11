@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_LEAD_RETENTION_DAYS,
   DEV_SECRET,
   assertProductionReady,
   capabilityReport,
@@ -185,5 +186,75 @@ describe('rate limit configuration', () => {
       },
     });
     expect(productionWarnings(config)).toEqual([]);
+  });
+});
+
+describe('retention configuration', () => {
+  afterEach(() => {
+    delete process.env['SUNNY_LEAD_RETENTION_DAYS'];
+  });
+
+  it('keeps enquiries for a bounded window by default', () => {
+    expect(loadConfig().leadRetentionDays).toBe(DEFAULT_LEAD_RETENTION_DAYS);
+    // Two years, and the assertion is on the order of magnitude rather than the
+    // exact number: a default that drifted to a week would remove enquiries before
+    // an installer had rung back, and one that drifted to a century is not a window.
+    expect(DEFAULT_LEAD_RETENTION_DAYS).toBeGreaterThanOrEqual(365);
+    expect(DEFAULT_LEAD_RETENTION_DAYS).toBeLessThanOrEqual(3650);
+  });
+
+  it('takes a window from the environment', () => {
+    process.env['SUNNY_LEAD_RETENTION_DAYS'] = '90';
+    expect(loadConfig().leadRetentionDays).toBe(90);
+  });
+
+  it('reads zero as "keep", which is the one value that is not a window', () => {
+    // Not a mistake to be corrected: it is how an operator says the deployment
+    // keeps what it holds, and the sweep is disabled rather than run with a
+    // zero-length window that would erase everything on boot.
+    process.env['SUNNY_LEAD_RETENTION_DAYS'] = '0';
+    expect(loadConfig().leadRetentionDays).toBe(0);
+  });
+
+  it('falls back to the default rather than to NaN for a value it cannot read', () => {
+    for (const nonsense of ['abc', '-1', '']) {
+      process.env['SUNNY_LEAD_RETENTION_DAYS'] = nonsense;
+      // NaN compares false against everything, so a window of NaN would silently
+      // expire nothing at all -- a retention promise that quietly does not run,
+      // which is the failure mode worth the most care. A negative window would
+      // expire everything, on every boot, which is the other one.
+      expect(loadConfig().leadRetentionDays).toBe(DEFAULT_LEAD_RETENTION_DAYS);
+    }
+  });
+
+  it('says so at boot when a production deployment keeps everything forever', () => {
+    process.env['SUNNY_LEAD_RETENTION_DAYS'] = '0';
+    const warnings = productionWarnings(
+      loadConfig({
+        nodeEnv: 'production',
+        allowedOrigins: ['https://example.test'],
+        sessionSecret: 'a-real-secret',
+      }),
+    );
+    expect(warnings.join(' ')).toContain('SUNNY_LEAD_RETENTION_DAYS');
+    expect(warnings.join(' ')).toContain('indefinitely');
+  });
+
+  it('does not mention retention when a window is set', () => {
+    expect(productionWarnings(loadConfig({ nodeEnv: 'production' })).join(' ')).not.toContain(
+      'SUNNY_LEAD_RETENTION_DAYS',
+    );
+  });
+
+  it('reports the window and whether anything is enforcing it', () => {
+    expect(capabilityReport(loadConfig()).retention).toEqual({
+      windowDays: DEFAULT_LEAD_RETENTION_DAYS,
+      sweeping: true,
+    });
+    // Both halves, because a window nothing carries out is a policy rather than a
+    // practice -- and `/healthz` is where an operator checks without reading the
+    // boot log.
+    process.env['SUNNY_LEAD_RETENTION_DAYS'] = '0';
+    expect(capabilityReport(loadConfig()).retention).toEqual({ windowDays: 0, sweeping: false });
   });
 });

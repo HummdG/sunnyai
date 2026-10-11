@@ -2713,3 +2713,145 @@ with a guard that the rival's trail is non-empty. The full browser suite is unaf
 `apps/api/src/agent/tools.ts` (`EFFECTFUL_TOOL_NAMES`), `apps/api/src/server.ts`,
 `apps/api/test/audit.test.ts`, `tests/security/tenant-isolation.test.ts`,
 `docs/requirements-matrix.md` (§4's audit row, `Not started` → `Partial`).
+
+## D-44. Consent provenance is what the server observed, and retention is the same promise from the other side
+
+**Context.** §4's acceptance criterion is one sentence — "Lead and qualification records have
+explicit consent provenance, source, timestamps, retention and deletion support" — and the
+matrix row was `Partial` with a note that was honest about the gap: "consent is enforced
+server-side; `LeadRecord` carries `createdAt`, `sessionId`, `conversationId`. Unreal: no
+retention policy or deletion capability." Three things in it needed deciding rather than
+typing. What may a consent record _contain_, given that its whole value is that it can be
+believed? What does "retention" mean for a deployment whose records belong to installers with
+their own obligations? And who is allowed to erase what?
+
+**Consent provenance is what the server saw, not what a caller says it saw.** A stored lead
+carries exactly three things: the wording's **version**, the **surface** the lead came from
+(`widget` or `form`, a closed vocabulary), and the page **origin**. The wording's text is not
+copied into the row — `CONSENT_WORDINGS` holds it keyed by version, so a row names a wording
+rather than being trusted to describe one, and `consentWording()` returns **null** for a
+version this build does not have rather than attaching some other version's text to it. The
+origin is read from the **signed session token**, not from the request: a provenance field an
+attacker can fill in is worse than no field at all, because it reads as evidence. This is D-43's
+reasoning applied to a different record — there the guarantee was the shape of the type, here it
+is that every word of the record is one the server chose.
+
+Two smaller choices follow from the same stance. There is **no separate consent timestamp**:
+`createdAt` _is_ the instant of the agreement, and a second clock for one event is a second clock
+that can disagree with the first. And a row written before the field existed keeps **no**
+`consent` key, because absent means "we cannot name what that visitor agreed to" — a true
+statement — whereas back-filling the field at load time would invent provenance for a person
+whose agreement we can no longer produce. `LeadRecord.consent` is therefore optional and stays
+optional.
+
+**Who may erase what.** Two routes, and the asymmetry between them is the point.
+
+- `DELETE /v1/conversation`, on the visitor's own session token, erases the transcript, the
+  standing qualification answers and every enquiry filed from that session — and answers **200
+  either way**, because "erase what you hold about me" asked by someone we hold nothing about
+  should be answered rather than refused. A 404 would make the visitor work out whether their
+  first request landed.
+- `DELETE /v1/leads/:leadId`, on the installer's admin token, erases one enquiry and names it in
+  the response, so a caller can tell a deletion from a no-op. It returns **404** for an id that is
+  not this tenant's, and does so in exactly the same way as for one that never existed: "there is
+  no such row here" and "that row is not yours" are one answer on purpose, because telling them
+  apart is what would let one installer probe another's lead ids.
+- **A deleted enquiry takes its conversation only when it was the last enquiry from that
+  session.** Two submissions from one conversation are two records, and erasing one is not a
+  request to erase the other's context; but a transcript left behind after the enquiry it belonged
+  to was erased is personal data retained with nothing left to justify it.
+
+**Retention is the deployment asking itself.** Deletion is a visitor remembering to ask; retention
+is the system not depending on that. `SUNNY_LEAD_RETENTION_DAYS` sets the window (730 days by
+default), and **`0` means "we keep these"** — the sweep is disabled and says so, rather than
+running with a zero-length window that would erase the deployment on boot. The window is measured
+by `createdAt` for a lead, because an enquiry was made once and has not been touched since, and by
+`updatedAt` for a conversation, because a transcript is still being written while the visitor is in
+it and expiring one on the day it opened would delete something somebody is looking at. A row
+whose date will not parse is **kept**: `Date.parse` gives NaN, every comparison with NaN is false,
+and so a corrupt timestamp fails the test for removal rather than passing it — which is the
+direction a deletion should fail in.
+
+The sweep runs **once at boot** and then every six hours, floored at a minute. The boot run is not
+belt-and-braces: an interval alone would let a deployment that restarts with every release push the
+sweep past the end of its own window, and the one schedule guaranteed never to fire is the one that
+only counts down from boot. It writes **one `retention.purge` event per installer, and only when
+something was removed** — six lines a day saying "retention ran, erased 0" is how a log becomes
+something people stop reading. Each event carries that installer's counts and no visitor's
+identity, because naming the people whose data reached the end of its window would put a second
+copy of exactly that data into the audit trail (D-43). Its result is reported per tenant for that
+reason rather than as a deployment-wide total.
+
+**The tests found three defects before release, and they are why this entry is long.** Each was
+invisible from a response and visible in the stored bytes:
+
+1. **The load was not once.** `#ensure` was a `#loaded` boolean read across an `await`, and the
+   boot sweep and the first request reach it together by construction. Both saw `false`, both read
+   the lead files, and every lead sat in memory **twice** — and since a rewrite writes what is in
+   memory, the duplicate would have gone back to disk at the first deletion. The load is now a
+   memoised promise, with a failure deliberately not cached so the next caller may retry.
+2. **Two rewrites in flight lost each other.** They shared one scratch filename and one in-memory
+   snapshot: the second failed with `ENOENT` (a deletion reported to the installer as an error),
+   and a snapshot taken _before_ an erasure could be swapped in _after_ it — putting a visitor's
+   deleted enquiry back on disk. Rewrites now queue behind one another through one chain in
+   `FileStore`; appends deliberately stay outside it, so a visitor's own message never waits on a
+   background sweep. The pairing is not contrived: the sweep runs at boot and on a timer, so it
+   overlaps served requests by construction, which is exactly what makes it worth ten lines.
+3. **A visitor whose only record was an enquiry could not erase it.** `deleteConversation` returned
+   early when the session had no transcript — the state of _every_ visitor the form route serves,
+   who files an enquiry without ever opening the assistant — so the request was answered "deleted"
+   with the enquiry still on disk. The transcript is now erased when there is one, and the
+   session's enquiries either way.
+
+**Also closed on the way.** `/healthz` reports `retention: { windowDays, sweeping }`, because a
+window nothing carries out is a policy rather than a practice, and an operator asking "how long do
+you keep this" should not have to read a boot log. A production deployment running with the window
+at `0` gets a boot **warning** rather than a refusal, in the same spirit as D-10: it is a decision
+an operator may genuinely mean, and refusing to boot over it would be answered by whoever is on
+call setting a number they have not thought about.
+
+**Recorded, not fixed.** The default window is **provisional** — plan §15 lists the retention
+period as a commercial decision, so it is configuration with the chosen default recorded here
+rather than presented as the business's answer, and §6.2's session-persistence row now says the
+same thing. An installer can erase an enquiry but not a transcript they hold of a visitor who filed
+none: erasing a person's own record is theirs to ask for rather than a second route somebody else
+takes, and an admin surface for it belongs with the dashboard (blocker 4). The audit events _about_
+a deletion are kept — deliberately, since they hold no user content (D-43) — so "erased" is true of
+the enquiry and not of the fact that it was erased. Nothing exports, and §9's other items on that
+line (export, privacy notices, keeping PII out of analytics) are untouched. And all of it is held
+by `FileStore`, not Firestore.
+
+**Verified.** `npm run verify` is **1016 tests across 30 files**, green.
+`apps/api/test/consent.test.ts` is 15 of them, through a real server and a real store on disk: the
+wording version, the surface and the signed origin of both surfaces; an origin header the CORS hook
+allows and which is still not what is stored; a token minted in the shape an earlier release signed
+(no `origin` claim) recording `null` rather than a guess; a row from that earlier release read back
+with no `consent` invented for it; the visitor erasure erasing the file rather than emptying it; the
+second erasure answered rather than refused; the installer's erasure leaving its neighbour and the
+conversation alone and taking both on the last enquiry; 404 for the same id afterwards; and the
+trail searched for the erased visitor's email and name, because the record of an erasure must not be
+a second copy of what was erased. `apps/api/test/retention.test.ts` is 8 more, in two halves: the
+**rule** driven directly through `store.purgeExpired` (the counts asserted exactly, the transcript
+taken by `updatedAt` with its neighbour kept, a twenty-line transcript counted as one conversation,
+an undateable row kept, and the removed bytes read back off disk), and the **sweep** driven through
+`startRetention` itself (the boot run waited for by its effect, one event per installer carrying its
+own counts, silence when nothing was removed, and nothing at all — no removal and no record — when
+the window is `0`), plus the case that would have caught defect 2: a purge and an erasure fired at
+the same moment, asserted to leave neither removal lost. `apps/api/test/config.test.ts` gained the
+env cases (`0` is "keep"; junk and negatives fall back to the default rather than to NaN) and the
+`/healthz` block. `tests/security/tenant-isolation.test.ts` now sweeps the two **DELETE** routes
+against every credential as well — the inventory is built by walking `printRoutes`, so a new route
+cannot be invisible to it — with the one route whose fixture cannot survive the sweep declaring
+that it consumes it, and two new cases proving one installer cannot erase another's enquiry by
+naming its id.
+
+**Evidence.** `packages/contracts/src/consent.ts`, `packages/contracts/src/leads.ts`
+(`deletionResponseSchema`), `packages/contracts/src/audit.ts` (`leads.delete`, `conversation.delete`,
+`retention.purge`), `apps/api/src/sessions.ts` (the signed `origin` claim),
+`apps/api/src/agent/tools.ts` (`consentFor`), `apps/api/src/server.ts` (both DELETE routes and the
+`onClose` that stops the sweep), `apps/api/src/store.ts` (`deleteLead`/`deleteConversation`/
+`purgeExpired` and the rewrite queue), `apps/api/src/retention.ts`, `apps/api/src/config.ts`
+(`SUNNY_LEAD_RETENTION_DAYS`, the production warning, the `/healthz` block),
+`apps/api/test/consent.test.ts`, `apps/api/test/retention.test.ts`, `apps/api/test/config.test.ts`,
+`tests/security/tenant-isolation.test.ts`, `docs/requirements-matrix.md` (§4's consent row,
+`Partial` → `Done`).

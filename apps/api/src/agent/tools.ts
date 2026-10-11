@@ -1,5 +1,11 @@
-import { PAGE_ACTIONS, PRODUCT_CATEGORIES, TOOL_NAMES } from '@sunny/contracts';
-import type { PackageOption, Product, ProductCategory, RecommendationWant } from '@sunny/contracts';
+import { CONSENT_VERSION, PAGE_ACTIONS, PRODUCT_CATEGORIES, TOOL_NAMES } from '@sunny/contracts';
+import type {
+  LeadConsent,
+  PackageOption,
+  Product,
+  ProductCategory,
+  RecommendationWant,
+} from '@sunny/contracts';
 import { searchChunks, type KnowledgeIndex } from '@sunny/knowledge';
 import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
@@ -59,6 +65,16 @@ export interface ToolContext {
    */
   audit?: Auditor;
   /**
+   * The page origin this session was opened from, when the session named one.
+   *
+   * Carried down so a lead filed through the assistant records where the
+   * conversation happened, which is the `origin` in its consent provenance. The
+   * value comes from the signed session claims rather than from anything in the
+   * turn, so a caller cannot choose it here either. See
+   * `packages/contracts/src/consent.ts`.
+   */
+  origin?: string | null;
+  /**
    * The installer's own documents, already chunked.
    *
    * Passed in rather than fetched inside the tool because the tool must not need
@@ -89,6 +105,19 @@ interface ToolDefinition {
 function str(args: Record<string, unknown>, key: string): string | null {
   const value = args[key];
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
+/**
+ * The provenance recorded against a lead filed from inside a conversation.
+ *
+ * A tool call has no caller-supplied surface to read, and that is the point: the
+ * only surface the assistant reaches a visitor through is the widget, so the
+ * value here is a constant rather than a parameter. The one part that varies --
+ * where the page was -- comes from the signed session, not from the model's
+ * arguments, because a model that could name an origin could name any origin.
+ */
+function consentFor(ctx: ToolContext): LeadConsent {
+  return { version: CONSENT_VERSION, surface: 'widget', origin: ctx.origin ?? null };
 }
 
 function num(args: Record<string, unknown>, key: string): number | null {
@@ -778,6 +807,7 @@ const DEFINITIONS: ToolDefinition[] = [
         postcode: str(args, 'postcode'),
         summary: str(args, 'summary') ?? 'Enquiry from the website assistant',
         score: null,
+        consent: consentFor(ctx),
         createdAt: new Date().toISOString(),
       };
       await ctx.store.saveLead(lead);
@@ -821,6 +851,7 @@ const DEFINITIONS: ToolDefinition[] = [
         postcode: null,
         summary: `Callback requested${str(args, 'when') ? ` (${str(args, 'when')})` : ''}`,
         score: null,
+        consent: consentFor(ctx),
         createdAt: new Date().toISOString(),
       };
       await ctx.store.saveLead(lead);

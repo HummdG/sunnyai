@@ -3,6 +3,7 @@ import {
   badRequestFromZod,
   catalogueUploadRequestSchema,
   chatRequestSchema,
+  CONSENT_VERSION,
   leadRequestSchema,
   publicWidgetIdSchema,
   qualificationAnswerSchema,
@@ -48,8 +49,9 @@ import {
   type RateLimitRule,
 } from './ratelimit.js';
 import { explain, nextQuestion, reconcile, validateAnswer } from './questionnaire.js';
+import { startRetention } from './retention.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
-import { newId, type Store } from './store.js';
+import { newId, type DeletedConversation, type Store } from './store.js';
 import type { TenantRegistry } from './tenants.js';
 
 export interface ServerDeps {
@@ -337,16 +339,24 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     }
 
     // A session token presented back to us resumes that session; otherwise this
-    // is a fresh visitor.
+    // is a fresh visitor. Only a token for *this* tenant resumes: a token for
+    // another one is treated as no token at all rather than carried across.
     const resumedClaims = verifySessionToken(body.data.sessionToken, config.sessionSecret, now());
-    const sessionId =
-      resumedClaims && resumedClaims.tenantId === tenant.id
-        ? resumedClaims.sessionId
-        : newId('sess');
+    const resuming = resumedClaims !== null && resumedClaims.tenantId === tenant.id;
+    const sessionId = resuming ? resumedClaims.sessionId : newId('sess');
+
+    // The accepted origin goes *into the token*, and this is what makes it usable
+    // as consent provenance later. A lead is filed long after the session opened,
+    // by a request that carries no origin of its own -- and a header on that later
+    // request would be the caller's claim, not evidence about the page. Signed
+    // here, the value is fixed for the life of the session and the caller can
+    // carry it but cannot alter it. A resumed session keeps the origin it was
+    // opened with, for the same reason: the page does not move.
+    const acceptedOrigin = resuming ? (resumedClaims.origin ?? origin ?? null) : (origin ?? null);
 
     const expiresAt = now() + SESSION_TTL_MS;
     const sessionToken = issueSessionToken(
-      { sessionId, tenantId: tenant.id, expiresAt },
+      { sessionId, tenantId: tenant.id, expiresAt, origin: acceptedOrigin },
       config.sessionSecret,
     );
 
@@ -427,6 +437,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // "which conversation was the callback promised in" is a question the trail
     // should be able to answer. Reads are not -- see `EFFECTFUL_TOOL_NAMES`.
     const audit = auditFor(request);
+    // From the signed claims, so a lead filed by a tool records where the page was
+    // without the tool having to ask -- and without the model being able to name it.
+    const origin = claims.origin ?? null;
 
     async function* frames(): AsyncGenerator<string> {
       const frame = (event: ChatStreamEvent): string => `data: ${JSON.stringify(event)}\n\n`;
@@ -448,6 +461,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           sunscanConnected,
           knowledge,
           audit,
+          origin,
           signal: abort.signal,
         })) {
           if (abort.signal.aborted) break;
@@ -476,6 +490,67 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return {
       conversationId: conversation?.id ?? null,
       turns: conversation?.turns ?? [],
+    };
+  });
+
+  /**
+   * A visitor erasing their own conversation.
+   *
+   * The plan's §4 asks for deletion, and the subject of the request has to be the
+   * person the data is about: the credential is the visitor's own session token,
+   * so a caller can only ever reach their own conversation. There is no `sessionId`
+   * parameter, exactly as on the read above -- a body field that had to agree with
+   * the token would be a second source of truth for the one value that decides
+   * whose data this is.
+   *
+   * It erases the transcript, the standing answers and any enquiry filed from the
+   * session, because the transcript *is* the qualification record: a visitor
+   * describing their home, their postcode and their plans is the personal data the
+   * request is about, and deleting the lead while keeping the conversation would
+   * answer the request on a technicality.
+   *
+   * Idempotent, and 200 either way. "Erase what you have about me" asked by
+   * someone we hold nothing about is answered, not refused; a 404 would make the
+   * caller's job harder for no privacy gain, and the response says plainly what
+   * was there.
+   */
+  app.delete('/v1/conversation', async (request, reply) => {
+    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
+    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
+
+    // Keyed by session on the chat rule's numbers: this is an authenticated call
+    // that costs no model tokens, but a leaked session token should not be an
+    // unlimited write amplifier either.
+    enforceRateLimit(
+      request,
+      reply,
+      'conversation-delete',
+      claims.sessionId,
+      config.rateLimit.rules.chat,
+    );
+
+    const audit = auditChannel(request, 'conversation.delete', { kind: 'conversation', id: null });
+    const erased = await store.deleteConversation(claims.tenantId, claims.sessionId);
+
+    // Recorded even though the caller is the visitor acting on their own record,
+    // and not only the privileged acts: an installer asking "why is this enquiry
+    // gone from my list" is asking about precisely this event, and a deletion the
+    // trail cannot explain is the one kind it most needs to.
+    await audit('permitted', {
+      tenantId: claims.tenantId,
+      sessionId: claims.sessionId,
+      target: { kind: 'conversation', id: erased.conversationId },
+      detail: {
+        conversations: erased.conversationId === null ? 0 : 1,
+        leads: erased.leads.length,
+      },
+    });
+
+    return {
+      deleted: true,
+      leadId: null,
+      conversationId: erased.conversationId,
+      leadsDeleted: erased.leads.length,
     };
   });
 
@@ -617,6 +692,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       // No score. Producing one would mean inventing a qualification model, and a
       // number the installer cannot interpret is worse than a blank.
       score: null,
+      // What the server observed about how this agreement was given, not what the
+      // caller said about it: the wording version is ours, the surface is ours,
+      // and the origin is the one signed into this session. See
+      // `packages/contracts/src/consent.ts` and D-44.
+      consent: { version: CONSENT_VERSION, surface: 'form', origin: claims.origin ?? null },
       createdAt: new Date(now()).toISOString(),
       clientLeadId: body.data.clientLeadId,
     });
@@ -694,6 +774,99 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // fact a review wants anyway.
     await audit('permitted', { tenantId, detail: { leads: leads.length } });
     return { leads };
+  });
+
+  /**
+   * An installer erasing one enquiry.
+   *
+   * Same credential and same shape as the read above -- admin token, tenant named
+   * in the query -- and for the same reason: the caller is the installer, not the
+   * visitor, so the tenant is theirs to name and the stored row is theirs to
+   * remove. A visitor's own erasure request goes to `DELETE /v1/conversation`,
+   * which is the only way this API lets someone act on their own data.
+   *
+   * **The conversation goes with the last enquiry from it.** The transcript is the
+   * visitor's answers, and a transcript kept after the enquiry it belonged to was
+   * erased is personal data retained with nothing left to justify it. It is erased
+   * only when no other enquiry shares that session, though: two submissions from
+   * one conversation are two records, and erasing one is not a request to erase
+   * the other.
+   */
+  app.delete('/v1/leads/:leadId', async (request, reply) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'The lead list is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    const audit = auditChannel(request, 'leads.delete', { kind: 'lead_list', id: null });
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      await audit('denied', { reason: 'bad_credential' });
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+
+    const { tenantId } = request.query as { tenantId?: string };
+    if (!tenantId) throw new ApiError('bad_request', 'A tenantId is required.');
+    if (!tenants.all.some((tenant) => tenant.id === tenantId)) {
+      await audit('failed', { reason: 'unknown_tenant' });
+      throw new ApiError('not_found', 'Unknown tenant.');
+    }
+
+    // Limited on the catalogue's numbers: an admin-token write, so the limit is
+    // here to stop a leaked token becoming an unlimited delete loop rather than to
+    // shape ordinary use.
+    enforceRateLimit(
+      request,
+      reply,
+      'leads-delete',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.catalogue,
+    );
+
+    const { leadId } = request.params as { leadId: string };
+    const lead = await store.deleteLead(tenantId, leadId);
+    if (!lead) {
+      // Another tenant's id lands here too, and deliberately: `deleteLead` treats
+      // "not here" and "not yours" as one answer, so this route cannot be used to
+      // learn which lead ids another installer holds.
+      await audit('failed', {
+        tenantId,
+        reason: 'not_found',
+        target: { kind: 'lead_list', id: leadId },
+      });
+      throw new ApiError('not_found', 'No such lead.');
+    }
+
+    // Does any enquiry still share this conversation? Counted after the deletion,
+    // so the row just removed cannot answer for itself.
+    const remaining = await store.listLeads(tenantId);
+    const lastOfItsConversation = !remaining.some((other) => other.sessionId === lead.sessionId);
+    const erasedConversation: DeletedConversation = lastOfItsConversation
+      ? await store.deleteConversation(tenantId, lead.sessionId)
+      : { conversationId: null, leads: [] };
+
+    await audit('permitted', {
+      tenantId,
+      target: { kind: 'lead_list', id: leadId },
+      detail: {
+        conversations: erasedConversation.conversationId === null ? 0 : 1,
+        leads: 1 + erasedConversation.leads.length,
+      },
+    });
+
+    return {
+      deleted: true,
+      leadId,
+      conversationId: erasedConversation.conversationId,
+      // Only the ones that went *with* the conversation. The lead named in the
+      // path is reported by `leadId`, and counting it twice would make the two
+      // fields disagree about the same row.
+      leadsDeleted: erasedConversation.leads.length,
+    };
   });
 
   // ─── catalogue ─────────────────────────────────────────────────────────────
@@ -1215,6 +1388,22 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       want,
       now: new Date(now()).toISOString(),
     });
+  });
+
+  // ─── retention ─────────────────────────────────────────────────────────────
+  //
+  // Started here rather than in `main.ts` so it shares the server's clock and
+  // auditor, and stopped on close so a test process is not left with a live timer.
+  // The rule and its reasoning are in `retention.ts`.
+  const retention = startRetention({
+    store,
+    auditor,
+    retentionMs: config.leadRetentionDays * 24 * 60 * 60 * 1000,
+    now,
+    onFailure: (error) => app.log.error({ err: error }, 'retention sweep failed'),
+  });
+  app.addHook('onClose', () => {
+    retention.stop();
   });
 
   return app;

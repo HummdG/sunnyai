@@ -126,12 +126,37 @@ export interface ServerConfig {
    * tenant cannot fail, which makes it worse than no sweep at all.
    */
   sandboxTenant: boolean;
+  /**
+   * How long a lead and its conversation are kept before the sweep removes them.
+   *
+   * In days, because that is the unit a retention policy is written in, converted
+   * to a window by the caller. `0` means keep indefinitely, which is the one value
+   * that turns the sweep off: an operator who is required to hold enquiries for a
+   * statutory period sets a number at or above it, and one whose policy is "we do
+   * not delete" says so explicitly rather than by leaving a variable unset.
+   *
+   * It applies to conversations as well as leads, because a conversation *is* the
+   * qualification record for the enquiry -- deleting the lead and keeping the
+   * transcript would leave a visitor's answers on file with nothing pointing at
+   * them, which is worse for them than either end of the choice.
+   */
+  leadRetentionDays: number;
 }
 
 function env(name: string): string | undefined {
   const value = process.env[name];
   return value === undefined || value.trim() === '' ? undefined : value.trim();
 }
+
+/**
+ * Two years, and the number is a starting position rather than a legal opinion.
+ *
+ * It is long enough to cover a heating season plus the follow-up on an enquiry
+ * that went quiet, and short enough that the deployment is not quietly becoming an
+ * archive. An installer whose obligation is shorter sets it shorter; one who is
+ * required to hold records for longer sets it longer.
+ */
+export const DEFAULT_LEAD_RETENTION_DAYS = 730;
 
 export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   const nodeEnv = (env('NODE_ENV') ?? 'development') as ServerConfig['nodeEnv'];
@@ -156,6 +181,22 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     : undefined;
 
   const origins = env('WIDGET_ALLOWED_ORIGINS');
+
+  // The window is read here rather than computed at every sweep for the same
+  // reason as everything else in this file: one place decides, and the value on
+  // the config is the value in force.
+  //
+  // An unparseable value falls back to the default instead of becoming NaN. NaN
+  // is the dangerous outcome, not the safe one: every age comparison against it is
+  // false, so a typo would silently retain everything forever -- the opposite of
+  // what an operator who bothered to set this variable was asking for.
+  const retentionRaw = env('SUNNY_LEAD_RETENTION_DAYS');
+  const parsedRetention =
+    retentionRaw === undefined ? DEFAULT_LEAD_RETENTION_DAYS : Number(retentionRaw);
+  const leadRetentionDays =
+    Number.isFinite(parsedRetention) && parsedRetention >= 0
+      ? Math.trunc(parsedRetention)
+      : DEFAULT_LEAD_RETENTION_DAYS;
 
   // Defaults are generous on purpose. A limit that fires on ordinary use is
   // worse than no limit: it teaches the operator to switch it off, and then the
@@ -243,6 +284,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     // whose default depends on the environment is one a staging deployment can
     // silently lose, and the sweep would then pass by having nothing to compare.
     sandboxTenant: ['1', 'true'].includes(env('SUNNY_SANDBOX_TENANT') ?? ''),
+    leadRetentionDays,
     ...overrides,
   };
 }
@@ -304,6 +346,19 @@ export function productionWarnings(config: ServerConfig): string[] {
     );
   }
 
+  if (config.leadRetentionDays <= 0) {
+    // A warning rather than a refusal, in the same spirit as the one above: an
+    // operator may genuinely mean it, and refusing to boot over a retention policy
+    // would be answered by whoever is on call setting a number they have not
+    // thought about. But "we keep every enquiry forever" is not a default anyone
+    // should discover from a support ticket, so it is said out loud at boot.
+    warnings.push(
+      'SUNNY_LEAD_RETENTION_DAYS is 0, so enquiries are kept indefinitely. ' +
+        'Set a retention window before launch, or confirm the decision and record it ' +
+        '(docs/DECISIONS.md, D-44).',
+    );
+  }
+
   return warnings;
 }
 
@@ -329,6 +384,21 @@ export interface CapabilityReport {
   persistence: { available: boolean; kind: string };
   /** Whether an installer can load a catalogue into this deployment. */
   catalogue: { uploadsEnabled: boolean; reason: string | null };
+  /**
+   * How long an enquiry is kept, and whether anything is enforcing it.
+   *
+   * Both numbers, because they answer different questions and only one of them is
+   * a promise: `windowDays` is what the deployment says it keeps, and `sweeping`
+   * is whether a running process is doing so. A window with the sweep disabled is
+   * a policy nothing carries out, and an operator reading `/healthz` should not
+   * have to infer that from a boot log they may not have seen.
+   */
+  retention: { windowDays: number; sweeping: boolean };
+}
+
+/** The retention half of the capability report: one place, one reading of the rule. */
+function retentionReport(config: ServerConfig): CapabilityReport['retention'] {
+  return { windowDays: config.leadRetentionDays, sweeping: config.leadRetentionDays > 0 };
 }
 
 export function capabilityReport(config: ServerConfig): CapabilityReport {
@@ -355,6 +425,7 @@ export function capabilityReport(config: ServerConfig): CapabilityReport {
       escalation: { available: false, model: null, reason: 'GEMINI_API_KEY is not set.' },
       persistence: { available: true, kind: 'file' },
       catalogue,
+      retention: retentionReport(config),
     };
   }
 
@@ -387,5 +458,6 @@ export function capabilityReport(config: ServerConfig): CapabilityReport {
         },
     persistence: { available: true, kind: 'file' },
     catalogue,
+    retention: retentionReport(config),
   };
 }

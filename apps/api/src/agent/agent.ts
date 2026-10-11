@@ -90,6 +90,15 @@ export interface TurnInput {
    * is optional rather than required.
    */
   audit?: Auditor;
+  /**
+   * The page origin this session was opened from, when it named one.
+   *
+   * Read from the signed session claims by the route and threaded down so a lead
+   * filed by a tool records it as consent provenance. Absent means the session
+   * named no origin, which is a legitimate state and different from a request that
+   * simply did not carry the field.
+   */
+  origin?: string | null;
   signal?: AbortSignal;
 }
 
@@ -135,6 +144,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     sunscanConnected: input.sunscanConnected,
     knowledge: input.knowledge ?? EMPTY_KNOWLEDGE,
     ...(input.audit ? { audit: input.audit } : {}),
+    origin: input.origin ?? null,
   };
 
   let text = '';

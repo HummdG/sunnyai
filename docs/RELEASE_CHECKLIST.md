@@ -27,7 +27,7 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **969 passing across 28 files**
+- [ ] `npm run test` — currently **1016 passing across 30 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
@@ -126,6 +126,11 @@ Run `npm run verify` — it chains the first four.
 - [ ] Confirm the chosen model ids against the surface **actually in use**. Every
       id verified in this project came from Vertex AI documentation and none has
       been checked against the Developer API catalogue.
+- [ ] **Set `SUNNY_LEAD_RETENTION_DAYS` deliberately.** The default is `730`; `0`
+      means the deployment keeps enquiries and transcripts indefinitely, which
+      production warns about at boot but does not refuse. Whatever is chosen is
+      reported on `/healthz` under `retention` so it can be checked without
+      reading the boot log (D-44).
 
 ## 3. Infrastructure
 
@@ -212,14 +217,20 @@ Run `npm run verify` — it chains the first four.
 - [ ] Token usage and cost per conversation are recorded
 - [ ] Somebody reads the **audit trail**. It is written — one event per
       privileged route call and per effectful tool call, refusals included, served
-      by `GET /v1/audit/events` (D-43) — and **nothing reads it yet**, and nothing
-      rotates it: it is an append-only JSONL file per tenant with no retention
-      policy, which is not on its own an answer to "how long do you keep this".
-      Nor can it yet say _who_: every event's actor is `admin` with a **null** id,
-      because the only privileged credential is one deployment-wide token, so the
-      trail distinguishes what happened from what _a person_ did only once
-      dashboard authentication exists (blocker 4). Refusals that named no valid
-      credential are stored under no tenant, and no route serves them.
+      by `GET /v1/audit/events` (D-43) — and **nothing reads it yet, and nothing
+      rotates it**. The records it describes now have a life: a retention window
+      (`SUNNY_LEAD_RETENTION_DAYS`, default 730 days, `0` meaning keep) sweeps
+      enquiries and stale transcripts on a boot and a timer, and a visitor or an
+      installer can have a record erased outright (D-44). The **log itself** is
+      still an append-only JSONL file per tenant with no rotation or expiry of its
+      own, which is the open decision — a log that outlives the records it
+      describes is itself a retention question the plan's §4 row for it does not
+      settle (requirements-matrix row 229). Nor can it yet say _who_: every
+      event's actor is `admin` with a **null** id, because the only privileged
+      credential is one deployment-wide token, so the trail distinguishes what
+      happened from what _a person_ did only once dashboard authentication exists
+      (blocker 4). Refusals that named no valid credential are stored under no
+      tenant, and no route serves them.
 - [ ] A dashboard exists for `GET /v1/dashboard/metrics` — the route is not built
 
 ## 7. Rollback
@@ -258,3 +269,12 @@ Run `npm run verify` — it chains the first four.
 - [ ] Deploying a TypeScript ADK agent to Agent Runtime is **undocumented**
       (ADR-003).
 - [ ] Firebase App Check caps at **250 domains**, which bounds tenant scale.
+- [ ] **The retention window is a technical default, not an approved policy.**
+      Enquiries and stale transcripts are swept on a 730-day window by default
+      (`SUNNY_LEAD_RETENTION_DAYS`), and a visitor or an installer can have a
+      record erased (D-44). Both mechanisms work and are tested; the **number**,
+      and the retention of the audit log itself, are not business-approved and
+      the plan's own §4 row for them is still `Partial` (requirements-matrix row
+      229). The consent wording is versioned by the deployment
+      (`CONSENT_WORDINGS`), and no wording has been reviewed by anyone qualified
+      to approve it.

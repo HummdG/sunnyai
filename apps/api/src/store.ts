@@ -1,7 +1,13 @@
-import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { AuditEvent, IngestionJob, Product, RecommendationWant } from '@sunny/contracts';
+import type {
+  AuditEvent,
+  IngestionJob,
+  LeadConsent,
+  Product,
+  RecommendationWant,
+} from '@sunny/contracts';
 
 /**
  * Persistence, behind an interface.
@@ -107,6 +113,18 @@ export interface LeadRecord {
   createdAt: string;
   /** The submitting page's idempotency key, when it sent one. See `saveLead`. */
   clientLeadId?: string;
+  /**
+   * What the visitor agreed to and where -- the wording's version, the surface
+   * and the session's origin. See `packages/contracts/src/consent.ts`.
+   *
+   * Optional because rows written before this field existed are still on disk and
+   * are still readable, and because back-filling them at load time would mean
+   * *inventing* provenance for a person who agreed to something we can no longer
+   * name. Absence therefore means "unknown", which is a fact; a fabricated
+   * default would not be. Every lead written now carries one, and a test asserts
+   * that from both directions rather than leaving it to habit.
+   */
+  consent?: LeadConsent;
 }
 
 /**
@@ -131,6 +149,38 @@ export interface AppendResult {
   conversation: Conversation;
   /** False when the turn was already present and nothing was written. */
   appended: boolean;
+}
+
+/**
+ * What a retention sweep removed.
+ *
+ * Counts rather than a list of visitors: the audit event for the sweep needs to
+ * say that it happened and how much, and naming the people whose data reached the
+ * end of its window would put a second copy of exactly that data into the audit
+ * trail -- the thing `packages/contracts/src/audit.ts` exists to prevent.
+ */
+export interface PurgeResult {
+  leads: number;
+  conversations: number;
+  /**
+   * One entry per tenant that had at least one record removed, sorted by id.
+   *
+   * Broken down rather than a bare list of ids because the audit event the sweep
+   * writes is per tenant -- an installer asking "did retention run against my
+   * data, and how much went" is asking about their own deployment. And these are
+   * ids and counts only: the audit event records how much reached the end of its
+   * window, never *who*, because naming the visitors would put a second copy of
+   * exactly the data the sweep just removed into the trail. See
+   * `packages/contracts/src/audit.ts`.
+   */
+  tenants: Array<{ tenantId: string; leads: number; conversations: number }>;
+}
+
+export interface DeletedConversation {
+  /** The conversation's own id, or null when this session had none to erase. */
+  conversationId: string | null;
+  /** The leads that were filed from it and went with it. */
+  leads: LeadRecord[];
 }
 
 export interface Store {
@@ -174,6 +224,45 @@ export interface Store {
    */
   saveLead(lead: LeadRecord): Promise<LeadResult>;
   listLeads(tenantId: string, limit?: number): Promise<LeadRecord[]>;
+  /**
+   * Erase one lead, scoped to the tenant that is allowed to see it.
+   *
+   * Returns the row that was removed, or null when there was none -- and null is
+   * deliberately the answer for another tenant's lead too. "There is no such row
+   * here" and "that row exists but is not yours" are the same response on purpose:
+   * a route that told them apart would let one installer probe another's lead ids.
+   *
+   * A rewrite of the tenant's file rather than a tombstone, because this is the
+   * one operation whose *point* is that the data is gone. An append-only file with
+   * a "deleted" marker would leave the visitor's name and phone on disk, which is
+   * the thing the request was about.
+   */
+  deleteLead(tenantId: string, leadId: string): Promise<LeadRecord | null>;
+  /**
+   * Erase one conversation -- the transcript and the standing answers, which is
+   * what a qualification record is -- together with the leads that conversation
+   * filed.
+   *
+   * Returns what went, so a caller can report it: the conversation's id (null when
+   * there was none, which is why the return is not a bare list of leads), and the
+   * leads themselves. Naming the erased conversation is the point -- a deletion is
+   * the one operation a caller cannot verify by looking afterwards, and a blank
+   * success body cannot be told apart from a request that did nothing.
+   *
+   * The two are erased together and cannot come apart: an enquiry left behind
+   * after the conversation it came from was erased is a row the visitor asked us
+   * not to have, minus the context that made it useful.
+   */
+  deleteConversation(tenantId: string, sessionId: string): Promise<DeletedConversation>;
+  /**
+   * Remove every record older than `cutoffMs`, across all tenants.
+   *
+   * Deliberately not tenant-scoped: retention is a policy of the deployment, not
+   * of one installer, and a sweep that had to be run once per tenant would be a
+   * policy nobody runs. Returns what went, because a deletion with no record of
+   * itself is what the audit trail is for -- see `retention.purge`.
+   */
+  purgeExpired(cutoffMs: number): Promise<PurgeResult>;
   /**
    * This tenant's catalogue.
    *
@@ -293,7 +382,17 @@ export class FileStore implements Store {
   /** Loaded per tenant, on first read, for the same reason. */
   #knowledge = new Map<string, KnowledgeSourceRecord[]>();
   #jobs: IngestionJob[] = [];
-  #loaded = false;
+  /**
+   * The in-flight or finished load, rather than a `#loaded` boolean.
+   *
+   * The boot-time retention sweep and the first request reach `#ensure` together,
+   * and a boolean is read across an `await`: both callers saw `false`, both read
+   * the same files, and every lead landed in memory twice -- and therefore back
+   * on disk twice at the next rewrite, since a rewrite writes what is in memory.
+   * Memoising the promise makes the second caller await the first one's load
+   * instead of repeating it.
+   */
+  #loading: Promise<void> | null = null;
 
   constructor(dataDir: string) {
     this.#dir = dataDir;
@@ -323,12 +422,20 @@ export class FileStore implements Store {
     }
   }
 
-  async #ensure(): Promise<void> {
-    if (this.#loaded) return;
+  #ensure(): Promise<void> {
+    this.#loading ??= this.#load().catch((error: unknown) => {
+      // A failure is not cached: the next caller gets to try again rather than
+      // every later request inheriting this one's error for the process's life.
+      this.#loading = null;
+      throw error;
+    });
+    return this.#loading;
+  }
+
+  async #load(): Promise<void> {
     await mkdir(this.#dir, { recursive: true });
     await this.#loadLeads();
     await this.#loadJobs();
-    this.#loaded = true;
   }
 
   /**
@@ -449,11 +556,7 @@ export class FileStore implements Store {
     }
 
     await mkdir(join(this.#dir, 'leads'), { recursive: true });
-    await appendFile(
-      join(this.#dir, 'leads', `${encodeURIComponent(lead.tenantId)}.jsonl`),
-      `${JSON.stringify(lead)}\n`,
-      'utf8',
-    );
+    await appendFile(this.#leadFile(lead.tenantId), `${JSON.stringify(lead)}\n`, 'utf8');
     this.#leads.push(lead);
     return { lead, outcome: 'created' };
   }
@@ -464,6 +567,196 @@ export class FileStore implements Store {
       .filter((l) => l.tenantId === tenantId)
       .slice(-limit)
       .reverse();
+  }
+
+  #leadFile(tenantId: string): string {
+    return join(this.#dir, 'leads', `${encodeURIComponent(tenantId)}.jsonl`);
+  }
+
+  /**
+   * The tail of the queue of operations that rewrite a file.
+   *
+   * Every rewrite is a read-modify-write: it snapshots the in-memory rows, writes
+   * a whole new file and swaps it in. Two of them overlapping can therefore lose
+   * one outright -- a snapshot taken before an erasure and swapped in after it
+   * puts the erased row *back*, undoing a visitor's request -- and they also
+   * collide on the single scratch name `#replaceFile` uses, which fails one of
+   * them with an error the caller would read as "the deletion did not happen".
+   *
+   * That pairing is not hypothetical, which is what makes this worth the ten
+   * lines: the retention sweep runs at boot and on a timer, so it overlaps the
+   * requests being served at the same moment by construction. Appends are
+   * deliberately outside the queue -- an append has nothing to lose, and putting
+   * one behind a long rewrite would make the visitor's own message wait on a
+   * background sweep.
+   */
+  #rewrites: Promise<unknown> = Promise.resolve();
+
+  /**
+   * Run `work` after every rewrite already queued, and queue those after it.
+   *
+   * The chain is continued on both settle paths, so one failed deletion does not
+   * cancel the deletion behind it; the caller still gets the rejection.
+   */
+  #exclusively<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.#rewrites.then(work, work);
+    this.#rewrites = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  /**
+   * Replace a file's contents, by writing a sibling and renaming over it.
+   *
+   * Every deletion here is a rewrite, and a rewrite that truncates first has a
+   * window in which a crash loses the records that were meant to *survive* -- so
+   * the new file is written complete and moved into place, which is atomic on
+   * both platforms this runs on.
+   *
+   * The scratch name is fixed rather than unique, and that is safe only because
+   * every caller reaches here through `#exclusively`: two rewrites of one file
+   * cannot be in flight together. A unique name would trade this for orphaned
+   * scratch files that nothing ever collects.
+   */
+  async #replaceFile(file: string, contents: string): Promise<void> {
+    const tmp = `${file}.tmp`;
+    await writeFile(tmp, contents, 'utf8');
+    await rename(tmp, file);
+  }
+
+  /**
+   * Replace a JSONL file with these rows.
+   *
+   * An emptied file is removed rather than left as a zero-byte one, so "this
+   * tenant has nothing" has one representation instead of two.
+   */
+  async #rewrite(file: string, rows: readonly unknown[]): Promise<void> {
+    if (rows.length === 0) {
+      await rm(file, { force: true });
+      return;
+    }
+    await this.#replaceFile(file, rows.map((row) => `${JSON.stringify(row)}\n`).join(''));
+  }
+
+  /** This tenant's rows as they currently stand in memory. */
+  #leadsOf(tenantId: string): LeadRecord[] {
+    return this.#leads.filter((l) => l.tenantId === tenantId);
+  }
+
+  deleteLead(tenantId: string, leadId: string): Promise<LeadRecord | null> {
+    return this.#exclusively(() => this.#deleteLead(tenantId, leadId));
+  }
+
+  async #deleteLead(tenantId: string, leadId: string): Promise<LeadRecord | null> {
+    await this.#ensure();
+    const index = this.#leads.findIndex((l) => l.tenantId === tenantId && l.id === leadId);
+    // Null for another tenant's id as well as for one that never existed: telling
+    // the two apart is what would let a caller probe for ids that are not theirs.
+    if (index < 0) return null;
+    const removed = this.#leads.splice(index, 1)[0]!;
+    await this.#rewrite(this.#leadFile(tenantId), this.#leadsOf(tenantId));
+    return removed;
+  }
+
+  deleteConversation(tenantId: string, sessionId: string): Promise<DeletedConversation> {
+    return this.#exclusively(() => this.#deleteConversation(tenantId, sessionId));
+  }
+
+  async #deleteConversation(tenantId: string, sessionId: string): Promise<DeletedConversation> {
+    await this.#ensure();
+    const conversations = await this.#readConversations(tenantId);
+    const target = conversations.find((c) => c.sessionId === sessionId);
+
+    // The transcript is erased when there is one, and this session's leads are
+    // erased either way. Returning early on a missing transcript would leave the
+    // enquiry of a visitor who never opened the assistant -- which is every
+    // visitor the form route serves -- in place, while answering that their
+    // record had been deleted. `conversationId` is null then, and the caller
+    // counts that as no conversation rather than guessing at one.
+    if (target) {
+      await this.#rewrite(
+        this.#conversationFile(tenantId),
+        conversations.filter((c) => c.sessionId !== sessionId),
+      );
+      this.#conversationCache.delete(`${tenantId}:${sessionId}`);
+    }
+
+    const orphaned = this.#leads.filter(
+      (l) => l.tenantId === tenantId && l.sessionId === sessionId,
+    );
+    if (orphaned.length > 0) {
+      this.#leads = this.#leads.filter(
+        (l) => !(l.tenantId === tenantId && l.sessionId === sessionId),
+      );
+      await this.#rewrite(this.#leadFile(tenantId), this.#leadsOf(tenantId));
+    }
+    return { conversationId: target?.id ?? null, leads: orphaned };
+  }
+
+  purgeExpired(cutoffMs: number): Promise<PurgeResult> {
+    return this.#exclusively(() => this.#purgeExpired(cutoffMs));
+  }
+
+  async #purgeExpired(cutoffMs: number): Promise<PurgeResult> {
+    await this.#ensure();
+    /** Per tenant, because the audit event the caller writes is per tenant. */
+    const counts = new Map<string, { leads: number; conversations: number }>();
+    const bump = (tenantId: string, field: 'leads' | 'conversations', by: number): void => {
+      const entry = counts.get(tenantId) ?? { leads: 0, conversations: 0 };
+      entry[field] += by;
+      counts.set(tenantId, entry);
+    };
+
+    // Leads by `createdAt`: the enquiry was made once, and nobody has touched the
+    // row since, so its age is not in question.
+    //
+    // `Date.parse` gives NaN for a timestamp that will not parse, and every
+    // comparison with NaN is false -- so an undateable row is *kept*. That is the
+    // direction a deletion should fail in.
+    const expiredLeads = this.#leads.filter((l) => Date.parse(l.createdAt) < cutoffMs);
+    if (expiredLeads.length > 0) {
+      this.#leads = this.#leads.filter((l) => Date.parse(l.createdAt) >= cutoffMs);
+      for (const lead of expiredLeads) bump(lead.tenantId, 'leads', 1);
+      for (const tenantId of new Set(expiredLeads.map((l) => l.tenantId))) {
+        await this.#rewrite(this.#leadFile(tenantId), this.#leadsOf(tenantId));
+      }
+    }
+
+    // Conversations by `updatedAt` rather than `createdAt`: a conversation is
+    // still being written while the visitor is in it, and expiring one on the day
+    // it opened would delete a transcript somebody is looking at.
+    let conversations = 0;
+    let names: string[] = [];
+    try {
+      names = await readdir(join(this.#dir, 'conversations'));
+    } catch {
+      names = [];
+    }
+    for (const name of names) {
+      if (!name.endsWith('.jsonl')) continue;
+      const tenantId = decodeURIComponent(name.slice(0, -'.jsonl'.length));
+      const all = await this.#readConversations(tenantId);
+      const keep = all.filter((c) => Date.parse(c.updatedAt) >= cutoffMs);
+      if (keep.length === all.length) continue;
+
+      // Per session rather than per line: the file holds one line per append, and
+      // a session that ran to twenty turns is one conversation, not twenty.
+      const kept = new Set(keep.map((c) => c.sessionId));
+      const gone = all.filter((c) => !kept.has(c.sessionId));
+      conversations += gone.length;
+      bump(tenantId, 'conversations', gone.length);
+      await this.#rewrite(this.#conversationFile(tenantId), keep);
+      for (const removed of gone) {
+        this.#conversationCache.delete(`${tenantId}:${removed.sessionId}`);
+      }
+    }
+
+    const tenants = [...counts.entries()]
+      .map(([tenantId, entry]) => ({ tenantId, ...entry }))
+      .sort((a, b) => a.tenantId.localeCompare(b.tenantId));
+    return { leads: expiredLeads.length, conversations, tenants };
   }
 
   async listProducts(tenantId: string): Promise<Product[]> {
@@ -599,7 +892,10 @@ export class FileStore implements Store {
     if (remaining.length === existing.length) return false;
 
     await mkdir(this.#knowledgeDir, { recursive: true });
-    await writeFile(this.#knowledgeFile(tenantId), JSON.stringify(remaining), 'utf8');
+    // Through the atomic replace, like every other deletion here: the sources that
+    // remain are the records this call exists to protect, and a truncate-then-write
+    // would lose all of them to a crash at the wrong instant.
+    await this.#replaceFile(this.#knowledgeFile(tenantId), JSON.stringify(remaining));
     this.#knowledge.set(tenantId, remaining);
     return true;
   }
@@ -717,6 +1013,10 @@ export class FileStore implements Store {
     const dir = join(this.#dir, 'leads');
     try {
       for (const name of await readdir(dir)) {
+        // A leftover half of an interrupted rewrite: it holds rows that are either
+        // already in the real file or deliberately gone from it, so reading it
+        // would resurrect a deleted lead.
+        if (!name.endsWith('.jsonl')) continue;
         const raw = await readFile(join(dir, name), 'utf8');
         for (const line of raw.split('\n')) {
           if (line.trim() === '') continue;

@@ -50,6 +50,24 @@ export const AUDIT_ACTIONS = [
   /** The installer's entire enquiry list read out. `GET /v1/leads`. */
   'leads.read',
   /**
+   * One enquiry erased, with the conversation it came from.
+   * `DELETE /v1/leads/:leadId`.
+   */
+  'leads.delete',
+  /**
+   * One conversation erased, which is what erases a qualification record.
+   * `DELETE /v1/conversation`, and the second half of a lead deletion.
+   */
+  'conversation.delete',
+  /**
+   * The retention sweep removed records that had reached the end of their window.
+   *
+   * A deletion nobody asked for is exactly the kind of act an audit trail exists
+   * to explain, so the sweep writes one event per run that removed something --
+   * `system` as the actor, since no person did it, with the counts in `detail`.
+   */
+  'retention.purge',
+  /**
    * The assistant invoked one of its tools that has an effect outside this
    * conversation.
    *
@@ -142,6 +160,8 @@ export const AUDIT_TARGET_KINDS = [
   'knowledge_source',
   'ingestion_job',
   'lead_list',
+  /** One conversation, identified by its session id. Erased whole, or purged. */
+  'conversation',
   /** A tool in the closed `TOOL_NAMES` list; `id` is the tool's name. */
   'tool',
 ] as const;

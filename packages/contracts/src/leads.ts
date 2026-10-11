@@ -79,3 +79,25 @@ export const leadResponseSchema = z.object({
 });
 
 export type LeadResponse = z.infer<typeof leadResponseSchema>;
+
+/**
+ * What was erased, reported back rather than answered with a bare body.
+ *
+ * Deletion is the one operation a caller cannot verify by reading afterwards --
+ * a row that was removed looks exactly like a row that was never there -- so the
+ * response names what went. `conversationId` is in it because a lead and its
+ * transcript are erased together when the transcript belongs to that enquiry,
+ * and `leadsDeleted` is how a conversation deletion reports the enquiries that
+ * went with it. See `docs/DECISIONS.md`, D-44.
+ */
+export const deletionResponseSchema = z.object({
+  deleted: z.literal(true),
+  /** The lead that was named, or null when a conversation was. */
+  leadId: z.string().nullable(),
+  /** The conversation erased alongside it, or null when there was none. */
+  conversationId: z.string().nullable(),
+  /** How many leads went with a conversation. Zero for a lead deletion. */
+  leadsDeleted: z.number(),
+});
+
+export type DeletionResponse = z.infer<typeof deletionResponseSchema>;

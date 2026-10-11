@@ -48,6 +48,9 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     adminToken: TEST_ADMIN_TOKEN,
     logLevel: 'silent',
     sandboxTenant: false,
+    // Long enough that the sweep the server starts on boot cannot reach a fixture.
+    // Retention has its own suite.
+    leadRetentionDays: 730,
     rateLimit: {
       enabled: true,
       trustProxyHops: 0,

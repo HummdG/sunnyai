@@ -17,6 +17,28 @@ export interface SessionClaims {
   tenantId: string;
   /** Unix milliseconds. */
   expiresAt: number;
+  /**
+   * The page origin the session was opened from, as it was accepted at the time.
+   *
+   * Null is a real answer rather than a gap, though this build has one route that
+   * only ever names an origin: `POST /v1/widget/session` requires one, because a
+   * widget that cannot say where it is embedded cannot be judged against the
+   * allowed origins. Null therefore arrives two ways -- a token signed before
+   * this field existed (which is why it is optional), and any future caller that
+   * opens a session naming nowhere. A token is signed rather than stored, so an
+   * origin not claimed at issue time cannot be added later.
+   *
+   * It is in the *token* rather than looked up per request for one reason: a
+   * later request is not evidence of where the page was. Once it is inside the
+   * signed claims it is fixed for the life of the session -- the caller can carry
+   * it, and cannot alter it -- which is what makes it usable as consent
+   * provenance (D-44) rather than as another header a caller writes.
+   *
+   * Optional in the type as well as at runtime, because tokens signed before this
+   * field existed must keep verifying: a visitor mid-conversation across a deploy
+   * should not be signed out by a field being added.
+   */
+  origin?: string | null;
 }
 
 function b64url(input: Buffer | string): string {
@@ -59,6 +81,17 @@ export function verifySessionToken(
     const claims = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as SessionClaims;
     if (typeof claims.sessionId !== 'string' || typeof claims.tenantId !== 'string') return null;
     if (typeof claims.expiresAt !== 'number' || claims.expiresAt <= now) return null;
+    // Absent is accepted, since tokens signed before the field existed must keep
+    // working. Anything present that is not a string or null is not something
+    // this server issued, so the token is refused rather than trusted loosely --
+    // a claim the reader has to interpret is a claim an attacker gets to choose.
+    if (
+      claims.origin !== undefined &&
+      claims.origin !== null &&
+      typeof claims.origin !== 'string'
+    ) {
+      return null;
+    }
     return claims;
   } catch {
     return null;

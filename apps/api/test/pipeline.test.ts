@@ -46,6 +46,8 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     logLevel: 'silent',
     // No sandbox tenant: these suites build the registry they mean to test.
     sandboxTenant: false,
+    // Long enough that the sweep the server starts on boot cannot reach a fixture.
+    leadRetentionDays: 730,
     // Enabled but effectively unlimited, so every other test still runs the
     // limiter's real code path while only the tests that deliberately set a small
     // limit can trip it. Written out rather than left to `loadConfig`, so the
@@ -379,6 +381,16 @@ describe('the vertical slice', () => {
     expect(health.statusCode).toBe(200);
     expect(health.json().capabilities.chat.available).toBe(false);
     expect(health.json().capabilities.chat.reason).toContain('GEMINI_API_KEY');
+  });
+
+  it('tells an operator on /healthz what this deployment does with enquiries', async () => {
+    const { app } = await h();
+    const health = await app.inject({ method: 'GET', url: '/healthz' });
+    // The window and whether a sweep is enforcing it, served rather than only
+    // logged: an installer asking "how long do you keep this" should not have to
+    // read a boot log, and a window nothing carries out is a policy rather than a
+    // practice.
+    expect(health.json().capabilities.retention).toEqual({ windowDays: 730, sweeping: true });
   });
 
   it('refuses a session token that was not issued here', async () => {

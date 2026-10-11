@@ -55,6 +55,9 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     logLevel: 'silent',
     // No sandbox tenant: these suites build the registry they mean to test.
     sandboxTenant: false,
+    // Long enough that the sweep the server starts on boot cannot reach a fixture.
+    // Retention has its own suite.
+    leadRetentionDays: 730,
     rateLimit: {
       enabled: true,
       trustProxyHops: 0,

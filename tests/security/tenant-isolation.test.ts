@@ -71,6 +71,15 @@ const RIVAL_IDS: Ids = {
 const ISOLATION_DEMO: Ids = { ...DEMO, sessionId: 'sess_isolationdemo' };
 const ISOLATION_RIVAL: Ids = { ...RIVAL_IDS, sessionId: 'sess_isolationriva' };
 
+/**
+ * A third session, holding only the lead the delete case erases.
+ *
+ * It has to be one of its own: the case really does remove the row, so a session
+ * shared with the sweep's other fixtures would have a case deleting what another
+ * case had just written.
+ */
+const SWEEP_FIXTURE: Ids = { ...DEMO, sessionId: 'sess_sweepfixture' };
+
 const NOW = 1_700_000_000_000;
 const SECRET = 'security-suite-session-secret';
 const ADMIN_TOKEN = 'security-suite-admin-token';
@@ -89,6 +98,8 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     logLevel: 'silent',
     // No sandbox tenant: these suites build the registry they mean to test.
     sandboxTenant: false,
+    // Long enough that the sweep the server starts on boot cannot reach a fixture.
+    leadRetentionDays: 730,
     rateLimit: {
       // Unlimited, and deliberately: a refused request must not be refused
       // twice. The sweep makes ~90 requests from one address, and a 429 would
@@ -214,14 +225,34 @@ function attempt(credential: Credential): { token: string | undefined; ids: Ids 
  */
 let seededJobId = 'job_unseeded';
 
+/**
+ * A lead that really exists, filed before the sweep runs.
+ *
+ * For the same reason as the job id above, and then some: the delete route is
+ * only interesting when there is something to delete, and an invented id would
+ * make every run of the case exercise the not-found branch instead -- a case that
+ * passes while proving nothing about who may delete what.
+ */
+let seededLeadId = 'lead_unseeded';
+
 interface RouteSpec {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'DELETE';
   pattern: string;
   url: (ids: Ids) => string;
   kind: 'public' | 'visitor' | 'admin';
   namesSession?: boolean;
   /** The body a well-formed call sends. Absent for a bare GET. */
   payload?: (ids: Ids) => Record<string, unknown>;
+  /**
+   * True when the *allowed* caller may legitimately be told `not_found`.
+   *
+   * Set only where the case consumes its own fixture. `DELETE /v1/leads/:leadId`
+   * erases the lead it names, so there is no id that stays deletable: the first
+   * run of the sweep removes the seeded row and every later one correctly reports
+   * that it is gone. It relaxes nothing for the other credentials -- those are
+   * refused before the id is read, and their exact code is still asserted.
+   */
+  consumesFixture?: boolean;
 }
 
 const ROUTES: RouteSpec[] = [
@@ -256,6 +287,15 @@ const ROUTES: RouteSpec[] = [
     method: 'GET',
     pattern: '/v1/conversation',
     url: () => '/v1/conversation',
+    kind: 'visitor',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/conversation',
+    url: () => '/v1/conversation',
+    // Visitor, and the sweep's most destructive case: it really does erase the
+    // conversation belonging to whichever tenant the token names, which is the
+    // point -- the route has no way to name somebody else's.
     kind: 'visitor',
   },
   {
@@ -305,6 +345,16 @@ const ROUTES: RouteSpec[] = [
     // widget session, a leak strictly inside one tenant that this table's
     // visitor/admin distinction is what caught.
     kind: 'admin',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/leads/:leadId',
+    url: (ids) => `/v1/leads/${seededLeadId}?tenantId=${ids.tenantId}`,
+    // Admin, like the read above and for the same reason: erasing an enquiry is
+    // the installer's act on their own record. It erases what it names, which is
+    // why the fixture cannot survive the sweep -- see `consumesFixture`.
+    kind: 'admin',
+    consumesFixture: true,
   },
   {
     method: 'POST',
@@ -357,24 +407,39 @@ const ROUTES: RouteSpec[] = [
  * `HEAD` and the `*` catch-all are dropped: Fastify derives a `HEAD` route from
  * every `GET`, and the catch-all answers `OPTIONS`, so neither is a route
  * anyone wrote and neither can carry a credential check of its own.
+ *
+ * The tree has to be walked rather than matched line by line. `printRoutes` with
+ * `commonPrefix: false` prints each node's path *relative to its parent* -- which
+ * is what makes the output readable and what turned `/v1/leads/:leadId` into a
+ * bare `/:leadId` the first time a nested route was added. The drawing carries
+ * the depth in a fixed four characters per level (`│   ` or four spaces), so the
+ * parent paths are stacked here and joined to the relative one.
  */
 function registeredRoutes(app: FastifyInstance): Set<string> {
-  return new Set(
-    app
-      .printRoutes({ commonPrefix: false })
-      .split('\n')
-      .flatMap((line) => {
-        const entry = /^(\S+)\s+\(([^)]*)\)$/.exec(line.replace(/[│├└─]/g, '').trim());
-        if (!entry) return [];
-        const [, path, methods] = entry;
-        if (path === '*') return [];
-        return (methods ?? '')
-          .split(',')
-          .map((method) => method.trim())
-          .filter((method) => method === 'GET' || method === 'POST')
-          .map((method) => `${method} ${path}`);
-      }),
-  );
+  const routes = new Set<string>();
+  /** The path segment at each depth, so a child can be joined to what is above it. */
+  const segments: string[] = [];
+
+  for (const line of app.printRoutes({ commonPrefix: false }).split('\n')) {
+    const cut = line.search(/[├└]/);
+    if (cut < 0) continue;
+    const entry = /^(\S+)\s+\(([^)]*)\)$/.exec(line.slice(cut + 4).trim());
+    if (!entry) continue;
+    const [, path, methods] = entry;
+    if (path === '*') continue;
+
+    const depth = cut / 4;
+    segments[depth] = path ?? '';
+    segments.length = depth + 1;
+    const full = segments.join('');
+
+    for (const method of (methods ?? '').split(',').map((m) => m.trim())) {
+      if (method === 'GET' || method === 'POST' || method === 'DELETE') {
+        routes.add(`${method} ${full}`);
+      }
+    }
+  }
+  return routes;
 }
 
 // ─── reading a refusal ───────────────────────────────────────────────────────
@@ -492,6 +557,24 @@ beforeAll(async () => {
   });
   expect(seeded.statusCode).toBe(201);
   seededJobId = json<{ job: { id: string } }>(seeded).job.id;
+
+  // A lead to erase, filed through the same route a host page uses. Filed under a
+  // session of its own so erasing it cannot disturb a sweep case, and through the
+  // route rather than the store so the row is exactly what a visitor produces --
+  // including its consent provenance.
+  const filed = await app.inject({
+    method: 'POST',
+    url: '/v1/leads',
+    headers: { authorization: `Bearer ${tokenFor(SWEEP_FIXTURE)}` },
+    payload: {
+      sessionId: SWEEP_FIXTURE.sessionId,
+      consent: true,
+      email: 'delete-me@example.test',
+      summary: 'Security sweep deletion fixture',
+    },
+  });
+  expect(filed.statusCode).toBe(201);
+  seededLeadId = json<{ leadId: string }>(filed).leadId;
 });
 
 afterAll(async () => {
@@ -527,7 +610,16 @@ describe('every route, every credential', () => {
           const denied = refusal(response);
 
           if (wanted === 'allow') {
-            expect(denied, `expected no denial, got ${JSON.stringify(denied)}`).toBeNull();
+            // A consumed fixture is the one case where the allowed caller may be
+            // told the thing is gone: the earlier run of this very case erased it.
+            // Nothing is inferred from that -- the credential was still accepted,
+            // and every other credential's exact refusal is asserted below.
+            const missIsAllowed = route.consumesFixture === true && denied?.code === 'not_found';
+            expect(
+              missIsAllowed ? null : denied,
+              `expected no denial, got ${JSON.stringify(denied)}`,
+            ).toBeNull();
+            if (missIsAllowed) return;
             // A 400 would mean the request in the table is malformed, and the
             // case would then prove nothing about the credential: a route that
             // rejects every body rejects this one too.
@@ -768,6 +860,100 @@ describe('data isolation', () => {
       headers: { authorization: visitorToken(ISOLATION_RIVAL) },
     });
     expect(json<{ turns: unknown[] }>(theirs).turns).toHaveLength(0);
+  });
+
+  it('erases only the conversation the calling token names', async () => {
+    const mine: Ids = { ...DEMO, sessionId: 'sess_erasemine0' };
+    const filed = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: visitorToken(mine) },
+      payload: {
+        sessionId: mine.sessionId,
+        consent: true,
+        email: 'erase-mine@example.test',
+        summary: 'Isolation fixture',
+      },
+    });
+    expect(filed.statusCode).toBe(201);
+
+    // The rival's token, calling the same route. It has no way to name the demo
+    // tenant -- the route takes no tenant and no session id, only the token -- so
+    // the only conversation it can reach is its own, which is empty.
+    const theirs = await app.inject({
+      method: 'DELETE',
+      url: '/v1/conversation',
+      headers: { authorization: visitorToken(ISOLATION_RIVAL) },
+    });
+    expect(theirs.statusCode).toBe(200);
+
+    // And the demo tenant's enquiry is still there, which is the half that
+    // matters: a route that erased nothing at all would also answer 200.
+    const surviving = await app.inject({
+      method: 'GET',
+      url: `/v1/leads?tenantId=${DEMO.tenantId}`,
+      headers: adminHeader,
+    });
+    expect(
+      JSON.stringify(json<{ leads: Array<{ email: string | null }> }>(surviving).leads),
+    ).toContain('erase-mine@example.test');
+  });
+
+  it('cannot erase another installer’s enquiry by naming its id', async () => {
+    const mine: Ids = { ...DEMO, sessionId: 'sess_erasemine1' };
+    const filed = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: visitorToken(mine) },
+      payload: {
+        sessionId: mine.sessionId,
+        consent: true,
+        email: 'not-yours@example.test',
+        summary: 'Isolation fixture',
+      },
+    });
+    const leadId = json<{ leadId: string }>(filed).leadId;
+
+    // The admin token can name any tenant, which is exactly why this case is
+    // here: the scope is the query, and the query is the caller's word. Naming
+    // the rival tenant against a demo lead must find nothing.
+    const misdirected = await app.inject({
+      method: 'DELETE',
+      url: `/v1/leads/${leadId}?tenantId=${RIVAL.id}`,
+      headers: adminHeader,
+    });
+    expect(misdirected.statusCode).toBe(404);
+
+    const stillThere = await app.inject({
+      method: 'GET',
+      url: `/v1/leads?tenantId=${DEMO.tenantId}`,
+      headers: adminHeader,
+    });
+    expect(JSON.stringify(json<{ leads: Array<{ id: string }> }>(stillThere).leads)).toContain(
+      leadId,
+    );
+
+    // The positive half, without which the 404 above would also pass on a route
+    // that had never deleted anything: under its own tenant the same id goes.
+    const erasure = await app.inject({
+      method: 'DELETE',
+      url: `/v1/leads/${leadId}?tenantId=${DEMO.tenantId}`,
+      headers: adminHeader,
+    });
+    expect(erasure.statusCode).toBe(200);
+    expect(json<{ leadId: string; deleted: boolean }>(erasure)).toMatchObject({
+      deleted: true,
+      leadId,
+    });
+
+    const gone = await app.inject({
+      method: 'GET',
+      url: `/v1/leads?tenantId=${DEMO.tenantId}`,
+      headers: adminHeader,
+    });
+    expect(JSON.stringify(json<{ leads: Array<{ id: string }> }>(gone).leads)).not.toContain(
+      leadId,
+    );
   });
 
   it('publishes no internal identifier in a widget config', async () => {
