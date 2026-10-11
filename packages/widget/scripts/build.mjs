@@ -3,13 +3,21 @@
  * Build the embeddable widget.
  *
  * One self-contained IIFE, because that is what the embed snippet promises. No
- * external requests, no globals beyond the small `window.sunny` handle, and no
- * framework: the whole character, animation engine and contracts bundle in.
+ * globals beyond the small `window.sunny` handle and no framework: the whole
+ * character, animation engine and contracts bundle in.
+ *
+ * "Self-contained" is about the script, and two things are still fetched from
+ * elsewhere at runtime: the API, and the typeface. The typeface is the reason
+ * this build copies anything besides the bundle — the fonts are published *with*
+ * the script, in `fonts/` beside it, so that wherever the file is served from
+ * the faces come from there too. They are not inlined: two subsets are 49 kB of
+ * binary against a 42 kB gzipped script, and every visitor who never opens the
+ * panel would pay for them.
  *
  *   node scripts/build.mjs [--watch] [--outdir <dir>]
  */
 import { build, context } from 'esbuild';
-import { readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
@@ -21,6 +29,35 @@ const outdirIndex = args.indexOf('--outdir');
 const outdir = outdirIndex === -1 ? here('../dist') : args[outdirIndex + 1];
 
 const pkg = JSON.parse(readFileSync(here('../package.json'), 'utf8'));
+
+/**
+ * Copy the family's subsets next to the bundle.
+ *
+ * The list is read off the directory rather than written here, and the invariant
+ * that the directory holds exactly the faces `@sunny/ui` declares is a test
+ * (`packages/ui/test/fonts.test.ts`) rather than a second list that can fall
+ * behind. The bundle's `@font-face` rules name files in this directory, so a
+ * missing one is a 404 on a customer's page: it is worth the line that says so
+ * in the build output.
+ */
+function copyFonts() {
+  const source = here('../../ui/fonts/');
+  const files = readdirSync(source).filter((name) => name.endsWith('.woff2'));
+  const target = `${outdir}/fonts`;
+
+  mkdirSync(target, { recursive: true });
+
+  let bytes = 0;
+  for (const file of files) {
+    copyFileSync(`${source}${file}`, `${target}/${file}`);
+    bytes += statSync(`${target}/${file}`).size;
+  }
+
+  console.log(
+    `widget: ${files.length} font subsets — ${(bytes / 1024).toFixed(1)} kB ` +
+      `to ${target} (fetched on demand, not with the script)`,
+  );
+}
 
 /** @type {import('esbuild').BuildOptions} */
 const options = {
@@ -50,6 +87,8 @@ const options = {
 const SIZE_BUDGET_BYTES = 60 * 1024;
 
 async function run() {
+  copyFonts();
+
   if (watch) {
     const ctx = await context(options);
     await ctx.watch();

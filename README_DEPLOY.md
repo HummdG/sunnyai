@@ -436,6 +436,29 @@ where each of those stands today, so the gap is visible rather than implied:
 | Costs and alerts          | Unset, and deliberately unset: §11 asks for thresholds measured from the first staging build, and there is no staging build. Any number set today would be invented. Billing → Budgets & alerts, on the project that runs the API |
 | Unresolved external steps | The four in [What is missing](#what-is-missing), plus the App Hosting / Next 16 decision, plus monitoring and alerting                                                                                                            |
 
+### The two headers the widget's typeface needs
+
+The widget serves its own typeface — one `.woff2` per subset, 47.9 kB together — from the
+`fonts/` directory beside `sunny-widget.js`, and it requests it from the **visitor's** page. That
+fetch is cross-origin by construction, so whichever host serves `widget/fonts/*` has to send:
+
+```
+Access-Control-Allow-Origin: *
+Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+```
+
+The first is not optional: a browser refuses a font response without it, the widget falls back to the
+system stack, and **nothing on the page reports a problem** (D-48). The second is not correctness but
+cost — the files change only when the typeface does, and a day of caching is what a versioned asset
+wants.
+
+Both are already set for the two hosts in this repository that ship the widget:
+`apps/marketing/next.config.mjs` sends them for `/widget/fonts/:path*`, and
+`scripts/static-server.ts` sends the CORS header for any `font/*` response the fixtures serve. An
+integrator's CDN, or any other host you put the bundle on, has to set them itself — copying
+`sunny-widget.js` without the `fonts/` directory beside it produces a widget that mounts, renders and
+looks fine in the system stack, which is why there is no way to notice this from the outside.
+
 ## Costs, honestly
 
 Nothing in this repository has cost anything, because nothing has been

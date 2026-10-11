@@ -105,10 +105,29 @@ export function serveStatic(options: StaticServerOptions): ReturnType<typeof cre
       return;
     }
 
-    res.writeHead(200, {
-      'content-type': TYPES[extname(found.file)] ?? 'application/octet-stream',
+    const type = TYPES[extname(found.file)] ?? 'application/octet-stream';
+    const headers: Record<string, string> = {
+      'content-type': type,
+      // Nothing is cached here on purpose: this server exists so that an edit is
+      // visible on the next reload. What a *deployed* host should send instead is
+      // in `README_DEPLOY.md`.
       'cache-control': 'no-store',
-    });
+    };
+
+    // The one asset the browser fetches with CORS.
+    //
+    // A script, a stylesheet and an image can be used cross-origin by default;
+    // a font cannot, and the request is refused without this header no matter how
+    // the page asks for it. The widget is embedded on other people's sites, so
+    // its typeface is fetched from one origin by a page on another — without
+    // this, the font request fails on every customer's page and the widget
+    // renders in the system stack, silently, with the failure visible only as a
+    // console warning about CORS (D-48).
+    if (type.startsWith('font/')) {
+      headers['access-control-allow-origin'] = '*';
+    }
+
+    res.writeHead(200, headers);
     createReadStream(found.file).pipe(res);
   });
 

@@ -2,15 +2,34 @@
  * The widget's stylesheet, as a string.
  *
  * Inlined into a `<style>` inside the shadow root rather than shipped as a
- * separate file: the widget is embedded on other people's sites, and a second
- * network request is a second thing that can fail or be blocked. It also means
- * the bundle is genuinely one file, which is the promise the embed snippet makes.
+ * separate file: the widget is embedded on other people's sites, and a
+ * stylesheet fetched from somewhere else is a render-blocking dependency on
+ * whatever host serves it. It also means the widget's *appearance* arrives with
+ * the bundle, which is the promise the embed snippet makes.
+ *
+ * One thing is deliberately not inlined, and the exception is worth stating
+ * because it is the only network request the widget makes that is not the API:
+ * the typeface (D-48). A `woff2` cannot be a `<style>`'s worth of text without
+ * costing every visitor a third of the launcher's own transfer, so it stays a
+ * file, fetched from beside the script and resolved against the *script's*
+ * directory rather than the page's base. It is also the one request whose
+ * failure is designed for: if it 404s, is blocked, or arrives late, the panel
+ * renders in the system stack.
+ *
+ * The face itself is not declared here, and that is the one thing in this file
+ * that is not a style rule. Chromium does not use an `@font-face` declared in a
+ * shadow tree — measured, and the failure is silent — so the family is
+ * registered with the document through the Font Loading API instead. See
+ * `fonts.ts` for the measurement and for why the stack still names the family
+ * whether or not a face was registered.
  *
  * Every selector is scoped by the shadow boundary, so nothing here can reach the
  * host page and nothing on the host page can reach in. The one thing that does
  * cross is a CSS custom property, which is deliberate: it is the supported way
  * for a host to theme the widget.
  */
+import { FONT_STACK } from '@sunny/ui';
+
 /**
  * The ink for a price the installer's own records back.
  *
@@ -102,7 +121,7 @@ export function styles(): string {
      \`initial\` for \`position\` is \`static\`, and one longhand later in the same
      rule overrides the shorthand's value for that property. */
   all: initial !important;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
+  font-family: ${FONT_STACK} !important;
   color: var(--sunny-ink) !important;
   line-height: 1.45 !important;
   display: block !important;

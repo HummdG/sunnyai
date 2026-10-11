@@ -6,8 +6,9 @@
   "type": "module",
   "scripts": {
     "prepare-widget": "node scripts/copy-widget.mjs",
-    "dev": "next dev --webpack -p 4176",
-    "build": "npm run prepare-widget && next build --webpack",
+    "prepare-font": "node scripts/copy-font.mjs",
+    "dev": "npm run prepare-widget && npm run prepare-font && next dev --webpack -p 4176",
+    "build": "npm run prepare-widget && npm run prepare-font && next build --webpack",
     "start": "next start -p 4176"
   },
   "dependencies": {

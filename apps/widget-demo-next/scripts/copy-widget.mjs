@@ -1,32 +1,21 @@
-#!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
+
+import { copyWidgetBundle } from '../../../scripts/widget-bundle.mjs';
+
 /**
- * Copy the built widget bundle where Next can serve it.
+ * Copy the built widget where Next can serve it.
  *
  * This is the fixture's stand-in for a CDN. An integrator's Next site would
  * either point the snippet at a hosted bundle or serve it from `public/`, and
  * serving it from `public/` is the one that needs no network and no second
- * origin -- which matters, because the thing under test is the widget, not the
+ * origin — which matters, because the thing under test is the widget, not the
  * fixture's infrastructure.
  *
- * Deliberately the *built* artefact and never the source: the E2E run rebuilds
- * `packages/widget/dist` before this runs, so the fixture cannot pass against a
- * bundle that no longer exists.
+ * Serving it from `public/` is also what makes the typeface part of this job
+ * rather than a detail: the widget resolves its font against the directory its
+ * own script was served from, so a fixture that copies the script alone is a
+ * fixture whose widget silently renders in the system stack. That is what
+ * `scripts/widget-bundle.mjs` exists for, and this fixture is why it is shared
+ * rather than written out twice.
  */
-import { copyFileSync, mkdirSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
-const here = (p) => fileURLToPath(new URL(p, import.meta.url));
-const source = here('../../../packages/widget/dist/sunny-widget.js');
-const destinationDir = here('../public/widget');
-
-if (!existsSync(source)) {
-  console.error(
-    `widget-demo-next: no bundle at ${source}.\n` +
-      'Run `npm run build:widget` from the repository root first.',
-  );
-  process.exit(1);
-}
-
-mkdirSync(destinationDir, { recursive: true });
-copyFileSync(source, `${destinationDir}/sunny-widget.js`);
-console.log('widget-demo-next: copied the widget bundle into public/widget/');
+copyWidgetBundle(fileURLToPath(new URL('../public/widget', import.meta.url)), 'widget-demo-next');

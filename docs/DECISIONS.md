@@ -3082,3 +3082,108 @@ nothing reused: **58 passed, 0 failed** in 3.0 m, with the three checks this ent
 That is the first green reading of this suite on this machine since the lab checks were found failing;
 the earlier 57/1 reading and the two-failure readings are recorded in item 10 rather than deleted,
 because what changed is the checks and not the product.
+
+## D-48. The widget's typeface is a document resource, not a shadow-tree one
+
+**Context.** §5.1 asks for "friendly premium typography: evaluate Plus Jakarta Sans, DM Sans or
+Manrope; one primary family". Plus Jakarta Sans was chosen and the files were fetched, subset and
+committed. The widget kept a system stack, so the increment was to give it the real face.
+
+The first implementation did the obvious thing: `packages/ui` gained a `fontFaceCss()` that emitted an
+`@font-face` rule, and the widget concatenated it into the shadow stylesheet it already builds. The
+build shipped the subsets, the hosts served them with the right content type, and the unit tests
+asserted the rule's text. Everything was green and **no font was ever fetched**.
+
+Chromium parses an `@font-face` inside a shadow root -- the `CSSFontFaceRule` is there in
+`style.sheet.cssRules` -- and then never matches it. No fetch, no console warning, silent fallback to
+the next family in the stack. A fallback is a plausible-looking page, so nothing anywhere said a word.
+
+**Decision -- measure the mechanism in a browser before choosing it.** A probe page set the same text
+inside a shadow root several ways and read the rendered width against a family that does not exist
+(the control: the two agree exactly when no face is in use). The three rows that were actually
+measured, each with the text inside a shadow root:
+
+| Face declared by                             | Applied inside a shadow root | Fetched |
+| -------------------------------------------- | ---------------------------- | ------- |
+| `@font-face` in the shadow root's stylesheet | no                           | no      |
+| `@font-face` in the document's stylesheet    | yes                          | yes     |
+| `new FontFace()` added to `document.fonts`   | yes                          | yes     |
+
+The rule the three rows add up to is the entry's title: **styles are tree-scoped, fonts are a document
+resource.** A shadow boundary stops a style rule from reaching the shadow tree's font matching, but the
+document's font set is consulted by everything in the document, shadow roots included. Two rows that a
+first draft of the probe produced -- text in the _document_ against a face in a shadow root -- were
+discarded rather than recorded, because they measure a different question and would have made the
+table look like more evidence than it is.
+
+**Decision -- register the faces through the CSS Font Loading API, and take them back out on
+`destroy`.** `packages/widget/src/fonts.ts` constructs one `FontFace` per subset and adds it to
+`document.fonts` at mount; `releaseFontFaces` deletes exactly the objects it added when the widget is
+destroyed. The API is used rather than a document-scoped `@font-face` because the widget does not own
+the page: it can add to the host document's font set as a caller, and it can remove precisely what it
+added, but writing a stylesheet element into a stranger's `<head>` is a change to their document that
+it cannot cleanly undo. The cost is real and is stated in the module: the font set is shared, so the
+family name is a real family an integrator may also load -- the `unicodeRange` and `weight` descriptors
+mean an integrator's own copy serves the widget just as well, and this copy serves theirs, which is the
+behaviour a shared font set should have.
+
+Because the face is no longer declared in CSS, `fontFaceCss` was deleted rather than left unused, and
+replaced by `fontFileUrl(directoryUrl, face)`. The rule that produced the defect in the first place was
+that the family name and the file manifest each needed to exist in one place; `@sunny/ui` still owns
+both, and the widget is now the only thing that decides _where_ the files are. There is no default for
+that directory: a relative path would be a path on the customer's site, so `fontFileUrl` requires an
+absolute directory URL and the widget supplies it from the directory its own script was served from.
+
+**Decision -- load the face eagerly at mount.** The launcher is an icon. Left to itself the browser
+would fetch the face only when text in it first paints -- when the visitor opens the panel -- and the
+panel would swap from the fallback to the brand face under the reader, every session. `mount()` calls
+`document.fonts.load('650 16px "Plus Jakarta Sans"')` and ignores the result, so the fetch happens
+while the visitor is still looking at the launcher. Only the Latin subset arrives: the ASCII sample
+matches the Latin face's `unicodeRange` and not latin-ext's, so the 21.7 kB wider subset stays unloaded
+until a visitor types something that needs it (verified in the browser: Latin `loaded`, latin-ext
+`unloaded`, one request).
+
+The face is a variable font because the panel's own type is not one weight: the header name is set at
+650, and a pair of static 400/700 files could not have served it without synthesising one of the two.
+
+**Decision -- the fixture hosts copy the bundle and its fonts as one artefact.** `scripts/widget-bundle.mjs`
+is one function that copies both, because a host that copies `sunny-widget.js` and not `fonts/` still
+mounts, still renders and still looks fine -- it just falls back -- and nothing on the page says so.
+The first version of the marketing copy script copied both and the Next fixture's did not, and the only
+thing that noticed was a check asserting the page logged no 404s; that drift is why the copy is shared
+rather than written twice.
+
+**What was deliberately not done.** No third-party font host. A `<link>` to Google Fonts would make the
+widget's first paint depend on a second origin and hand every visitor's IP to a service the integrator
+never agreed to. The files are self-hosted (OFL 1.1, "Copyright 2020 The Plus Jakarta Sans Project
+Authors", no Reserved Font Name, so redistribution is permitted), and the licence and the provenance of
+both subsets -- sizes, digests, the five combining marks added to both `unicode-range`s -- are in
+`packages/ui/fonts/PROVENANCE.md`, which `packages/ui/test/fonts.test.ts` checks the manifest against.
+`font-display` is left at `swap`: a widget that renders invisible text while a font loads is worse than
+one that renders in the system stack for a moment.
+
+**Evidence.** `packages/widget/src/fonts.ts` (the module, its docblock carrying the table above, and the
+PANEL_WEIGHT the eager load asks for), `packages/ui/src/index.ts` (`FONT_FACES`, `fontFileUrl`),
+`packages/ui/fonts/` (the two subsets, `OFL.txt`, `PROVENANCE.md`), `packages/widget/src/styles.ts`
+(which no longer declares a face, with the reason), `packages/widget/test/fonts.test.ts` and
+`packages/ui/test/fonts.test.ts` (the unit claims), and `tests/e2e/typography.spec.ts` (the four browser
+claims, including the control measurement that the unit tests could not have made).
+
+**What the browser tests had to be built to catch.** The width probe in `typography.spec.ts` compares
+the brand family against a family that does not exist, not against the widget's own fallback stack. The
+first version of the probe did the latter and would have passed against the very defect this entry
+fixes: a stack of one unknown name falls back to the browser's _default_ font, not to the generic sans
+listed after it, so the two measurements differ whether or not the face loaded. The control has to be a
+name no face can match, so that "different" means "a face is in use".
+
+**A budget this increment could not settle.** The marketing Lighthouse run reports 0.75/0.78 against a
+committed baseline of 0.94, which reads like a regression and is not one: a control run with the font
+file renamed away -- so the page has strictly less to do -- reports 0.73. The machine's load is the
+cause, and `docs/performance/marketing-baseline.json` is left unwritten rather than overwritten with
+numbers that describe this laptop. It has to be re-measured on an idle machine.
+
+**Verified.** `npm run verify` green at **1062 tests across 33 files**, and `npx playwright test` green at
+**62 passed, 0 failed** in 3.4 m with all four `typography.spec.ts` checks among them. In the browser the
+widget now requests exactly one font, from its own script's directory, before the panel is opened, and
+measures 234.1 px against the 204.0 px a family that does not exist measures for the same string -- the
+difference is the evidence the fallback is no longer what is being rendered.

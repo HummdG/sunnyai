@@ -4,3 +4,7 @@
 # repository and the fixture does not need `mkdir` before it can build.
 sunny-widget.js
 sunny-widget.js.map
+
+# The typeface, copied in with the bundle (D-48). A build artefact like the two
+# above it: the canonical files are committed once, in `packages/ui/fonts/`.
+fonts/

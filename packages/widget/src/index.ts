@@ -23,6 +23,30 @@ function scriptOrigin(script: HTMLScriptElement): string | null {
 }
 
 /**
+ * The directory the script was served from — where its fonts are, if they are.
+ *
+ * The directory and not the origin, because the fonts are published *with the
+ * bundle*: an integrator who serves their own copy from a subdirectory gets the
+ * fonts from that subdirectory, and one who puts the file on a CDN gets them
+ * from the CDN. Deriving a path from the origin would be right in exactly the
+ * deployment where the bundle sits at the root, which is the deployment we
+ * happen to test on.
+ *
+ * `new URL('.', ...)` is what makes this a directory: it resolves the reference
+ * against the script's own URL and drops the file name, so the trailing slash is
+ * the resolver's rather than a string we appended to something that may or may
+ * not have had one. It throws on an empty `src` for the same reason
+ * `scriptOrigin` does, and null is the same answer.
+ */
+function scriptDirectory(script: HTMLScriptElement): string | null {
+  try {
+    return new URL('.', script.src).href;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Read the embed snippet's configuration off the script tag.
  *
  * The public widget id is validated here rather than trusted: it is the only
@@ -50,7 +74,16 @@ export function optionsFromScript(script: HTMLScriptElement): MountOptions | nul
   const base = script.getAttribute('data-api-url') ?? scriptOrigin(script);
   if (!base) return null;
 
-  return { apiUrl: base.replace(/\/+$/, ''), publicId: parsed.data };
+  // Deliberately *not* `data-api-url`, unlike the line above it. The fonts ship
+  // with the script, so the script's own directory is the only address that is
+  // right when the bundle is on a CDN and the API is not -- which is the case
+  // `data-api-url` exists for. A missing directory is not fatal: the font is the
+  // one thing the widget can do without (D-48).
+  return {
+    apiUrl: base.replace(/\/+$/, ''),
+    publicId: parsed.data,
+    fontDirectoryUrl: scriptDirectory(script),
+  };
 }
 
 /**

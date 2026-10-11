@@ -12,6 +12,7 @@ import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el, setSvg } from './dom.js';
+import { declareFontFaces, preloadFontFaces, releaseFontFaces } from './fonts.js';
 import { styles } from './styles.js';
 
 /**
@@ -46,6 +47,16 @@ const FRAME_MS = 1000 / 30;
 export interface MountOptions {
   apiUrl: string;
   publicId: string;
+  /**
+   * Where the widget's script was served from, so it can find the fonts
+   * published beside it.
+   *
+   * Optional because it is not what makes the widget work: with no directory —
+   * a script tag with no readable `src`, or a caller mounting the class directly
+   * — no face is registered and the panel is set in the system stack, which is
+   * the same fallback as a font that fails to download.
+   */
+  fontDirectoryUrl?: string | null;
   /** Overrides the server's branding; used by the visual tests. */
   landmarks?: Readonly<Record<string, string>>;
   /** Set false to skip the network entirely, for a screenshot harness. */
@@ -68,6 +79,9 @@ export class SunnyWidget {
   #pending = false;
   #currentTurn: HTMLElement | null = null;
   #clientMessageId = '';
+
+  /** The faces this instance put into the document, so `destroy` can take them out. */
+  #fontFaces: FontFace[] = [];
 
   // DOM
   #launcher!: HTMLButtonElement;
@@ -106,6 +120,12 @@ export class SunnyWidget {
   }
 
   async mount(): Promise<void> {
+    // The faces go in with the document, not with the sheet, and before the
+    // shell is built so the first frame already has the family available.
+    // `preloadFontFaces` only starts the download; nothing waits on it.
+    this.#fontFaces = declareFontFaces(this.#options.fontDirectoryUrl);
+    preloadFontFaces();
+
     this.#buildShell();
     this.#startFrameLoop();
 
@@ -633,6 +653,11 @@ export class SunnyWidget {
     if (this.#frameHandle !== null) cancelAnimationFrame(this.#frameHandle);
     this.#chat?.cancel();
     this.#root.replaceChildren();
+    // The faces went into the *document's* font set, so clearing the shadow root
+    // is not enough: without this a page that mounts and unmounts the widget
+    // leaves a copy of the typeface behind on every pass.
+    releaseFontFaces(this.#fontFaces);
+    this.#fontFaces = [];
   }
 }
 

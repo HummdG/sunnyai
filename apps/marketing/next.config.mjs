@@ -2,6 +2,42 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  /**
+   * The headers the widget's own files need when they are served from here.
+   *
+   * `/widget/` is the published artefact: the script an integrator's snippet
+   * loads, and the typeface it declares. A script needs nothing special from a
+   * host — a classic `<script src>` is fetched without CORS — but the font does,
+   * and without `access-control-allow-origin` the widget embedded on any other
+   * origin renders in the system stack while the failure stays invisible on the
+   * page (D-48).
+   *
+   * `public, max-age=86400` rather than an immutable year: the file names carry
+   * no content hash, so "this URL never changes" would be a promise the file name
+   * cannot keep — a release that changes a subset would be invisible to anyone
+   * who had visited within the year. A day of freshness plus a week of
+   * `stale-while-revalidate` costs one small request per visitor per release and
+   * keeps the panel's first open from waiting on a revalidation.
+   *
+   * Measured, not assumed: `next start` served this path as
+   * `cache-control: public, max-age=0` with no CORS header at all, which is what
+   * makes the block below worth its lines.
+   */
+  async headers() {
+    return [
+      {
+        source: '/widget/fonts/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
+    ];
+  },
+
   // The `@sunny/*` packages point `main` at TypeScript source rather than a
   // build output — see, for example, `packages/character/package.json`. That is
   // deliberate in a workspace whose tests run the same source: there is no

@@ -1,0 +1,4 @@
+# The page's own typeface, staged here by `scripts/copy-font.mjs` because
+# `next/font/local` resolves `src` through the app's module graph and will not
+# reach into `packages/ui/fonts/`. Canonical bytes are committed there, once.
+*.woff2

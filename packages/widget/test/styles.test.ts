@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { FONT_FAMILY, SYSTEM_FONT_STACK } from '@sunny/ui';
+
 import { styles } from '../src/styles.js';
 
 /**
@@ -91,5 +93,41 @@ describe('the widget stylesheet and the device cutout', () => {
     // That the breakpoint adds no `inset` of its own is what the four-value
     // count above already holds -- and is the whole point of narrowing the
     // gutter through a custom property instead of restating the shorthands.
+  });
+});
+
+/**
+ * The typeface, as far as a stylesheet is concerned.
+ *
+ * Which is not very far, and that is the finding these tests encode. The face is
+ * registered with the document through the Font Loading API (`fonts.ts`), not
+ * declared in this sheet, because Chromium does not use an `@font-face` that
+ * lives in a shadow tree — it parses the rule and then never matches it, so the
+ * font is never requested and the panel silently renders in the fallback.
+ *
+ * What the sheet still owns is the family name and where it sits in the stack,
+ * and both have to hold whether or not a face was ever registered: a face that
+ * 404s, is blocked, or arrives late must degrade to the system fonts rather than
+ * to the browser's default serif.
+ */
+describe('the widget stylesheet and the typeface', () => {
+  it('names the brand family first, ahead of the system stack', () => {
+    expect(css).toContain(`font-family: "${FONT_FAMILY}", ${SYSTEM_FONT_STACK} !important;`);
+  });
+
+  it('declares no face of its own', () => {
+    // A regression guard with a specific failure behind it. An `@font-face` here
+    // is not merely redundant: it is a rule the browser parses and ignores, so
+    // someone reading this file would believe the font was wired up.
+    expect(css).not.toContain('@font-face');
+    expect(css).not.toContain('unicode-range');
+  });
+
+  it('sets the family in exactly one place, on the host', () => {
+    // One primary family is the requirement, and this is what makes it
+    // checkable: a descendant rule that restates `font-family` is how a second
+    // family gets in.
+    expect(css.match(/font-family:/g)).toHaveLength(1);
+    expect(css).toContain(':host {');
   });
 });
