@@ -9,10 +9,12 @@ import { defineConfig, devices } from '@playwright/test';
  * seams -- a shadow root that renders but cannot be focused, a widget that mounts
  * before the API is up, a page whose landmark is not where the widget thinks.
  *
- * `webServer` starts both processes, so `npx playwright test` is the whole
- * command and CI does not need orchestration around it. `reuseExistingServer`
- * locally means a developer running `npm run dev:api` is not fighting the tests
- * for the port.
+ * `webServer` starts all six processes, so `npx playwright test` is the whole
+ * command and CI does not need orchestration around it. Nothing it starts is
+ * reused by default: an occupied port is a loud failure rather than a suite
+ * quietly run against something else. `PW_REUSE_API=1` opts the API back into
+ * reuse for a developer who is iterating on it and knows what is on the port --
+ * see the note at that entry for what reusing the wrong one costs.
  */
 const API_PORT = Number(process.env.API_PORT ?? 8787);
 const DEMO_PORT = Number(process.env.DEMO_PORT ?? 4173);
@@ -72,7 +74,24 @@ export default defineConfig({
         SUNNY_RL_LEADS_LIMIT: '10000',
         SUNNY_RL_QUALIFICATION_LIMIT: '10000',
       },
-      reuseExistingServer: !process.env.CI,
+      // Opt-in, and the reason is a failure that was measured rather than
+      // imagined. This entry used to reuse whatever was on the port, which
+      // includes a developer's own `npm run dev:api` -- started with the
+      // *shipped* rate limits, where this one raises all of them to 10000. The
+      // suite opens more than 30 widget sessions in a minute, the shipped
+      // limiter allows 30 per 60s, and the last widget test to run then gets a
+      // 429 that the page renders as a panel with no option cards:
+      //
+      //     `still has the options after the panel is closed and opened again`
+      //     Expected: 2  Received: 0
+      //
+      // Measured directly: 30 `POST /v1/widget/session` answered 200, the 31st
+      // answered `429 rate_limited` with `retry-after: 44`. That also explains
+      // why the failing pair differed between runs -- which test starves depends
+      // on how much of the allowance the tests before it spent -- and it is the
+      // reason a suite that looked flaky was failing for a reason outside the
+      // code. Set `PW_REUSE_API=1` to take the old behaviour back deliberately.
+      reuseExistingServer: process.env.PW_REUSE_API === '1',
       timeout: 60_000,
     },
     {

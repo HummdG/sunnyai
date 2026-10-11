@@ -2425,3 +2425,46 @@ route), `packages/contracts/src/widget.ts`, `apps/api/test/tenants.test.ts`,
 `tests/security/tenant-isolation.test.ts` (107 tests), `apps/api/test/pipeline.test.ts`,
 `scripts/smoke-api.mjs`; 947 unit/contract/integration tests across 26 files green, and the smoke
 run green in all three of its modes.
+
+---
+
+## D-40. The e2e harness does not reuse a server it did not start
+
+**Context.** This document's STATUS page recorded, for two increments, that two `lab.spec.ts` checks
+fail and that they reproduce at HEAD with the change in hand set aside -- which was offered as
+evidence that the spec was flaky or wrong rather than that the change had broken something. The
+observation was real. The conclusion drawn from it was not, and the cost was two increments of
+looking in the wrong place.
+
+**What it actually was.** `playwright.config.ts` gave the API's `webServer` entry
+`reuseExistingServer: !process.env.CI`, so a developer's own `npm run dev:api` on 8787 was adopted by
+the run -- with the **shipped** rate limits, where every other entry's run raises them to 10000. The
+suite opens more than 30 widget sessions in a minute; the shipped limiter allows 30 per 60 s; and
+the last widget test to run was then starved, rendering a panel with no option cards. Measured
+directly against a reused server: 30 `POST /v1/widget/session` answered 200, the 31st answered
+`429 rate_limited` with `retry-after: 44`, and the full suite against that server reddened on
+`still has the options after the panel is closed and opened again` with `Expected: 2, Received: 0`.
+
+**Why it read as flakiness.** Which check starves depends on how many requests the tests before it
+have spent inside the same 60-second window, so the failing pair moved between runs -- and
+`git stash` changes how many requests come first, which is exactly how "it fails at HEAD too" came
+out of a harness artefact. A failure whose identity moves with the shape of the run is evidence
+about the run, not about the spec.
+
+**Decision.** `reuseExistingServer: process.env.PW_REUSE_API === '1'` for the API entry, matching
+the five other entries, which were already `false`. Every entry now starts its own process or fails:
+an occupied port is Playwright's own `http://127.0.0.1:8787/healthz is already used, make sure that
+nothing is running on the port/url` before a browser opens, which is a message an operator can act
+on. `PW_REUSE_API=1` takes the old behaviour back for a developer iterating on the API who knows
+what is on the port. The convenience the old default provided is real and it is now opt-in, because
+a wrong answer that arrives faster than a right one is not a trade worth making in a test harness.
+
+**Verified.** With all six ports free, the full suite is **53 passed (2.9m)** -- twice, once before
+this change and once with it -- including all seven WordPress host checks and all twelve in
+`lab.spec.ts`. With a server holding 8787, `npx playwright test tests/e2e/widget.spec.ts` now stops
+at the port check and runs nothing, which is the intended failure: it takes a browser-less second
+rather than three minutes and a wrong diagnosis.
+
+**Evidence.** `playwright.config.ts` (the entry's comment carries the same measurements),
+`README_DEPLOY.md` (the pre-deploy e2e gate), `docs/STATUS.md` (the scorecard row and item 9, both
+corrected).

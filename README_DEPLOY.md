@@ -277,11 +277,15 @@ anything reaching a visitor changes:
 
 1. the **full browser suite** (`npx playwright test`, or `npm run test:e2e` in
    CI), because the point of a staging deploy is that production is not where a
-   rendering bug is found. It needs ports 4173–4176, 4180 and 8787 free. Note
-   that the API's `webServer` entry is the only one that reuses an existing
-   server, so a stale dev API on 8787 contaminates the run with rate-limit
-   failures that look like product bugs — check the port before believing a red
-   suite. `--skip-e2e` exists and says loudly what was skipped.
+   rendering bug is found. It needs ports 4173–4176, 4180 and 8787 free. Nothing
+   it starts is reused: an occupied port is a `http://127.0.0.1:8787/healthz is
+already used` failure before a browser opens, which is what a stale dev API on
+   8787 should be. It used to be reused instead, and a server started with the
+   _shipped_ rate limits (30 widget sessions a minute) then starved a late test
+   of its session, so the run failed with a card count of 0 for a reason outside
+   the code — measured and recorded in D-40. `PW_REUSE_API=1` takes that
+   behaviour back deliberately, for iterating on the API itself. `--skip-e2e`
+   exists and says loudly what was skipped.
 2. a confirmation **naming the project, the region and the commit being
    replaced**. Production is the one place where a script must not act merely
    because it was invoked, so `--yes` is the way to say it should, and the
