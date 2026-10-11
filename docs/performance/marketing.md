@@ -64,12 +64,75 @@ signal rather than as the gate.
 Five of the six Core Web Vitals metrics a lab run can measure already meet the
 Lighthouse "good" boundary, layout shift is exactly zero, and the largest paint
 lands 250–650 ms inside the good range. **Total blocking time is the one that does
-not**, and it is worth saying plainly what it is: the main thread is blocked for
-150–400 ms after first paint by the page's own JavaScript — React hydration and
-the character's render loop — before the page can respond to input. It is the
-metric a mid-range phone would feel, and it is the one to fix first. Pulling the
-character's loop off the critical path, or deferring the hero's hydration, are the
-two candidates; neither has been done.
+not**, and it is the metric a mid-range phone would feel as input lag. D-45
+attributed it to "React hydration and the character's render loop". The hydration
+half was right and the loop half was wrong: both were measured the same day and
+only one of them is a cause. The section below records what the traces say, and
+what happened when the two obvious fixes were tried.
+
+## Where the blocking actually is
+
+The same page, traced with Lighthouse's throttling, with the API up so the widget
+is running in its intended configuration. Seven traces of this build were taken;
+three are shown.
+
+| Sample | TBT    | Largest task                                         | Hydration of the document | The embed |
+| ------ | ------ | ---------------------------------------------------- | ------------------------- | --------- |
+| 1      | 266 ms | 299 ms — `chunks/968-48fc94ed9c0a5195.js` at 2636 ms | 97 + 74 ms                | 78 ms     |
+| 2      | 262 ms | 295 ms — the same chunk at 2615 ms                   | 82 + 71 ms                | 70 ms     |
+| 3      | 222 ms | 272 ms — the same chunk at 2629 ms                   | 156 ms                    | —         |
+
+In every one of the seven the largest single task is the same 66 kB Next.js chunk
+— React and the app router's own internals — between 215 and 299 ms, which is
+165–249 ms of blocking time. In most samples that one task is very nearly the
+whole of the measured TBT. Nothing else the page loads produces a task over
+160 ms: hydration of the document accounts for 71–156 ms and the embed for 0–86 ms.
+
+So the metric is short of the good-range boundary because of framework code the
+page's own authors do not write, running under a 4× CPU slowdown. That is the
+finding, and it is the reason the two candidate fixes below did not ship.
+
+### Two fixes were tried, measured, and not shipped
+
+**Stopping the character's loop.** The rAF loop in `sunny-hero.tsx` was disabled
+entirely — not slowed, not paused off-screen, but never started — and the build
+was verified to have stopped animating before being measured (the hero's markup
+was byte-identical two and a half seconds apart, where the real build's differs).
+Six runs: **143, 175, 194, 216, 236, 324 ms** (median 205). Six runs of the same
+build with the loop running: **171, 174, 175, 267, 408, 435 ms** (median 221). A
+second six of that same build, taken minutes later: **195, 260, 271, 371, 384,
+408 ms** (median 321). Two samples of _one_ artefact, 100 ms apart in median, means
+a change of the loop's size cannot be read out of six runs at all. The loop was
+left running, and D-45's attribution to it is withdrawn.
+
+**Deferring the embed.** The demo widget — the same script a customer pastes, but
+loaded with `next/script`'s `lazyOnload` instead of as a plain tag — was built and
+measured: **171, 174, 175, 267, 408, 435 ms** and **195, 260, 271, 371, 384, 408 ms**
+against the authored build's **158, 173, 194, 197, 292, 294, 349 ms**. Unresolved,
+for the same reason. Time until the launcher is usable, under the same 4×
+slowdown: median **285 ms** as authored, **312 ms** deferred — little to choose
+between them, though the deferred build's worst run was 2165 ms against 799 ms
+authored, and on a slow connection `lazyOnload` waits for the load event, which is
+precisely when the launcher — the thing this page is selling — should already be
+there. It was reverted, and the page is byte-for-byte the artefact these numbers
+describe.
+
+One thing the experiment did turn up: React 19 does not put that `<script>` in the
+server's HTML. It inserts it during hydration, which is why "eager" and "deferred"
+measured so alike — the embed was never on the parse path to begin with.
+
+## The same build read 300 ms slower hours later
+
+The five runs above were taken at one point on 2026-10-11; the traces above at
+another, hours later, on the same machine and the same artefact — the chunk
+filename is unchanged, which is the artefact-level proof. First Contentful Paint
+read **755–768 ms** then and **1056–1058 ms** now; Largest Contentful Paint read
+1857–2249 ms then and 1954–2451 ms now.
+
+Nothing changed but the time of day. This is D-45's "one machine" caveat with a
+number attached: it is not one number, it is one machine on one afternoon. It is
+also the reason the budget is set from the worst of a batch rather than from a
+figure somebody liked.
 
 ## What these numbers cannot say
 
@@ -82,18 +145,26 @@ two candidates; neither has been done.
 - **Time to First Byte measures a local `next start`**, where 3–15 ms is a file
   read. A Cloud Run cold start is a different number and this script will not see
   it until a deployment exists to measure.
-- **Nothing enforces this in CI**, because nothing runs in CI (D-9: no remote).
-  The command is a developer's, run by hand, and the budget is enforced only when
-  somebody runs it.
+- **Nothing enforces this in CI.** CI does exist now (the repository got a remote
+  on 2026-10-11, D-9) and runs four jobs — but none of them is Lighthouse, so this
+  budget is still a developer's command run by hand, enforced only when somebody
+  runs it.
 
 ## What would move this
 
 The honest next steps, in the order the numbers argue for them:
 
-1. Bring TBT under 200 ms. It is the single metric short of the goal and the one
-   with the clearest cause (main-thread JavaScript after first paint).
+1. **Bring TBT under 200 ms — not from this page's own code.** The evidence is
+   above: the blocking is a framework chunk under Lighthouse's CPU slowdown, and
+   both app-level levers were tried and moved nothing measurable. Reaching the
+   good-range boundary means changing what hydrates the page, which is a
+   product-and-stack decision rather than a fix, and it is not one this repository
+   should take to satisfy a lab metric. What is explicitly _not_ on the table is
+   buying the number by removing the character: the character is the product, and
+   a budget that argues against the thing being sold is the wrong budget (D-45).
 2. Re-measure on a deployment once one exists, which turns Time to First Byte
    from a file read into a real figure and makes "staging build" true rather than
    approximated.
-3. Add the run to whatever CI exists once the repository has a remote, so the
-   budget is a gate rather than a habit.
+3. Add the run to the CI job once it exists, so the budget is a gate rather than a
+   habit — and so a regression in the artefact has to pass a human's review rather
+   than a human's memory.

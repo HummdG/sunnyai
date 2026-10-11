@@ -2923,6 +2923,14 @@ phone would feel as input lag. It is recorded as short of the goal rather than g
 budget, and the two candidate fixes (moving the character's loop off the critical path, deferring
 the hero's hydration) are named in the docs and not done.
 
+**Corrected by D-51, which traced the page and tried both candidates.** The figure stands and the
+verdict stands; the _cause_ named in the paragraph above is half wrong. Traces of the same artefact
+show the largest single long task in every sample is one 66 kB Next.js chunk -- React and the app
+router's own internals -- at 215-299 ms, which alone is nearly the whole of the measured TBT.
+Hydration of the document is 71-156 ms. The character's loop, disabled outright and verified to have
+stopped, changed nothing readable. The cause is the framework under Lighthouse's 4x CPU slowdown,
+not the page's own animation.
+
 **What the numbers are claimed to mean, and not.** They are lab figures from one machine, not
 field data: there is no real-user p75, so they cannot be quoted against the Core Web Vitals
 thresholds as though real users had been measured. Time to First Byte in particular reads 3-15 ms,
@@ -3363,3 +3371,87 @@ schema and the rewritten top-of-file note that previously read "usage -> absent 
 35 files** (up from 1062/33 — the two new files are `latency.test.ts` and `usage.test.ts`). The whole suite,
 including `tests/security/tenant-isolation.test.ts`, passes with the `usage` block present and the strip in
 place.
+
+## D-51. The obvious TBT fix was tried and measured, and the blocking turned out to be the framework's
+
+**Context.** D-45 recorded the marketing page's Total Blocking Time as the one lab metric short of the
+Lighthouse good-range boundary -- 162-386 ms against 200 ms -- and named two candidate causes: "React
+hydration plus the character's render loop", with "moving the character's loop off the critical path" and
+"deferring the hero's hydration" as the fixes to try. Neither had been tried, and the attribution had not
+been tested: it was an inference from the fact that the page has JavaScript, not from a trace.
+
+This matters beyond the metric. A performance number with an untested cause invites a fix that ships a
+worse page and a claim that the number improved, and the next person to look at the row would have no way
+to tell either had happened. The plan's agent contract is explicit that a feature is never complete on the
+strength of a plausible story, so the same rule has to hold for a _defect_.
+
+**Decision -- trace the main thread before touching anything, then try both named fixes as experiments and
+ship neither.** Lighthouse's own audits were used (`long-tasks`, `mainthread-work-breakdown`,
+`bootup-time`, `network-requests`), which attribute blocking time to the script that was executing when it
+happened. A throwaway script under `scripts/` produced the breakdowns; it was deleted rather than committed,
+because a second measuring tool beside `scripts/lighthouse-marketing.mjs` is a second thing to keep true.
+
+**What the traces say.** In every one of the seven samples of the shipped artefact the largest single long
+task is the same 66 kB Next.js chunk (`968-48fc94ed9c0a5195.js` -- React and the app router's internals) at
+215-299 ms, i.e. 165-249 ms of blocking time, which in most samples is very nearly the whole of the measured
+TBT (the deferred variant's samples reached 643 ms for the same chunk). Hydration of the document contributes 71-156 ms; the embed contributes 0-86 ms; nothing else reaches
+160 ms. The page's own code -- the character, the hero, the rig, the renderer -- never appears as a task of
+its own.
+
+**The two experiments.** Both were measured as six-run distributions, because D-45 had already established
+that this page's run-to-run spread (a factor of 2.4 on an unchanged build) swamps a single reading.
+
+_Disabling the character's loop outright._ The `requestAnimationFrame` loop in `sunny-hero.tsx` was made
+never to start, behind a build-time flag; the build was then **verified** to have stopped animating before
+being measured (the hero's markup was byte-identical 2.5 s apart, where the shipped build's differs -- the
+control that makes the null result mean something). Six runs gave 143, 175, 194, 216, 236, 324 ms, median 205. Six runs of the same build with the loop running gave 171, 174, 175, 267, 408, 435 ms, median 221. A
+second six of that same build, minutes later, gave 195, 260, 271, 371, 384, 408 ms, median 321.
+
+_Deferring the embed._ The demo widget -- the real script, loaded via `next/script`'s `lazyOnload` rather
+than as a plain tag -- gave 171-435 ms and 195-408 ms against the authored build's 158-349 ms.
+
+Both are null results, and the second six of the _unchanged_ deferred build is why: two samples of one
+artefact, 100 ms apart in median, means no effect of the size on offer can be read out of six runs at all.
+The honest reading is not "the fix worked a little" or "the fix worked not at all" -- it is that this
+harness cannot resolve changes of this size, and a decision taken on such a reading would be a decision
+about noise.
+
+**What was shipped instead: nothing, and that is the decision.** The loop stays as it is. The embed stays
+as a plain `<script>` tag, because the deferral's one measurable cost was the wrong way round -- time until
+the launcher is usable was median 285 ms as authored against 312 ms deferred under the same CPU slowdown,
+with a worst run of 799 ms against 2165 ms, and `lazyOnload` waits for the load event, which on a slow
+connection is exactly when the launcher -- the thing the page is selling -- should already be there. The
+page is byte-for-byte the artefact the numbers describe (the rebuilt chunk has the same filename).
+
+**What the experiment did establish, besides the null results.** React 19 does not render that `<script>`
+into the server's HTML; it inserts it during hydration, so the embed was never on the parse path and
+"eager" versus "deferred" was a smaller change than it looked. And the framework chunk is what a reader
+should now understand TBT on this page to _be_ -- not the character, which D-45 blamed and which the
+measurement exonerates.
+
+**The consequential statement, since the metric is still short.** Reaching the 200 ms boundary is not
+available from this page's own code. It means changing what hydrates the page -- a stack decision, not a
+fix -- and this repository should not take it to satisfy a lab metric, the more so when five of the six
+metrics meet the boundary, layout shift is exactly zero, and the committed budget holds with room to
+spare. The character will not be traded for the number: it is the product (D-45). Both of the fixes D-45
+named are now _tried_ rather than _named_, which is what the row was missing.
+
+**Also recorded: the same artefact read ~300 ms slower hours later.** The five runs in D-45 were taken with
+First Contentful Paint at 755-768 ms; today's six read 1056-1058 ms on the same machine and the same chunk
+filenames, with Largest Contentful Paint moving 1857-2249 ms to 1954-2451 ms. Nothing changed but the time
+of day. That is the "one machine" caveat with a number attached, and it is the strongest argument yet for
+the budget being set from the worst of a batch rather than from a figure somebody liked.
+
+**Evidence.** `docs/performance/marketing.md` (the trace table, both six-run distributions, the launcher
+timings, the drift paragraph, and the D-45 sentence above it corrected in place),
+`docs/DECISIONS.md` (D-45's "what it found" paragraph carries the correction),
+`apps/marketing/components/sunny-hero.tsx` and `apps/marketing/app/page.tsx` (both shown unchanged in
+`git status` -- the diff is empty because neither experiment was kept).
+
+**Verified.** Each configuration was built with `npm run build -w @sunny/marketing`, served with
+`npm run start -w @sunny/marketing` on port 4176 with the API on 8787, and measured with
+`npm run perf:marketing` (six runs each) plus audit-level traces. The loops-off build was confirmed to have
+stopped animating by comparing the hero's markup 2.5 s apart, and the reverted build by the same check
+showing it moving again; the reverted build's chunk filename matches the pre-experiment build, so the
+artefact is identical. `npx playwright test tests/e2e/marketing.spec.ts` passes 9/9 on the deferred variant
+(so the null result is not hiding a broken page) and the deferred variant was reverted anyway.
