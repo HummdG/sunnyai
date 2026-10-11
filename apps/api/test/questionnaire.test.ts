@@ -216,6 +216,36 @@ describe('the sentence a refusal becomes', () => {
     expect(explain(verdict)).toBe('value is not a number: a number of kWh');
   });
 
+  it('lets a visitor who does not know answer, everywhere the journey does', () => {
+    // §7.3 asks for "optional/skippable steps", and the honest answer is that
+    // Sunny has no skip to offer, because the source journey has none to copy: in
+    // `canAdvance` every step is required except `lifestyle` -- "select all that
+    // apply", where empty is valid -- and Sunny's set deliberately omits
+    // `lifestyle` as a whole step (`docs/discovery-sunscan.md` §1.3,
+    // `docs/integration/sunscan-contract.md` §2.1). Not knowing is an ordinary
+    // answer, not an absence, and each question a visitor might not know carries
+    // the journey's own uncertainty option. Pinning it here is what keeps a later
+    // question from being added with no way to answer it but a mechanism Sunny
+    // does not have.
+    for (const id of [
+      'roof_size',
+      'roof_direction',
+      'roof_shading',
+      'existing_system',
+      'budget_band',
+    ]) {
+      expect(QUESTIONS[id]!.options, `${id} should offer the journey's "unsure"`).toContain(
+        'unsure',
+      );
+    }
+    // The journey's two other ways of saying it.
+    expect(QUESTIONS['tariff_type']!.options).toContain('unknown');
+    expect(QUESTIONS['usage_source']!.options).toContain('household');
+    // The one optional step in the journey is not a question here at all, which
+    // is the reason there is nothing to skip.
+    expect(QUESTIONS['lifestyle']).toBeUndefined();
+  });
+
   it('says what to change when an earlier answer ruled the question out', () => {
     const verdict = validateAnswer('annual_kwh', '4200', { usage_source: 'household' });
     if (verdict.ok) throw new Error('unreachable');

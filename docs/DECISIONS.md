@@ -1730,8 +1730,9 @@ rather than only in `data`.
 write wins) but there is no _skip_ state -- "the visitor declined" is not the same as
 "unsure", and the answers map cannot hold the difference. (**Corrected 2026-10-11:**
 this paragraph also listed corrections as absent. The stored map was corrected by D-31
-once the re-answering it describes was found to leave stranded answers behind; skips
-and the review remain absent.) The roof
+once the re-answering it describes was found to leave stranded answers behind. The
+review remains absent; the skip turned out not to apply at all, which D-32 records
+rather than builds.) The roof
 branch is deliberately **not** conditionalised: SunScan shows `roofFallback` when a
 _derived_ roof is low-confidence, and Sunny has no roof derivation, so the visitor's
 self-reported `roof_confidence` is a different quantity and treating it as the same
@@ -1821,9 +1822,10 @@ already records the answer that caused it. Anyone replaying the turns has that a
 and the module's rules, so the removal is derivable; writing it onto the turn as well
 would be a second copy of the conditional logic, free to drift from the first.
 
-**What this does not do.** Skips and the view-before-submit review are still absent,
-so §7.3 is still part-covered -- "the visitor declined" and "the visitor is unsure" are
-different facts and the answers map still cannot hold the difference. Corrections are
+**What this does not do.** The view-before-submit review is still absent, so §7.3 is
+still part-covered. Skips and the review were once listed here as the two remainders;
+D-32 later found the journey has no skip to model at all, so only the review is left, and
+it is a host-page surface rather than anything the API is missing. Corrections are
 now handled for the _stored_ map, both paths; a correction UI is a host-page concern
 Sunny does not ship, and the wire now carries what such a UI needs
 (`removedAnswers`).
@@ -1842,3 +1844,71 @@ sequence above now returns `{usage_source: 'household'}` with
 `removedAnswers: [{questionId: 'monthly_cost', value: '150', ruledOutBy: {questionId:
 'usage_source', value: 'household'}}]`, and an unrelated write still returns
 `removedAnswers: []`.
+
+## D-32. There is no skip state, because the journey has no skip
+
+**Context.** §7.3 lists "optional/skippable steps" among what qualification needs, and
+D-30 and D-31 both left it open, with D-30 recording why it was thought to need new
+storage: "'the visitor declined' is not the same as 'unsure', and the answers map cannot
+hold the difference". The obvious next increment was to add that storage -- a `skipped`
+set beside the answers, on the conversation, the wire and the tool. Before building it,
+the source journey was read again (`docs/discovery-sunscan.md` §1.3), and it does not
+have the mechanism the storage would model.
+
+**Finding: in SunScan's journey every step is required, and not-knowing is an answer.**
+`canAdvance` (recorded at §1.3, transcribed from `StartWizard.tsx:83-126`) returns `true`
+unconditionally for exactly two steps:
+
+- `roof` — a read-only display of the derived `RoofState`. Nothing is asked, so nothing
+  is required.
+- `lifestyle` — a multi-select where "empty is valid": "Select all that apply".
+
+Every other step returns `true` only when its value is present, including
+`roofFallback`'s three sub-questions, which the discovery note records as "all
+required". A visitor who does not know is not skipping: the journey gives them an
+option. Six questions carry an explicit uncertainty value (`roofFallback.sizeBand`,
+`.direction`, `.shading` and `existing` all have `unsure`; `tariffType` has `unknown`;
+`budgetBandId` has `unsure`), `usage` says it in words ("I don't know" for the
+`household` source), and the rest are free text or numbers gated behind a source that
+already carried the choice.
+
+**So the requirement is met vacuously for the steps Sunny has.** `lifestyle` is the
+journey's one optional step, and Sunny's question set omits it as a whole step -- a
+deliberate subset, already recorded in `docs/integration/sunscan-contract.md` §2.1. What
+remains is every step the journey requires, and Sunny asks each with the same
+uncertainty option the journey gives it. There is no step in Sunny's set that a visitor
+can neither answer nor answer-with-`unsure`, which is exactly what a skip state would be
+for.
+
+**Decision: build no skip state, and pin the reason.** Building one would invent a
+mechanism the source journey does not have -- the class of thing the plan forbids ("do
+not invent SunScan APIs") -- and it would create a second way to say "I don't know"
+alongside the `unsure` options that already exist, with the two free to disagree about
+the same visitor. A test in `questionnaire.test.ts` asserts the finding directly: the
+five `unsure` questions carry it, `tariff_type` carries `unknown`, `usage_source`
+carries `household`, and `QUESTIONS['lifestyle']` is `undefined`. That is what keeps a
+future question from being added with no way to answer it but a mechanism Sunny does
+not have.
+
+**What this changes.** The "no skip" half of §7.3's Unreal list becomes _not
+applicable, with the reason_, in `docs/STATUS.md` and `docs/requirements-matrix.md`. The
+other residual item, the view-before-submit review, is unaffected: it is a host-page
+surface, and the wire already carries what it needs (the standing `answers`,
+`nextQuestionId`, and, since D-31, `removedAnswers`).
+
+**Also closed in the same pass: multi-answer extraction.** §7.3 asks that
+"conversational collection should extract multiple supplied answers without asking
+twice". The mechanism was already there and untested -- a turn may call `save_answer`
+more than once, the provider executes each call as it streams, and the turn's audit map
+carries all of them, not just the last. A test now drives two `save_answer` calls in one
+turn and checks both the store and the per-turn map. What a test cannot show is the
+extraction itself, which is model behaviour and needs the credential in blocker 1; the
+plumbing it would land on is what is pinned, so the credential is the only missing part.
+And "without asking twice" is already enforced a different way: `get_questionnaire` only
+lists questions with no answer, so the model is never handed one the visitor has
+answered.
+
+**Evidence.** 1 test in `questionnaire.test.ts` (the uncertainty options, and the absent
+`lifestyle`), 1 in `pipeline.test.ts` (two answers from one turn, in the store and on the
+turn). `npm run verify` is **822 tests across 24 files**. No source change: the finding is
+that the code was already right.

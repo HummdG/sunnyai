@@ -1136,6 +1136,79 @@ describe('qualification answers reach the conversation', () => {
     expect(assistant?.answers).toEqual({ annual_kwh: '4200' });
   });
 
+  it('records several answers from one turn, so the assistant need not ask twice', async () => {
+    // §7.3: "conversational collection should extract multiple supplied answers
+    // without asking twice". The mechanism is that a turn may call `save_answer`
+    // more than once -- the provider executes each call as it streams -- and every
+    // answer it sets lands in the store and on the turn's own map. What is *not*
+    // proven here is the extraction itself: that a real model finds two answers in
+    // one sentence is a model behaviour, and there is no credential in this
+    // environment to observe it (blocker 1). This pins the plumbing it would land
+    // on, so a credential is the only thing missing.
+    const captured: unknown[] = [];
+    const provider = new ScriptedProvider((request) => {
+      const original = request.execute;
+      request.execute = async (call) => {
+        const result = await original(call);
+        captured.push(result);
+        return result;
+      };
+      return [
+        {
+          type: 'tool_started',
+          call: {
+            id: 'call_1',
+            name: 'save_answer',
+            args: { questionId: 'usage_source', value: 'manual_kwh' },
+          },
+        },
+        {
+          type: 'tool_started',
+          call: {
+            id: 'call_2',
+            name: 'save_answer',
+            args: { questionId: 'annual_kwh', value: '4200' },
+          },
+        },
+        { type: 'text', text: 'Got both of those.' },
+      ];
+    });
+
+    const { app, store } = await h(provider);
+    const { sessionId, token } = await openSession(app);
+
+    const turn = await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I enter kWh; about 4200 a year' },
+    });
+
+    // Both tools ran, and the second saw the first's answer -- it could not have
+    // been accepted otherwise, `annual_kwh` being gated on the usage source.
+    const finished = parseSse(turn.body).filter((frame) => frame['type'] === 'tool_finished');
+    expect(finished.map((frame) => frame['tool'])).toEqual(['save_answer', 'save_answer']);
+    expect(finished.every((frame) => frame['ok'] === true)).toBe(true);
+    expect(captured.map((result) => (result as { note: string }).note)).toEqual([
+      'Saved usage_source = manual_kwh.',
+      'Saved annual_kwh = 4200.',
+    ]);
+
+    const conversation = await store.getConversation('t_demo0001', sessionId);
+    expect(conversation?.answers).toEqual({ usage_source: 'manual_kwh', annual_kwh: '4200' });
+
+    // And the turn's audit map carries both, not just the last one.
+    const read = await app.inject({
+      method: 'GET',
+      url: '/v1/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const assistant = read
+      .json<{ turns: Array<{ role: string; answers?: Record<string, string> }> }>()
+      .turns.find((entry) => entry.role === 'assistant');
+    expect(assistant?.answers).toEqual({ usage_source: 'manual_kwh', annual_kwh: '4200' });
+  });
+
   it('persists an answer a correction inside the turn took away', async () => {
     // A correction made in chat has to reach the store the same way one made by
     // the route does. The tool deletes the stranded answer from the context, so
