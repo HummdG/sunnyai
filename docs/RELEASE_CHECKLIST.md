@@ -27,20 +27,21 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run format:check` — Prettier, clean
 - [ ] `npm run lint` — ESLint, type-aware, clean
 - [ ] `npm run typecheck` — `tsc --noEmit`, strict, clean
-- [ ] `npm run test` — currently **589 passing across 16 files**
+- [ ] `npm run test` — currently **969 passing across 28 files**
   - [ ] unit
   - [ ] contract (Zod schemas exercised through the routes)
   - [ ] integration — _partial: the API is exercised in-process, not across a
         network boundary_
-  - [ ] visual snapshots — **23 committed PNG baselines** of the character,
+  - [ ] visual snapshots — **25 committed PNG baselines** of the character,
         compared byte for byte. Aimed at the rig rather than at a page, for the
         reason in D-16: a page screenshot differs by operating system and the
-        test gets deleted. Twenty-one are states the engine produces; one, the
-        paddle on the end of a ray (A09, D-24), is posed by hand, because the
-        ray-to-arm morph is a rig control no machine event reaches; and the last
-        is the arcade spin's reduced-motion tuck (A10, D-25), the third baseline
-        in which a fallback is _used_ rather than the resting pose being handed
-        back. Regenerate with `npm run test:visual:update` only after looking
+        test gets deleted. Most are states the engine produces by itself; one,
+        the paddle on the end of a ray (A09, D-24), is posed by hand, because the
+        ray-to-arm morph is a rig control no machine event reaches; and five are
+        reduced-motion scenes, where the baseline is the fallback _being used_
+        rather than the resting pose handed back, the newest of them being the
+        plant's growth and the tuck a reduced-motion visitor sees instead (A11,
+        D-26). Regenerate with `npm run test:visual:update` only after looking
         at what moved.
   - [ ] re-run the visual suite under Linux (`node:22-bookworm`, `npm ci`, then
         `npx vitest run tests/visual`) whenever a baseline moves. That is the
@@ -48,7 +49,7 @@ Run `npm run verify` — it chains the first four.
         committed rather than a screenshot test is the claim that they are
         platform-independent — which is only a claim until it is re-checked
 - [ ] `npm run build` — record both bundle sizes and compare against the last
-      release. Last known: widget **131.5 kB (36.5 kB gzipped)**, lab 140.8 kB,
+      release. Last known: widget **152.1 kB (42.4 kB gzipped)**, lab 140.8 kB,
       arcade 11.9 kB. The lab now has a **second entry point** (A08, D-23): the
       arcade is a separate 11.9 kB file the page fetches only when the visitor
       asks for it, so any release that measures "the lab" must measure both, and
@@ -62,9 +63,11 @@ Run `npm run verify` — it chains the first four.
       board and the ping pong table and the rules they import (A06 and A09, D-22
       and D-24). The widget's own figure is unchanged by A09 and by A10 — the
       rally and the arcade are lab surfaces and ship no code to a customer — while
-      A11 is the first moment since A05 to move it, because the plant's three
-      paintings and four variants live in the engine the widget ships (127.7 to
-      131.5 kB, and 35.3 to 36.5 kB gzipped). None has a budget
+      A11 is the first moment since A05 to move it (127.7 to 131.5 kB, and 35.3 to
+      36.5 kB gzipped), and the two changes after that are the option cards (D-28)
+      and then device-cutout support plus the `!important` in the shadow
+      stylesheet's `:host` block (D-36, D-41), which took it from 131.5 to
+      **152.1 kB (42.4 kB gzipped)**. None has a budget
       yet. Nothing
       about either number is alarming at this size, but a figure nobody
       re-measures becomes a figure nobody can trust, so the next release should
@@ -75,9 +78,9 @@ Run `npm run verify` — it chains the first four.
         always passes is worse)
   - [ ] run with `SMOKE_EXPECT_CHAT=1` once a key is configured, so the live
         turn is actually exercised instead of skipped
-- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **42 passing**
-      in Chromium, over the plain-HTML demo, the two host fixtures, the marketing
-      site and the character lab
+- [ ] `npm run verify:all` — the browser suite (Playwright + axe), **58 passing**
+      in Chromium, over the plain-HTML demo, the WordPress-shaped host page, the
+      React and Next.js fixtures, the marketing site and the character lab
   - [ ] requires `npm run test:e2e:install` once per machine; a release
         that skipped it has never driven the embed snippet in a browser
   - [ ] axe fails the run at `serious` and above. Passing it is a floor, not a
@@ -189,9 +192,10 @@ Run `npm run verify` — it chains the first four.
       prop, because there is an honest still of a balloon at rest and none of a
       deckchair arriving — D-20 and D-21)
 - [ ] Every sequence's `reducedMotionFallback` is honoured — a test asserts every
-      one exists, and the `relaxing-reduced-motion`, `balloon-reduced-motion`
-      and `arcade-spin-reduced-motion` baselines are the fallbacks actually being
-      _used_ rather than merely defined (D-20, D-21, D-25). The arcade's is a
+      one exists, and the `relaxing-reduced-motion`, `balloon-reduced-motion`,
+      `arcade-spin-reduced-motion`, `celebrating-reduced-motion` and
+      `bloom-reduced-motion` baselines are the fallbacks actually being
+      _used_ rather than merely defined (D-20, D-21, D-25, D-26). The arcade's is a
       fallback rather than a `-still` like the rest: `arcade-tuck` is the row's
       own minimal variant, so a visitor who asked for less motion still sees that
       something happened — they just do not see a spin
@@ -206,6 +210,16 @@ Run `npm run verify` — it chains the first four.
       healthy and refuses every conversation.
 - [ ] Errors are captured somewhere a human will see them
 - [ ] Token usage and cost per conversation are recorded
+- [ ] Somebody reads the **audit trail**. It is written — one event per
+      privileged route call and per effectful tool call, refusals included, served
+      by `GET /v1/audit/events` (D-43) — and **nothing reads it yet**, and nothing
+      rotates it: it is an append-only JSONL file per tenant with no retention
+      policy, which is not on its own an answer to "how long do you keep this".
+      Nor can it yet say _who_: every event's actor is `admin` with a **null** id,
+      because the only privileged credential is one deployment-wide token, so the
+      trail distinguishes what happened from what _a person_ did only once
+      dashboard authentication exists (blocker 4). Refusals that named no valid
+      credential are stored under no tenant, and no route serves them.
 - [ ] A dashboard exists for `GET /v1/dashboard/metrics` — the route is not built
 
 ## 7. Rollback
@@ -222,12 +236,13 @@ Run `npm run verify` — it chains the first four.
 
 ## 8. Known scope gaps to state plainly, not to discover
 
-- [ ] **5 of the plan's 14 API routes exist.** Catalogue, recommendations,
-      assessments, dashboard metrics, knowledge ingestion, Drive integration and
-      billing are **not implemented**. Lead creation and qualification capture
-      **are** implemented by route, and the conversational `create_lead` /
-      `save_answer` tools also exist; the pairs write the same records. Do not
-      describe the product as having the rest.
+- [ ] **9 of the plan's 14 API routes exist.** Assessments, dashboard metrics,
+      Drive integration and billing are **not implemented**, and the two knowledge
+      routes exist as ingestion from text the caller supplies rather than as
+      managed retrieval. Lead creation, qualification capture, the catalogue pair
+      and the knowledge pair **are** implemented by route, and the conversational
+      `create_lead` / `save_answer` tools also exist; the pairs write the same
+      records. Do not describe the product as having the rest.
 - [ ] **There is no SunScan integration.** No SunScan endpoint has ever been
       called from this code. `packages/sunscan-adapter` is a stub, and SunScan
       has no unified error envelope, so the adapter must translate per route.

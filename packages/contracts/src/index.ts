@@ -10,3 +10,4 @@ export * from './leads.js';
 export * from './qualification.js';
 export * from './catalogue.js';
 export * from './knowledge.js';
+export * from './audit.js';

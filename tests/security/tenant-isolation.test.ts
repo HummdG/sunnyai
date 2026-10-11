@@ -325,6 +325,17 @@ const ROUTES: RouteSpec[] = [
     kind: 'admin',
   },
   {
+    method: 'GET',
+    pattern: '/v1/audit/events',
+    url: (ids) => `/v1/audit/events?tenantId=${ids.tenantId}`,
+    // Admin, and it has to be: this returns the record of what was done to one
+    // installer's data, including every read of their enquiry list. The sweep's
+    // visitor credentials must not reach it, and the isolation cases below
+    // separately check that one installer's trail is not served under another's
+    // tenant name.
+    kind: 'admin',
+  },
+  {
     method: 'POST',
     pattern: '/v1/recommendations',
     url: () => '/v1/recommendations',
@@ -580,6 +591,58 @@ describe('data isolation', () => {
     });
     expect(asVisitor.statusCode).toBe(401);
     expect(asVisitor.body).not.toContain('isolation@example.test');
+  });
+
+  it('keeps one installer’s audit trail out of another’s', async () => {
+    // An act worth recording, done under the demo tenant.
+    await app.inject({
+      method: 'GET',
+      url: `/v1/leads?tenantId=${ISOLATION_DEMO.tenantId}`,
+      headers: adminHeader,
+    });
+
+    const mine = await app.inject({
+      method: 'GET',
+      url: `/v1/audit/events?tenantId=${ISOLATION_DEMO.tenantId}`,
+      headers: adminHeader,
+    });
+    expect(mine.statusCode).toBe(200);
+    const events = json<{ events: { id: string; action: string }[] }>(mine).events;
+    expect(events.map((event) => event.action)).toContain('leads.read');
+    // The storage key is stripped on the way out, exactly as it is from a
+    // catalogue row: the caller named the tenant in the query, so the field
+    // would carry nothing they did not supply.
+    expect(events.every((event) => !('tenantId' in event))).toBe(true);
+
+    // And not one of those records is in the rival's trail.
+    //
+    // Compared by id rather than by action, because both installers legitimately
+    // have a `leads.read` in their own trail by the time this runs -- what must
+    // not happen is one installer's *record* turning up under the other's name.
+    // The file boundary is the tenant boundary, so a store that read across it
+    // would show up here as a shared id.
+    const theirs = await app.inject({
+      method: 'GET',
+      url: `/v1/audit/events?tenantId=${ISOLATION_RIVAL.tenantId}`,
+      headers: adminHeader,
+    });
+    const rivalEvents = json<{ events: { id: string }[] }>(theirs).events;
+    // Guards the check above from being vacuous: the rival's trail is not empty,
+    // so "none of these ids" is a fact about scoping rather than about nothing
+    // having been recorded.
+    expect(rivalEvents.length).toBeGreaterThan(0);
+    const mineIds = new Set(events.map((event) => event.id));
+    expect(rivalEvents.filter((event) => mineIds.has(event.id))).toEqual([]);
+
+    // A visitor credential cannot read either trail. The trail names the people
+    // who read the enquiries; it is not something a visitor's browser should see
+    // even scoped to the visitor's own installer.
+    const asVisitor = await app.inject({
+      method: 'GET',
+      url: `/v1/audit/events?tenantId=${ISOLATION_DEMO.tenantId}`,
+      headers: { authorization: visitorToken(ISOLATION_DEMO) },
+    });
+    expect(asVisitor.statusCode).toBe(401);
   });
 
   it('prices a visitor from their own installer catalogue', async () => {

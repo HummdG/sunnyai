@@ -2587,3 +2587,129 @@ pages.
 
 **Evidence.** `tests/e2e/resilience.spec.ts`, `packages/widget/src/{widget,chat}.ts` (unchanged),
 `docs/requirements-matrix.md` (§6.2's host-failure row), `docs/STATUS.md`.
+
+---
+
+## D-43. An audit record's shape is the guarantee that it holds no user content
+
+**Context.** §4 asks that "audit events record privileged changes and tool actions without
+unnecessarily copying sensitive user content", and §9 lists an audit trail among the
+answers to its threat model. The row was `Not started` with the note "no audit-event
+record type or store", which was accurate. What made it worth thinking about before
+writing rather than after is the second half of the sentence: an audit log is a second
+copy of the data it describes unless somebody is actively preventing it, and the copy
+arrives by a route nobody plans -- somebody adds `reason: error.message` because it
+helps, or records the document title because it seems useful.
+
+**Decision -- the guarantee is the shape, not a rule.** `detail` is
+`z.record(z.string(), z.union([z.number(), z.boolean()]))`: a map of numbers and booleans,
+**and no strings at all**. There is no free-form `metadata`, no `message`, no `error` and
+no `payload` field anywhere in the event. So putting a visitor's email, an uploaded
+document's text or a caller's email address into the record does not take a lapse of
+judgement that a reviewer might miss -- it takes changing the schema's _value type_,
+which is a line in a diff that says what it does. The remaining strings are ids and
+vocabulary the server owns: tenant ids from the registry, source and job ids the server
+minted, tool names from the closed `TOOL_NAMES` list, members of the four closed enums,
+the conversation's `sessionId`, the server's clock, and Fastify's request id. None is
+derived from a request body.
+
+The same reasoning closed the three vocabularies. `action`, `outcome`, `reason`, the
+actor kind and the target kind are `as const` arrays turned into `z.enum`s, because an
+alert rule like "tell me when `bad_credential` spikes" needs the value to be a name
+rather than a sentence, and because a field that can hold anything is a log nobody can
+count.
+
+**The acts recorded, and the ones deliberately not.** Four privileged routes, one event
+each, on both the success and the refusal paths: `POST /v1/catalog/products`
+(`catalogue.upload`), `POST /v1/knowledge/sources` (`knowledge.source.write`),
+`GET /v1/knowledge/jobs/:id` (`knowledge.job.read`) and `GET /v1/leads` (`leads.read`).
+And `agent.tool.invoke`, once per effectful tool call, recorded at the one funnel every
+invocation passes through (`executeTool`) rather than inside each tool -- a tool that
+forgot to record itself would be a gap nothing would notice, and `ok` is only known once
+the tool has run, which is where a tool that _declined_ becomes visible.
+
+Two lines were drawn and both are arguable, so both are written down:
+
+- **`leads.read` is recorded although the plan says "privileged changes" and this is a
+  read.** Reading the lead list hands over every visitor's name, email and phone in one
+  response, which is the most consequential thing an admin credential can do here. A log
+  that recorded the catalogue upload while staying silent about the customer export would
+  be answering a question nobody asks, so the plan's phrase is treated as a floor.
+- **`suggest_page_action` is not in `EFFECTFUL_TOOL_NAMES`, and neither is any read
+  tool.** The line is _whether anything is left behind afterwards_ -- a lead, a callback
+  promise, a handoff, a SunScan assessment request. A page action changes what the widget
+  is showing and nothing else, and every read tool is already on the assistant turn (each
+  turn stores its `tools`), so copying them into the audit trail would bury the handful of
+  events that matter under the ones that do not. The four names are typed against
+  `TOOL_NAMES`, so a name that is not a real tool is a typecheck failure rather than a
+  line that silently never fires.
+
+**What is not recorded, and why.** A `not_enabled` refusal (the route disabled because
+`SUNNY_ADMIN_TOKEN` is unset) is not an event: on such a deployment these routes do not
+exist, so there is no privileged act to have been refused, and turning every probe of a
+disabled feature into a row would fill the trail with the one thing in it that means
+nothing. The isolation suite agrees with the code about this -- `not_enabled` is not
+counted there as a refusal either.
+
+**Where a refusal is filed.** Events carry a nullable `tenantId`, and a refusal that
+never got as far as naming a tenant (a wrong admin token on a route that takes the tenant
+in its body, or a route naming a tenant this deployment does not have) is filed under
+**no tenant**, in `_unscoped.jsonl` beside the per-tenant files. Null is a fact about the
+attempt and is kept rather than guessed at: filing a refused attempt under the tenant in
+the request body would mean writing down what the caller claimed as though it were true.
+The cost is named rather than hidden -- an unauthenticated caller can therefore write
+rows, which is a flood surface on a deployment that exposes these routes publicly; the
+alternative was losing the refusals, and "somebody tried and was turned away" is the
+event an incident review asks about first.
+
+**Storage and serving.** One append-only JSONL file per tenant under `data/audit/`, the
+same treatment leads get and not the catalogue's replace-in-place, because this is a
+record that something happened and a rewrite would make it possible to lose one. The
+reader re-checks `parsed.tenantId !== tenantId` on every line -- the defence every reader
+in that file makes, since a line naming another tenant is not evidence that this one owns
+it -- and skips a torn final line, which is what a crash mid-append looks like.
+`GET /v1/audit/events` serves one tenant's trail newest first, admin-gated, with
+`tenantId` stripped on the way out exactly as the catalogue strips it from a product row.
+There is deliberately **no route over the unscoped refusals**: a cross-tenant view of
+them belongs to the dashboard, which is blocker 4.
+
+**A failed audit write never fails the request.** By the time most events are written the
+act has already happened -- the catalogue is stored, the lead list is already on its way
+back -- so throwing would refuse a request that succeeded, which is a lie in the other
+direction and a worse one, because the caller would retry a write that already landed.
+`onFailure` is wired to the request log at **error** level. The genuinely tempting
+alternative, swallowing it and carrying on, is how an audit log quietly stops being
+written while every dashboard says it is fine; that is why `onFailure` exists as a
+required-by-convention parameter rather than an optional nicety.
+
+**Falsified before it was trusted.** Three breaks, each reverted. Dropping the denial
+record from the leads route reddened the refused-credential case; emptying
+`EFFECTFUL_TOOL_NAMES` reddened the tool-call cases; injecting the document's _title_ into
+`detail` as a string reddened the no-content case and the numbers-and-booleans case at
+once. Four red tests, each for the reason it exists to catch -- and the third is the
+important one, because it is the exact change a helpful future contributor would make.
+
+**Recorded, not fixed.** Every event's actor is `admin` with a **null** `id`, or `system`
+for the assistant: the only privileged credential this deployment issues is one
+deployment-wide token, which identifies a _deployment_ and not a person, and recording a
+name would mean inventing one. The field exists now so the day dashboard authentication
+lands (blocker 4) the change is a populated field rather than a schema migration, and so
+the nulls read as "we cannot tell you who" rather than "nobody thought about it". Also
+unfixed here: the trail has no retention, rotation or tamper-evidence policy, and it is
+held by `FileStore` rather than Firestore.
+
+**Verified.** `npm run verify` is **969 tests across 28 files**, green;
+`apps/api/test/audit.test.ts` is 8 of them, end to end through a real server and a real
+store on disk, including one case that plants five markers (a document body, a document
+title, a catalogue model name, a visitor email, a lead summary) and searches the stored
+bytes for all five while asserting the action names _are_ there, so the check cannot pass
+by the file being empty. `tests/security/tenant-isolation.test.ts` gained the route row
+the inventory test requires and a case proving two tenants' event-id sets are disjoint
+with a guard that the rival's trail is non-empty. The full browser suite is unaffected
+(no widget or host-page code changed).
+
+**Evidence.** `packages/contracts/src/audit.ts`, `apps/api/src/audit.ts`,
+`apps/api/src/store.ts` (`appendAuditEvent`/`listAuditEvents`),
+`apps/api/src/agent/tools.ts` (`EFFECTFUL_TOOL_NAMES`), `apps/api/src/server.ts`,
+`apps/api/test/audit.test.ts`, `tests/security/tenant-isolation.test.ts`,
+`docs/requirements-matrix.md` (§4's audit row, `Not started` → `Partial`).

@@ -4,6 +4,7 @@ import { searchChunks, type KnowledgeIndex } from '@sunny/knowledge';
 import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
 import { newId, type LeadRecord, type Store } from '../store.js';
+import type { Auditor } from '../audit.js';
 import {
   QUESTIONNAIRE_VERSION,
   QUESTIONS,
@@ -49,6 +50,14 @@ export interface ToolContext {
   events: ToolEvent[];
   /** True when a SunScan adapter is configured for this tenant. */
   sunscanConnected: boolean;
+  /**
+   * Where an effectful tool call is recorded, when the caller supplied one.
+   *
+   * Optional so that a test driving a tool directly does not need an audit store
+   * to exercise the tool, and so that the absence is visible as "nothing was
+   * recorded here" rather than as a silently discarded write.
+   */
+  audit?: Auditor;
   /**
    * The installer's own documents, already chunked.
    *
@@ -898,15 +907,77 @@ export function assertToolSurfaceClosed(): string[] {
   return DEFINITIONS.map((d) => d.name).filter((name) => !approved.has(name));
 }
 
+/**
+ * The tools whose effect outlives the conversation.
+ *
+ * These are the ones the audit trail records, and the line between them and the
+ * rest is whether anything is left behind afterwards: a lead row, a callback
+ * request, an assessment started inside the installer's own system, a person
+ * asked to pick the conversation up. A read -- the catalogue, the installer's
+ * documents, the questionnaire -- leaves nothing, and every assistant turn
+ * already carries the names of the tools it used, so copying those into the audit
+ * log would bury the handful of events a review is actually looking for.
+ *
+ * `suggest_page_action` is the near miss and is deliberately out: it changes the
+ * host page, which is an effect, but it leaves no record anywhere and the widget
+ * already receives the suggestion as an event of its own. Auditing it would be
+ * recording that the assistant asked a page to scroll.
+ *
+ * Typed against `TOOL_NAMES`, so a name that is not a real tool is a typecheck
+ * failure rather than a silent gap in the trail.
+ */
+export const EFFECTFUL_TOOL_NAMES: readonly (typeof TOOL_NAMES)[number][] = [
+  'create_lead',
+  'request_callback',
+  'start_sunscan_assessment',
+  'handoff_to_human',
+];
+
+export function isEffectfulTool(name: string): boolean {
+  return (EFFECTFUL_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+/**
+ * Record an effectful call, at the one funnel every invocation passes through.
+ *
+ * Here rather than inside each tool because a tool that forgot to record itself
+ * would be a gap nothing would notice, and because `ok` is only known after the
+ * tool has run -- a tool that declined is the event worth having.
+ *
+ * The name that lands in `target.id` is always one of the four above, never the
+ * model's own spelling: `isEffectfulTool` is checked first, so a tool named
+ * anything else -- including one the model invented -- writes nothing. Nothing
+ * model-supplied reaches this record.
+ */
+async function auditIfEffectful(
+  call: ChatToolCall,
+  result: ToolResult,
+  ctx: ToolContext,
+): Promise<void> {
+  if (!ctx.audit || !isEffectfulTool(call.name)) return;
+  await ctx.audit.record({
+    tenantId: ctx.tenant.id,
+    actor: 'system',
+    action: 'agent.tool.invoke',
+    target: { kind: 'tool', id: call.name },
+    outcome: result.ok ? 'permitted' : 'failed',
+    ...(result.ok ? {} : { reason: 'refused' as const }),
+    sessionId: ctx.sessionId,
+  });
+}
+
 export async function executeTool(call: ChatToolCall, ctx: ToolContext): Promise<ToolResult> {
   const definition = BY_NAME.get(call.name as (typeof TOOL_NAMES)[number]);
-  if (!definition) {
-    return {
-      ok: false,
-      data: { error: 'unknown tool' },
-      summary: `There is no tool called ${call.name}.`,
-    };
-  }
+  const result = definition ? await runDefinition(definition, call, ctx) : unknownTool(call);
+  await auditIfEffectful(call, result, ctx);
+  return result;
+}
+
+async function runDefinition(
+  definition: ToolDefinition,
+  call: ChatToolCall,
+  ctx: ToolContext,
+): Promise<ToolResult> {
   try {
     return await definition.run(call.args, ctx);
   } catch (error) {
@@ -916,6 +987,14 @@ export async function executeTool(call: ChatToolCall, ctx: ToolContext): Promise
       summary: 'That tool failed.',
     };
   }
+}
+
+function unknownTool(call: ChatToolCall): ToolResult {
+  return {
+    ok: false,
+    data: { error: 'unknown tool' },
+    summary: `There is no tool called ${call.name}.`,
+  };
 }
 
 export function toolNames(): string[] {

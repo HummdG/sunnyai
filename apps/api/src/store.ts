@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { IngestionJob, Product, RecommendationWant } from '@sunny/contracts';
+import type { AuditEvent, IngestionJob, Product, RecommendationWant } from '@sunny/contracts';
 
 /**
  * Persistence, behind an interface.
@@ -232,6 +232,26 @@ export interface Store {
   deleteKnowledgeSource(tenantId: string, sourceId: string): Promise<boolean>;
   saveIngestionJob(job: IngestionJob): Promise<IngestionJob>;
   getIngestionJob(tenantId: string, jobId: string): Promise<IngestionJob | null>;
+  /**
+   * Append one audit event.
+   *
+   * Append-only, and there is deliberately no update and no delete: a log that
+   * can be edited answers a different question from the one it exists for. The
+   * event is taken whole -- it carries its own `tenantId`, which may be null for
+   * an attempt refused before a tenant could be named, so a writer cannot file an
+   * event under a tenant the event does not claim.
+   */
+  appendAuditEvent(event: AuditEvent): Promise<void>;
+  /**
+   * A tenant's audit events, newest first.
+   *
+   * Scoped by the tenant like every other read here, and it is the same
+   * argument: an audit trail is the record of what was done to one installer's
+   * data, so a read that could cross tenants would hand one installer the
+   * history of another's. Events with no tenant are not returned by any tenant's
+   * read -- they are not that tenant's to see.
+   */
+  listAuditEvents(tenantId: string, limit?: number): Promise<AuditEvent[]>;
   /** Diagnostics for `/healthz`; must never throw. */
   health(): Promise<{ ok: boolean; detail: string }>;
 }
@@ -601,6 +621,59 @@ export class FileStore implements Store {
     // only keyed by id would still hand another installer's job to a caller who
     // had one, which is exactly the cross-tenant read the plan forbids.
     return this.#jobs.find((job) => job.id === jobId && job.tenantId === tenantId) ?? null;
+  }
+
+  get #auditDir(): string {
+    return join(this.#dir, 'audit');
+  }
+
+  /**
+   * Where one audit event is filed.
+   *
+   * A null tenant -- an attempt refused before the caller could name one -- goes
+   * to a file whose name says so rather than to some arbitrary tenant's. Filing
+   * it under a tenant would be inventing a fact, and dropping it would lose the
+   * refusals, which are the half of an audit trail that a security review is
+   * usually about.
+   */
+  #auditFile(tenantId: string | null): string {
+    const name = tenantId === null ? '_unscoped.jsonl' : `${encodeURIComponent(tenantId)}.jsonl`;
+    return join(this.#auditDir, name);
+  }
+
+  async appendAuditEvent(event: AuditEvent): Promise<void> {
+    await this.#ensure();
+    await mkdir(this.#auditDir, { recursive: true });
+    // Append-only, like leads and unlike the catalogue: this is a record that
+    // something happened, and a rewrite would make it possible to lose one.
+    await appendFile(this.#auditFile(event.tenantId), `${JSON.stringify(event)}\n`, 'utf8');
+  }
+
+  async listAuditEvents(tenantId: string, limit = 100): Promise<AuditEvent[]> {
+    await this.#ensure();
+    let raw: string;
+    try {
+      raw = await readFile(this.#auditFile(tenantId), 'utf8');
+    } catch {
+      return [];
+    }
+
+    const rows: AuditEvent[] = [];
+    for (const line of raw.split('\n')) {
+      if (line.trim() === '') continue;
+      try {
+        const parsed = JSON.parse(line) as AuditEvent;
+        // The defence every reader in this file makes: a line naming another
+        // tenant is not evidence that this tenant owns it. Here it also catches
+        // the unscoped file being read by mistake, whose events have no tenant.
+        if (parsed.tenantId !== tenantId) continue;
+        rows.push(parsed);
+      } catch {
+        // A torn final line is what a crash mid-append looks like.
+      }
+    }
+    // Newest first: an audit trail is read from the recent end.
+    return rows.slice(-limit).reverse();
   }
 
   async health(): Promise<{ ok: boolean; detail: string }> {

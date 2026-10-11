@@ -10,6 +10,11 @@ import {
   sessionRequestSchema,
   knowledgeSourceRequestSchema,
   STATUS_FOR_CODE,
+  type AuditAction,
+  type AuditEventsResponse,
+  type AuditOutcome,
+  type AuditReason,
+  type AuditTarget,
   type CatalogueIssue,
   type CatalogueResponse,
   type CatalogueUploadResponse,
@@ -33,6 +38,7 @@ import {
   UnconfiguredProvider,
   type ChatProvider,
 } from './agent/provider.js';
+import { createAuditor, type Auditor } from './audit.js';
 import { capabilityReport, type ServerConfig } from './config.js';
 import { createKnowledgeLoader } from './knowledge.js';
 import {
@@ -200,6 +206,78 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   app.options('/*', async (_request, reply) => reply.code(204).send());
 
+  // ─── the audit trail ───────────────────────────────────────────────────────
+  //
+  // Privileged acts are recorded as they happen, in `store.appendAuditEvent`,
+  // with the shape and the reasoning in `packages/contracts/src/audit.ts`. What
+  // lives here is the plumbing that makes a call site one line.
+  //
+  // Note what is *not* recorded: a `not_enabled` refusal. On a deployment with no
+  // `SUNNY_ADMIN_TOKEN` these routes do not exist, so there is no privileged act
+  // to have been refused, and turning every probe of a disabled feature into a row
+  // would fill the trail with the one thing in it that means nothing.
+
+  const auditor = createAuditor({
+    store,
+    now,
+    // Loud, and not fatal. The act has already happened by the time most of
+    // these are written, so refusing the request would be a lie in the other
+    // direction -- but a log that stops being written in silence is worse than
+    // no log at all, which is why this is an error line and not a debug one.
+    onFailure: (error) => app.log.error({ err: error }, 'audit event could not be stored'),
+  });
+
+  /**
+   * The auditor as one request sees it: the same store and clock, with the
+   * request id bound in, so no call site has to remember to carry it.
+   */
+  function auditFor(request: FastifyRequest): Auditor {
+    return {
+      record: (entry) => auditor.record({ ...entry, requestId: String(request.id) }),
+    };
+  }
+
+  /**
+   * One line per event at the call site.
+   *
+   * `actor` is stated once here rather than at thirteen sites, and it is `admin`
+   * for every route that uses this: the credential these routes are behind is the
+   * deployment's admin token. The assistant's own tool calls go through
+   * `auditFor` directly, because their actor is `system` and their tenant and
+   * session come from the conversation rather than from a query string.
+   */
+  function auditChannel(
+    request: FastifyRequest,
+    action: AuditAction,
+    target: AuditTarget,
+  ): (
+    outcome: AuditOutcome,
+    extra?: {
+      tenantId?: string | null;
+      reason?: AuditReason;
+      sessionId?: string | null;
+      /**
+       * For the one act whose target id is not known until after the work: a
+       * named source or job that had to be looked up before it could be recorded.
+       */
+      target?: AuditTarget;
+      detail?: Record<string, number | boolean>;
+    },
+  ) => Promise<void> {
+    const audit = auditFor(request);
+    return (outcome, extra = {}) =>
+      audit.record({
+        tenantId: extra.tenantId ?? null,
+        actor: 'admin',
+        action,
+        target: extra.target ?? target,
+        outcome,
+        ...(extra.reason ? { reason: extra.reason } : {}),
+        sessionId: extra.sessionId ?? null,
+        ...(extra.detail ? { detail: extra.detail } : {}),
+      });
+  }
+
   // ─── health ────────────────────────────────────────────────────────────────
 
   app.get('/healthz', async () => {
@@ -344,6 +422,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const sunscanConnected = tenant.sunscanUrl !== null;
     const userText = body.data.text;
     const clientMessageId = body.data.clientMessageId;
+    // The assistant's effectful tool calls are audited, the same as any other
+    // privileged act: `create_lead` and `request_callback` file a record, and
+    // "which conversation was the callback promised in" is a question the trail
+    // should be able to answer. Reads are not -- see `EFFECTFUL_TOOL_NAMES`.
+    const audit = auditFor(request);
 
     async function* frames(): AsyncGenerator<string> {
       const frame = (event: ChatStreamEvent): string => `data: ${JSON.stringify(event)}\n\n`;
@@ -364,6 +447,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           clientMessageId,
           sunscanConnected,
           knowledge,
+          audit,
           signal: abort.signal,
         })) {
           if (abort.signal.aborted) break;
@@ -590,17 +674,26 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         'The lead list is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
       );
     }
+    const audit = auditChannel(request, 'leads.read', { kind: 'lead_list', id: null });
     if (!tokensMatch(bearer(request), config.adminToken)) {
+      await audit('denied', { reason: 'bad_credential' });
       throw new ApiError('unauthorized', 'A valid admin token is required.');
     }
 
     const { tenantId } = request.query as { tenantId?: string };
     if (!tenantId) throw new ApiError('bad_request', 'A tenantId is required.');
     if (!tenants.all.some((tenant) => tenant.id === tenantId)) {
+      await audit('failed', { reason: 'unknown_tenant' });
       throw new ApiError('not_found', 'Unknown tenant.');
     }
 
-    return { leads: await store.listLeads(tenantId) };
+    const leads = await store.listLeads(tenantId);
+    // The count and not the enquiries. A row of names and numbers in the audit
+    // trail would be a second place every visitor's details live, which is the
+    // one thing this record exists not to be -- and "twelve were read out" is the
+    // fact a review wants anyway.
+    await audit('permitted', { tenantId, detail: { leads: leads.length } });
+    return { leads };
   });
 
   // ─── catalogue ─────────────────────────────────────────────────────────────
@@ -647,7 +740,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         'Catalogue uploads are disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
       );
     }
+    const audit = auditChannel(request, 'catalogue.upload', { kind: 'catalogue', id: null });
     if (!tokensMatch(bearer(request), config.adminToken)) {
+      await audit('denied', { reason: 'bad_credential' });
       throw new ApiError('unauthorized', 'A valid admin token is required.');
     }
     enforceRateLimit(
@@ -666,7 +761,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!body.success) throw badRequestFromZod(body.error);
 
     const tenant = tenants.all.find((t) => t.id === body.data.tenantId);
-    if (!tenant) throw new ApiError('not_found', 'Unknown tenant.');
+    if (!tenant) {
+      await audit('failed', { reason: 'unknown_tenant' });
+      throw new ApiError('not_found', 'Unknown tenant.');
+    }
 
     // An append has to know what it is appending to, both to detect a duplicate
     // the tenant already holds and to report the size afterwards.
@@ -706,6 +804,26 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     } else {
       const saved = await store.saveProducts(tenant.id, imported.products, body.data.mode);
       catalogueSize = saved.length;
+    }
+
+    // What the price list was before and after, in counts and flags -- never a
+    // row. `accepted` is what was stored, `rejected` what was not, and `replaced`
+    // says which of the two ways the catalogue changed, all three of which a
+    // reviewer needs to reconstruct the act without reading the catalogue itself.
+    const detail = {
+      accepted,
+      rejected: Math.max(0, totalRows - accepted),
+      catalogueSize,
+      replaced: body.data.mode === 'replace',
+      dryRun: body.data.dryRun,
+    };
+    if (failed) {
+      // The file was untrustworthy and nothing was stored. Recorded as `failed`
+      // rather than omitted: an installer whose upload silently did nothing is
+      // exactly the support call this trail should be able to answer.
+      await audit('failed', { tenantId: tenant.id, reason: 'invalid_request', detail });
+    } else {
+      await audit('permitted', { tenantId: tenant.id, detail });
     }
 
     // The report is the answer, so every outcome here is a 200 with a body an
@@ -750,7 +868,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         'Knowledge ingestion is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
       );
     }
+    const audit = auditChannel(request, 'knowledge.source.write', {
+      kind: 'knowledge_source',
+      id: null,
+    });
     if (!tokensMatch(bearer(request), config.adminToken)) {
+      await audit('denied', { reason: 'bad_credential' });
       throw new ApiError('unauthorized', 'A valid admin token is required.');
     }
     enforceRateLimit(
@@ -769,7 +892,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!body.success) throw badRequestFromZod(body.error);
 
     const tenant = tenants.all.find((t) => t.id === body.data.tenantId);
-    if (!tenant) throw new ApiError('not_found', 'Unknown tenant.');
+    if (!tenant) {
+      await audit('failed', { reason: 'unknown_tenant' });
+      throw new ApiError('not_found', 'Unknown tenant.');
+    }
 
     // A named source must exist. Creating it instead would turn a typo in an id
     // into a second copy of a document the installer thought they were replacing.
@@ -777,6 +903,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       ? await store.getKnowledgeSource(tenant.id, body.data.sourceId)
       : null;
     if (body.data.sourceId && !existing) {
+      await audit('failed', {
+        tenantId: tenant.id,
+        reason: 'not_found',
+        detail: {},
+      });
       throw new ApiError('not_found', 'No such knowledge source for this installer.');
     }
 
@@ -819,6 +950,14 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         finishedAt: new Date(now()).toISOString(),
       };
       await store.saveIngestionJob(job);
+      // Nothing was stored, so the act failed -- but the caller was entitled to
+      // attempt it and the refusal is the installer's own document being empty
+      // rather than anything about them. `refused` says exactly that.
+      await audit('failed', {
+        tenantId: tenant.id,
+        reason: 'refused',
+        detail: { characters: body.data.text.length, chunks: 0 },
+      });
       const failed: KnowledgeSourceResponse = { source: null, job };
       reply.code(200);
       return failed;
@@ -848,6 +987,19 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       finishedAt: new Date(now()).toISOString(),
     };
     await store.saveIngestionJob(job);
+
+    // The length, the passage count and whether this replaced something. Not the
+    // title, and never the text: a document's size is an audit fact and its first
+    // line is the installer's commercial copy.
+    await audit('permitted', {
+      tenantId: tenant.id,
+      detail: {
+        characters: body.data.text.length,
+        chunks: chunks.length,
+        warnings: issues.filter((issue) => issue.severity === 'warning').length,
+        replaced: existing !== null,
+      },
+    });
 
     const payload: KnowledgeSourceResponse = {
       source: {
@@ -887,7 +1039,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         'Knowledge ingestion is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
       );
     }
+    const audit = auditChannel(request, 'knowledge.job.read', { kind: 'ingestion_job', id: null });
     if (!tokensMatch(bearer(request), config.adminToken)) {
+      await audit('denied', { reason: 'bad_credential' });
       throw new ApiError('unauthorized', 'A valid admin token is required.');
     }
 
@@ -898,13 +1052,77 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       throw new ApiError('bad_request', 'A job id and a tenantId are required.');
     }
     if (!tenants.all.some((t) => t.id === tenantId)) {
+      await audit('failed', { reason: 'unknown_tenant' });
       throw new ApiError('not_found', 'Unknown tenant.');
     }
 
     const job = await store.getIngestionJob(tenantId, params.id);
-    if (!job) throw new ApiError('not_found', 'No such ingestion job.');
+    if (!job) {
+      // A job id from another installer and a job id that never existed are the
+      // same answer here on purpose, so the trail records the same thing: the
+      // read was refused, and the id is not repeated because it may well name
+      // somebody else's record.
+      await audit('failed', { tenantId, reason: 'not_found' });
+      throw new ApiError('not_found', 'No such ingestion job.');
+    }
 
+    await audit('permitted', {
+      tenantId,
+      target: { kind: 'ingestion_job', id: job.id },
+      detail: { chunks: job.chunks, documents: job.documents },
+    });
     const payload: KnowledgeJobResponse = { job };
+    return payload;
+  });
+
+  // ─── audit ─────────────────────────────────────────────────────────────────
+  //
+  // The trail is readable by the credential it is written about, and by nothing
+  // else. It is the record of what was done to one installer's data, so a read
+  // that could cross tenants would hand one installer the history of another's --
+  // the same argument the catalogue and knowledge reads make, and the same one
+  // that made the lead list admin-only rather than visitor-scoped.
+
+  /**
+   * A tenant's audit events, newest first.
+   *
+   * `tenantId` is stripped from every event on the way out, exactly as the
+   * catalogue strips it from a product row and for the same reason: the caller
+   * named the tenant in the query, so the field carries nothing they can use, and
+   * it is the key these rows are stored under. Events with no tenant -- refused
+   * attempts that never got as far as naming one -- are not returned by any
+   * tenant's read. They are on disk for an operator doing forensics, and there is
+   * deliberately no route over them yet: a cross-tenant view of refusals belongs
+   * to the dashboard, and that is blocker 4.
+   */
+  app.get('/v1/audit/events', async (request) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'The audit trail is disabled on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+
+    const query = request.query as { tenantId?: string; limit?: string };
+    const tenantId = query.tenantId ?? '';
+    if (!tenantId) throw new ApiError('bad_request', 'A tenantId is required.');
+    if (!tenants.all.some((tenant) => tenant.id === tenantId)) {
+      throw new ApiError('not_found', 'Unknown tenant.');
+    }
+
+    // Clamped rather than refused: a caller asking for more than the cap gets the
+    // cap, which is a bound on one response rather than a judgement about the
+    // request. The default is what a dashboard opens with.
+    const requested = Number.parseInt(query.limit ?? '', 10);
+    const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 200) : 50;
+
+    const events = (await store.listAuditEvents(tenantId, limit)).map(
+      ({ tenantId: _tenantId, ...event }) => event,
+    );
+    const payload: AuditEventsResponse = { events };
     return payload;
   });
 

@@ -1,6 +1,7 @@
 import { EMPTY_KNOWLEDGE, type KnowledgeIndex } from '@sunny/knowledge';
 
 import { newId, type ConversationTurn, type Store } from '../store.js';
+import type { Auditor } from '../audit.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatProvider } from './provider.js';
 import { TOOL_DECLARATIONS, executeTool, type ToolContext, type ToolEvent } from './tools.js';
@@ -80,6 +81,15 @@ export interface TurnInput {
    * state as a tenant that has connected nothing.
    */
   knowledge?: KnowledgeIndex;
+  /**
+   * Where an effectful tool call is recorded.
+   *
+   * Passed down to the tool context rather than written here, because the tool
+   * surface is what decides which tools have an effect -- see
+   * `EFFECTFUL_TOOL_NAMES`. Absent in a test that does not care, which is why it
+   * is optional rather than required.
+   */
+  audit?: Auditor;
   signal?: AbortSignal;
 }
 
@@ -124,6 +134,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     events,
     sunscanConnected: input.sunscanConnected,
     knowledge: input.knowledge ?? EMPTY_KNOWLEDGE,
+    ...(input.audit ? { audit: input.audit } : {}),
   };
 
   let text = '';
