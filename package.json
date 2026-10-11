@@ -38,7 +38,9 @@
     "build:marketing": "npm run build -w @sunny/marketing",
     "build:tokens": "npm run build:tokens -w @sunny/ui",
     "test:visual:update": "tsx scripts/update-visual-baselines.ts",
-    "seed:catalogue": "tsx scripts/seed-catalogue.ts"
+    "seed:catalogue": "tsx scripts/seed-catalogue.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "verify:isolation": "tsx scripts/verify-isolation.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

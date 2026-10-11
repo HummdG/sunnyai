@@ -112,8 +112,11 @@ Secret handling is explicit rather than assumed:
   problem (`apps/api/src/main.ts`).
 - The code names **Secret Manager** as the production source for `SESSION_SECRET`
   (`apps/api/src/config.ts` comment: "A development default, replaced by Secret
-  Manager in Cloud Run"), but **there is no Secret Manager wiring in the
-  repository yet** — see Consequences.
+  Manager in Cloud Run"), and the wiring is Terraform's rather than the API's:
+  `infrastructure/terraform` creates both secrets and mounts them by reference
+  (`secret_key_ref`, `version = "latest"`) — written 2026-10-10, never applied.
+  The API itself still reads `SESSION_SECRET` from the environment, which is what
+  lets the same binary run locally.
 - The API key is a **Gemini API key**, not a Vertex service account; see ADR-003
   for what that means.
 
@@ -126,6 +129,20 @@ Secret handling is explicit rather than assumed:
   exists is `scripts/smoke-api.mjs` (a dependency-free assertion script with an
   exit code) and `scripts/static-server.ts` (a local static server for the demo).
   This ADR therefore records an intended deployment, not a performed one.
+  - **Updated 2026-10-11.** Part of the sentence above is no longer true and the
+    original is kept rather than edited, because the gap between the two is the
+    point. Terraform now exists (`infrastructure/terraform`: Cloud Run v2,
+    Artifact Registry, the service account, two Secret Manager secrets — and no
+    database, deliberately), CI exists (`.github/workflows/ci.yml`, which
+    validates that Terraform and never applies it), `apps/marketing` is a real
+    Next app that builds, and all seven §13 scripts exist
+    ([D-37](../DECISIONS.md)). What is still true: **nothing has been deployed**,
+    no `firebase.json` or App Hosting backend exists, no Terraform has been
+    applied, and there is no `Dockerfile`, so no image exists for the Artifact
+    Registry repository to hold. The App Hosting choice has also become
+    falsifiable in the way the last consequence predicted: the marketing app pins
+    Next `^16.4.0`, and the capability finding below names 15.2.x as the active
+    supported minor with no Next 16 documented.
 - There is **no CI configuration** in the repository (no `.github/`). The plan's
   "one-command reproducible staging deploy" (P1 exit gate) is not met.
 - Because web apps are absent, the App Hosting choice is currently

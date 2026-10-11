@@ -249,20 +249,6 @@ first real finding should not be the one that matters.
   `next/script`, which creates the element after hydration rather than during the
   server render. Plus client-side routing between the two routes, which exercises
   the dedupe rule through a router instead of a hand-removed tag.
-- **Browser, WordPress host** (`tests/e2e/wordpress-host.spec.ts`) — the same
-  widget on a page with what an ordinary WordPress site actually ships: a theme
-  whose globals are `!important` (including a `body > div` rule that matches the
-  widget's host element), a plugin that injects a stylesheet into the head after
-  load and re-renders a sidebar widget on a timer, `wp_footer` rendered inside a
-  theme wrapper that carries a `transform` and `overflow: hidden`, and a consent
-  banner fixed in the opposite corner at `z-index: 99999`. The page reproduces a
-  WordPress site's _output_ rather than being WordPress -- what the widget reacts
-  to is the DOM and the cascade, and both are faithful. Every isolation claim is
-  paired with a control proving the theme and plugin are live, so a stylesheet
-  that had stopped applying cannot make the widget look immune for free. It found
-  a real defect: the host element was being repositioned and painted by the
-  theme's `body > div` rule, which the shadow stylesheet's `:host` block only
-  survives because every declaration in it is `!important` (D-36).
 - **Browser, marketing site** (`tests/e2e/marketing.spec.ts`) — the one page that
   drives the character engine directly rather than only through the widget, so it
   is where a broken frame loop would be caught: the hero is asserted to paint the
@@ -887,6 +873,15 @@ installed in this environment. The CI job that runs `fmt -check` and
 on GitHub in a form CI can see (see blocker 7). Treat the infrastructure as a
 description of intent that compiles, not as infrastructure known to work.
 
+`scripts/bootstrap-google-cloud.sh` is the front door to it: it checks the
+toolchain (refusing a Terraform older than the `>= 1.9` that `versions.tf`
+requires), the account, the project and the billing account, prints the resources
+`terraform apply` would create, and only then runs `init` / `plan` / `apply` —
+each behind a confirmation, and with the state bucket named by `TF_STATE_BUCKET`
+or a warning about local state. Its refusal paths were exercised here; with no
+`terraform` and no `gcloud` on the machine, it stops at the toolchain check with
+exit 2 and has never reached its first `init`.
+
 ### 4. Nine of the plan's fourteen API routes exist
 
 Implemented: `POST /v1/widget/session`, `POST /v1/chat/stream`,
@@ -1000,14 +995,23 @@ belongs to a different codebase. **This needs a decision from the user** — see
 `packages/solar-rules` no longer is — it is real as of P8 (D-27) and holds the
 CSV reader, the row reader, the compatibility rules and the package assembly.
 `packages/ui` is real but only holds tokens — no components yet.
-`apps/dashboard` does not exist. `tests/security` holds one suite — the cross-tenant
-denial sweep (D-35) — and no `verify-isolation` script yet.
-(`tests/visual` no longer is — it holds the character baselines, D-16 — and
-`tests/e2e` holds the Playwright suites.) `apps/marketing`
-now exists and is built (D-15), which makes the dashboard the larger remaining
-gap of the two: it is the one the plan's P10 blocks on a product decision rather
-than on code, and it is the only surface that still needs a data source that has
-not been designed.
+`apps/dashboard` does not exist. (`tests/visual` no longer is — it holds the
+character baselines, D-16 — and `tests/e2e` holds the Playwright suites.)
+`apps/marketing` now exists and is built (D-15), which makes the dashboard the
+larger remaining gap of the two: it is the one the plan's P10 blocks on a product
+decision rather than on code, and it is the only surface that still needs a data
+source that has not been designed.
+
+Two gaps closed since this section was last written, both from §13.
+`tests/security` holds the cross-tenant denial sweep (D-35), and
+`scripts/verify-isolation.ts` is now its deployment-facing counterpart: eight
+checks against a _running_ API, which is the thing an in-process test cannot do
+And the §13 scripts all exist:
+`bootstrap-google-cloud.sh`, `deploy-staging`, `deploy-production`,
+`smoke-test`, `rollback` and `seed-demo`. They are not a deployment —
+`deploy-staging` and `deploy-production` build for real and then stop at the
+boundary with exit 3, and `rollback.sh` exits 3 rather than pretend, because
+this repository still has no `Dockerfile` (D-37, `README_DEPLOY.md`).
 
 ### 9. Section 12's required checks, honestly accounted
 
