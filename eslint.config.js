@@ -52,6 +52,12 @@ export default tseslint.config(
       // Linting the lint config itself buys nothing, and the file belongs to no
       // tsconfig project, so the project service reports it as a parse failure.
       'eslint.config.js',
+      // Gitignored scratch space: the emulator JAR, screenshots, and whatever
+      // one-off script a developer writes to measure something. Those scripts
+      // are not repository source, and without this a diagnosis that ends in a
+      // correct fix still fails `npm run lint` -- a hundred errors, none of them
+      // about the code under test.
+      '**/.cache/**',
     ],
   },
 

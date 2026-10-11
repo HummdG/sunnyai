@@ -117,6 +117,73 @@ test('opens and closes from the keyboard', async ({ page }) => {
   await expect(launcher).toHaveAttribute('aria-expanded', 'false');
 });
 
+/**
+ * The number of frames the launcher's art went through while the pointer was
+ * held down.
+ *
+ * The widget redraws the character with `innerHTML` every frame whose rig
+ * differs, so the node under a held pointer is replaced repeatedly. This counts
+ * those replacements, so a test can hold the pointer across one deliberately
+ * rather than hoping a frame lands inside a synthetic click.
+ */
+async function framesDuringHold(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        const art = document
+          .querySelector<HTMLElement>(`[data-sunny-widget]`)
+          ?.shadowRoot?.querySelector('.launcher .svg-host');
+        if (!art) {
+          resolve(0);
+          return;
+        }
+        let redraws = 0;
+        const observer = new MutationObserver((records) => {
+          redraws += records.filter((record) => record.type === 'childList').length;
+        });
+        observer.observe(art, { childList: true });
+        setTimeout(() => {
+          observer.disconnect();
+          resolve(redraws);
+        }, 400);
+      }),
+  );
+}
+
+/**
+ * A press that outlives the picture it started on.
+ *
+ * This is the shape of a real click: a person holds the button for a few
+ * hundred milliseconds, and the launcher's art is replaced many times in that
+ * window. The first version of the widget drew the character straight into the
+ * element the pointer was over, so `mousedown` and `mouseup` landed on
+ * different, by-then-removed nodes -- and the browser dispatches no `click` at
+ * all when that happens. The launcher was present, hoverable and completely
+ * inert: it did nothing when pressed, in every browser, while a 1ms synthetic
+ * click in this file usually passed by landing between two frames.
+ *
+ * The assertion is deliberately about the press *and* the redraws, so the test
+ * cannot quietly stop exercising the bug if the animation ever stops redrawing
+ * the launcher.
+ */
+test('opens from a press held across the animation', async ({ page }) => {
+  const launcher = page.locator(HOST).locator(LAUNCHER);
+  const panel = page.locator(HOST).locator(PANEL);
+  const box = await launcher.boundingBox();
+  if (!box) throw new Error('the launcher has no box to press');
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  const redraws = await framesDuringHold(page);
+  await page.mouse.up();
+
+  expect(redraws, 'the launcher must have been redrawn while the pointer was held').toBeGreaterThan(
+    0,
+  );
+  await expect(panel).toBeVisible();
+  await expect(launcher).toHaveAttribute('aria-expanded', 'true');
+});
+
 test('exposes the documented handle on window', async ({ page }) => {
   const shape = await page.evaluate(() => {
     const sunny = (window as unknown as { sunny?: { widgets?: unknown[]; open?: unknown } }).sunny;

@@ -175,6 +175,14 @@ export function styles(): string {
 .launcher:focus-visible { outline: 3px solid var(--sunny-accent); outline-offset: 4px; }
 .launcher svg { width: 100%; height: 100%; display: block; }
 
+/* The rig is redrawn with innerHTML on every frame whose markup differs, so the
+   node under the pointer is destroyed mid-press -- and a click whose two halves
+   land on different, removed nodes is never dispatched at all, which made the
+   launcher inert. The art is decoration on a button that is the real control,
+   so it does not need to be a hit target; the button is, and no frame replaces
+   it. Measured, and D-53. */
+.launcher .svg-host { pointer-events: none; }
+
 .launcher .badge {
   position: absolute; top: 2px; right: 2px; width: 12px; height: 12px;
   border-radius: 50%; background: var(--sunny-accent);

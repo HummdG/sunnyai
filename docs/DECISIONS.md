@@ -3564,3 +3564,92 @@ emptied cache, on the way to the same 44 green.
 project, its **location/region**, its Security Rules and its indexes are all still to be chosen, and no
 database exists because nothing is deployed (blocker 3). No Security Rules are written, which is a real gap
 only the day something reaches Firestore other than the API's own service account — nothing does.
+
+## D-53. The launcher's art was replaced under the pointer every frame, and a click that spans that is never dispatched
+
+**Context.** The launcher rendered, hovered, and did nothing when pressed. The owner's report was exactly
+that -- _"The button is there, clicking does nothing"_ -- while `tests/e2e/widget.spec.ts` was green and
+every probe run from this repository opened the panel: three viewport sizes, two host pages, no console
+error, no uncaught exception, and the launcher reported as present at its expected box. A green suite and a
+broken page are the one combination worth investigating rather than explaining away, so the click was
+instrumented rather than reasoned about.
+
+**The measurement that named it.** A capture-phase listener on `window` recorded which of
+`pointerdown`, `mousedown`, `mouseup` and `click` arrived. Every run fell into one of two shapes, with
+nothing in between:
+
+| Outcome          | Events seen by the document                |
+| ---------------- | ------------------------------------------ |
+| panel opened     | pointerdown, mousedown, mouseup, **click** |
+| nothing happened | pointerdown, mousedown, mouseup            |
+
+The button's handler is a `click` handler, so the second row is a button that is present, focusable,
+`aria-expanded="false"`, and never asked to do anything. **A `click` is dispatched on the nearest common
+inclusive ancestor of the `mousedown` and `mouseup` targets; if the element pressed has been removed by the
+time the pointer comes up, the browser dispatches no `click` at all** -- not on the removal survivor, not on
+the button, not anywhere. The widget's frame loop redraws the character with `setSvg`, which is a single
+`innerHTML` assignment on the launcher's art host, on every frame whose rig differs. Idle animation changes
+the rig almost every frame, so the node under a held pointer is destroyed and recreated continuously, and
+the press spans that.
+
+**Held across a redraw, the click is lost in every browser.** Pressing the launcher, waiting for the art to
+be replaced while the pointer was still down, then releasing, lost the click **6 times in 10 on Chromium**
+and **9 in 10 on Firefox**, on both the demo page and the marketing page. The fault was never
+browser-specific: the earlier signal that only Firefox failed was a difference in probability, and a fast
+synthetic click -- Playwright's press is roughly a millisecond, and usually lands between two frames -- is
+precisely the case that does not reproduce it. A person holds a button for a few hundred milliseconds and
+spans ten to twenty frames, which is why the suite was green while a human could not use the control at all.
+This is the same lesson as D-48 in a different costume: an assertion about the code, or about what a
+harness does to it, is not an assertion about what the page does.
+
+A test that looks like it should have caught this did not, and the way it missed is worth keeping. It is
+named _"the launcher is what the visitor actually clicks"_ (`tests/e2e/wordpress-host.spec.ts`), and it
+asks the browser what is on top at the launcher's centre -- a real and worthwhile question on a page
+carrying a consent banner at `z-index: 99999`. Then it clicks, with `locator.click()`, and requires the
+panel. Both halves are true of a launcher no human can use: the art was on top, and a press short enough to
+fit between two frames opened the panel. What it never did was hold the button for as long as a person does.
+
+**Decision -- the art is not the control.** The character drawing sits inside a `<button>` that carries the
+handler, so the drawing has no business being the hit target: `packages/widget/src/styles.ts` sets
+`pointer-events: none` on `.launcher .svg-host`. Every one of the down/up/click events then resolves to the
+button itself, which no frame ever replaces -- the target is stable for the whole press by construction
+rather than by luck. The alternative, patching the SVG in place instead of rebuilding it, is the better
+answer to the _cost_ of redrawing a whole subtree every frame, and it is left open below rather than being
+done here: it is a much larger change to the renderer, and it is not what made the control unusable.
+
+**A second, independent trap, recorded because it cost time.** `apps/marketing` serves the widget from a
+copy at `apps/marketing/public/widget/`, not from `packages/widget/dist/`. A fix in the package is therefore
+_not on the marketing page_ until `npm run prepare-widget -w @sunny/marketing` runs again -- and a browser
+looking at that page is looking at a stale bundle that reproduces the old defect perfectly. The e2e
+`webServer` entry builds the site, which copies the bundle as part of it, so the suite is never exposed to
+this; a dev server left running across a change is.
+
+**Verified.** `tests/e2e/widget.spec.ts` gained _"opens from a press held across the animation"_: it presses
+the launcher, waits for the art to be redrawn while the pointer is still down, asserts that at least one
+redraw happened, releases, and requires the panel to be visible. It is a real browser press through the
+input pipeline, so it reproduces the defect rather than describing it. Run against the pre-fix build it
+fails deterministically -- the panel is still `<div hidden="" class="panel">` -- and it passes with the fix;
+the same press is **0 lost in 10** on both pages in both Chromium and Firefox after the change. `npm test`
+is **1119 passed | 21 skipped**, `npm run lint`, `npm run format:check` and `npm run typecheck` are clean,
+and `npm run test:e2e` is green on the full suite.
+
+**Also changed: `.cache/**` is now ESLint-ignored.** That directory is gitignored scratch space -- the
+emulator JAR, screenshots, and whatever one-off measurement script a diagnosis needs -- and it was invisible
+to ESLint until this investigation put `.mjs` files there. A hundred errors about `document` and `console`
+in scripts that are not repository source is a failure of the tool's configuration, not of the code, and it
+would have met the next person to debug something here.
+
+**Open.** The launcher still rebuilds its whole SVG on every frame whose markup differs, which is real work
+for an idle animation. `#lastMarkup` already skips the frames that repeat, so it is bounded, but the right
+fix -- update the changed attributes on a persistent tree -- is not attempted here. Nothing observable
+depends on it now that the art is not a hit target.
+
+**Open, and the same class one step away.** `#renderOptions` replaces the option cards with
+`replaceChildren`, so a press that spans a genuine change of option set can be lost the same way. It is much
+smaller than the launcher's case and left as it is: the rebuild happens only when the key derived from the
+cards actually changes -- once per new option set, not once per frame -- so the window is a single instant
+rather than a continuous hazard, and the visitor sees the set they pressed change under them, which is
+visible rather than silent. Making the cards a `pointer-events: none` container is not the answer here,
+because the cards are the controls; a press that survives a re-render would have to be recovered on
+`pointerup` instead. Recorded rather than fixed, because nothing has reported it and the honest fix is a
+different shape from the one this entry made.
