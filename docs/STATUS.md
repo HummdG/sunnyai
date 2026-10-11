@@ -12,14 +12,17 @@ blockers below are stated first and in full.
 ## The one-paragraph version
 
 The character rig, the animation engine, the API's first vertical slice and the
-public marketing site are built, tested and green: **708 tests across 20 files**,
+public marketing site are built, tested and green: **732 tests across 21 files**,
 a real fidelity comparison
 against the supplied artwork, **25 committed visual baselines** of the character
 compared byte for byte, **26/26 API smoke checks** against a running server,
-and **42 browser end-to-end checks** — including an axe accessibility pass — over
-the widget mounted by its own embed snippet, in a React host page, in a Next.js
-host page, and on the marketing site, which runs the real widget and the real
-character rather than pictures of them. The
+and **44 of 46 browser end-to-end checks** — including an axe accessibility pass —
+over the widget mounted by its own embed snippet, in a React host page, in a
+Next.js host page, and on the marketing site, which runs the real widget and the
+real character rather than pictures of them. The two failing browser checks are
+both in the character lab and both fail at HEAD without this increment's changes,
+so they are pre-existing rather than a regression; they are the last item under
+"what is next". The
 assistant itself **has never answered a prompt**, because there is no model
 credential in this environment — the deployment correctly refuses instead of
 simulating. Terraform exists and has
@@ -36,8 +39,8 @@ Every line below is a command that ran and its output.
 | Formatting                     | `npm run format:check`                                                                                               | _All matched files use Prettier code style_                                                                                                                                                                                                                                                                                                      |
 | Lint                           | `npm run lint`                                                                                                       | clean (ESLint, type-aware)                                                                                                                                                                                                                                                                                                                       |
 | Types                          | `npm run typecheck`                                                                                                  | clean (`tsc --noEmit`, strict + `noUncheckedIndexedAccess`)                                                                                                                                                                                                                                                                                      |
-| Unit / contract / visual tests | `npm run test`                                                                                                       | **708 passed (20 files)**                                                                                                                                                                                                                                                                                                                        |
-| Browser end-to-end             | `npm run test:e2e`                                                                                                   | **42 passed** (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                                                                                                                                                                                                                                     |
+| Unit / contract / visual tests | `npm run test`                                                                                                       | **732 passed (21 files)**                                                                                                                                                                                                                                                                                                                        |
+| Browser end-to-end             | `npm run test:e2e`                                                                                                   | **44 passed, 2 failed** — both failures are in `lab.spec.ts` and both reproduce at HEAD without this increment's changes (Chromium, four real host pages, the character lab, real API, real shadow DOM)                                                                                                                                          |
 | Widget bundle                  | `npm run build:widget`                                                                                               | 131.5 kB — **36.5 kB gzipped**                                                                                                                                                                                                                                                                                                                   |
 | Character lab bundle           | `npm run build:lab`                                                                                                  | 140.8 kB, plus the lazily-loaded arcade chunk at 11.9 kB (A08)                                                                                                                                                                                                                                                                                   |
 | API smoke                      | `npm run smoke`                                                                                                      | **26/26 checks passed, exit 0**                                                                                                                                                                                                                                                                                                                  |
@@ -46,6 +49,7 @@ Every line below is a command that ran and its output.
 | Character fidelity             | `scripts/compare-reference.py`                                                                                       | ink 0.4828, cream 0.7412 (see `docs/design/character-reference.md`)                                                                                                                                                                                                                                                                              |
 | Visual baselines on Linux      | the committed tree in a `node:22-bookworm` container (`npm ci` + `vitest run tests/visual`)                          | **27 passed** — the Windows-generated PNGs, including the posed `paddle-from-ray` (A09), the two arcade-spin scenes (A10) and the two planting scenes (A11), are byte-identical to the ones Linux produces                                                                                                                                       |
 | Catalogue & recommendations    | the running API on 8787, seeded with `npm run seed:catalogue fixtures/demo-catalogue.csv` (10 _fictional_ demo rows) | **the golden scenario, live**: 3 priced options at 4 kWp; `{"requireBattery":true}` and then `{"preferCheaper":true}` each merge onto the stored want (`{"targetKwp":4}` → `+requireBattery` → `+preferCheaper`) and add a 5 kWh battery to every option; adding a GBP 3,000 budget on top honestly returns **no** options rather than exceed it |
+| Option cards (widget surface)  | `npm run verify` + `npx playwright test tests/e2e/widget.spec.ts tests/e2e/accessibility.spec.ts`                    | **732 unit tests green**, and **16 browser checks green** over the rendered cards — the widget reads `GET /v1/recommendations` back at mount and paints the option set, with the axe audit over the card-bearing panel clean at `serious` and above (D-28)                                                                                       |
 
 Runtime: Node v24.12.0 on Windows 11. The project declares `node >= 22`.
 
@@ -119,7 +123,10 @@ first real finding should not be the one that matters.
   token is unset, a structural file error storing nothing, a thin row stored with
   a warning rather than rejected, append and dry-run, the recommendation route
   accumulating a refinement onto the stored want, and a chat turn that prices
-  something and emits `recommendation_ready` with an option id.
+  something and emits `recommendation_ready` with an option id — and reading the
+  standing options back (D-28): `GET /v1/recommendations` refused without a
+  session token, returning the same options the POST did, writing nothing, and
+  scoped to the caller's own session so one visitor's token cannot read another's.
 - **Solar rules** (`packages/solar-rules`, 55 tests) — the part of the product
   that decides without asking a model, and what it refuses (D-27). The CSV reader
   (a BOM, semicolons, a quoted delimiter containing one, CRLF, a value spanning
@@ -148,14 +155,25 @@ first real finding should not be the one that matters.
 - **Contracts** (`packages/contracts`) — the Zod schemas that are the single
   source of truth for the wire format.
 - **Widget** (`packages/widget`) — the embed snippet's attributes and which wins,
-  and the colour maths that keeps an arbitrary tenant brand legible.
+  the colour maths that keeps an arbitrary tenant brand legible, and the option
+  cards as a **view** (D-28): a panel only once the visitor has asked for
+  something, money printed only when it carries a currency, a verified figure
+  distinguished from an indicative one by both a word and a colour whose contrast
+  the suite measures, the total present only when every row is priced, and the
+  four things §7.4 asks a card to carry. Plus the two things no card may ever do,
+  asserted against the serialised view rather than the rendered text: never quote
+  a yield, and never dress the panels' rated DC power as generation.
 - **Browser** (`tests/e2e`, Playwright + axe) — the widget mounted from its own
   snippet inside a shadow root, mounted on the body rather than beside the script
   tag, named from the API rather than the page, leaking no tenant internals,
   openable and closable from the keyboard, exposing the documented `window.sunny`
-  handle, and audited by axe in three states (closed, open, and open with the
-  composer enabled — the last because axe skips disabled controls, so the send
-  button's contrast is only checked when it is live).
+  handle, and audited by axe in four states (closed, open, open with the composer
+  enabled — the last because axe skips disabled controls, so the send button's
+  contrast is only checked when it is live — and open **with the option cards
+  painted**, which is the densest surface the widget has). The cards are driven by
+  an intercepted `GET /v1/recommendations` through `page.route()`, because the e2e
+  API has no model credential and no seeded catalogue: the claim is about the
+  rendered DOM, and the real API's own read-back is covered separately, in-process.
 - **Browser, React host** (`tests/e2e/react-host.spec.ts`) — the same widget in a
   page React 19 owns, under `StrictMode`: exactly one mount, a re-render over a
   live widget, a route-change unmount and remount that must not leave two, opening
@@ -796,8 +814,10 @@ description of intent that compiles, not as infrastructure known to work.
 Implemented: `POST /v1/widget/session`, `POST /v1/chat/stream`,
 `GET /v1/widget/config/:publicId`, `POST /v1/qualification/answer`,
 `POST /v1/leads`, `GET /v1/catalog/products` and `POST /v1/recommendations`,
-plus `GET /healthz`, `GET /v1/conversation` and `GET /v1/leads` (none of those
-three is in the plan's list). A further route, `POST /v1/catalog/products`, is
+plus `GET /healthz`, `GET /v1/conversation`, `GET /v1/leads` and
+`GET /v1/recommendations` (none of those four is in the plan's list: each reads
+back what the plan's own POST route already wrote, so the count is unmoved).
+A further route, `POST /v1/catalog/products`, is
 the catalogue upload: it is the API's only installer-facing write and the plan's
 §4 list does not name it, so it is not counted here.
 
@@ -903,19 +923,19 @@ not been designed.
 
 ### 9. Section 12's required checks, honestly accounted
 
-| Required check                 | State                                                                                              |
-| ------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Formatting / lint              | **done**, in CI and locally                                                                        |
-| Typecheck                      | **done**                                                                                           |
-| Unit tests                     | **done** — 708 across 20 files                                                                     |
-| Contract tests                 | **done** — Zod schemas exercised through the routes                                                |
-| Integration tests              | **partial** — the API is exercised in-process, not across a network                                |
-| E2E (Playwright)               | **done** — 42 checks in Chromium against four real host pages, the API, the lab and the shadow DOM |
-| Visual snapshots               | **done** — 25 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)          |
-| Accessibility (axe)            | **done** — three widget states, failing at `serious` and above                                     |
-| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                     |
-| Terraform validation           | **written, never executed**                                                                        |
-| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                                         |
+| Required check                 | State                                                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Formatting / lint              | **done**, in CI and locally                                                                                                                                                    |
+| Typecheck                      | **done**                                                                                                                                                                       |
+| Unit tests                     | **done** — 732 across 21 files                                                                                                                                                 |
+| Contract tests                 | **done** — Zod schemas exercised through the routes                                                                                                                            |
+| Integration tests              | **partial** — the API is exercised in-process, not across a network                                                                                                            |
+| E2E (Playwright)               | **done** — 44 of 46 checks in Chromium against four real host pages, the API, the lab and the shadow DOM; the two failures are in the lab and reproduce without this increment |
+| Visual snapshots               | **done** — 25 committed PNG baselines, byte-compared, re-verified on Linux `resvg` (D-16)                                                                                      |
+| Accessibility (axe)            | **done** — four widget states (one of them the card-bearing panel), failing at `serious` and above                                                                             |
+| Dependency / security scanning | **commands run and passing**; the CI _job_ has still never run                                                                                                                 |
+| Terraform validation           | **written, never executed**                                                                                                                                                    |
+| Smoke test                     | **done**, and now exits 0 when it passes (blocker 1 aside)                                                                                                                     |
 
 Two honest footnotes on the rows above. The axe pass is a floor: it finds a
 missing label, a contrast failure or a role-less dialog, and it cannot tell you
@@ -1080,3 +1100,12 @@ properly rather than sketched.
    What remains of P11 is what the gate does not cover: A12–A18, one more game and
    the seasonal cosmetics, none of which are blocked on anything outside this
    repository.
+9. **`lab.spec.ts` does not pass, and it did not pass before this increment.**
+   Two of its checks fail, and they are a _different_ pair from the pair that
+   failed when the option cards were first run against the tree — `git stash push
+-u` at HEAD, with this increment's changes set aside, reproduces the failure
+   with the other pair, so the spec is failing or flaky independently of the card
+   work rather than because of it. It is recorded as a next action rather than
+   fixed in passing because the honest first move is the debugging one: find out
+   whether the lab is racy under Playwright's single worker or whether two of its
+   assertions are simply wrong, and only then change it.

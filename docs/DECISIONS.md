@@ -1467,13 +1467,14 @@ that survives the rules and gets saved emits it with the option's id.
 Documents attached to a product (the plan says "CSV/structured records **and
 associated documents**") are still not read; `packages` and `recommendations` are
 answers rather than the stored Firestore entities of §3, so nothing is retained
-between turns except the want; the card reaches the chat transcript but not yet
-the widget's own product-card surface; and because there is no SunScan adapter
-(D-8), every option is _assumed_ and none is _survey-confirmed_ -- the response
-carries the field and it is empty, which is the truthful state of it. The route
-count moves from five of the plan's fourteen to eight: `GET /v1/catalog/products`,
-`POST /v1/recommendations`, and a `POST /v1/catalog/products` that the plan's §4
-list does not name and which is therefore not a matrix row.
+between turns except the want; the card reached the chat transcript and the
+widget's own product-card surface only in the increment after this one, which is
+D-28; and because there is no SunScan adapter (D-8), every option is _assumed_ and
+none is _survey-confirmed_ -- the response carries the field and it is empty,
+which is the truthful state of it. The route count moves from five of the plan's
+fourteen to eight: `GET /v1/catalog/products`, `POST /v1/recommendations`, and a
+`POST /v1/catalog/products` that the plan's §4 list does not name and which is
+therefore not a matrix row.
 
 **Evidence.** `packages/solar-rules` (55 tests across `import.test.ts` and
 `recommend.test.ts`), `apps/api/test/tools.test.ts` (13, calling `executeTool`
@@ -1482,3 +1483,75 @@ _data_ is otherwise untestable), `apps/api/test/catalogue.test.ts` (16, the uplo
 through its route, the refusals, and a chat turn that prices something and emits
 `recommendation_ready`), and `fixtures/demo-catalogue.csv` through
 `npm run seed:catalogue`.
+
+---
+
+## D-28. The option cards are a surface, not a message
+
+Plan §6.2 lists nine things the panel is made of, and "product cards" is one of
+them; §7.4 says what a card has to carry -- source and model, specs, reasons,
+limitations, next step. D-27 built the answer and put a line about it in the
+transcript. This is the surface itself, and it raised four questions that this
+record answers.
+
+**A card adds no facts.** `packages/widget/src/cards.ts` is a pure function of a
+`RecommendationResponse` into a view, for the same reason the engine is pure: a
+card list is a thing that should be checkable by reading values. Nothing in that
+file computes anything the response does not already contain. The one thing it
+must never do is the other half of §7.4 -- no yield appears anywhere in it,
+`systemPowerW` is the panels' rated DC power (a catalogue figure) and is labelled
+as such rather than as generation, and an absent warranty is absent rather than
+"0-year". Tests assert the first by regexing every string the panel could render,
+and the second by asserting the system figure never reaches the view at all.
+
+**Money is only money when it has a currency.** `priceMinor` is shown as
+`GBP 123.45` or not at all; a number without a currency is not printed as a
+figure, because "120000" is the worst thing this file could put on screen.
+`verified` versus `indicative` is a statement about provenance and the card says
+which in words, not only in colour: white-on-white numbers cannot be told apart,
+and the label underneath is what carries it for anyone who cannot see the green.
+
+**The widget reads its options back; it is not told them.** Two things could have
+carried the option set to the browser and both are wrong. The stream event
+`recommendation_ready` deliberately carries identifiers rather than payload -- the
+events contract exists to keep the transport thin -- and a tool result belongs to
+the model, not the page. So `GET /v1/recommendations` reads them back: bearer
+token only, no `sessionId` parameter (the token _is_ the session, so there is no
+id to disagree with it), rate-limited by the chat rule because it spends CPU
+rather than tokens, and it saves nothing. It is a read of a pure function, so
+calling it twice with nothing changed returns the same answer, which is why the
+widget can ask for it both when it mounts and when a refinement lands without
+risking a second, different set of options. The card pays one extra request per
+page load; the session it would need was already being opened at mount.
+
+**The tests run where the claim lives.** The view is unit-tested in Node
+(verified versus indicative labelling, a missing price printing no number, "No
+total yet" plus the reason, the quantity prefix, guarded specs, exclusions capped
+at four, and the yield regex). The _DOM_ is not: this repository's unit tests have
+no layout engine, and "does the card look right" is a question only a browser
+settles. So the two browser specs feed a fixture through Playwright's
+`page.route()` -- the e2e API has no model credential and no seeded catalogue, and
+the alternatives (a fake provider inside the server, or asserting against a card
+nobody can render) are both worse than intercepting. That check found two real
+defects and neither was cosmetic: the first card's eyebrow was painted in the raw
+brand orange, which is 2.95:1 on white and an axe failure; and the transcript
+became a scrollable region that no keyboard could reach, which axe reports only
+once something else takes vertical room -- an empty panel hides it rather than
+proving it absent. Both are fixed in the widget, not in the test.
+
+**What this increment changed about the panel.** The options are a scrolling
+region under the transcript rather than appended turns: the plan's five UI events
+map to approved animations over a real surface, and a refinement replaces the set
+instead of stacking a second one beside it. The panel grew from 560px to 640px and
+the log got a floor, because a card that cannot be read without scrolling is a
+card the visitor does not read, and a transcript squeezed to a sliver is worse
+than one that scrolls.
+
+**Evidence.** 20 tests in `packages/widget/test/cards.test.ts`, 4 more in
+`apps/api/test/catalogue.test.ts` for the read-back route (token required; the
+standing want returned unchanged; a second session's token reads its own and no
+other; an empty want returns nothing priced), 3 new browser checks in
+`tests/e2e/widget.spec.ts` and an axe audit of the card state in
+`tests/e2e/accessibility.spec.ts`, all driven by `tests/e2e/recommendation-fixture.ts`.
+The card surface is verified against a stubbed response and not yet against a live
+model turn, which needs the credential that is blocker 1 in `STATUS.md`.

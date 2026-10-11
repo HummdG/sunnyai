@@ -1,6 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
+import { stubOptions } from './recommendation-fixture.js';
+
 /**
  * Accessibility, run against the rendered widget rather than the source.
  *
@@ -70,6 +72,20 @@ test('the panel with a message typed has no serious violations', async ({ page }
   await page.locator(HOST).locator(LAUNCHER).click();
   await page.locator(HOST).locator('.composer textarea').fill('How much for a 4kW system?');
   await expect(page.locator(HOST).locator('.composer button')).toBeEnabled();
+  await audit(page, HOST);
+});
+
+test('the panel with options on it has no serious violations', async ({ page }) => {
+  // The option cards are the densest surface the widget has -- headings, a
+  // definition of price provenance carried by colour, and two collapsed
+  // disclosure blocks -- so they get their own audit rather than riding on the
+  // empty-panel one. The response is stubbed because the e2e API has no model
+  // credential and no seeded catalogue: the point is the rendered DOM, and
+  // interception is what lets it exist in a browser at all.
+  await stubOptions(page);
+  await page.goto('/');
+  await page.locator(HOST).locator(LAUNCHER).click();
+  await expect(page.locator(HOST).locator('[data-option-id]')).toHaveCount(2);
   await audit(page, HOST);
 });
 

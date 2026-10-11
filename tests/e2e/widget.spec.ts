@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { stubOptions } from './recommendation-fixture.js';
+
 /**
  * The widget, in a real browser, on a page that mounts it the way a customer
  * would.
@@ -130,4 +132,106 @@ test('loads without console errors', async ({ page }) => {
   await expect(page.locator(HOST).locator(LAUNCHER)).toBeAttached();
   await openWidget(page);
   expect(errors).toEqual([]);
+});
+
+test('shows no options panel when the visitor has asked for nothing', async ({ page }) => {
+  // The opening state. The widget reads its options back as part of mounting --
+  // before the panel is opened, so the cards are there the instant it is -- which
+  // is why the response is awaited around a fresh navigation rather than around
+  // the click. A 200 with nothing to price leaves the host empty rather than
+  // putting an empty frame on screen; a missing route would fail here as a 404
+  // rather than as silence.
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.url().includes('/v1/recommendations') && candidate.request().method() === 'GET',
+    ),
+    page.goto('/'),
+  ]);
+
+  expect(response.status()).toBe(200);
+  await expect(page.locator(HOST).locator(LAUNCHER)).toBeAttached();
+  await expect(page.locator(HOST).locator('.options-host')).toBeHidden();
+});
+
+test('renders the options the visitor was given', async ({ page }) => {
+  const errors = collectConsoleErrors(page);
+  await stubOptions(page);
+  await page.goto('/');
+  await openWidget(page);
+
+  const panel = page.locator(HOST).locator(PANEL);
+  const region = panel.locator('.options');
+  await expect(region).toBeVisible();
+  await expect(region).toHaveAttribute('aria-label', 'Package options from this installer');
+  await expect(panel.locator('[data-option-id]')).toHaveCount(2);
+
+  const best = panel.locator('[data-option-id="opt-vx4k-sb430-9"]');
+  await expect(best.locator('.option-rank')).toHaveText('Best match');
+  await expect(best.locator('.option-title')).toHaveText('9 panels with a 4 kW inverter');
+
+  // The line carries the model, the quantity, the specs the catalogue holds and
+  // the installer's own record for the row.
+  const panels = best.locator('.option-item[data-category="panel"]');
+  await expect(panels.locator('.item-label')).toHaveText('9 × Sunbeam SB-430');
+  await expect(panels.locator('.item-detail')).toHaveText('430 W per panel · 25-year warranty');
+  await expect(panels.locator('.price-amount')).toHaveText('GBP 185.00');
+  await expect(panels.locator('.price-status')).toHaveText('Verified price');
+  await expect(panels.locator('.item-source')).toContainText('Northwind price list 2026-09.pdf');
+
+  // A total the installer's own rows back, marked as such.
+  await expect(best.locator('.option-total .total-amount')).toHaveText('GBP 2615.00');
+  await expect(best.locator('.option-total')).toHaveClass(/status-verified/);
+  await expect(best.locator('.total-label')).toHaveText('Verified price');
+
+  // The four things §7.4 asks a card to carry, including the two the visitor has
+  // to click for.
+  await expect(best.locator('.option-reasons summary')).toHaveText('Why this option (2)');
+  await expect(best.locator('.option-limits summary')).toHaveText('What it does not settle (2)');
+  await expect(best.locator('.option-next')).toContainText('Book a survey');
+
+  // The second option has a row with no price, so it has no total -- and says so
+  // rather than showing a number a visitor would read as a price.
+  const second = panel.locator('[data-option-id="opt-vx4k-sb500-8"]');
+  await expect(second.locator('.option-rank')).toHaveText('Option 2');
+  await expect(second.locator('.total-amount')).toHaveText('No total yet');
+  await expect(second.locator('.total-label')).toHaveText(
+    'At least one item has no price in the installer’s list.',
+  );
+  await expect(second.locator('.option-item[data-category="mounting"] .price-amount')).toHaveText(
+    'No price',
+  );
+
+  // What the rules ruled out, so an option list is never unexplained.
+  await expect(panel.locator('.options-exclusions')).toContainText(
+    'A 6 kW inverter was over the budget you gave.',
+  );
+
+  // And the two things no card may ever do: quote a yield, or dress the panels'
+  // rated DC power as generation.
+  const text = await panel.innerText();
+  expect(text).not.toMatch(/per year|kwh\/year|annual|generat|\bsaving|payback/i);
+  expect(text).not.toContain('3870');
+
+  expect(errors).toEqual([]);
+});
+
+test('still has the options after the panel is closed and opened again', async ({ page }) => {
+  // Closing the panel is not the same as ending the conversation, so reopening
+  // shows the options that still stand rather than an empty frame. Reaching that
+  // state calls nothing: the read happened at mount and the answer has not
+  // changed, which is the whole reason the widget keeps the standing option set
+  // on screen instead of clearing it when the panel closes.
+  await stubOptions(page);
+  await page.goto('/');
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  await expect(panel.locator('[data-option-id]')).toHaveCount(2);
+
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await openWidget(page);
+
+  await expect(panel.locator('[data-option-id]')).toHaveCount(2);
+  await expect(panel.locator('.option-title').first()).toHaveText('9 panels with a 4 kW inverter');
 });

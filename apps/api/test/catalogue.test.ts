@@ -267,23 +267,24 @@ describe('loading a catalogue', () => {
   });
 });
 
-describe('recommendations', () => {
-  async function price(
-    app: FastifyInstance,
-    token: string,
-    sessionId: string,
-    want: Record<string, unknown>,
-  ): Promise<RecommendationResponse> {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/v1/recommendations',
-      headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, want },
-    });
-    expect(response.statusCode).toBe(200);
-    return response.json<RecommendationResponse>();
-  }
+/** One refinement, asserting the POST succeeded, for the two describes that price. */
+async function price(
+  app: FastifyInstance,
+  token: string,
+  sessionId: string,
+  want: Record<string, unknown>,
+): Promise<RecommendationResponse> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/recommendations',
+    headers: { authorization: `Bearer ${token}` },
+    payload: { sessionId, want },
+  });
+  expect(response.statusCode).toBe(200);
+  return response.json<RecommendationResponse>();
+}
 
+describe('recommendations', () => {
   it('prices options for the size the visitor named', async () => {
     const { app } = await h();
     await upload(app, { csv: CATALOGUE });
@@ -382,6 +383,78 @@ describe('recommendations', () => {
     });
 
     expect(response.statusCode).toBe(403);
+  });
+});
+
+describe('reading the options back', () => {
+  function read(
+    app: FastifyInstance,
+    token: string | null,
+  ): Promise<{ status: number; body: RecommendationResponse }> {
+    return app
+      .inject({
+        method: 'GET',
+        url: '/v1/recommendations',
+        ...(token === null ? {} : { headers: { authorization: `Bearer ${token}` } }),
+      })
+      .then((response) => ({
+        status: response.statusCode,
+        body: response.json<RecommendationResponse>(),
+      }));
+  }
+
+  it('requires a session token', async () => {
+    const { app } = await h();
+    expect((await read(app, null)).status).toBe(401);
+  });
+
+  it('returns the options already in force, without refining them', async () => {
+    // This is the widget reopening a conversation: the visitor should see the
+    // options they were given, not an empty frame. The read is the same pure
+    // function of the stored constraints, so it cannot disagree with the POST
+    // that produced them.
+    const { app, store } = await h();
+    await upload(app, { csv: CATALOGUE });
+    const { sessionId, token } = await openSession(app);
+    const priced = await price(app, token, sessionId, { targetKwp: 4 });
+
+    const { status, body } = await read(app, token);
+
+    expect(status).toBe(200);
+    expect(body.want).toEqual(priced.want);
+    expect(body.packages).toEqual(priced.packages);
+    // And nothing was written: the standing constraints are exactly what the
+    // last refinement left.
+    expect(await store.getWant(DEMO_TENANT_ID, sessionId)).toEqual({ targetKwp: 4 });
+  });
+
+  it('reads the session the token names and no other', async () => {
+    // The token *is* the session, so there is no id parameter to get wrong --
+    // and a second visitor's token cannot read the first visitor's options.
+    const { app } = await h();
+    await upload(app, { csv: CATALOGUE });
+    const first = await openSession(app);
+    const second = await openSession(app);
+    await price(app, first.token, first.sessionId, { targetKwp: 4 });
+
+    const ours = await read(app, first.token);
+    const theirs = await read(app, second.token);
+
+    expect(ours.body.packages.length).toBeGreaterThan(0);
+    expect(theirs.body.want).toEqual({});
+    expect(theirs.body.packages).toEqual([]);
+  });
+
+  it('answers a session that has asked for nothing with nothing priced', async () => {
+    const { app } = await h();
+    await upload(app, { csv: CATALOGUE });
+    const { token } = await openSession(app);
+
+    const { body } = await read(app, token);
+
+    expect(body.packages).toEqual([]);
+    expect(body.want).toEqual({});
+    expect(body.catalogue.products).toBe(4);
   });
 });
 

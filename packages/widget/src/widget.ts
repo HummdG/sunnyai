@@ -4,9 +4,11 @@ import {
   PAGE_ACTIONS,
   type ChatStreamEvent,
   type PageAction,
+  type RecommendationResponse,
   type WidgetConfig,
 } from '@sunny/contracts';
 
+import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el, setSvg } from './dom.js';
@@ -72,10 +74,21 @@ export class SunnyWidget {
   #launcherArt!: HTMLElement;
   #panel!: HTMLElement;
   #log!: HTMLElement;
+  #optionsHost!: HTMLElement;
   #composer!: HTMLTextAreaElement;
   #send!: HTMLButtonElement;
   #suggestions!: HTMLElement;
   #liveRegion!: HTMLElement;
+
+  /**
+   * The option set already on screen, so an unchanged answer is not re-rendered.
+   *
+   * The engine is deterministic and its option ids are derived from the parts,
+   * so the id of the first option identifies the whole set: a refinement that
+   * changes nothing produces the same id and leaves the DOM alone, which matters
+   * because the renderer replaces the list rather than patching it.
+   */
+  #renderedOptionId = '';
 
   constructor(host: HTMLElement, options: MountOptions) {
     this.#host = host;
@@ -131,8 +144,15 @@ export class SunnyWidget {
       role: 'log',
       'aria-live': 'polite',
       'aria-atomic': 'false',
+      // Focusable because it scrolls. A transcript longer than the panel is only
+      // readable with a pointer otherwise, which is the failure axe reports as
+      // "scrollable region must have keyboard access" -- and it starts happening
+      // as soon as anything else on the panel takes vertical room, so an empty
+      // conversation hides it rather than proving it absent.
+      tabindex: '0',
     });
     this.#suggestions = el('div', { class: 'suggestions' });
+    this.#optionsHost = el('div', { class: 'options-host', hidden: true });
     this.#liveRegion = el('div', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
 
     this.#composer = el('textarea', {
@@ -184,7 +204,7 @@ export class SunnyWidget {
     this.#panel = el(
       'div',
       { class: 'panel', role: 'dialog', 'aria-label': 'Solar assistant', hidden: true },
-      [header, this.#log, this.#suggestions, composer, this.#liveRegion],
+      [header, this.#log, this.#optionsHost, this.#suggestions, composer, this.#liveRegion],
     );
     this.#panel.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') this.close();
@@ -279,9 +299,61 @@ export class SunnyWidget {
         onFinish: () => this.#onStreamFinish(),
       });
       this.#history();
+      // The option set standing on this session is a read, not a model turn, so
+      // a visitor returning to a conversation sees the options they were given
+      // rather than an empty panel beside a transcript that mentions them.
+      void this.#loadOptions();
     } catch {
       /* offline; the launcher still animates and the panel still opens */
     }
+  }
+
+  // ── the option cards ─────────────────────────────────────────────────────
+
+  /**
+   * Ask the API what options stand on this session, and show them.
+   *
+   * No session id is sent: the token *is* the session, so a widget cannot ask
+   * about a conversation that is not its own even by naming one. Nothing is
+   * decided here either -- the constraints in force are stored against the
+   * conversation and the engine answers from the installer's own catalogue, so
+   * this shows the same option set the assistant just described.
+   */
+  async #loadOptions(): Promise<void> {
+    if (this.#sessionToken === '') return;
+    try {
+      const response = await fetch(`${this.#options.apiUrl}/v1/recommendations`, {
+        headers: { authorization: `Bearer ${this.#sessionToken}` },
+      });
+      if (!response.ok) return;
+      const body = (await response.json()) as RecommendationResponse;
+      this.#renderOptions(optionsPanel(body));
+    } catch {
+      // A failed read leaves the cards already on screen alone. They did not
+      // change, and clearing them would report a network fault as a change to
+      // the visitor's options.
+    }
+  }
+
+  #renderOptions(view: OptionsPanelView | null): void {
+    if (view === null) {
+      this.#optionsHost.replaceChildren();
+      this.#optionsHost.hidden = true;
+      this.#renderedOptionId = '';
+      return;
+    }
+
+    // The engine's option ids are derived from the products and counts, so the
+    // first one identifies the whole set: a refinement that changes nothing
+    // leaves the DOM untouched instead of rebuilding the same three cards.
+    const key = view.cards[0]?.id ?? `note:${view.note}`;
+    if (key === this.#renderedOptionId) return;
+    this.#renderedOptionId = key;
+
+    this.#optionsHost.replaceChildren(cardsElement(view));
+    this.#optionsHost.hidden = false;
+    this.#liveRegion.textContent =
+      view.cards.length > 0 ? 'Options updated.' : 'No options to show yet.';
   }
 
   // ── the frame loop ───────────────────────────────────────────────────────
@@ -457,6 +529,12 @@ export class SunnyWidget {
       }
       case 'tool_started':
         this.#liveRegion.textContent = 'Looking that up…';
+        break;
+      case 'recommendation_ready':
+        // The event names the option set rather than carrying it: the client
+        // draws what the API decided, and the id in the stream has to match the
+        // one it fetches, so a mismatch is visible rather than silent.
+        void this.#loadOptions();
         break;
       case 'page_action_suggested':
         this.#applyPageAction(event.action, event.target);

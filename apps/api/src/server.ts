@@ -676,6 +676,48 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return response;
   });
 
+  /**
+   * The options currently in force for this session, without refining anything.
+   *
+   * This exists because the widget arrives at a recommendation by two doors --
+   * the visitor typing, and the model calling the tool -- and neither of them can
+   * hand the browser the option set: the stream event carries identifiers on
+   * purpose, and a tool result belongs to the model, not the page. Reopening a
+   * conversation is the same problem: the visitor should see the options they
+   * were already given rather than an empty frame.
+   *
+   * So the widget reads them back. It is a read: no want is merged, nothing is
+   * saved, and because the engine is a pure function of the stored constraints
+   * and the catalogue, calling it twice with nothing changed returns the same
+   * answer. The session token is the whole address -- the token *is* the session
+   * -- so there is no `sessionId` parameter here to disagree with it.
+   */
+  app.get('/v1/recommendations', async (request, reply) => {
+    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
+    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
+
+    enforceRateLimit(
+      request,
+      reply,
+      'recommendations',
+      claims.sessionId,
+      config.rateLimit.rules.chat,
+    );
+
+    const [products, conversation, want] = await Promise.all([
+      store.listProducts(claims.tenantId),
+      store.getConversation(claims.tenantId, claims.sessionId),
+      store.getWant(claims.tenantId, claims.sessionId),
+    ]);
+
+    return recommend({
+      products,
+      answers: conversation?.answers ?? {},
+      want,
+      now: new Date(now()).toISOString(),
+    });
+  });
+
   return app;
 }
 

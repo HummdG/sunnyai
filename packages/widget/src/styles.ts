@@ -11,6 +11,16 @@
  * cross is a CSS custom property, which is deliberate: it is the supported way
  * for a host to theme the widget.
  */
+/**
+ * The ink for a price the installer's own records back.
+ *
+ * Named rather than inlined because it is a claim about contrast, and a claim
+ * that lives only inside a template string cannot be checked: the unit tests
+ * read this constant and measure it against white. About 6:1, comfortably past
+ * the 4.5:1 AA wants for body text.
+ */
+export const VERIFIED_PRICE_INK = '#0f6b3f';
+
 export function styles(): string {
   return `
 :host {
@@ -81,7 +91,11 @@ export function styles(): string {
 
 .panel {
   width: min(384px, calc(100vw - 40px));
-  height: min(560px, calc(100vh - 140px));
+  /* Taller than the conversation-only panel was. The options are a second
+     surface inside the same frame, so the panel has to hold a transcript and a
+     card list at once -- and a card that cannot be read without scrolling is a
+     card the visitor does not read. */
+  height: min(640px, calc(100vh - 140px));
   background: var(--sunny-warm-white);
   border-radius: var(--sunny-radius);
   box-shadow: var(--sunny-shadow);
@@ -126,6 +140,9 @@ export function styles(): string {
 
 .log {
   flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain;
+  /* Never squeezed to a sliver by the options below it: a transcript has to stay
+     readable for the visitor to follow what they were told and why. */
+  min-height: 108px;
   padding: 16px 14px; display: flex; flex-direction: column; gap: 10px;
   scrollbar-width: thin;
 }
@@ -177,6 +194,96 @@ export function styles(): string {
 }
 .composer button:disabled { opacity: .45; cursor: not-allowed; }
 .composer button:focus-visible { outline: 2px solid var(--sunny-ink); outline-offset: 2px; }
+
+/* ── the options panel ──────────────────────────────────────────────────── */
+/* The options are a place to go and read, not a transcript, so they get their
+   own scrolling region under the conversation: a long list of cards shrinks
+   the log rather than pushing the composer off the bottom of the panel. */
+
+.options-host {
+  flex: 0 1 auto; max-height: 60%; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; border-top: 1px solid rgba(23,23,23,.07);
+  background: var(--sunny-warm-white);
+}
+.options-host[hidden] { display: none; }
+
+.options { padding: 12px 14px 14px; }
+.options-title {
+  margin: 0 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--sunny-muted);
+}
+
+.options-list { list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 10px; }
+
+.option-card {
+  background: #fff; border: 1px solid rgba(23,23,23,.08); border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(23,23,23,.06); padding: 11px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.option-rank {
+  align-self: flex-start; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--sunny-muted);
+}
+/* The first card is the one the engine ranked highest. It is marked in the
+   accent rather than in the raw brand colour: the accent carrying text is what
+   the derived ink exists for, and the raw orange is 2.95:1 on white, which axe
+   catches the moment a card is on screen. */
+.option-card:first-child .option-rank { color: var(--sunny-accent-ink); }
+.option-title { margin: 0; font-size: 14px; font-weight: 650; }
+
+.option-total { display: flex; flex-direction: column; gap: 1px; }
+.option-total .total-amount { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.option-total .total-label { font-size: 11.5px; color: var(--sunny-muted); }
+.option-total.status-unknown .total-amount { font-size: 14px; color: var(--sunny-ink); }
+
+/* A verified figure is the one thing on the card worth shouting about, and the
+   only case where the number is a quote rather than a note the installer typed.
+   The colour carries that, so it has to clear contrast on white: this green is
+   about 6:1, and the label underneath says the same thing in words for anyone
+   who cannot see it. */
+.status-verified .total-amount,
+.status-verified .price-amount { color: ${VERIFIED_PRICE_INK}; }
+
+.option-summary { margin: 0; font-size: 13px; color: #4a4a4a; }
+
+.option-items { list-style: none; margin: 0; padding: 0; }
+.option-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 10px;
+  padding: 7px 0; border-top: 1px solid rgba(23,23,23,.06);
+}
+.option-item .item-label { display: block; font-size: 13px; font-weight: 600; }
+.option-item .item-detail { display: block; font-size: 11.5px; color: var(--sunny-muted); }
+.option-item .item-price { display: flex; flex-direction: column; gap: 1px;
+  text-align: right; align-self: start; }
+.option-item .price-amount { font-size: 13px; font-weight: 650; }
+.option-item .price-status { font-size: 10.5px; color: var(--sunny-muted); }
+.option-item .item-source { grid-column: 1 / -1; font-size: 10.5px;
+  color: var(--sunny-muted); overflow-wrap: anywhere; }
+
+.option-reasons summary, .option-limits summary {
+  cursor: pointer; font-size: 12px; font-weight: 600; color: var(--sunny-ink);
+}
+.option-reasons summary:hover, .option-limits summary:hover { color: var(--sunny-accent-ink); }
+.option-reasons summary:focus-visible, .option-limits summary:focus-visible {
+  outline: 2px solid var(--sunny-accent); border-radius: 4px;
+}
+.option-reasons ul, .option-limits ul {
+  margin: 6px 0 0; padding-left: 16px; font-size: 12.5px; color: #4a4a4a;
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+.option-next { margin: 0; font-size: 12.5px; background: var(--sunny-pale);
+  border-radius: 10px; padding: 8px 10px; }
+
+.options-note { margin: 0; font-size: 13px; color: #4a4a4a; }
+.options-exclusions { margin-top: 12px; }
+.options-exclusions-title {
+  margin: 0 0 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--sunny-muted);
+}
+.options-exclusions ul { margin: 0; padding-left: 16px; font-size: 12.5px;
+  color: var(--sunny-muted); display: flex; flex-direction: column; gap: 4px; }
 
 .footnote { font-size: 11px; color: var(--sunny-muted); text-align: center;
   padding: 0 12px 10px; background: var(--sunny-warm-white); }
