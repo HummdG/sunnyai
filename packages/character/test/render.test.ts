@@ -121,6 +121,66 @@ describe('renderer', () => {
     expect(svg).toContain('&lt;script&gt;');
   });
 
+  it('is not injectable through a theme colour', () => {
+    // The theme is the other caller-supplied string that reaches the output, and
+    // unlike the title it is painted into an attribute: `fill="${paint.body}"`.
+    // A value that can close that quote is markup, not a colour.
+    const hostile = '"><img src=x onerror="alert(1)">';
+    const rig = defaultRig();
+    rig.theme = { body: hostile, ray: hostile, ink: hostile, highlight: hostile };
+    const svg = renderSunny(rig);
+
+    expect(svg).not.toContain('<img');
+    expect(svg).not.toMatch(/onerror/i);
+    // Falling back is not a silent drop: the character is still drawn, in the
+    // canonical colour, rather than left as a hole in the artwork.
+    expect(svg).toContain(`fill="${SUNNY_THEME.body}"`);
+    expect(svg).toContain(`stroke="${SUNNY_THEME.ink}"`);
+  });
+
+  it('accepts the colour forms a theme legitimately uses', () => {
+    // The guard is a whitelist, so it can be too strict as well as too loose:
+    // each of these is a colour a theme may carry and must survive untouched.
+    const forms = [
+      '#abc',
+      '#AABBCC',
+      '#aabbccdd',
+      'rgb(1, 2, 3)',
+      'rgba(1, 2, 3, 0.5)',
+      'hsl(24, 100%, 50%)',
+      'color-mix(in srgb, red, blue)',
+      'var(--sunny-body)',
+      'currentColor',
+      'rebeccapurple',
+      'transparent',
+    ];
+    for (const colour of forms) {
+      const rig = defaultRig();
+      rig.theme = { ...rig.theme, body: colour };
+      expect(renderSunny(rig), colour).toContain(`fill="${colour}"`);
+    }
+  });
+
+  it('refuses a paint that only looks like a colour', () => {
+    // The near-misses: each one is a colour *plus* the character that would end
+    // the attribute, start a declaration, or open a block.
+    const rejected = [
+      'red; background: url(x)',
+      '#fff"',
+      "#fff'",
+      'red><script>',
+      'red&x',
+      'var(--sunny-body, #fff)',
+      '{color: red}',
+      'red\\" ',
+    ];
+    for (const colour of rejected) {
+      const rig = defaultRig();
+      rig.theme = { ...rig.theme, body: colour };
+      expect(renderSunny(rig), colour).not.toContain(colour);
+    }
+  });
+
   it('renders every declared prop, and only the ones the rig carries', () => {
     for (const id of PROP_IDS) {
       const bare = renderSunny(defaultRig());

@@ -1993,3 +1993,76 @@ create path); and a live confirmation over HTTP -- `201`/`duplicate:false`, then
 row in the list. The restart claim was proved by restarting the process and replaying the
 key from the previous process: same `leadId`, `duplicate: true`. `npm run verify` is
 **830 tests across 24 files**.
+
+## D-34. A theme colour is painted only if it is a colour
+
+**Context.** §9's threat model names **"XSS/CSS injection"**. Three strings from outside the
+renderer reach markup: the accessible title, the prop id, and the theme's four colours. Two
+of the three were already closed by construction -- a prop id is drawn from a closed union,
+and the title goes through `escapeXml`, which has its own test. The theme was not: `painters()`
+interpolated `rig.theme.body` (and `ray`, `ink`, `highlight`) straight into `fill="…"` and
+`stroke="…"`.
+
+**Reproduced before it was designed.** A rig whose theme is `"><img src=x onerror="alert(1)">`
+renders `fill=""><img src=x onerror="alert(1)">"/>` -- an element and an event handler, inside
+the string the widget hands to its one `innerHTML` (`dom.setSvg`). Nothing about that value is
+a colour. A second sink came out of the same reading: `legibleInk` returns an unparseable colour
+_untouched_ ("inventing a colour for a value we could not read would hide the tenant's typo"), so
+the same value travelled on into `--sunny-accent-ink` through `setProperty`.
+
+**Reachability, stated honestly: latent, not live.** The only path that puts a server string into
+a theme is `themeFrom(config.primaryColor)` in the widget, and the API validates a tenant's colour
+against `widgetConfigSchema` (`^#[0-9a-fA-F]{6}$`) before serving it -- `configFor` returns null
+and the route answers `404` for a registry entry that fails. What the reading did establish is
+that the widget's trust in that string is unverified at the point of use: `#loadConfig` casts the
+parsed JSON to `WidgetConfig` with `as`, so the value is unchecked from the moment it arrives
+until the moment it is painted. A guard here is not a fix for a live hole; it is the difference
+between a renderer that is safe because its caller validated and one that is safe.
+
+**Decision: an allow-list at the sink.** `safePaint(value, fallback)` in
+`packages/character/src/render.ts` accepts a value only when it matches one of the CSS colour
+forms -- hex (3-8 digits), a bare colour keyword, an `rgb()`/`hsl()`/`hwb`/`lab`/`lch`/`oklab`/
+`oklch`/`color()`/`color-mix()` call, or a bare `var(--token)` -- and otherwise returns the
+canonical token. `painters()` applies it to all four channels, which is the single choke point
+every painted value passes through, and the widget applies it once in `#applyConfig` and uses the
+result for the CSS custom property, the contrast calculation and the character's theme.
+
+The grammar is the guarantee, and it is easier to state than to inspect: nothing that matches can
+contain `"`, `'`, `<`, `>`, `&`, `;`, `{`, `}` or `\`, so a value that passes cannot close the
+quoted attribute it is painted into, open an element, or start a new declaration. That is the
+whole property, and it holds in both contexts the value lands in.
+
+**Why a whitelist and not escaping.** The same string is painted into an SVG attribute (HTML
+rules) and set as a CSS custom property (CSS rules). One escaper for both is wrong for one of
+them -- HTML-escaping a colour corrupts it for CSS, and CSS-escaping it leaves the attribute
+parser to be the only thing standing between a quote and an element. An allow-list of colours is
+the one test correct in both places, because it is not a filter on characters at all: it is a
+statement about what the value is.
+
+**Why the fallback is the brand colour rather than "no paint".** A rejected value is a bug in
+whoever wrote the theme, and a wrong colour is a legible, screenshotable symptom of it. Dropping
+the paint instead produces a body with no fill -- a hole in the character, which is both harder to
+attribute and easy to mistake for a fault in the renderer. Falling back also keeps the property
+the paint already had: `renderSunny` always draws a character.
+
+**What this is not.** It is not colour validation and it does not promise the value is a colour a
+reader will like. A form outside the list -- `hsl(24 100% 50%)` with spaces rather than commas,
+say -- falls back to orange, which is the intended direction of failure: a visibly different
+colour, not a broken attribute. Widening the list is a one-line change with a test to match.
+
+The `var()` branch is deliberately the narrowest of them: a bare token reference only, no fallback
+value. `var(--sunny-body, #fff)` adds a comma and a nested value to a form that has no use for
+either here, and a branch that cannot express a nested value is one fewer thing to be wrong about.
+
+**Evidence.** Three tests in `packages/character/test/render.test.ts`: a hostile theme produces no
+element and no handler and falls back to `SUNNY_THEME`; eleven legitimate forms (`#abc`, `#AABBCC`,
+`#aabbccdd`, `rgb(1, 2, 3)`, `rgba(1, 2, 3, 0.5)`, `hsl(24, 100%, 50%)`,
+`color-mix(in srgb, red, blue)`, `var(--sunny-body)`, `currentColor`, `rebeccapurple`,
+`transparent`) pass through untouched; and eight near-misses that are a colour plus a break-out
+character are refused. The comment on the widget's one `innerHTML`, which had claimed its input
+was "never a string from a server", now names the guard that makes that true. The applied-colour
+path is also covered in a browser: `tests/e2e/widget.spec.ts` and
+`tests/e2e/accessibility.spec.ts` (the latter reads `--sunny-accent-ink` back off the host) are
+**16/16 green, exit 0**, against a bundle rebuilt from this tree. The widget's own weight is
+unchanged for practical purposes: 146.7 kB at HEAD, 147.0 kB (40.6 kB gzipped) with the guard.
+`npm run verify` is **833 tests across 24 files**.

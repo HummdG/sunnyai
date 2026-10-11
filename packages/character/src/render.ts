@@ -6,6 +6,7 @@
 
 import { BODY, BROW, EYE, EYE_HIGHLIGHT, RAY, SMILE_PROFILE, VIEWBOX } from './geometry.js';
 import type { BrowRig, EyeRig, PropId, PropRig, RayRig, SmileRig, SunnyRig, Vec2 } from './rig.js';
+import { SUNNY_THEME } from './tokens.js';
 
 // ─── small vector helpers ────────────────────────────────────────────────────
 
@@ -488,6 +489,39 @@ interface Paint {
   highlight: string;
 }
 
+/**
+ * The colour forms a theme value may take.
+ *
+ * Written as an allow-list rather than a set of banned characters because what
+ * it has to guarantee is a negative: whatever matches cannot contain `"`, `'`,
+ * `<`, `>`, `&`, `;`, `{`, `}` or `\`, so it cannot close the quoted attribute
+ * it is painted into, open an element, or start a new declaration. Every branch
+ * ends at the same place -- a value that matches is a colour and nothing else.
+ *
+ * `var()` is deliberately accepted only as a bare token reference. A fallback
+ * (`var(--x, #fff)`) adds a comma and a nested value for no benefit here, and
+ * the narrower branch is easier to be sure of than a broader one.
+ */
+const SAFE_PAINT =
+  /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z][a-zA-Z0-9-]{0,31}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\([#a-zA-Z0-9%\s.,/+-]*\)|var\(--[a-zA-Z0-9-]{1,32}\))$/;
+
+/**
+ * `value` when it is a colour that is safe to paint, `fallback` otherwise.
+ *
+ * The theme is the one string a tenant controls that the renderer interpolates
+ * into markup -- `fill="${paint.body}"`, `stroke="${paint.ink}"` -- so a value
+ * that can close the quote is an element, not a colour. Rejecting it here keeps
+ * that from being true of the output.
+ *
+ * This is a second line, not the first: the API validates a tenant's colour
+ * against the widget schema before serving it. It is here because the renderer
+ * must not depend on its caller having validated anything -- `renderSunny` is a
+ * public export and has more than one way in.
+ */
+export function safePaint(value: string, fallback: string): string {
+  return SAFE_PAINT.test(value) ? value : fallback;
+}
+
 function painters(rig: SunnyRig, cssVariables: boolean): Paint {
   if (cssVariables) {
     return {
@@ -497,11 +531,14 @@ function painters(rig: SunnyRig, cssVariables: boolean): Paint {
       highlight: 'var(--sunny-highlight)',
     };
   }
+  // A rejected paint falls back to the canonical token rather than to nothing:
+  // the character is still drawn, in the brand colour, so a tenant with a bad
+  // colour sees a different orange rather than a hole where the body was.
   return {
-    body: rig.theme.body,
-    ray: rig.theme.ray,
-    ink: rig.theme.ink,
-    highlight: rig.theme.highlight,
+    body: safePaint(rig.theme.body, SUNNY_THEME.body),
+    ray: safePaint(rig.theme.ray, SUNNY_THEME.ray),
+    ink: safePaint(rig.theme.ink, SUNNY_THEME.ink),
+    highlight: safePaint(rig.theme.highlight, SUNNY_THEME.highlight),
   };
 }
 

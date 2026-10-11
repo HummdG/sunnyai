@@ -710,6 +710,10 @@
     }));
     return smoothPath(pts, 0.9);
   }
+  var SAFE_PAINT = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z][a-zA-Z0-9-]{0,31}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\([#a-zA-Z0-9%\s.,/+-]*\)|var\(--[a-zA-Z0-9-]{1,32}\))$/;
+  function safePaint(value, fallback) {
+    return SAFE_PAINT.test(value) ? value : fallback;
+  }
   function painters(rig, cssVariables) {
     if (cssVariables) {
       return {
@@ -720,10 +724,10 @@
       };
     }
     return {
-      body: rig.theme.body,
-      ray: rig.theme.ray,
-      ink: rig.theme.ink,
-      highlight: rig.theme.highlight
+      body: safePaint(rig.theme.body, SUNNY_THEME.body),
+      ray: safePaint(rig.theme.ray, SUNNY_THEME.ray),
+      ink: safePaint(rig.theme.ink, SUNNY_THEME.ink),
+      highlight: safePaint(rig.theme.highlight, SUNNY_THEME.highlight)
     };
   }
   var instanceCounter = 0;

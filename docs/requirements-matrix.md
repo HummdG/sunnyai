@@ -7,7 +7,8 @@
 
 Plan §9 is a threat model rather than a table of deliverables, so it has no rows
 here: each threat is answered by a decision entry where it is closed — prompt
-injection through retrieved documents by D-29, replayed lead submissions by D-33.
+injection through retrieved documents by D-29, replayed lead submissions by D-33,
+and a theme colour that is really markup by D-34.
 
 Status is exactly one of `Done`, `Partial`, `Not started`, `Blocked`, `Not applicable`.
 `Partial` means some of the requirement is real and some is not; the note says which.

@@ -1,5 +1,5 @@
 import { SunnyAnimator, machineEventForStreamEvent } from '@sunny/animation-engine';
-import { defaultRig, renderSunny, SUNNY_THEME, type SunnyTheme } from '@sunny/character';
+import { defaultRig, renderSunny, safePaint, SUNNY_THEME, type SunnyTheme } from '@sunny/character';
 import {
   PAGE_ACTIONS,
   type ChatStreamEvent,
@@ -232,17 +232,21 @@ export class SunnyWidget {
 
   #applyConfig(config: WidgetConfig): void {
     this.#host.setAttribute('data-position', config.position);
-    this.#host.style.setProperty('--sunny-primary-color', config.primaryColor);
+    // One guard for all three places the tenant's colour lands. The config
+    // fetch casts the parsed JSON straight to `WidgetConfig` without validating
+    // it, so this string is unvalidated until here -- and it reaches a CSS
+    // custom property, a contrast calculation and the character's theme. A
+    // colour that fails the check becomes the brand colour rather than
+    // travelling on; see `safePaint`.
+    const accent = safePaint(config.primaryColor, SUNNY_THEME.body);
+    this.#host.style.setProperty('--sunny-primary-color', accent);
     // The accent is used in two roles that ask different things of it: as a fill
     // behind white text (the visitor's own bubbles, the send button) and as text
     // on the pale suggestion chip. One darkened tone satisfies both, and the
     // chip's background is in the list because the tone has to clear that, not
     // only white. Without this the default brand is 2.66:1 on the chip -- the
     // exact failure the browser audit found, at the colour nobody chose yet.
-    this.#host.style.setProperty(
-      '--sunny-accent-ink',
-      legibleInk(config.primaryColor, ['#FFFFFF', '#FFF1E5']),
-    );
+    this.#host.style.setProperty('--sunny-accent-ink', legibleInk(accent, ['#FFFFFF', '#FFF1E5']));
 
     const name = this.#root.querySelector('.header .name');
     const tagline = this.#root.querySelector('.header .tagline');
@@ -253,7 +257,7 @@ export class SunnyWidget {
       intensity: config.intensity,
       reducedMotion: prefersReducedMotion(),
     });
-    this.#animator.setBase({ ...defaultRig(), theme: themeFrom(config.primaryColor) });
+    this.#animator.setBase({ ...defaultRig(), theme: themeFrom(accent) });
 
     this.#suggestions.replaceChildren(
       ...config.suggestions.map((text) => {

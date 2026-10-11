@@ -33,6 +33,9 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 export function setSvg(host: Element, markup: string): void {
   // `renderSunny` produces the markup, so this is the one `innerHTML` in the
   // widget -- and its input is a rig we computed, never a string from a server
-  // or a model.
+  // or a model. The one string in that rig a server does supply is the tenant's
+  // colour, and the renderer refuses any value that is not a colour before it
+  // reaches an attribute (`safePaint`); that guard, not this comment, is what
+  // makes the claim true.
   host.innerHTML = markup;
 }
