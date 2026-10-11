@@ -29,6 +29,10 @@ export default defineConfig({
       // separately from the two above because it is the one suite whose subject
       // is an image rather than an assertion about behaviour.
       'tests/visual/**/*.test.ts',
+      // The cross-tenant denial sweep, listed separately for the same reason: its
+      // subject is the route table itself rather than one feature, and a route
+      // added without a case there is meant to fail rather than go unnoticed.
+      'tests/security/**/*.test.ts',
     ],
     // The Playwright suite in tests/e2e is run by `npm run test:e2e`, not here.
     exclude: ['**/node_modules/**', 'tests/e2e/**'],

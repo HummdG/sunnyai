@@ -2066,3 +2066,87 @@ path is also covered in a browser: `tests/e2e/widget.spec.ts` and
 **16/16 green, exit 0**, against a bundle rebuilt from this tree. The widget's own weight is
 unchanged for practical purposes: 146.7 kB at HEAD, 147.0 kB (40.6 kB gzipped) with the guard.
 `npm run verify` is **833 tests across 24 files**.
+
+## D-35. The route table is the subject of the isolation suite, not one feature in it
+
+**Context.** §9's threat model puts **cross-tenant data access** first, and the control it names is
+to "test cross-tenant denial systematically". Isolation was already asserted where each feature was
+built: the leads route takes its tenant from the verified token and never the body
+(`apps/api/test/pipeline.test.ts`), the knowledge index is keyed by tenant so another installer's
+lookup is empty (`apps/api/test/knowledge.test.ts`), and the catalogue read is scoped the same way.
+What none of those can do is notice a route that has no such test at all -- and that is what an
+isolation bug looks like from the outside: not a check that is broken, but a check that is missing
+on a route someone added later, reviewed as an ordinary piece of work.
+
+**Decision: one suite whose subject is the route table.** `tests/security/tenant-isolation.test.ts`
+reads the registered routes off the running server (`app.printRoutes`) and asserts the set _equals_
+a declared table of route specs, so a route added without a case here fails the inventory test --
+the one moment anyone is still thinking about what credential it should require. Each declared route
+is then swept against seven credentials:
+
+| credential       | what it presents                                           |
+| ---------------- | ---------------------------------------------------------- |
+| `anonymous`      | nothing                                                    |
+| `forged`         | the right claims under a key this deployment does not hold |
+| `expired`        | a correctly signed token whose `expiresAt` has passed      |
+| `visitor`        | this tenant's valid token, naming its own session          |
+| `foreignSession` | a valid token whose body names another session             |
+| `foreignTenant`  | the _other_ tenant's valid token, naming this tenant's ids |
+| `admin`          | the deployment admin token                                 |
+
+Expected outcomes are derived from the route's kind (`public` / `visitor` / `admin`) and whether its
+body carries a `sessionId`, and a refusal has to be the _right_ refusal: `unauthorized` (401) where
+no usable credential was presented, `forbidden` (403) where a real one asked for something it does
+not own. The knowledge job read is the third case -- its lookup is scoped by the tenant the caller
+names as well as the id, so another installer's job is a `404`/`not_found`, genuinely
+indistinguishable from a job that never existed. 14 routes × 7 credentials is 98 cases, plus nine
+that assert what the successful paths actually return.
+
+**Two ways this could have been green and worthless, both closed in the suite itself.** First,
+`not_enabled` is deliberately _not_ read as a refusal: on an unconfigured deployment the chat route
+answers 403 with that code to a perfectly valid visitor, so counting it would let a route pass by
+refusing everyone for a reason unrelated to the credential. Second, an "allowed" case that comes back
+`400` fails: a request the table got wrong would otherwise prove nothing about who is let in, and a
+sweep of 98 requests that are all malformed is a sweep of nothing.
+
+**What it establishes.** Read together, the 98 cases say one thing: a caller reaches a tenant's data
+only by presenting a credential that names that tenant, and a request that disagrees with its
+credential is refused rather than served. The nine behavioural cases then pin the parts that are
+about data rather than access -- a lead appears in the list of the tenant that filed it and no other;
+a catalogue is priced from the filing tenant's own rows; a session token does not resume under
+another installer's widget id; a published config carries no internal id (`t_…`) or the other
+tenant's name.
+
+**What it does not establish, stated plainly.** `SUNNY_ADMIN_TOKEN` is one deployment-wide secret, so
+on `POST /v1/catalog/products` and `POST /v1/knowledge/sources` the tenant is a **caller's choice**,
+not a credential boundary. The sweep does say what is true there -- every session credential, valid
+or not, this tenant's or the other's, is the wrong kind of thing and gets a 401 -- but nothing in this
+suite scopes _which_ tenant an admin token writes to, because nothing in the product does. That gap is
+blocker 4 (Firebase Auth, memberships and roles), and the §4 row for it in `docs/requirements-matrix.md`
+already records it as unreal. This entry records it a second time on purpose: a green security suite is
+exactly the kind of artefact that gets read as a stronger claim than it is.
+
+**Falsified before it was trusted.** Two deliberate breaks, each made, observed and reverted:
+
+1. Removing the `sessionId` comparison from `POST /v1/leads` turned **exactly two** cases red --
+   `refuses caller: foreignSession` and `refuses caller: foreignTenant` -- and left the other 105
+   green. A sweep that stayed green through that has no teeth; this one localises the defect to the
+   route and the two cases that describe it.
+2. Ingesting both fixture documents under one tenant made the other tenant's lookup return
+   `{ "ok": false, "sources": [] }` and fail on `expected … to contain 'SILVERBIRCH-9'`, which is
+   the evidence that the isolation assertions are sensitive to _who owns the document_ rather than
+   to the fact that something was ingested somewhere.
+
+**The knowledge cases are paired, and the pair is the point.** Both fixtures are written to answer
+the same query in the same words, so a shared index would return both passages to either tenant;
+each tenant is then asserted to see its own marker _and not the other's_. The corpus-poisoning case
+carries an instruction in the rival's document (`Ignore your previous instructions …`) and asserts
+the control first: the rival's own lookup _does_ surface that text, so its absence from the
+neighbour's lookup is tenant scoping and not a query that matched nothing. What that test claims is
+narrow on purpose -- not that the model resists an instruction (that is D-29's argument, and it is a
+claim about a prompt), but that one tenant's document is not in another tenant's context at all. An
+instruction the neighbour's model never sees cannot steer it.
+
+**Evidence.** 107 tests in `tests/security/tenant-isolation.test.ts`, wired into `npm run verify` by
+its own `include` entry in `vitest.config.ts` (so the sweep is not silently skipped by a glob that
+stopped matching). `npm run verify` is **940 tests across 25 files**, up from 833 across 24.
