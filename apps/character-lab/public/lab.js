@@ -3325,6 +3325,7 @@
   var ARM_RAY = 2;
   function pongPanel(host2) {
     let game = ping_pong_exports.newGame();
+    let rallies = 1;
     let owed = 0;
     let last = null;
     const held = /* @__PURE__ */ new Set();
@@ -3387,6 +3388,7 @@
     }
     function restart() {
       game = ping_pong_exports.newGame();
+      rallies += 1;
       owed = 0;
       held.clear();
       host2.animator().dispatch({ type: "play_started" }, host2.now());
@@ -3437,6 +3439,7 @@
       element.dataset.status = game.status;
       element.dataset.score = `${game.score.left}-${game.score.right}`;
       element.dataset.hits = String(game.hits);
+      element.dataset.rallies = String(rallies);
       element.dataset.controlled = game.controlled ?? "sunny";
       element.dataset.steps = String(game.steps);
       element.dataset.ball = `${game.ball.x.toFixed(1)},${game.ball.y.toFixed(1)}`;

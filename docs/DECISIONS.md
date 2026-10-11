@@ -3004,3 +3004,81 @@ what is present and absent, and the range/denominator rules), `apps/api/src/serv
 path so a dashboard cannot report a page as a total), `apps/api/test/dashboard.test.ts` (11 tests,
 including the null-denominator cases and the half-open boundary),
 `tests/security/tenant-isolation.test.ts` (the route's row in the sweep).
+
+## D-47. Three browser checks were racing the lab's own clock, and one was timing out on a budget the walk exceeds
+
+**Context.** D-46's release run came back red on three checks in `tests/e2e/lab.spec.ts`. The
+investigation (STATUS item 10) established by measurement what they were -- a control run against a
+stashed tree reproduced two of them, so they pre-date the increment -- but the measurement was a
+measurement, not a diagnosis. What was left was the cause of each and the fix.
+
+All three are one mistake in three sets of clothes: a browser check asserting an _instantaneous_
+reading of something that is moving. The fourth -- the catalogue walk timing out -- is the same
+family from the other side, a budget set by habit rather than by what the check costs.
+
+**Decision -- assert on the count that only grows, not on the one that is reset while the ball is in
+play.** `starts a fresh rally with the score cleared` clicked _New rally_ and then required
+`data-hits` to be `'0'`. The click deals a new rally on the spot, and the ball is returned again
+within a few hundred milliseconds -- measured at roughly one hit per 250 ms -- so `'0'` is true for
+less time than a single poll of the assertion takes to resolve on a loaded machine. The check was
+asking the game a question whose answer expires. The fix is not a longer timeout but a different
+question: the pong panel now publishes `data-rallies`, a count of the rallies the panel has dealt,
+incremented by the same `restart()` that deals the game and by nothing else. It cannot go backwards,
+so the check reads it before the click and requires `before + 1` after. The lab's clock is clamped to
+64 ms a frame (`MAX_CATCHUP`), so a busy machine deals the next rally _slower_ rather than faster --
+the direction a fixed assertion wants the noise to run in.
+
+The score assertion is kept as it was. `0-0` is not in the same race: a point needs a rally _lost_,
+not a ball returned, so it holds for many seconds after a restart rather than for a quarter of one.
+
+**Decision -- assert on the catalogue card's cumulative mark, not on the stage label's current
+text.** `gives the visitor a real board` required `#stage .stage-label` to contain `thinking-` after
+the visitor plays the centre. That label is the stage's own record of which sequence it drew, and it
+is up only for as long as she takes to choose -- measured at 600-800 ms, against polls that resolve
+seconds apart on a loaded machine. The check lost that race one run in three under `--repeat-each=3`
+(it passed in the D-46 gate and failed on the next run: exactly the signature of a race rather than a
+defect).
+
+The card's mark is the same fact without the window. When the stage draws a sequence the lab's
+`frame()` marks the catalogue card for that sequence's group, and the mark is sticky until the next
+`Play` click -- it is the mechanism the catalogue walk already relies on for the moments that are
+only on screen briefly. The group is looked up from the sequence in `groupOfSequence`, which is the
+same table the label's text is read from, so the claim is the label's claim: _the stage drew a
+thinking sequence_. The check also asserts the mark is **absent before the click**, which the label
+version could not: the only route to `think` is `turn_started`, and the board's is on a click, so the
+mark's presence afterwards is the board's doing and not something the page had all along.
+
+**Decision -- a test's budget is a measurement, not a default.** The catalogue walk clicks 19
+moments and waits for each to draw. It was measured on 2026-10-11 at **39.4 s** while the rest of the
+release gate was running, and at **14.8 s** on the same machine idle. The file's 30 s default sits
+between the two readings, which is the worst place for it to sit: the walk is cut off part-way on a
+busy machine, and the failure it produces is the worst kind -- a test timeout raised while a
+`locator.click` was still in flight, which names the file and the line and not the moment that was
+never reached. The check now sets its own 120 s budget, taken from the loaded reading with room to
+spare, and its per-moment `data-drawn` wait stays at 10 s, so a moment that genuinely never draws
+names _itself_, inside ten seconds, instead of being discovered at the end as a timeout with no
+subject. The walk's total is then a property of the machine rather than of the catalogue, which is
+what it always was; the number in the file now says so, and the two readings are named there rather
+than one, because a budget justified by a single reading is a habit with a number attached.
+
+**What was deliberately not done.** No product code was changed to make a test pass: the only
+non-test change is `data-rallies`, which is a fact published for the same reason the panel already
+publishes `data-status`, `data-score`, `data-hits`, `data-controlled`, `data-steps` and `data-ball`
+-- so the check asserts on the game rather than on prose -- and the readout a visitor sees is
+unchanged. The alternative fixes were considered and rejected: making the ball slower so a zero could
+be caught would be changing the game to suit the test; polling `hits` in a tight loop would still be
+a race, only a better-hidden one; and dropping the three checks entirely would remove the only
+browser evidence for A06 and A09.
+
+**Evidence.** `apps/character-lab/src/pong.ts` (`rallies`, incremented only by `restart()`, and
+`element.dataset.rallies` in `draw()` beside the other published facts), `tests/e2e/lab.spec.ts` (the
+walk's budget and its comment, the pre- and post-click marks in the board check, and the
+`data-rallies` pair in the rally check), and `docs/STATUS.md` item 10, which holds the measurements
+this entry's numbers are taken from.
+
+**Verified.** The whole suite, `npx playwright test`, all six servers started by the config and
+nothing reused: **58 passed, 0 failed** in 3.0 m, with the three checks this entry fixes among them
+(the walk at 14.8 s of its new 120 s budget, the board check at 6.1 s, the rally check at 7.0 s).
+That is the first green reading of this suite on this machine since the lab checks were found failing;
+the earlier 57/1 reading and the two-failure readings are recorded in item 10 rather than deleted,
+because what changed is the checks and not the product.

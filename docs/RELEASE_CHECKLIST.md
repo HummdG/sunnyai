@@ -100,9 +100,14 @@ Run `npm run verify` — it chains the first four.
 - [ ] `npm run verify:all` — the browser suite (Playwright + axe), **58 checks**
       in Chromium, over the plain-HTML demo, the WordPress-shaped host page, the
       React and Next.js fixtures, the marketing site and the character lab.
-      **Two of them were failing on 2026-10-11, ahead of the day's change
-      (STATUS item 10), so this box is not ticked: a release that passed the
-      suite with those two red would be shipping the lab's own defects.**
+      **58 passed, 0 failed** on 2026-10-11 (D-47). The three `lab.spec.ts`
+      checks that were red ahead of that — a walk cut short by a 30 s budget it
+      was measured to exceed, and two assertions racing a counter and a label
+      that were moving — are fixed rather than retried, and the failing readings
+      are kept in `docs/STATUS.md` item 10.
+      On a shared machine, run this on an idle one: the catalogue walk measures
+      **39.4 s** under load against **14.8 s** idle, and a box loaded enough to
+      put any single moment past its own 10 s wait would still fail.
   - [ ] requires `npm run test:e2e:install` once per machine; a release
         that skipped it has never driven the embed snippet in a browser
   - [ ] axe fails the run at `serious` and above. Passing it is a floor, not a

@@ -97,6 +97,17 @@ export interface PongPanel {
  */
 export function pongPanel(host: GameHost): PongPanel {
   let game = pingPong.newGame();
+  /**
+   * How many rallies this panel has dealt, counting the one it opened with.
+   *
+   * It is not `hits` under another name. `hits` is the *current* rally's count
+   * and goes back to zero the moment a new one is dealt; this only ever grows.
+   * The two answer different questions, and only this one can be asked after the
+   * fact: a check that clicks *New rally* and then reads `hits` is racing the
+   * ball, because the rules start the next rally at once and one return puts the
+   * count back above zero before a slow machine's next assertion lands.
+   */
+  let rallies = 1;
   /** Ticks owed to the clock, accrued so a slow frame is not a lost tick. */
   let owed = 0;
   /** The last stage-clock reading, or null before the first tick. */
@@ -183,6 +194,7 @@ export function pongPanel(host: GameHost): PongPanel {
 
   function restart(): void {
     game = pingPong.newGame();
+    rallies += 1;
     owed = 0;
     held.clear();
     host.animator().dispatch({ type: 'play_started' }, host.now());
@@ -256,6 +268,7 @@ export function pongPanel(host: GameHost): PongPanel {
     element.dataset.status = game.status;
     element.dataset.score = `${game.score.left}-${game.score.right}`;
     element.dataset.hits = String(game.hits);
+    element.dataset.rallies = String(rallies);
     element.dataset.controlled = game.controlled ?? 'sunny';
     element.dataset.steps = String(game.steps);
     element.dataset.ball = `${game.ball.x.toFixed(1)},${game.ball.y.toFixed(1)}`;

@@ -58,6 +58,16 @@ test('marks the moments nothing asks for, rather than hiding them', async ({ pag
 });
 
 test('plays every moment in the catalogue when it is asked for', async ({ page }) => {
+  // The walk is one click and one wait per moment, and what the walk costs is a
+  // function of how fast the machine resolves those waits rather than of how many
+  // moments there are: measured on 2026-10-11 at **39.4 s** while the rest of the
+  // release gate was running and at **14.8 s** on the same machine idle. The 30 s
+  // default is between those two readings, which is the worst place for it to be
+  // -- the walk is cut off part-way on a busy machine and the moments it never
+  // reached are reported as "asked for and never drawn". The budget below is the
+  // loaded measurement with room to spare, so what this check fails on is a
+  // moment that did not draw rather than one the clock reached first.
+  test.setTimeout(120_000);
   await page.goto(LAB_URL);
 
   for (const entry of CATALOGUE) {
@@ -72,7 +82,9 @@ test('plays every moment in the catalogue when it is asked for', async ({ page }
     // drawn for under a third of a second -- so sampling the class could miss a
     // moment that plays perfectly well and report it as broken. The generous
     // timeout is for the same reason: "eventually drawn" is the honest claim,
-    // not "drawn on the next frame".
+    // not "drawn on the next frame". It is also what keeps the walk's total a
+    // property of the machine: a moment that never draws names itself here,
+    // within ten seconds, instead of being discovered at the end as a timeout.
     await expect(moment, `"${entry.group}" was asked for and never drawn`).toHaveAttribute(
       'data-drawn',
       '1',
@@ -215,6 +227,13 @@ test('gives the visitor a real board, and takes a turn of her own', async ({ pag
   await expect(page.locator('#game .cell[data-square="empty"]')).toHaveCount(9);
   await expect(page.locator(boardStatus)).toHaveText(/Your turn/);
 
+  // Nothing has drawn the thinking group yet: the board has not dispatched the
+  // event that asks for it (the only route to `think` is `turn_started`, and the
+  // board's is on a click), so the mark asserted below is the board's doing and
+  // not something already on the page.
+  const thinking = page.locator(card('think'));
+  await expect(thinking).not.toHaveAttribute('data-drawn', '1');
+
   // The centre: her first answer is forced by the rules whatever the tie-break
   // does, because a board with one X on it has no line to take or to block.
   await page.locator(cellAt(4)).click();
@@ -224,10 +243,18 @@ test('gives the visitor a real board, and takes a turn of her own', async ({ pag
   // no longer a target.
   await expect(page.locator(cellAt(4))).toBeDisabled();
 
-  // Her turn is visible while it lasts. The label is the stage's own record of
-  // which sequence it drew, so this is a claim about the character rather than
-  // about a class the board put on a paragraph.
-  await expect(page.locator('#stage .stage-label')).toContainText('thinking-');
+  // Her turn is a claim about the character, and the stage label is its own
+  // record of which sequence it drew -- but the label is up only for as long as
+  // she takes to choose, measured at 600-800 ms, and Playwright's polls on a
+  // loaded machine resolve seconds apart. So `toContainText('thinking-')` is a
+  // race that can be lost while she is behaving perfectly (it failed one run in
+  // three under `--repeat-each=3`, STATUS item 10). The catalogue card carries
+  // the same fact without the window: it is marked once the stage has drawn a
+  // member of the group and stays marked, and the group is looked up from the
+  // sequence in the same table the label is read from (`groupOfSequence`).
+  await expect(thinking, 'her turn drew no thinking sequence').toHaveAttribute('data-drawn', '1', {
+    timeout: 10_000,
+  });
 
   await expect(page.locator('#game .cell[data-square="O"]')).toHaveCount(1);
   await expect(page.locator(cellAt(4))).toHaveText('X');
@@ -540,13 +567,24 @@ test('takes the right bat over on the first key, and hands it back', async ({ pa
 
 test('starts a fresh rally with the score cleared', async ({ page }) => {
   await page.goto(LAB_URL);
+  // A rally worth restarting: the ball has been returned at least once.
   await expect
     .poll(async () => Number(await tableRead(page, 'hits')), { timeout: 20_000 })
     .toBeGreaterThan(0);
 
+  const before = Number(await tableRead(page, 'rallies'));
+
   await page.locator('#pong .btn', { hasText: 'New rally' }).click();
 
+  // A fresh rally means the count restarted, and the count asserted on is the one
+  // that only grows. `data-hits` goes back to zero as well, but the rules deal the
+  // next rally on the same click and the ball is returned again within a few
+  // hundred milliseconds -- so `toHaveAttribute('data-hits', '0')` is a race no
+  // timeout can win; the earlier revision of this check lost it (STATUS item 10).
+  // `data-rallies` is the same fact from the side that cannot go backwards, and
+  // the lab's clock is clamped to 64 ms a frame, so a busy machine deals the next
+  // rally slower rather than faster.
+  await expect(page.locator(table)).toHaveAttribute('data-rallies', String(before + 1));
   await expect(page.locator(table)).toHaveAttribute('data-score', '0-0');
-  await expect(page.locator(table)).toHaveAttribute('data-hits', '0');
   await expect(page.locator(table)).toHaveAttribute('data-status', 'playing');
 });
