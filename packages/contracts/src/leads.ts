@@ -31,6 +31,21 @@ export const leadRequestSchema = z
      * simply omits it.
      */
     consent: z.literal(true),
+    /**
+     * The caller's idempotency key, for the submission as a whole.
+     *
+     * A form on a host page has no way to know whether a POST that timed out
+     * reached us, so the visitor who presses submit twice -- or whose browser
+     * retries -- can hand us one enquiry twice. Supplying a value here that stays
+     * the same across retries of that one submission is what lets the route
+     * recognise the second one as the first. It should be a fresh value for each
+     * submission the visitor actually makes: reusing it for a different enquiry
+     * is refused rather than guessed at.
+     *
+     * Optional, like `clientMessageId` on a turn: a caller that does not claim two
+     * requests are one has told us nothing we may act on, and gets two rows.
+     */
+    clientLeadId: z.string().trim().min(1).max(200).optional(),
     name: z.string().trim().max(200).optional(),
     email: contactSchema.optional(),
     phone: contactSchema.optional(),
@@ -46,3 +61,21 @@ export const leadRequestSchema = z
   });
 
 export type LeadRequest = z.infer<typeof leadRequestSchema>;
+
+/**
+ * The answer to a lead submission.
+ *
+ * `duplicate` distinguishes a submission that was written from one that repeated
+ * a key already on file. A caller that only cares that its enquiry is safely in
+ * can ignore it -- the body is otherwise exactly what the first call returned,
+ * `leadId` included, which is what makes a retry safe to send blindly. A caller
+ * that wants to show the visitor "we already have this one" reads it.
+ */
+export const leadResponseSchema = z.object({
+  leadId: z.string(),
+  createdAt: z.string(),
+  /** True when the key matched a lead already on file and nothing was written. */
+  duplicate: z.boolean(),
+});
+
+export type LeadResponse = z.infer<typeof leadResponseSchema>;

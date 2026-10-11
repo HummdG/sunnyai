@@ -517,7 +517,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
 
     const existing = await store.getConversation(claims.tenantId, claims.sessionId);
-    const lead = await store.saveLead({
+    const result = await store.saveLead({
       id: newId('lead'),
       // From the verified token, never from the request body: a caller who could
       // name the tenant could file a lead against another installer.
@@ -533,10 +533,32 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       // number the installer cannot interpret is worse than a blank.
       score: null,
       createdAt: new Date(now()).toISOString(),
+      clientLeadId: body.data.clientLeadId,
     });
 
-    reply.code(201);
-    return { leadId: lead.id, createdAt: lead.createdAt };
+    if (result.outcome === 'conflict') {
+      // The key names a submission we already hold, but the details differ, so
+      // this is the page reusing a key rather than retrying one submission. The
+      // alternative -- writing a second row, or silently answering with the
+      // first -- either duplicates the enquiry or loses the visitor's correction
+      // while telling them it was sent.
+      throw new ApiError(
+        'bad_request',
+        'That clientLeadId was already used for a different submission. Use a new one.',
+        { clientLeadId: 'already used with different details' },
+      );
+    }
+
+    // 200 on a replay rather than 201: nothing was created, and the status is the
+    // cheapest place to say so. The body repeats the first answer -- same
+    // `leadId`, same `createdAt` -- so a caller that reads only the body cannot
+    // tell the two apart, which is what makes a blind retry safe.
+    reply.code(result.outcome === 'created' ? 201 : 200);
+    return {
+      leadId: result.lead.id,
+      createdAt: result.lead.createdAt,
+      duplicate: result.outcome === 'replayed',
+    };
   });
 
   app.get('/v1/leads', async (request) => {

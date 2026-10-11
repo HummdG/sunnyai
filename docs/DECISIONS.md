@@ -1912,3 +1912,84 @@ answered.
 `lifestyle`), 1 in `pipeline.test.ts` (two answers from one turn, in the store and on the
 turn). `npm run verify` is **822 tests across 24 files**. No source change: the finding is
 that the code was already right.
+
+## D-33. A submission the caller has already made is not filed as a second lead
+
+**Context.** §9's threat model names **"replayed lead submissions"** among the things
+Sunny must withstand, and §135 requires auth, validation, **idempotency**, errors and
+rate limits "specified ... for each" API. Reading `POST /v1/leads` found no idempotency
+at all: it validated, rate-limited, and then always called `store.saveLead` with a fresh
+`newId('lead')`. Nothing in the request could say "this is the one I already sent". The
+precedent for closing this already existed one route away, on the turn
+(`ConversationTurn.clientMessageId`, honoured by `appendTurn`).
+
+**Reproduced before it was designed.** Two identical POSTs to the running API, 212 ms
+apart and byte-identical: two `201`s, two rows in `GET /v1/leads`, two `lead_…` ids. That
+is the shape of the failure in the wild -- a visitor double-clicks submit, or a browser
+retries a request whose response was lost -- and it is a duplicate enquiry the installer
+rings round twice.
+
+**Decision: an opt-in per-submission key, kept on the row.** `leadRequest` gains
+`clientLeadId` (optional, 1-200 chars), and `LeadRecord` carries it. `saveLead` now
+returns `{lead, outcome}` with `outcome` one of `created`, `replayed` or `conflict`:
+
+- `created` - no such key; the row is written (route answers `201`, `duplicate: false`);
+- `replayed` - the key is on file and the submission matches it; nothing is written, and
+  the row that already stands is returned (`200`, `duplicate: true`);
+- `conflict` - the key is on file but the details differ; nothing is written (`400`,
+  naming `clientLeadId` in the error details).
+
+The key lives **on the row** rather than in an in-memory index, so recognition survives a
+restart and cannot disagree with the file that is the record. It is scoped to
+`(tenantId, clientLeadId)`: two installers' pages minting the same value -- a naive
+counter, a constant in a template -- must not have one installer's visitor disappear
+because the other's page used that string.
+
+**Why `200` on the replay rather than repeating the `201`.** Stripe's convention is to
+return the original response, status and all, so a retry is indistinguishable. That is
+right for a programmatic caller. Sunny's caller is a page, and a page has a use for the
+difference: "we already have this one" is a different sentence from "sent", and the
+status is the cheapest place to put the signal. The _body_ still repeats the first
+answer -- same `leadId`, same `createdAt` -- so a caller that reads only the body cannot
+tell the two apart, which is what makes a blind retry safe. Both callers are served; the
+one that wants to branch can.
+
+**Why a reused key with different details is refused rather than merged or dropped.**
+`appendTurn` silently no-ops on a duplicate `clientMessageId` without comparing text, and
+copying that here would have been the smaller change. It is the wrong one for a lead. A
+duplicated turn is visible in the transcript and harmless; a dropped lead is invisible
+and expensive -- the visitor's correction, a phone number added on the retry, would be
+reported as sent and never filed. This is the same judgement the lead schema already
+makes about `email`: "a false rejection here loses a real lead, which is a worse failure
+than accepting an address that bounces". A reused key is the caller's bug, and the one
+answer that is wrong is a silent success.
+
+**What decides "the same submission" is the caller, never the content.** Only the
+visitor-supplied fields are compared (name, email, phone, postcode, summary) and only
+_after_ a key has already matched; nothing here files two leads as one because their
+details happen to agree. Two moments the visitor pressed submit are two enquiries even
+with the same details typed in, and a genuinely corrected resubmission must be filed --
+which is exactly the reading `clientLeadId` is opt-in for. A caller that does not claim
+two requests are one has told us nothing, and gets two rows, as before.
+
+**Scope, stated plainly.** This does not stop a spammer. A spam script varies the key, so
+the key does nothing for it; that threat is the rate limiter's, which already exists on
+this route (per address, 10/min by default) and is unaffected -- a replay spends an
+allowance like any other call. Two mechanisms for two threats, and the key should not be
+oversold as covering the other one. Nor does the change touch the two chat tools
+(`create_lead`, `request_callback`), which still write without a key: the chat path's
+duplicate protection is the _turn's_ `clientMessageId`, which prevents a retried request
+from re-running the tools at all, and de-duplicating the tools by content would refuse a
+legitimately corrected submission mid-conversation. The widget has no lead form yet, so
+today's callers of this route are the smoke script and the tests; the host-page form §4
+describes is who it is for.
+
+**Evidence.** 6 store tests and 2 route tests in `pipeline.test.ts` (create, replay, a
+reused key with a changed field, tenant scoping, two different keys, no key at all, and
+recognition after a reload); a smoke check on the called path
+(`scripts/smoke-api.mjs`, using a per-run key so the _second_ run still exercises the
+create path); and a live confirmation over HTTP -- `201`/`duplicate:false`, then
+`200`/`duplicate:true` with the same `leadId`, then `400` on the changed details, with one
+row in the list. The restart claim was proved by restarting the process and replaying the
+key from the previous process: same `leadId`, `duplicate: true`. `npm run verify` is
+**830 tests across 24 files**.

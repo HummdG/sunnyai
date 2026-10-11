@@ -736,6 +736,77 @@ describe('POST /v1/leads', () => {
     expect((await submit(2)).statusCode).toBe(201);
     expect((await submit(3)).statusCode).toBe(429);
   });
+
+  it('answers a replayed submission with the lead it already has', async () => {
+    // The double-click, over the real route: the same form submitted twice must
+    // not become two enquiries for the installer to ring round.
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const submit = () =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/leads',
+        headers: { authorization: `Bearer ${token}` },
+        payload: {
+          sessionId,
+          consent: true,
+          email: 'sam@example.test',
+          clientLeadId: 'form-2f1c9b',
+        },
+      });
+
+    const first = await submit();
+    expect(first.statusCode).toBe(201);
+    const created = first.json<{ leadId: string; duplicate: boolean }>();
+    expect(created.duplicate).toBe(false);
+
+    const replayed = await submit();
+    // 200 rather than 201: nothing was created, and the status is the cheapest
+    // place to say so. The body repeats the first answer, so a caller that only
+    // reads the body cannot tell a replay from the original -- which is the point
+    // of the key -- while `duplicate` lets a page that wants to say "we already
+    // have this" do so.
+    expect(replayed.statusCode).toBe(200);
+    const repeat = replayed.json<{ leadId: string; duplicate: boolean }>();
+    expect(repeat.duplicate).toBe(true);
+    expect(repeat.leadId).toBe(created.leadId);
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json<{ leads: Array<{ id: string }> }>().leads).toHaveLength(1);
+  });
+
+  it('refuses a key that comes back with different details', async () => {
+    const { app } = await h();
+    const { sessionId, token } = await openSession(app);
+
+    const submit = (phone: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/leads',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { sessionId, consent: true, email: 'sam@example.test', phone, clientLeadId: 'k1' },
+      });
+
+    expect((await submit('07700 900111')).statusCode).toBe(201);
+    const conflicted = await submit('07700 900222');
+    expect(conflicted.statusCode).toBe(400);
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const { leads } = listed.json<{ leads: Array<{ phone: string | null }> }>();
+    // The first number stands. Succeeding here would have told the page the
+    // second one had been sent when it had not.
+    expect(leads).toHaveLength(1);
+    expect(leads[0]?.phone).toBe('07700 900111');
+  });
 });
 
 /**
@@ -1367,5 +1438,119 @@ describe('store: mergeAnswers', () => {
     const conversation = await store.mergeAnswers('t_demo0001', 'sess_a', {}, []);
     expect(conversation.answers).toEqual({});
     expect(conversation.turns).toEqual([]);
+  });
+});
+
+/**
+ * Store: the lead idempotency key.
+ *
+ * The property is not "a lead is written". It is that a submission the caller
+ * has already made cannot become two rows in the installer's list, while two
+ * genuinely different submissions still can -- and that the difference is the
+ * caller's key rather than anything the store infers from the content.
+ */
+describe('store: saveLead', () => {
+  const lead = (over: Record<string, unknown> = {}) => ({
+    id: `lead_${Math.random().toString(16).slice(2, 10)}`,
+    tenantId: 't_demo0001',
+    sessionId: 'sess_a',
+    conversationId: null,
+    name: 'Sam',
+    email: 'sam@example.test',
+    phone: null,
+    postcode: null,
+    summary: 'Enquiry from the website assistant',
+    score: null,
+    createdAt: new Date().toISOString(),
+    ...over,
+  });
+
+  it('writes the first submission and replays the second', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    const first = await store.saveLead(lead({ clientLeadId: 'form-1' }));
+    const second = await store.saveLead(lead({ clientLeadId: 'form-1' }));
+
+    expect(first.outcome).toBe('created');
+    expect(second.outcome).toBe('replayed');
+    // The row that stands is the first one, not the retry's copy: a replay must
+    // not restamp the record with a new id or a new time.
+    expect(second.lead.id).toBe(first.lead.id);
+    expect(second.lead.createdAt).toBe(first.lead.createdAt);
+    expect(await store.listLeads('t_demo0001')).toHaveLength(1);
+  });
+
+  it('writes both submissions when the caller sends two keys', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    const one = await store.saveLead(lead({ clientLeadId: 'form-1' }));
+    const two = await store.saveLead(lead({ clientLeadId: 'form-2' }));
+
+    // Two moments the visitor pressed submit are two enquiries, even with the
+    // same details typed in -- which is exactly why nothing here compares fields
+    // to decide whether two submissions are one.
+    expect([one.outcome, two.outcome]).toEqual(['created', 'created']);
+    expect(await store.listLeads('t_demo0001')).toHaveLength(2);
+  });
+
+  it('writes both submissions when the caller sends no key', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    await store.saveLead(lead());
+    await store.saveLead(lead());
+
+    // The protection is opt-in, like `clientMessageId` on a turn, and for the
+    // same reason: a caller that does not claim two requests are one has not
+    // said anything the store may act on.
+    expect(await store.listLeads('t_demo0001')).toHaveLength(2);
+  });
+
+  it('keeps one tenant’s keys from swallowing another’s submission', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    const mine = await store.saveLead(lead({ clientLeadId: 'form-1' }));
+    const theirs = await store.saveLead(lead({ clientLeadId: 'form-1', tenantId: 't_other' }));
+
+    // Two installers' pages minting the same key -- a naive counter, or a fixed
+    // string in a template -- must not have one installer's visitor vanish
+    // because the other's page used the same value.
+    expect(theirs.outcome).toBe('created');
+    expect(theirs.lead.id).not.toBe(mine.lead.id);
+    expect(await store.listLeads('t_other')).toHaveLength(1);
+  });
+
+  it('refuses a replayed key that carries a different submission', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    await store.saveLead(lead({ clientLeadId: 'form-1', phone: null }));
+    const changed = await store.saveLead(lead({ clientLeadId: 'form-1', phone: '07700 900123' }));
+
+    // Reusing a key for different details is a bug in the caller, and the one
+    // answer that is wrong is a silent success: the visitor's phone number would
+    // be dropped and the page would say the enquiry had been sent. Reported
+    // instead, with nothing written.
+    expect(changed.outcome).toBe('conflict');
+    expect(await store.listLeads('t_demo0001')).toHaveLength(1);
+    expect((await store.listLeads('t_demo0001'))[0]?.phone).toBeNull();
+  });
+
+  it('recognises a replayed key after a restart', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-'));
+    const store = new FileStore(dir);
+
+    const first = await store.saveLead(lead({ clientLeadId: 'form-1' }));
+    // A fresh instance over the same directory: the key lives on the row, so the
+    // dedupe survives the restart that loses the in-memory list.
+    const reloaded = new FileStore(dir);
+    const replayed = await reloaded.saveLead(lead({ clientLeadId: 'form-1' }));
+
+    expect(replayed.outcome).toBe('replayed');
+    expect(replayed.lead.id).toBe(first.lead.id);
+    expect(await reloaded.listLeads('t_demo0001')).toHaveLength(1);
   });
 });

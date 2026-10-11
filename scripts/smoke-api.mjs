@@ -126,6 +126,10 @@ async function main() {
   // fails, because nothing tells you the coverage went away.
   const leadLimited = (response) => response.status === 429;
 
+  // One key for this run's submission and its replay. See the comment on the
+  // first use for why it cannot be a constant.
+  const leadKey = `smoke-${Date.now()}`;
+
   const unconsented = await call('/v1/leads', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
@@ -150,6 +154,11 @@ async function main() {
         name: 'Smoke Test',
         email: 'smoke@example.test',
         summary: 'Automated smoke check',
+        // Fresh per run, deliberately. The key is recognised per tenant and kept
+        // on the row, so a constant here would make the *next* run's first
+        // submission a replay of this one -- a 200 where the check expects a 201,
+        // and a green smoke run that has stopped testing the create path.
+        clientLeadId: leadKey,
       }),
     });
 
@@ -164,6 +173,30 @@ async function main() {
         'the lead appears in the installer list',
         leads.json?.leads?.some((l) => l.id === lead.json?.leadId) === true,
       );
+
+      const replay = await call('/v1/leads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          sessionId,
+          consent: true,
+          name: 'Smoke Test',
+          email: 'smoke@example.test',
+          summary: 'Automated smoke check',
+          clientLeadId: leadKey,
+        }),
+      });
+      if (leadLimited(replay)) {
+        console.log('  ..   lead replay skipped: the rate limiter refused the third call');
+      } else {
+        check(
+          'a replayed submission does not file a second lead',
+          replay.status === 200 &&
+            replay.json?.duplicate === true &&
+            replay.json?.leadId === lead.json?.leadId,
+          `got ${replay.status}, duplicate=${replay.json?.duplicate}`,
+        );
+      }
     }
   }
 

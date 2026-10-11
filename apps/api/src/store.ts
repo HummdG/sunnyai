@@ -105,6 +105,26 @@ export interface LeadRecord {
   summary: string;
   score: number | null;
   createdAt: string;
+  /** The submitting page's idempotency key, when it sent one. See `saveLead`. */
+  clientLeadId?: string;
+}
+
+/**
+ * What became of a lead submission.
+ *
+ * - `created`: written. There was no such key.
+ * - `replayed`: the key was already on file and the submission matches it, so
+ *   the row that stands was returned untouched.
+ * - `conflict`: the key was already on file and this submission differs, which is
+ *   the caller reusing a key rather than retrying; nothing was written, because
+ *   there is no honest way to pick between the two.
+ */
+export type LeadOutcome = 'created' | 'replayed' | 'conflict';
+
+export interface LeadResult {
+  /** The row standing after the call: the one written, or the one matched. */
+  lead: LeadRecord;
+  outcome: LeadOutcome;
 }
 
 export interface AppendResult {
@@ -139,7 +159,20 @@ export interface Store {
     answers: Record<string, string>,
     remove?: readonly string[],
   ): Promise<Conversation>;
-  saveLead(lead: LeadRecord): Promise<LeadRecord>;
+  /**
+   * File a lead, once.
+   *
+   * Idempotent on `clientLeadId` when the caller sends one, in the same spirit as
+   * `appendTurn`'s `clientMessageId`: a page that cannot tell whether a POST that
+   * timed out reached us must be able to send it again without the installer
+   * ending up ringing the visitor twice. The key is kept on the row, so the
+   * recognition survives a restart -- an in-memory index of keys would forget
+   * exactly the submissions most likely to be retried.
+   *
+   * The returned `outcome` separates a genuine retry from a caller reusing one key
+   * for two different submissions; the caller decides what the second one means.
+   */
+  saveLead(lead: LeadRecord): Promise<LeadResult>;
   listLeads(tenantId: string, limit?: number): Promise<LeadRecord[]>;
   /**
    * This tenant's catalogue.
@@ -207,6 +240,26 @@ export function newId(prefix: string): string {
   // `crypto.randomUUID` is available on every supported Node. The prefix makes
   // an id recognisable in a log or a support ticket without a lookup table.
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
+}
+
+/**
+ * Whether two leads carry the same enquiry, for deciding what a repeated key is.
+ *
+ * Only the fields the visitor supplied are compared. The rest of the record is
+ * ours and differs by construction on every call -- a new `id`, a new
+ * `createdAt` -- so including any of it would make every retry look like a
+ * conflict and the whole key useless. `sessionId` is left out too: a page that
+ * lost its session and resubmitted the same enquiry has still sent one enquiry,
+ * and the row on file already says which session it arrived in.
+ */
+function sameSubmission(a: LeadRecord, b: LeadRecord): boolean {
+  return (
+    a.name === b.name &&
+    a.email === b.email &&
+    a.phone === b.phone &&
+    a.postcode === b.postcode &&
+    a.summary === b.summary
+  );
 }
 
 /** A store backed by one append-only file per collection, under `dataDir`. */
@@ -352,8 +405,29 @@ export class FileStore implements Store {
     return conversation;
   }
 
-  async saveLead(lead: LeadRecord): Promise<LeadRecord> {
+  async saveLead(lead: LeadRecord): Promise<LeadResult> {
     await this.#ensure();
+
+    // Idempotency, in the same shape as `appendTurn`: a caller that names the
+    // submission gets the row it already filed rather than a second one. Scoped
+    // to the tenant, because two installers' pages minting the same key -- a
+    // naive counter, a template constant -- must not have one swallow the
+    // other's visitor.
+    if (lead.clientLeadId !== undefined) {
+      const standing = this.#leads.find(
+        (l) => l.tenantId === lead.tenantId && l.clientLeadId === lead.clientLeadId,
+      );
+      if (standing) {
+        return {
+          lead: standing,
+          // The same key with different details is not a retry, and choosing
+          // between the two rows would silently drop whichever lost. Reported to
+          // the caller instead.
+          outcome: sameSubmission(standing, lead) ? 'replayed' : 'conflict',
+        };
+      }
+    }
+
     await mkdir(join(this.#dir, 'leads'), { recursive: true });
     await appendFile(
       join(this.#dir, 'leads', `${encodeURIComponent(lead.tenantId)}.jsonl`),
@@ -361,7 +435,7 @@ export class FileStore implements Store {
       'utf8',
     );
     this.#leads.push(lead);
-    return lead;
+    return { lead, outcome: 'created' };
   }
 
   async listLeads(tenantId: string, limit = 50): Promise<LeadRecord[]> {
