@@ -457,8 +457,15 @@ export function newId(prefix: string): string {
  * conflict and the whole key useless. `sessionId` is left out too: a page that
  * lost its session and resubmitted the same enquiry has still sent one enquiry,
  * and the row on file already says which session it arrived in.
+ *
+ * Exported because the Firestore store has to reach the same verdict from a
+ * different question -- it finds the standing row by a derived document id rather
+ * than by scanning a list -- and "same enquiry or not" is a rule of the contract
+ * rather than an implementation detail of either store. Two copies of it would be
+ * free to disagree, and the disagreement would show up as one store replaying a
+ * retry that the other called a conflict.
  */
-function sameSubmission(a: LeadRecord, b: LeadRecord): boolean {
+export function sameSubmission(a: LeadRecord, b: LeadRecord): boolean {
   return (
     a.name === b.name &&
     a.email === b.email &&
@@ -833,10 +840,14 @@ export class FileStore implements Store {
     //
     // `Date.parse` gives NaN for a timestamp that will not parse, and every
     // comparison with NaN is false -- so an undateable row is *kept*. That is the
-    // direction a deletion should fail in.
-    const expiredLeads = this.#leads.filter((l) => Date.parse(l.createdAt) < cutoffMs);
+    // direction a deletion should fail in, and it is why the split is written as
+    // one predicate and its negation rather than as two comparisons that look
+    // complementary: `Date.parse(x) >= cutoff` is false for NaN too, so a
+    // `keep = !(expired)` pair would quietly delete every row it could not date.
+    const expired = (at: string): boolean => Date.parse(at) < cutoffMs;
+    const expiredLeads = this.#leads.filter((l) => expired(l.createdAt));
     if (expiredLeads.length > 0) {
-      this.#leads = this.#leads.filter((l) => Date.parse(l.createdAt) >= cutoffMs);
+      this.#leads = this.#leads.filter((l) => !expired(l.createdAt));
       for (const lead of expiredLeads) bump(lead.tenantId, 'leads', 1);
       for (const tenantId of new Set(expiredLeads.map((l) => l.tenantId))) {
         await this.#rewrite(this.#leadFile(tenantId), this.#leadsOf(tenantId));
@@ -857,7 +868,9 @@ export class FileStore implements Store {
       if (!name.endsWith('.jsonl')) continue;
       const tenantId = decodeURIComponent(name.slice(0, -'.jsonl'.length));
       const all = await this.#readConversations(tenantId);
-      const keep = all.filter((c) => Date.parse(c.updatedAt) >= cutoffMs);
+      // The same single-predicate rule as the leads above: a conversation whose
+      // `updatedAt` will not parse is kept, and `keep` is its exact complement.
+      const keep = all.filter((c) => !expired(c.updatedAt));
       if (keep.length === all.length) continue;
 
       // Per session rather than per line: the file holds one line per append, and

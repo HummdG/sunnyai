@@ -94,14 +94,54 @@ export interface RateLimitConfig {
   maxKeys: number;
 }
 
+/**
+ * Where the operational database is, when it is Firestore.
+ *
+ * Present only when the deployment asked for Firestore *and* named a project, so
+ * `config.firestore` being set is the whole test a caller needs; there is no
+ * second flag to keep in step with it.
+ */
+export interface FirestoreConfig {
+  project: string;
+  /**
+   * The database id. `(default)` unless the deployment named another.
+   *
+   * Carried rather than assumed because a project can hold several databases, and
+   * the mistake this prevents -- reading and writing the default database of the
+   * wrong one -- is invisible from inside the process.
+   */
+  databaseId: string;
+  /**
+   * The emulator's `host:port`, or null for real Firestore.
+   *
+   * Deliberately **not** read from `FIRESTORE_EMULATOR_HOST`, which the client
+   * library honours by convention. Reading that would make an ambient environment
+   * variable enough to point a deployment at a throwaway database, and the failure
+   * would be silent data loss rather than an error. This deployment names its
+   * emulator explicitly or it does not have one.
+   */
+  emulatorHost: string | null;
+}
+
 export interface ServerConfig {
   port: number;
   host: string;
   /** `production` tightens CORS, logging and error detail. */
   nodeEnv: 'development' | 'test' | 'production';
   gemini: GeminiConfig | undefined;
-  /** Where conversations and leads are persisted. */
+  /** Where conversations and leads are persisted, when the file store is in use. */
   dataDir: string;
+  /**
+   * Which store the deployment asked for; absent when it did not say.
+   *
+   * Absent is not "file". It is "nobody chose", which is a fine answer in
+   * development and a boot failure in production (see `assertStoreConfigured`).
+   * Collapsing the two would let a production deployment inherit a
+   * container-local file store from an unset variable and lose every enquiry on
+   * the next deploy, with nothing in the configuration afterwards to point at.
+   */
+  store?: 'file' | 'firestore';
+  firestore?: FirestoreConfig;
   /** Origins allowed to open a widget session. Empty means any (dev only). */
   allowedOrigins: string[];
   sessionSecret: string;
@@ -267,12 +307,38 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     maxKeys: Number(env('SUNNY_RL_MAX_KEYS') ?? 10_000),
   };
 
+  // Which store. An unrecognised value is thrown rather than ignored: a typo in
+  // this variable decides where every conversation and enquiry in the deployment
+  // is written, and "it quietly used the file store instead" is not a recovery
+  // anybody would notice before it mattered.
+  const storeRaw = env('SUNNY_STORE');
+  if (storeRaw !== undefined && storeRaw !== 'file' && storeRaw !== 'firestore') {
+    throw new Error(`SUNNY_STORE must be "file" or "firestore", not "${storeRaw}"`);
+  }
+  // The throw above is what narrows this, so no assertion is needed here: what is
+  // left is `'file' | 'firestore' | undefined`, which is the field's own type.
+  const store: ServerConfig['store'] = storeRaw;
+  // A project is what makes Firestore addressable at all. Without one there is
+  // nothing to configure, and `assertStoreConfigured` refuses the boot rather
+  // than letting a Firestore deployment fall back to local files.
+  const firestoreProject = env('GOOGLE_CLOUD_PROJECT');
+  const firestore: FirestoreConfig | undefined =
+    store === 'firestore' && firestoreProject
+      ? {
+          project: firestoreProject,
+          databaseId: env('SUNNY_FIRESTORE_DATABASE') ?? '(default)',
+          emulatorHost: env('SUNNY_FIRESTORE_EMULATOR_HOST') ?? null,
+        }
+      : undefined;
+
   return {
     port: Number(env('PORT') ?? 8787),
     host: env('HOST') ?? '127.0.0.1',
     nodeEnv,
     gemini,
     dataDir: env('SUNNY_DATA_DIR') ?? '.data',
+    store,
+    firestore,
     allowedOrigins: origins ? origins.split(',').map((o) => o.trim()) : [],
     // A development default, replaced by Secret Manager in Cloud Run. The API
     // refuses to boot in production with this value (see `assertProductionReady`).
@@ -322,6 +388,39 @@ export function assertProductionReady(config: ServerConfig): string[] {
 }
 
 /**
+ * Refuse to boot when the deployment cannot say where its data lives.
+ *
+ * Two failures, and they are the same failure seen from either end. A production
+ * deployment that never set `SUNNY_STORE` gets the file store, which on Cloud Run
+ * is a container's own filesystem: every conversation and every enquiry is gone
+ * at the next deploy, and the deployment is otherwise perfectly healthy. And a
+ * deployment that *did* set `SUNNY_STORE=firestore` without a project would
+ * otherwise have to fall back silently to those same local files, which is worse
+ * -- somebody chose the database and the process ignored them.
+ *
+ * Both are refusals rather than warnings, unlike `productionWarnings` below,
+ * because neither is a degraded mode an operator might intend. Running without a
+ * store decision is not running.
+ */
+export function assertStoreConfigured(config: ServerConfig): string[] {
+  const problems: string[] = [];
+  if (config.nodeEnv === 'production' && config.store === undefined) {
+    problems.push(
+      'SUNNY_STORE is not set. In production the file store writes to the container’s ' +
+        'own filesystem, so every enquiry is lost at the next deploy. Set SUNNY_STORE=firestore ' +
+        '(and GOOGLE_CLOUD_PROJECT), or set SUNNY_STORE=file deliberately to accept local files.',
+    );
+  }
+  if (config.store === 'firestore' && !config.firestore) {
+    problems.push(
+      'SUNNY_STORE=firestore requires GOOGLE_CLOUD_PROJECT: without a project there is ' +
+        'no database to address, and falling back to local files would quietly discard the choice.',
+    );
+  }
+  return problems;
+}
+
+/**
  * Things that are not fatal but will surprise someone in production.
  *
  * Kept separate from `assertProductionReady` because the distinction is real:
@@ -332,6 +431,17 @@ export function assertProductionReady(config: ServerConfig): string[] {
 export function productionWarnings(config: ServerConfig): string[] {
   const warnings: string[] = [];
   if (config.nodeEnv !== 'production') return warnings;
+
+  if (config.store === 'file') {
+    // Allowed, because an operator with a mounted volume may genuinely mean it --
+    // but never by accident, and never silently. See `assertStoreConfigured` for
+    // the version of this that refuses.
+    warnings.push(
+      'SUNNY_STORE=file: conversations and enquiries are written to the container’s own ' +
+        'filesystem. On Cloud Run that is lost at the next deploy unless a volume is mounted ' +
+        'at SUNNY_DATA_DIR. Set SUNNY_STORE=firestore to use the operational database.',
+    );
+  }
 
   if (config.rateLimit.enabled && config.rateLimit.trustProxyHops === 0) {
     // The failure this warns about is the opposite of the usual one: not too
@@ -402,6 +512,14 @@ function retentionReport(config: ServerConfig): CapabilityReport['retention'] {
 }
 
 export function capabilityReport(config: ServerConfig): CapabilityReport {
+  // What the deployment asked for, which is not the same as what it got: whether
+  // the database is *reachable* is the live check `/healthz` makes against the
+  // store itself. This half is the configuration statement, so an operator can
+  // see the two side by side and tell a wrong setting from an outage.
+  const persistence: CapabilityReport['persistence'] = {
+    available: true,
+    kind: config.store === 'firestore' ? 'firestore' : 'file',
+  };
   const catalogue: CapabilityReport['catalogue'] = config.adminToken
     ? { uploadsEnabled: true, reason: null }
     : {
@@ -423,7 +541,7 @@ export function capabilityReport(config: ServerConfig): CapabilityReport {
           'run with a key to exercise the assistant.',
       },
       escalation: { available: false, model: null, reason: 'GEMINI_API_KEY is not set.' },
-      persistence: { available: true, kind: 'file' },
+      persistence,
       catalogue,
       retention: retentionReport(config),
     };
@@ -456,7 +574,7 @@ export function capabilityReport(config: ServerConfig): CapabilityReport {
             'No escalation model configured. There is no GA Pro-class model that ' +
             'is not retiring, so this is left to the operator.',
         },
-    persistence: { available: true, kind: 'file' },
+    persistence,
     catalogue,
     retention: retentionReport(config),
   };

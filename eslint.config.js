@@ -66,6 +66,12 @@ export default tseslint.config(
         Buffer: 'readonly',
         URL: 'readonly',
         fetch: 'readonly',
+        // The two the build scripts reach for: the emulator runner polls with
+        // `setTimeout` and gives each readiness probe its own deadline with
+        // `AbortSignal.timeout`. Listed the same way `fetch` is -- a host global
+        // the scripts may use without importing anything.
+        setTimeout: 'readonly',
+        AbortSignal: 'readonly',
       },
       parserOptions: {
         // Root-level config files are real TypeScript and belong to no workspace,

@@ -13,6 +13,7 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^9.3.1",
     "@google/genai": "^2.28.0",
     "@sunny/contracts": "*",
     "@sunny/knowledge": "*",

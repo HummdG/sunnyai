@@ -4,6 +4,7 @@ import {
   DEFAULT_LEAD_RETENTION_DAYS,
   DEV_SECRET,
   assertProductionReady,
+  assertStoreConfigured,
   capabilityReport,
   loadConfig,
   productionWarnings,
@@ -95,6 +96,108 @@ describe('configuration', () => {
 
   it('does not obstruct a local run', () => {
     expect(assertProductionReady(loadConfig())).toEqual([]);
+  });
+});
+
+describe('operational database configuration', () => {
+  const STORE_VARS = [
+    'SUNNY_STORE',
+    'SUNNY_FIRESTORE_DATABASE',
+    'SUNNY_FIRESTORE_EMULATOR_HOST',
+    'FIRESTORE_EMULATOR_HOST',
+  ];
+
+  afterEach(() => {
+    for (const name of STORE_VARS) delete process.env[name];
+  });
+
+  it('leaves the store unchosen when the variable is unset', () => {
+    const config = loadConfig();
+    expect(config.store).toBeUndefined();
+    expect(config.firestore).toBeUndefined();
+    // Unset is a *development* default rather than a decision, so it is allowed
+    // to boot locally and refused in production -- which the next test covers.
+    expect(assertStoreConfigured(config)).toEqual([]);
+  });
+
+  it('refuses a production boot that never chose a store', () => {
+    const config: ServerConfig = { ...loadConfig(), nodeEnv: 'production' };
+    expect(assertStoreConfigured(config).join(' ')).toContain('SUNNY_STORE is not set');
+  });
+
+  it('addresses the database from GOOGLE_CLOUD_PROJECT, and says which database', () => {
+    process.env['SUNNY_STORE'] = 'firestore';
+    process.env['GOOGLE_CLOUD_PROJECT'] = 'sunny-prod';
+    process.env['SUNNY_FIRESTORE_DATABASE'] = 'sunny-main';
+
+    const config = loadConfig();
+    expect(config.store).toBe('firestore');
+    expect(config.firestore).toEqual({
+      project: 'sunny-prod',
+      databaseId: 'sunny-main',
+      emulatorHost: null,
+    });
+    expect(assertStoreConfigured(config)).toEqual([]);
+    expect(capabilityReport({ ...config, nodeEnv: 'production' }).persistence).toEqual({
+      available: true,
+      kind: 'firestore',
+    });
+  });
+
+  it('defaults to the (default) database rather than inventing a name', () => {
+    process.env['SUNNY_STORE'] = 'firestore';
+    process.env['GOOGLE_CLOUD_PROJECT'] = 'sunny-prod';
+    expect(loadConfig().firestore?.databaseId).toBe('(default)');
+  });
+
+  it('refuses firestore without a project, instead of falling back to local files', () => {
+    process.env['SUNNY_STORE'] = 'firestore';
+    const config = loadConfig();
+    expect(config.firestore).toBeUndefined();
+    // The refusal is the point: an operator who chose the database must not have
+    // the process quietly write to a container's own filesystem instead.
+    expect(assertStoreConfigured(config).join(' ')).toContain('requires GOOGLE_CLOUD_PROJECT');
+  });
+
+  it('rejects a store name it does not recognise, rather than guessing', () => {
+    process.env['SUNNY_STORE'] = 'postgres';
+    expect(() => loadConfig()).toThrow(/SUNNY_STORE must be "file" or "firestore"/);
+  });
+
+  it('warns -- but does not refuse -- an explicit file store in production', () => {
+    // Allowed because an operator with a mounted volume may mean it, warned
+    // because on Cloud Run without one it loses the data at the next deploy.
+    const config: ServerConfig = {
+      ...loadConfig(),
+      nodeEnv: 'production',
+      store: 'file',
+      sessionSecret: 'a-real-secret',
+      allowedOrigins: ['https://example.com'],
+    };
+    expect(assertStoreConfigured(config)).toEqual([]);
+    expect(productionWarnings(config).join(' ')).toContain('SUNNY_STORE=file');
+  });
+
+  it('reads the emulator from SUNNY_FIRESTORE_EMULATOR_HOST, and ignores the conventional name', () => {
+    // The client library honours `FIRESTORE_EMULATOR_HOST` on its own, which is
+    // exactly why this is asserted: a stray ambient variable must not be able to
+    // point a process at a throwaway database, so the name the *server* reads is
+    // the sole thing that takes effect.
+    process.env['SUNNY_STORE'] = 'firestore';
+    process.env['GOOGLE_CLOUD_PROJECT'] = 'sunny-prod';
+    process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
+    expect(loadConfig().firestore?.emulatorHost).toBeNull();
+
+    process.env['SUNNY_FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8085';
+    expect(loadConfig().firestore?.emulatorHost).toBe('127.0.0.1:8085');
+  });
+
+  it('does not build a Firestore config for an emulator variable on its own', () => {
+    process.env['SUNNY_FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8085';
+    process.env['GOOGLE_CLOUD_PROJECT'] = 'sunny-prod';
+    const config = loadConfig();
+    expect(config.store).toBeUndefined();
+    expect(config.firestore).toBeUndefined();
   });
 });
 

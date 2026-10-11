@@ -3455,3 +3455,97 @@ stopped animating by comparing the hero's markup 2.5 s apart, and the reverted b
 showing it moving again; the reverted build's chunk filename matches the pre-experiment build, so the
 artefact is identical. `npx playwright test tests/e2e/marketing.spec.ts` passes 9/9 on the deferred variant
 (so the null result is not hiding a broken page) and the deferred variant was reverted anyway.
+
+## D-52. The production store is real, and the thing that blocked it was a JRE rather than a capability
+
+**Context.** `requirements-matrix.md` carried two rows as **Not started** for as long as the plan has
+existed: §3.1's "Operational DB: Firestore" and §4's "Firestore logical entities". Everything the API
+persisted went through `FileStore`, a JSONL store in a local directory, and the interface it implements
+(`Store`, `apps/api/src/store.ts`) was written from the start so that Firestore would be "a new
+implementation of these two methods rather than a rewrite of the routes" — a sentence that had never been
+tested, because there was no second implementation to test it against.
+
+The stated blocker was that the Firestore **emulator** could not run here: no `firebase-tools`, and no
+Java, which the emulator needs. That looked like a capability the machine did not have. It was not.
+
+**Decision — treat "no Java" as a toolchain problem rather than a wall, and make the production store
+answer the same contract as the development one.** A Temurin JRE was extracted into
+`C:\Work\Arkalith\.toolchain\`, _outside_ this repository; the emulator's own JAR was fetched from the URL
+the emulator distribution publishes, straight into `.cache/` (already gitignored); and
+`scripts/firestore-emulator.mjs` was written to boot it on a free port, run the suite against it and tear
+it down. Nothing depends on `firebase-tools`, nothing was installed system-wide, and no credential was
+invented to make a client reach it — the `@google-cloud/firestore` constructor takes `host` with
+`ssl: false` and addresses the emulator with no auth at all.
+
+The tests are a **shared contract**, not two suites: `apps/api/test/store-contract.ts` states the 21 cases
+once, `store-contract.test.ts` runs them against both stores, and the emulator half is **skipped rather
+than passed** when no emulator is named, with the reason in the suite's own name. The load-bearing
+decision there is the skip's direction: the failure this file guards against is a run that reports green
+while the code production executes was never exercised.
+
+**What it found, which is the reason to write it this way.** Three defects, none visible to the file-store
+tests that had been passing all along:
+
+1. **The duplicate-turn path returned a conversation with no transcript.** `appendTurn`'s idempotency
+   early-return handed back the stored _document_, which by construction has no `turns` — turns are a
+   subcollection, not a field. A retried POST would have answered the widget with `conversation.turns` as
+   `undefined`, on exactly the repeated-send path idempotency exists to serve.
+2. **A replaced catalogue kept the products the new list dropped.** `saveProducts` read the existing rows
+   only in `append` mode, and then used them to decide what to delete — so in `replace` mode the delete
+   set was empty by construction and a dropped product stayed on the database for ever, while the method
+   returned the new list as though it had been applied. The same bug had a second edge: the `keep` set was
+   built from the _incoming_ rows, so an `append` would have deleted every earlier row.
+3. **The file store's retention sweep deleted rows it could not date.** The sweep was written as
+   `expired = parse(x) < cutoff` and `keep = parse(x) >= cutoff`, which read as complements and are not:
+   both are `false` for a `NaN` parse, so a record with an unreadable timestamp failed the expire test
+   _and_ failed the keep test. The leads half had a comment saying such a row is kept, and the
+   conversations half deleted it — the comment was true of the filter it was next to and false of the
+   filter that decided what to write back.
+
+All three are fixed. The third is the one worth pausing on: it was in the _established_ store, in code that
+had passed its own suite, and it was found by a contract case written for a different implementation.
+"One contract, two implementations" earned its keep before the second implementation had ever run in
+anger.
+
+**Two properties the emulator cannot prove, and what guards them instead.** The emulator does not enforce
+indexes — it allows a query real Firestore would refuse for a missing composite index — and Firestore does
+not cascade a document deletion into its subcollections. The first is handled by construction: no query in
+the store both filters and orders, since a `where` alone and an `orderBy` alone each use one automatic
+single-field index and it is the pair that costs a composite one. That is a property of the source, so it
+is guarded by `apps/api/test/firestore-indexes.test.ts`, which reads the file and fails when the two land
+in one statement — and which is itself tested against a violating source, because a guard that has only
+ever reported "clean" is a guard nobody knows works. The second is handled by deleting turns explicitly in
+every path that removes a conversation, with a test that reads a purged conversation's subcollection back
+through a second client. Both are written up in `docs/firestore.md`.
+
+**One environmental variable, read by one name.** The client library honours `FIRESTORE_EMULATOR_HOST` on
+its own, and this store deliberately does not: `SUNNY_FIRESTORE_EMULATOR_HOST` is the only name that takes
+effect, so an ambient variable cannot redirect a deployment at a throwaway database. A test sets the
+conventional name alone and asserts the server's config stays pointed at real Firestore.
+
+**CI.** A fifth job, `firestore`, installs a JRE with `actions/setup-java` and runs
+`npm run test:firestore`, with the JAR cached under a key derived from the run script — so the production
+store is exercised by something other than this machine. This is the same argument D-49 made for the
+`terraform` job: a check that has never run anywhere but here has not been shown to run.
+
+**Evidence.** `apps/api/src/firestore-store.ts` (the store, ~700 lines, with the two unprovable properties
+in its header), `apps/api/test/store-contract.ts` and `store-contract.test.ts` (the shared contract and the
+two harnesses), `apps/api/test/firestore-indexes.test.ts` (the index guard),
+`apps/api/test/config.test.ts` (nine new cases over `SUNNY_STORE`, the project requirement, the emulator
+variable and the production warning), `apps/api/src/config.ts` and `main.ts` (`assertStoreConfigured`, and
+the store chosen from it), `scripts/firestore-emulator.mjs`, `package.json` (`test:firestore`),
+`.github/workflows/ci.yml` (the job), `docs/firestore.md`, and the two rows in `docs/requirements-matrix.md`
+moved off **Not started**.
+
+**Verified.** `npm run test:firestore` — which boots its own emulator, on a free port, and tears it down —
+gives **44 passed (44)**: the 21-case contract against both stores, plus the two Firestore-specific cases
+(purge removes the turns, and every tenant record lives under its tenant path). `npm test` without an
+emulator gives **1102 passed | 21 skipped**, the skip naming the command to run. `npm run typecheck` is
+clean. The teardown was checked by looking for the JVM afterwards, not by reading the `finally` block. The
+store's JAR is fetched at ~60 MB on first use and cached; a corrupted or truncated download is rejected on
+its ZIP magic rather than handed to `java`.
+
+**Open, and not resolvable from inside the repository.** Nothing has run against real Firestore: the
+project, its **location/region**, its Security Rules and its indexes are all still to be chosen, and no
+database exists because nothing is deployed (blocker 3). No Security Rules are written, which is a real gap
+only the day something reaches Firestore other than the API's own service account — nothing does.

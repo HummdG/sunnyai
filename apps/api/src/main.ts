@@ -1,23 +1,33 @@
 import {
   assertProductionReady,
+  assertStoreConfigured,
   capabilityReport,
   loadConfig,
   productionWarnings,
 } from './config.js';
+import { FirestoreStore } from './firestore-store.js';
 import { buildServer } from './server.js';
 import { FileStore } from './store.js';
 import { defaultTenants, TenantRegistry } from './tenants.js';
+import type { Store } from './store.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
 
-  const problems = assertProductionReady(config);
+  const problems = [...assertStoreConfigured(config), ...assertProductionReady(config)];
   if (problems.length > 0) {
     for (const problem of problems) console.error(`[config] ${problem}`);
     process.exit(1);
   }
 
-  const store = new FileStore(config.dataDir);
+  // The store is chosen once, here, and handed to the server whole. This is the
+  // only expression in the process that knows which implementation is in use,
+  // which is what makes `store.ts`'s claim -- that the swap to Firestore is a new
+  // implementation rather than a rewrite of the routes -- checkable by reading
+  // one line rather than by grepping for the other one.
+  const store: Store = config.firestore
+    ? new FirestoreStore(config.firestore)
+    : new FileStore(config.dataDir);
   const tenants = new TenantRegistry(defaultTenants(config.sandboxTenant));
   const app = buildServer({ config, store, tenants });
 

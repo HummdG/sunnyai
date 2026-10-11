@@ -116,6 +116,53 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # The production store, exercised against a real Firestore.
+  #
+  # `apps/api/src/firestore-store.ts` is what a deployed API runs on, and until
+  # this job existed the only thing holding it to the same contract as the file
+  # store was a suite that *skips* when no emulator is named -- so a green
+  # `verify` job could say nothing at all about the code production executes. That
+  # is the failure this job removes: the same 21 contract cases, 44 tests, run
+  # against an emulator rather than against a temporary directory.
+  #
+  # It needs a JRE, which is all `actions/setup-java` is here for; the emulator
+  # itself is a JAR the run script fetches from the emulator distribution, so
+  # nothing depends on `firebase-tools`.
+  firestore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # The emulator JAR is ~60 MB and its version is pinned in the run script,
+      # so the cache key has to move when that pin does or the cache would keep a
+      # stale archive alive. `hashFiles` of the script is exactly that
+      # dependency: the URL and the version live in that file and nowhere else.
+      # The directory is created first because a cache step whose path does not
+      # exist reports a validation error, even though a miss is the normal case.
+      - run: mkdir -p .cache
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: firestore-emulator-${{ hashFiles('scripts/firestore-emulator.mjs') }}
+
+      - name: Install
+        run: npm ci
+
+      - name: Firestore store contract
+        run: npm run test:firestore
+
   # Job permissions are the default (read). The API needs no cloud credentials
   # to be typechecked, linted or tested, and this job is deliberately not given
   # an identity that could deploy anything.
