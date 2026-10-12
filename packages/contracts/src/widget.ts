@@ -46,6 +46,14 @@ export const widgetConfigSchema = z.object({
   intensity: z.enum(['off', 'minimal', 'balanced', 'playful']),
   /** Whether the tenant has an entitlement for voice input. */
   voiceEnabled: z.boolean(),
+  /**
+   * The Cloudflare Turnstile site key, present only when the deployment
+   * verifies sessions with Turnstile. The widget loads Turnstile's script only
+   * when this is set, so a deployment without it ships nothing extra.
+   */
+  turnstileSiteKey: z.string().min(1).max(200).optional(),
+  /** The longest message the server accepts; the composer enforces the same. */
+  maxInputChars: z.number().int().positive().max(4000).optional(),
 });
 export type WidgetConfig = z.infer<typeof widgetConfigSchema>;
 
@@ -84,5 +92,7 @@ export const sessionRequestSchema = z.object({
   origin: z.string().min(1).max(300),
   /** A previously issued token, to resume a conversation. */
   sessionToken: z.string().min(1).optional(),
+  /** A Cloudflare Turnstile token, required when the deployment enables Turnstile. */
+  turnstileToken: z.string().min(1).max(2048).optional(),
 });
 export type SessionRequest = z.infer<typeof sessionRequestSchema>;

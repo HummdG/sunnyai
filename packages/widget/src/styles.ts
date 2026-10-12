@@ -213,14 +213,72 @@ export function styles(): string {
 :host([data-position="top-right"]) .panel { transform-origin: top right; }
 :host([data-position="top-left"]) .panel { transform-origin: top left; }
 
-/* The opening animation is a scale from the launcher with a brief overshoot.
-   The character's own compression plays inside it; the two are deliberately
-   short (240 ms here, 420 ms in the rig) so the pair lands under 650 ms. */
-.panel.opening { animation: sunny-open 240ms cubic-bezier(.2,.9,.3,1.15) both; }
-.panel.closing { animation: sunny-open 160ms ease-in reverse both; }
-@keyframes sunny-open {
-  from { opacity: 0; transform: scale(.72) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+/* The opening (plan §6.2), about 560 ms end to end, staged by widget.ts:
+     0 ms    Sunny reacts on the launcher (.launcher.pop) and bubbles fizz up
+             out of it (.fizz.rising);
+   120 ms    a bubble swells from the launcher corner into the panel
+             (.panel.opening -- a circular clip growing from the corner);
+   380 ms    Sunny settles into the header (.panel.settled).
+   Reduced motion collapses all of it to an immediate open (below). */
+.panel.opening {
+  animation: sunny-bubble 440ms cubic-bezier(.22,1,.36,1) 120ms both;
+}
+.panel.closing { animation: sunny-close 160ms ease-in both; }
+/* Opacity is deliberately not animated: text that is even briefly translucent
+   fails a contrast audit taken mid-opening, and the growing clip already reads
+   as a bubble swelling. */
+@keyframes sunny-bubble {
+  0%   { clip-path: circle(28px at var(--sunny-origin-x) var(--sunny-origin-y));
+         transform: scale(.94); }
+  100% { clip-path: circle(150% at var(--sunny-origin-x) var(--sunny-origin-y));
+         transform: scale(1); }
+}
+@keyframes sunny-close {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(.9) translateY(8px); }
+}
+.panel { --sunny-origin-x: calc(100% - 36px); --sunny-origin-y: calc(100% + 40px); }
+:host([data-position="bottom-left"]) .panel { --sunny-origin-x: 36px; }
+:host([data-position="top-right"]) .panel { --sunny-origin-y: -40px; }
+:host([data-position="top-left"]) .panel { --sunny-origin-x: 36px; --sunny-origin-y: -40px; }
+
+/* Sunny in the header: hidden while the bubble swells, then drops in with a
+   small overshoot, as if the character rode the bubble up and landed there. */
+.panel.opening .header .avatar { opacity: 0; transform: translateY(14px) scale(.4); }
+.panel.opening.settled .header .avatar {
+  opacity: 1; transform: none;
+  transition: opacity 120ms ease-out, transform 260ms cubic-bezier(.34,1.56,.64,1);
+}
+
+/* The launcher's reaction to the click: squash, then spring. */
+.launcher.pop { animation: sunny-pop 300ms cubic-bezier(.34,1.56,.64,1); }
+@keyframes sunny-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.12, .86); }
+  65% { transform: scale(.94, 1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Fizzy bubbles rising out of the launcher. */
+.fizz {
+  position: absolute; width: 72px; height: 0; pointer-events: none;
+  bottom: 36px; right: 0; z-index: 1;
+}
+:host([data-position="bottom-left"]) .fizz,
+:host([data-position="top-left"]) .fizz { right: auto; left: 0; }
+.fizz i {
+  position: absolute; bottom: 0; left: var(--x);
+  width: var(--s); height: var(--s); border-radius: 50%;
+  background: var(--sunny-accent); opacity: 0;
+  border: 1.5px solid rgba(255,255,255,.75);
+}
+.fizz.rising i {
+  animation: sunny-fizz 480ms cubic-bezier(.3,.7,.4,1) var(--d) both;
+}
+@keyframes sunny-fizz {
+  0% { opacity: 0; transform: translate(0, 0) scale(.4); }
+  20% { opacity: .95; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
 }
 
 .panel[hidden] { display: none; }
@@ -230,10 +288,15 @@ export function styles(): string {
   padding: 12px 14px; background: var(--sunny-pale);
   border-bottom: 1px solid rgba(23,23,23,.07); flex: 0 0 auto;
 }
-.header .avatar { width: 38px; height: 38px; flex: 0 0 38px; }
+.header .avatar { display: block; width: 40px; height: 40px; flex: 0 0 40px; }
+/* Without this the SVG renders at its own 200 px size and spills over the
+   header text and the first message. */
+.header .avatar svg { display: block; width: 100%; height: 100%; }
 .header .titles { flex: 1 1 auto; min-width: 0; }
 .header .name { font-weight: 650; font-size: 14px; }
-.header .tagline { font-size: 12px; color: var(--sunny-muted);
+/* Darker than --sunny-muted: the muted grey is 4.34:1 on the pale header,
+   under the 4.5:1 AA minimum for 12 px text. */
+.header .tagline { font-size: 12px; color: #5c5c5c;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header button {
   border: 0; background: transparent; cursor: pointer; color: var(--sunny-muted);
@@ -275,6 +338,65 @@ export function styles(): string {
 
 /* ── suggestions and composer ───────────────────────────────────────────── */
 
+.sources { font-size: 11.5px; color: #5c5c5c; margin: -4px 0 8px 4px; }
+/* SunScan roof card, and the 3D view it opens over the panel (roof.ts). */
+.roof { margin: 4px 0 10px; padding: 10px 12px; border-radius: 14px; background: var(--sunny-pale);
+  border: 1px solid var(--sunny-orange-soft); font-size: 13px; }
+.roof p { margin: 0 0 6px; }
+.roof .roof-label { font-size: 11.5px; color: #5c5c5c; }
+.roof button { font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 999px; padding: 6px 12px;
+  border: 0; background: var(--sunny-accent-ink); color: #fff; }
+.panel { position: relative; }
+/* Quote journey: three option cards and the quote's own disclaimer. */
+.quote { margin: 4px 0 10px; }
+.quote-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.quote-option { position: relative; padding: 10px 12px; border-radius: 14px; background: #fff;
+  border: 1px solid rgba(23,23,23,.1); font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+.quote-option.recommended { border: 2px solid var(--sunny-accent-ink); background: var(--sunny-pale); }
+.quote-badge { align-self: flex-start; font-size: 11px; font-weight: 650; color: #fff;
+  background: var(--sunny-accent-ink); border-radius: 999px; padding: 2px 8px; margin-bottom: 2px; }
+.quote-name { font-size: 14px; }
+.quote-price { font-size: 18px; font-weight: 700; }
+.quote-price-label { font-size: 11px; color: #5c5c5c; }
+.quote-headline { margin: 4px 0 2px; color: #3a3a3a; }
+.quote-facts { margin: 0; padding-left: 16px; color: #3a3a3a; }
+.quote-note { margin: 4px 0 0; font-size: 11.5px; color: #8a3b00; }
+.quote-disclaimer { font-size: 11px; color: #5c5c5c; margin: 6px 4px 0; }
+.quote-choose { align-self: flex-start; margin-top: 6px; font: inherit; font-size: 12.5px; font-weight: 650;
+  cursor: pointer; border-radius: 999px; padding: 6px 12px; min-height: 32px;
+  border: 1px solid var(--sunny-accent-ink); background: #fff; color: var(--sunny-accent-ink); }
+.quote-choose:hover { background: var(--sunny-pale); }
+.quote-choose:focus-visible { outline: 3px solid var(--sunny-accent); outline-offset: 2px; }
+.quote-option.chosen { border: 2px solid var(--sunny-accent-ink); box-shadow: 0 0 0 3px var(--sunny-pale); }
+.quote-option.chosen .quote-choose { background: var(--sunny-accent-ink); color: #fff; }
+.quote-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 4px 0; }
+.quote-actions button { font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 999px;
+  padding: 7px 12px; min-height: 32px; border: 1px solid var(--sunny-accent-ink);
+  background: #fff; color: var(--sunny-accent-ink); }
+.quote-actions > button:first-child { background: var(--sunny-accent-ink); color: #fff; }
+.quote-email { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; }
+.quote-email[hidden] { display: none; }
+.quote-email input[type="email"] { flex: 1 1 160px; font: inherit; font-size: 13px; padding: 6px 10px;
+  border-radius: 10px; border: 1px solid rgba(23,23,23,.2); }
+.quote-email label { font-size: 12px; color: #3a3a3a; }
+.quote-status { font-size: 11.5px; color: #3a3a3a; margin: 4px 4px 0; min-height: 1em; }
+.roof-view { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 3; display: flex; flex-direction: column;
+  background: var(--sunny-warm-white); font-size: 12.5px; }
+.roof-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+  background: var(--sunny-pale); }
+.roof-close { border: 0; background: transparent; font-size: 20px; cursor: pointer; color: #5c5c5c; }
+.roof-stage { position: relative; flex: 1 1 auto; min-height: 200px; }
+.roof-stage canvas { display: block; width: 100%; height: 100%; }
+.roof-status { padding: 14px; }
+.roof-controls { padding: 6px 14px; }
+.roof-time { display: flex; gap: 8px; align-items: center; }
+.roof-time input { flex: 1; accent-color: var(--sunny-accent-ink); }
+.roof-planes { list-style: none; margin: 0; padding: 0 14px; display: flex; flex-wrap: wrap; gap: 4px; }
+.roof-planes button { font: inherit; font-size: 11.5px; border: 1px solid var(--sunny-orange-soft);
+  background: #fff; border-radius: 999px; padding: 3px 8px; cursor: pointer; }
+.roof-note { margin: 6px 14px 10px; font-size: 11px; color: #5c5c5c; }
+.sources a { color: var(--sunny-accent-ink); }
+.composer .count { align-self: center; font-size: 11px; color: #5c5c5c; min-width: 0; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
 .suggestions button {
   font: inherit; font-size: 12.5px; cursor: pointer;
@@ -404,8 +526,11 @@ export function styles(): string {
    pointed at. Applied by the widget adding an attribute, styled by the host's
    own stylesheet if it wants to; this is the fallback. */
 @media (prefers-reduced-motion: reduce) {
-  .launcher, .panel, .panel.opening, .panel.closing { animation: none !important;
+  .launcher, .panel, .panel.opening, .panel.closing, .launcher.pop,
+  .panel.opening .header .avatar { animation: none !important;
     transition: none !important; }
+  .panel.opening .header .avatar { opacity: 1; transform: none; }
+  .fizz { display: none; }
   .typing i { animation: none; opacity: .6; }
 }
 

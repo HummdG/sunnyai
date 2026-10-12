@@ -25,6 +25,20 @@ export const KNOWLEDGE_ISSUE_CODES = [
   'empty-document',
   /** A heading with nothing under it: kept as a warning, not a failure. */
   'empty-section',
+  /** Not indexed: the document appears to hold someone's personal data. */
+  'quarantined-pii',
+  /** Indexed with low-risk personal details (a private email, a mobile) masked. */
+  'pii-redacted',
+  /** Unfilled template text ("XXXXX XXXXXX", "[insert link]"): masked, never quoted. */
+  'placeholder',
+  /** A file whose text could not be read here (e.g. a PDF): skipped, not guessed at. */
+  'needs-extraction',
+  /** A page or file that could not be fetched this run. */
+  'fetch-failed',
+  /** A page the site's robots.txt asks crawlers not to read. */
+  'robots-disallowed',
+  /** A file type this pipeline does not read (images, spreadsheets, archives). */
+  'unsupported-type',
 ] as const;
 
 export type KnowledgeIssueCode = (typeof KNOWLEDGE_ISSUE_CODES)[number];
@@ -82,36 +96,74 @@ export const knowledgeSourceSchema = z.object({
   chunkCount: z.number().int().nonnegative(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Where it came from: an upload, a crawled page, or a Drive file. */
+  kind: z.enum(['upload', 'website', 'drive']).optional(),
+  /** Unfilled template text found in it, with the section, for the installer to fix. */
+  warnings: z
+    .array(
+      z.object({
+        kind: z.enum(['placeholder', 'unfinished']),
+        text: z.string(),
+        section: z.string().nullable(),
+      }),
+    )
+    .optional(),
 });
 
 export type KnowledgeSource = z.infer<typeof knowledgeSourceSchema>;
 
 /**
- * Ingestion is synchronous in this build, so a job is written already finished.
+ * An ingestion job.
  *
- * The status field is not decoration: the route pair exists because ingestion is
- * meant to be long-running once it has to crawl a site or walk a Drive folder,
- * and the client contract should not have to change when that happens. Today the
- * only statuses reachable are the two terminal ones, and `startedAt` and
- * `finishedAt` differ only by the work itself. Claiming a `queued` state that
- * never occurs would be describing a queue this code does not have.
+ * An upload is ingested synchronously and its job is written already finished.
+ * A website crawl or a Drive sync is long-running, so its job moves through
+ * `queued` → `running` → `succeeded` | `failed`, and the same id is rewritten as
+ * it goes; `GET /v1/knowledge/jobs/:id` returns the latest state.
  */
-export const INGESTION_JOB_STATUSES = ['succeeded', 'failed'] as const;
+export const INGESTION_JOB_STATUSES = ['queued', 'running', 'succeeded', 'failed'] as const;
 
 export type IngestionJobStatus = (typeof INGESTION_JOB_STATUSES)[number];
 
 export const ingestionJobSchema = z.object({
   id: z.string(),
   tenantId: z.string(),
-  /** Null when the job failed before there was a source to point at. */
+  /** Null when the job failed before there was a source to point at, or for a sync. */
   sourceId: z.string().nullable(),
   status: z.enum(INGESTION_JOB_STATUSES),
-  /** Documents offered to the job; always 1 today, one source per request. */
+  /** Documents written (created or changed) by the job. */
   documents: z.number().int().nonnegative(),
   chunks: z.number().int().nonnegative(),
   issues: z.array(knowledgeIssueSchema),
   startedAt: z.string(),
+  /** Empty while the job is queued or running. */
   finishedAt: z.string(),
+  /** What ran: a single upload, a website crawl, or a Drive folder sync. */
+  kind: z.enum(['upload', 'website', 'drive']).optional(),
+  /** The connection a sync job ran for. */
+  connectionId: z.string().nullable().optional(),
+  /** A sync's counts, so an installer can see what changed and what did not. */
+  counts: z
+    .object({
+      /** Pages or files looked at. */
+      seen: z.number().int().nonnegative(),
+      unchanged: z.number().int().nonnegative(),
+      deleted: z.number().int().nonnegative(),
+      quarantined: z.number().int().nonnegative(),
+      skipped: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+    })
+    .optional(),
+  /**
+   * Where a running sync has got to: `reading` while it finds the pages or
+   * files (the total is not known yet), then `indexing` with a known total.
+   */
+  progress: z
+    .object({
+      phase: z.enum(['reading', 'indexing']),
+      done: z.number().int().nonnegative(),
+      total: z.number().int().nonnegative().nullable(),
+    })
+    .optional(),
 });
 
 export type IngestionJob = z.infer<typeof ingestionJobSchema>;
@@ -135,3 +187,61 @@ export const knowledgeJobResponseSchema = z.object({
 });
 
 export type KnowledgeJobResponse = z.infer<typeof knowledgeJobResponseSchema>;
+
+/**
+ * Connecting a knowledge source the platform keeps in sync (Blueprint §3.1):
+ * the installer's website, crawled weekly, or a Google Drive folder, synced on
+ * change. Either is re-synced on demand through the sync route.
+ */
+export const knowledgeConnectionRequestSchema = z.discriminatedUnion('kind', [
+  z.object({
+    tenantId: z.string().min(1).max(120),
+    kind: z.literal('website'),
+    /** The site's address; only this origin is crawled. */
+    url: z.string().url().max(2048),
+    /** Page cap per crawl. */
+    maxPages: z.number().int().min(1).max(1000).optional(),
+  }),
+  z.object({
+    tenantId: z.string().min(1).max(120),
+    kind: z.literal('drive'),
+    /** The folder's id, from its Drive URL. */
+    folderId: z.string().min(5).max(200),
+    /**
+     * `service_account`: the installer shared the folder (Viewer) with the
+     * platform's service account. `oauth`: they connected with Google sign-in
+     * and the refresh token is supplied here (never echoed back).
+     */
+    mode: z.enum(['service_account', 'oauth']),
+    refreshToken: z.string().min(10).max(2048).optional(),
+  }),
+]);
+
+export type KnowledgeConnectionRequest = z.infer<typeof knowledgeConnectionRequestSchema>;
+
+export const KNOWLEDGE_CONNECTION_STATUSES = ['pending', 'syncing', 'connected', 'failed'] as const;
+
+/** A connection as the API reports it. Credentials are never part of it. */
+export const knowledgeConnectionSchema = z.object({
+  id: z.string(),
+  tenantId: z.string(),
+  kind: z.enum(['website', 'drive']),
+  /** The site origin, or the Drive folder id. */
+  target: z.string(),
+  mode: z.enum(['crawl', 'service_account', 'oauth']),
+  status: z.enum(KNOWLEDGE_CONNECTION_STATUSES),
+  /** Why the last sync failed, in words an installer can act on. */
+  lastError: z.string().nullable(),
+  lastJobId: z.string().nullable(),
+  lastSyncAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export type KnowledgeConnection = z.infer<typeof knowledgeConnectionSchema>;
+
+export const knowledgeSyncResponseSchema = z.object({
+  connection: knowledgeConnectionSchema,
+  job: ingestionJobSchema,
+});
+
+export type KnowledgeSyncResponse = z.infer<typeof knowledgeSyncResponseSchema>;

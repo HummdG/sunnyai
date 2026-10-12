@@ -39,6 +39,16 @@ serveStatic({
       },
     },
   ],
+  // The pages' embed snippets point at the default dev API (localhost:8787).
+  // A run that starts its own API on another port -- the e2e suite, or anyone
+  // keeping a dev server up meanwhile -- sets SUNNY_DEMO_API_URL so the widget
+  // talks to that API, not to whatever happens to be listening on 8787.
+  ...(process.env['SUNNY_DEMO_API_URL']
+    ? {
+        rewriteHtml: (html: string) =>
+          html.replaceAll('http://localhost:8787', process.env['SUNNY_DEMO_API_URL']!),
+      }
+    : {}),
   onReady: (bound) => {
     console.log(`widget demo: http://localhost:${bound}`);
   },

@@ -45,6 +45,17 @@ export const TOOL_NAMES = [
   'request_callback',
   'handoff_to_human',
   'suggest_page_action',
+  // Blueprint §5 channel matrix. `estimate_savings` is the base package's
+  // non-binding savings estimate; the other three belong to the voice and email
+  // add-ons and refuse unless the add-on module registers them.
+  'estimate_savings',
+  'transfer_to_human',
+  'send_sms_link',
+  'create_gmail_draft',
+  // The quote journey (apps/api/src/journey): roof → questionnaire → options.
+  'get_quote_journey',
+  'save_answers',
+  'get_quote_options',
 ] as const;
 
 export const toolNameSchema = z.enum(TOOL_NAMES);

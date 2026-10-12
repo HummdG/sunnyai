@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import { extname, isAbsolute, normalize, relative, resolve } from 'node:path';
 
@@ -37,6 +37,11 @@ export interface StaticServerOptions {
   mounts: readonly StaticMount[];
   /** Called with the bound port once listening. */
   onReady?: (port: number) => void;
+  /**
+   * Rewrite HTML before it is served -- e.g. pointing a demo page's embed
+   * snippet at the API this run is using rather than the one in the file.
+   */
+  rewriteHtml?: (html: string) => string;
 }
 
 function send(res: ServerResponse, status: number, type: string, body: string): void {
@@ -125,6 +130,12 @@ export function serveStatic(options: StaticServerOptions): ReturnType<typeof cre
     // console warning about CORS (D-48).
     if (type.startsWith('font/')) {
       headers['access-control-allow-origin'] = '*';
+    }
+
+    if (options.rewriteHtml && type.startsWith('text/html')) {
+      res.writeHead(200, headers);
+      res.end(options.rewriteHtml(readFileSync(found.file, 'utf8')));
+      return;
     }
 
     res.writeHead(200, headers);

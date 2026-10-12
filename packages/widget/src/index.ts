@@ -1,4 +1,9 @@
-import { publicWidgetIdSchema } from '@sunny/contracts';
+/**
+ * The shape of a public widget id -- the contracts' `publicWidgetIdSchema`,
+ * repeated as a bare pattern so the embed does not pull zod in at runtime. A
+ * unit test pins the two together.
+ */
+export const PUBLIC_WIDGET_ID = /^w_[a-z0-9]{10,40}$/;
 
 import { SunnyWidget, type MountOptions } from './widget.js';
 
@@ -62,8 +67,7 @@ function scriptDirectory(script: HTMLScriptElement): string | null {
  */
 export function optionsFromScript(script: HTMLScriptElement): MountOptions | null {
   const publicId = script.getAttribute('data-widget-id') ?? '';
-  const parsed = publicWidgetIdSchema.safeParse(publicId);
-  if (!parsed.success) {
+  if (!PUBLIC_WIDGET_ID.test(publicId)) {
     console.error(
       `[sunny] this script tag has no valid data-widget-id (got "${publicId}"). ` +
         'Expected something like w_abc1234567. The widget will not mount.',
@@ -81,7 +85,7 @@ export function optionsFromScript(script: HTMLScriptElement): MountOptions | nul
   // one thing the widget can do without (D-48).
   return {
     apiUrl: base.replace(/\/+$/, ''),
-    publicId: parsed.data,
+    publicId,
     fontDirectoryUrl: scriptDirectory(script),
   };
 }
@@ -115,7 +119,7 @@ async function boot(): Promise<void> {
     script.setAttribute(MOUNT_FLAG, 'true');
 
     // Safe to interpolate: `optionsFromScript` has already validated the id
-    // against `publicWidgetIdSchema`, so this cannot leave the attribute value.
+    // against `PUBLIC_WIDGET_ID`, so this cannot leave the attribute value.
     const alreadyMounted = document.querySelector(`[data-sunny-widget="${options.publicId}"]`);
     if (alreadyMounted) continue;
 

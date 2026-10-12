@@ -97,6 +97,41 @@ async function run() {
   }
 
   const result = await build(options);
+
+  // The voice add-on, a separate ESM file the widget imports on first press of
+  // the microphone (src/voice.ts). Not counted against the widget's budget,
+  // because tenants without the add-on never download it.
+  const voiceResult = await build({
+    ...options,
+    entryPoints: [here('../src/voice.ts')],
+    outfile: `${outdir}/sunny-voice.js`,
+    format: 'esm',
+  });
+  const voiceFile = Object.keys(voiceResult.metafile.outputs).find((f) =>
+    f.endsWith('sunny-voice.js'),
+  );
+  const voiceJs = readFileSync(voiceFile);
+  console.log(
+    `widget: ${voiceFile} — ${(voiceJs.length / 1024).toFixed(1)} kB ` +
+      `(${(gzipSync(voiceJs).length / 1024).toFixed(1)} kB gzipped, loaded on demand)`,
+  );
+  // The 3D roof view (src/roof.ts: SunScan's three.js viewer and the house
+  // synthesis), a separate ESM file the widget imports only when a visitor
+  // presses "See your roof in 3D". Not counted against the widget's budget.
+  const roofResult = await build({
+    ...options,
+    entryPoints: [here('../src/roof.ts')],
+    outfile: `${outdir}/sunny-roof.js`,
+    format: 'esm',
+  });
+  const roofFile = Object.keys(roofResult.metafile.outputs).find((f) =>
+    f.endsWith('sunny-roof.js'),
+  );
+  const roofJs = readFileSync(roofFile);
+  console.log(
+    `widget: ${roofFile} — ${(roofJs.length / 1024).toFixed(1)} kB ` +
+      `(${(gzipSync(roofJs).length / 1024).toFixed(1)} kB gzipped, loaded on demand)`,
+  );
   const outFile = Object.keys(result.metafile.outputs).find((f) => f.endsWith('sunny-widget.js'));
   const js = readFileSync(outFile);
   const gzipped = gzipSync(js).length;
