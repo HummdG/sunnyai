@@ -85,7 +85,11 @@ test('names itself from the API rather than the page', async ({ page }) => {
   // Read the registry value independently, so the test fails if the widget shows
   // the right string by coincidence rather than because it fetched it.
   const config = await page.evaluate(async () => {
-    const response = await fetch('http://localhost:8787/v1/widget/config/w_demo000001');
+    // The API the page's own embed snippet names -- the one the widget used --
+    // rather than a hard-coded port that another server may be holding.
+    const snippet = document.querySelector<HTMLScriptElement>('script[data-api-url]');
+    const api = snippet?.dataset['apiUrl'] ?? 'http://localhost:8787';
+    const response = await fetch(`${api}/v1/widget/config/w_demo000001`);
     return (await response.json()) as { companyName: string };
   });
   await expect(name).toHaveText(config.companyName);
@@ -137,11 +141,14 @@ async function framesDuringHold(page: Page): Promise<number> {
           resolve(0);
           return;
         }
+        // The art animates by patching its SVG in place (attributes) and only
+        // occasionally replaces a node, so either kind of change counts as the
+        // picture moving under the pointer.
         let redraws = 0;
         const observer = new MutationObserver((records) => {
-          redraws += records.filter((record) => record.type === 'childList').length;
+          redraws += records.length;
         });
-        observer.observe(art, { childList: true });
+        observer.observe(art, { childList: true, subtree: true, attributes: true });
         setTimeout(() => {
           observer.disconnect();
           resolve(redraws);
@@ -182,6 +189,45 @@ test('opens from a press held across the animation', async ({ page }) => {
   );
   await expect(panel).toBeVisible();
   await expect(launcher).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('settles Sunny into the header without covering any text', async ({ page }) => {
+  // The evaluation of 2026-10-12 found the header avatar rendered at the SVG's
+  // own 200 px size, sitting over the company name and the greeting -- a bug
+  // every byte-level snapshot passed. This checks the geometry a visitor sees.
+  await openWidget(page);
+  await page.waitForTimeout(900); // past the ~560 ms opening
+  const boxes = await page.locator(HOST).evaluate((host) => {
+    const root = host.shadowRoot!;
+    const box = (selector: string) => {
+      const node = root.querySelector(selector);
+      if (!node) return null;
+      const r = node.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    };
+    return {
+      avatar: box('.header .avatar svg'),
+      name: box('.header .name'),
+      tagline: box('.header .tagline'),
+      header: box('.header'),
+      firstMessage: box('.log > *'),
+    };
+  });
+  type Box = { x: number; y: number; w: number; h: number };
+  const overlaps = (a: Box, b: Box) =>
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+  expect(boxes.avatar).not.toBeNull();
+  const avatar = boxes.avatar!;
+  expect(avatar.w).toBeLessThanOrEqual(48);
+  expect(avatar.h).toBeLessThanOrEqual(48);
+  for (const other of [boxes.name, boxes.tagline, boxes.firstMessage]) {
+    if (other) expect(overlaps(avatar, other)).toBe(false);
+  }
+  // Inside the header, not spilling out of it.
+  const header = boxes.header!;
+  expect(avatar.y).toBeGreaterThanOrEqual(header.y);
+  expect(avatar.y + avatar.h).toBeLessThanOrEqual(header.y + header.h);
 });
 
 test('exposes the documented handle on window', async ({ page }) => {

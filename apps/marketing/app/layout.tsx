@@ -1,4 +1,3 @@
-import { defaultRig, renderSunny } from '@sunny/character';
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 
@@ -6,12 +5,16 @@ import localFont from 'next/font/local';
 // Static imports, so they are extracted into real stylesheets at build time
 // rather than injected at runtime.
 import '@sunny/ui/tokens.css';
-import './globals.css';
+import './base.css';
+import './cameo.css';
 
 export const metadata: Metadata = {
-  title: 'Sunny — the solar assistant that answers like a person',
+  title: {
+    default: 'Sunny.ai — Meet Sunny, your brightest employee',
+    template: '%s · Sunny.ai',
+  },
   description:
-    'Sunny is an embeddable AI assistant for solar installers. It qualifies enquiries, answers questions from your own documents and hands the good ones over.',
+    'Sunny is a friendly AI assistant for solar installers. It answers visitor questions from your own documents, qualifies enquiries and hands you ready-to-call leads.',
 };
 
 /**
@@ -47,12 +50,6 @@ const brandFont = localFont({
   fallback: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
 });
 
-/**
- * The brand mark is the character itself, rendered from the same rig the widget
- * uses. There is no separate logo file to fall out of date with the artwork.
- */
-const BRAND_MARK = renderSunny(defaultRig(), { decorative: true, size: 32 });
-
 export default function RootLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <html
@@ -68,41 +65,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
       className={brandFont.className}
       style={{ ...brandFont.style, '--font-sans': brandFont.style.fontFamily }}
     >
-      <body>
-        <a className="skip" href="#main">
-          Skip to content
-        </a>
-
-        <header className="site-header">
-          <div className="wrap">
-            <a className="brand" href="#main">
-              <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: BRAND_MARK }} />
-              Sunny
-            </a>
-            <nav className="site-nav" aria-label="Sections">
-              <a href="#how">How it works</a>
-              <a href="#demo">Try it</a>
-              <a href="#character">The character</a>
-              <a href="#pricing">Pricing</a>
-            </nav>
-          </div>
-        </header>
-
-        {children}
-
-        <footer className="site-footer">
-          <div className="wrap">
-            <span>Sunny — an assistant for solar installers.</span>
-            {/*
-              No address, phone number or company registration is invented here.
-              Those are facts about a real business, and there is no business
-              yet to state them about. The plan forbids inventing them, so the
-              footer says what is true and stops.
-            */}
-            <span>Contact details are added when the company is set up.</span>
-          </div>
-        </footer>
-      </body>
+      {/*
+        One app, three surfaces with their own layouts: the website
+        (`(site)`), the sign-in pages (`(auth)`) and the installer dashboard
+        (`dashboard`). Each wraps its pages in a scoped class (`.site` /
+        `.dash`), so the two stylesheets cannot reach each other's elements.
+      */}
+      <body>{children}</body>
     </html>
   );
 }

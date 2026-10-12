@@ -14,7 +14,9 @@
   "dependencies": {
     "@sunny/animation-engine": "*",
     "@sunny/character": "*",
+    "@sunny/sunscan-viewer": "*",
     "@sunny/ui": "*",
+    "firebase": "^12.19.0",
     "next": "^16.4.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

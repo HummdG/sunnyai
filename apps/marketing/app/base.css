@@ -1,0 +1,42 @@
+/*
+ * The foundations every surface shares: box model, page background, the brand
+ * typeface. Surface styles are scoped -- `site.css` under `.site`,
+ * `dashboard.css` under `.dash` -- so the website and the dashboard can live in
+ * one app without their rules colliding.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--sunny-warm-white);
+  color: var(--sunny-ink);
+  font-family: var(--font-sans);
+  line-height: var(--leading-normal);
+}
+
+.site,
+.dash {
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.site) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Sunny spot illustrations: the SVG fills its box (guidelines C1). */
+.sunny-spot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

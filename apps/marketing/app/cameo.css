@@ -1,0 +1,539 @@
+/* Sunny cameos (brand guidelines B, C, D, E): a live mini Sunny woven into the
+   interface, with speech bubbles in the 1930s ink style. */
+
+/* ── speech bubble ─────────────────────────────────────────────────────── */
+
+.speech-bubble {
+  --bubble-ink: var(--sunny-ink);
+  --bubble-fill: #fffcf8;
+  position: absolute;
+  z-index: 3;
+  width: max-content;
+  max-width: 230px;
+  padding: 10px 14px 11px;
+  background: var(--bubble-fill);
+  color: var(--sunny-ink);
+  border: 2.5px solid var(--bubble-ink);
+  /* A hand-inked wobble rather than a perfect pill. */
+  border-radius: 58% 42% 55% 45% / 46% 58% 42% 54%;
+  box-shadow: 3px 4px 0 rgba(23, 23, 23, 0.85);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.6) rotate(-2deg);
+  transition:
+    opacity var(--motion-quick) var(--ease-out),
+    transform var(--motion-slow) var(--ease-bounce);
+}
+
+.speech-bubble.is-shown {
+  opacity: 1;
+  transform: scale(1) rotate(-2deg);
+}
+
+/* The tail: an ink triangle with a fill triangle laid over it. */
+.speech-bubble::before,
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.speech-right {
+  left: calc(100% - 6px);
+  bottom: 62%;
+  transform-origin: 0 100%;
+}
+.speech-right::before {
+  left: -15px;
+  bottom: 8px;
+  border-width: 8px 15px 8px 0;
+  border-color: transparent var(--bubble-ink) transparent transparent;
+}
+.speech-right::after {
+  left: -10px;
+  bottom: 10px;
+  border-width: 6px 11px 6px 0;
+  border-color: transparent var(--bubble-fill) transparent transparent;
+}
+
+.speech-left {
+  right: calc(100% - 6px);
+  bottom: 62%;
+  transform-origin: 100% 100%;
+}
+.speech-left::before {
+  right: -15px;
+  bottom: 8px;
+  border-width: 8px 0 8px 15px;
+  border-color: transparent transparent transparent var(--bubble-ink);
+}
+.speech-left::after {
+  right: -10px;
+  bottom: 10px;
+  border-width: 6px 0 6px 11px;
+  border-color: transparent transparent transparent var(--bubble-fill);
+}
+
+.speech-top {
+  left: 50%;
+  bottom: calc(100% + 10px);
+  translate: -50% 0;
+  transform-origin: 50% 100%;
+}
+.speech-top::before {
+  left: calc(50% - 9px);
+  bottom: -16px;
+  border-width: 16px 9px 0 9px;
+  border-color: var(--bubble-ink) transparent transparent transparent;
+}
+.speech-top::after {
+  left: calc(50% - 6px);
+  bottom: -10px;
+  border-width: 11px 6px 0 6px;
+  border-color: var(--bubble-fill) transparent transparent transparent;
+}
+
+/* ── cameo ─────────────────────────────────────────────────────────────── */
+
+.sunny-cameo {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  line-height: 0;
+}
+
+.sunny-cameo .cameo-figure {
+  display: block;
+}
+
+.sunny-cameo .cameo-figure svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.sunny-cameo.is-flipped .cameo-figure {
+  transform: scaleX(-1);
+}
+
+.sunny-cameo.is-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 24px;
+  transition: transform var(--motion-quick) var(--ease-bounce);
+}
+
+.sunny-cameo.is-action:hover {
+  transform: translateY(-3px);
+}
+
+.sunny-cameo.is-action:focus-visible {
+  outline: 3px solid var(--sunny-brand-orange);
+  outline-offset: 4px;
+}
+
+/* Peeking over an edge: only the top of Sunny shows, popping up on cue. */
+.cameo-peek {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  line-height: 0;
+}
+
+.cameo-peek .sunny-cameo {
+  transform: translateY(70%);
+  transition: transform var(--motion-slow) var(--ease-bounce);
+}
+
+.cameo-peek.is-up {
+  overflow: visible;
+}
+
+.cameo-peek.is-up .sunny-cameo {
+  transform: translateY(0);
+}
+
+/* ── skiing down the hills (home) ──────────────────────────────────────── */
+
+.hills-stage {
+  position: relative;
+}
+
+.hills-stage .skier {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  will-change: transform;
+  border-radius: 20px;
+}
+
+.hills-stage .skier:focus-visible {
+  outline: 3px solid var(--sunny-ink);
+  outline-offset: 4px;
+}
+
+.hills-stage .skier-figure {
+  position: relative;
+  display: block;
+  transform-origin: 50% 97%;
+}
+
+.hills-stage .skier-sunny {
+  display: block;
+}
+
+.hills-stage .skier-sunny svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.hills-stage .skier-gear {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.hills-stage .ski-poles line {
+  stroke: var(--sunny-ink);
+  stroke-width: 4.2;
+  stroke-linecap: round;
+}
+
+.hills-stage .skis path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hills-stage .skis .ski-ink {
+  stroke: var(--sunny-ink);
+  stroke-width: 9;
+}
+
+.hills-stage .skis .ski-fill {
+  stroke: #fff3e2;
+  stroke-width: 4;
+}
+
+.hills-stage .skier .speech-bubble {
+  pointer-events: auto;
+}
+
+.hills-stage .skier .speech-right {
+  bottom: 52%;
+  left: calc(100% - 4px);
+}
+
+@media (max-width: 599px) {
+  .hills-stage .skier .speech-bubble {
+    max-width: 190px;
+    font-size: 0.8125rem;
+  }
+}
+
+/* A puff of sparkly snow where Sunny lands or skids. */
+.ski-puff {
+  position: absolute;
+  z-index: 1;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.ski-puff i {
+  position: absolute;
+  left: -6px;
+  top: -10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fffcf8;
+  border: 2px solid var(--sunny-ink);
+  animation: ski-puff 620ms var(--ease-out) forwards;
+}
+
+.ski-puff i:nth-child(1) {
+  --dx: -26px;
+  --dy: -14px;
+}
+.ski-puff i:nth-child(2) {
+  --dx: -10px;
+  --dy: -26px;
+  width: 9px;
+  height: 9px;
+}
+.ski-puff i:nth-child(3) {
+  --dx: 12px;
+  --dy: -22px;
+}
+.ski-puff i:nth-child(4) {
+  --dx: 26px;
+  --dy: -10px;
+  width: 8px;
+  height: 8px;
+}
+.ski-puff i:nth-child(5) {
+  --dx: 0px;
+  --dy: -34px;
+  width: 7px;
+  height: 7px;
+}
+
+@keyframes ski-puff {
+  from {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--dx), var(--dy)) scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* ── placements ────────────────────────────────────────────────────────── */
+
+/* Inner-page intros: Sunny beside the headline on wide screens. */
+.page-intro .intro-cameo {
+  position: absolute;
+  right: max(24px, calc((100vw - 1200px) / 2 + 24px));
+  bottom: 8px;
+}
+
+.page-intro {
+  position: relative;
+}
+
+@media (max-width: 899px) {
+  .page-intro .intro-cameo {
+    position: static;
+    margin-top: var(--space-5);
+    display: flex;
+    justify-content: flex-start;
+    padding-left: 8px;
+  }
+  .page-intro .intro-cameo .speech-right {
+    max-width: 200px;
+  }
+}
+
+/* Feature cards: one Sunny peeks over the top edge of a card. */
+.feature-grid .card.has-peek {
+  position: relative;
+}
+
+.feature-grid .cameo-peek {
+  right: 18px;
+  top: -64px;
+  width: 90px;
+  height: 66px;
+}
+
+/* How it works: each step has Sunny acting it out, top right of the card. */
+.steps .card {
+  position: relative;
+}
+
+.steps .step-cameo {
+  position: absolute;
+  right: 12px;
+  top: -44px;
+}
+
+.steps .step-cameo .speech-left {
+  max-width: 190px;
+}
+
+/* Pricing: Sunny with a balloon on the recommended plan. */
+.plans .plan.highlighted {
+  position: relative;
+}
+
+.plans .plan-cameo {
+  position: absolute;
+  right: -18px;
+  top: -86px;
+}
+
+/* CTA band: Sunny pointing at the button. */
+.cta-band .wrap {
+  position: relative;
+}
+
+.cta-band .cta-cameo {
+  position: absolute;
+  left: max(8px, calc(50% - 470px));
+  bottom: -6px;
+}
+
+@media (max-width: 899px) {
+  .cta-band .cta-cameo {
+    display: none;
+  }
+}
+
+/* Footer: Sunny in the deckchair. */
+.site-footer .footer-cameo {
+  margin-top: var(--space-5);
+}
+
+/* 404 */
+.not-found-cameo {
+  display: flex;
+  justify-content: center;
+}
+
+/* ── dashboard ─────────────────────────────────────────────────────────── */
+
+.sidebar-sunny {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 8px 12px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: var(--sunny-brand-orange-pale);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+
+.sidebar-sunny strong {
+  display: block;
+  font-size: 0.875rem;
+}
+
+.sidebar-sunny .muted {
+  color: #5c5c5c;
+}
+
+.greeting-cameo {
+  float: right;
+  margin: -8px 0 20px 16px;
+}
+
+@media (max-width: 899px) {
+  .greeting-cameo {
+    float: none;
+    margin: 0 0 12px;
+  }
+}
+
+.empty-state .speech-bubble {
+  font-size: 0.8125rem;
+}
+
+.onboarding-guide {
+  position: relative;
+}
+
+/* ── reduced motion: everything is still, the bubbles simply there ────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .speech-bubble {
+    transition: none;
+  }
+  .sunny-cameo.is-action,
+  .cameo-peek .sunny-cameo {
+    transition: none;
+  }
+  .cameo-peek .sunny-cameo {
+    transform: none;
+  }
+  .ski-puff {
+    display: none;
+  }
+}
+
+/* The front hill still hands over to the next section with the skier layer
+   wrapped around it. */
+.site .hills-stage + .section,
+.site .hills-stage + section {
+  border-top: 10px solid var(--sunny-brand-orange);
+}
+
+/* ── room to perform: cameos get their own space, never on top of copy ── */
+
+/* Feature cards and plans make headroom for the Sunny perched on them. */
+.site .feature-grid:has(.has-peek) {
+  margin-top: 96px;
+}
+
+.site .plans:has(.plan-cameo) {
+  margin-top: 112px;
+}
+
+.plans .plan-cameo .speech-left {
+  bottom: 70%;
+}
+
+/* CTA band: Sunny stands on a cream spot so an orange character reads on the
+   orange band, with the line above, clear of the centred copy. */
+.cta-band .cta-cameo .cameo-figure {
+  background: radial-gradient(circle at 50% 52%, #fff3e2 0 56%, transparent 57%);
+  border-radius: 50%;
+}
+
+.cta-band .cta-cameo {
+  left: max(8px, calc(50% - 600px));
+}
+
+.cta-band .cta-cameo .speech-bubble {
+  max-width: 160px;
+}
+
+@media (max-width: 1279px) {
+  .cta-band .cta-cameo {
+    display: none;
+  }
+}
+
+/* Footer: below the tagline, the line beside the chair. */
+.site-footer .footer-cameo {
+  display: block;
+  margin-top: 40px;
+}
+
+.site-footer .footer-cameo .speech-right {
+  bottom: 38%;
+}
+
+/* Stacked cards on small screens: the headroom goes on the card Sunny sits on. */
+@media (max-width: 899px) {
+  .site .feature-grid:has(.has-peek) {
+    margin-top: 0;
+  }
+  .feature-grid .card.has-peek {
+    margin-top: 92px;
+  }
+  .site .plans:has(.plan-cameo) {
+    margin-top: 120px;
+  }
+  .plans .plan-cameo {
+    right: 8px;
+  }
+}
+
+/* An empty state with something to say keeps the bubble inside its card. */
+.empty-state:has(.speech-bubble) {
+  padding-top: 64px;
+}

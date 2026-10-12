@@ -44,5 +44,41 @@
   --leading-tight: 1.15;
   --leading-normal: 1.6;
 
+  /* UI colour (brand guidelines A3) */
+  --sunny-accent-ink: #B04E00;
+  --sunny-cream: #FFF3E2;
+  --sunny-muted-on-pale: #5C5C5C;
+  --status-success-pale: #E8F6EC;
+  --status-success-ink: #1E6B3A;
+  --status-warning-pale: #FFF4DB;
+  --status-warning-ink: #7A5200;
+  --status-error-pale: #FDE8E8;
+  --status-error-ink: #A3201C;
+  --status-safety-pale: #FDE8E8;
+  --status-safety-ink: #A3201C;
+  --status-info-pale: #EAF2FF;
+  --status-info-ink: #1D4E9E;
+
+  /* Motion (brand guidelines D1) */
+  --motion-instant: 80ms;
+  --motion-quick: 160ms;
+  --motion-base: 240ms;
+  --motion-slow: 420ms;
+  --motion-hero: 650ms;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-in: cubic-bezier(.55, 0, 1, .45);
+  --ease-bounce: cubic-bezier(.34, 1.56, .64, 1);
+
   --wide: 900px;
+}
+
+/* Reduced motion: movement becomes an instant change (guidelines D2.7). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 1ms;
+    --motion-quick: 1ms;
+    --motion-base: 1ms;
+    --motion-slow: 1ms;
+    --motion-hero: 1ms;
+  }
 }

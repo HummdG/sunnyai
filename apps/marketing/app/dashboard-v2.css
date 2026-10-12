@@ -1,0 +1,941 @@
+/* ══════════════════════════════════════════════════════════════════════════
+ * Brand guidelines v2 — the dashboard's design system.
+ *
+ * Loaded after dashboard.css (and by the sign-in pages), so rules of equal
+ * specificity here win: this layer re-points the older local variables at the
+ * shared tokens and restyles components to Part F, with the micro-interactions
+ * of Part D3. Durations use the motion tokens, which collapse to 1ms under
+ * prefers-reduced-motion (tokens.css); keyframe animations are switched off
+ * there too (bottom of this file).
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dash {
+  --text-orange: var(--sunny-accent-ink);
+  --danger: var(--status-error-ink);
+  --danger-pale: var(--status-error-pale);
+  --ok: var(--status-success-ink);
+  --ok-pale: var(--status-success-pale);
+  --muted-text: var(--sunny-muted-on-pale);
+  --line: rgba(23, 23, 23, 0.08);
+}
+
+.dash .tabular,
+.dash td,
+.dash .stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus: a 3px orange ring that grows in (Part J, D3). */
+.dash :focus-visible {
+  outline: 3px solid var(--sunny-brand-orange);
+  outline-offset: 3px;
+  animation: dash-focus-grow var(--motion-quick) var(--ease-out);
+}
+@keyframes dash-focus-grow {
+  from {
+    outline-width: 0;
+  }
+  to {
+    outline-width: 3px;
+  }
+}
+
+/* ── buttons (Part F) ─────────────────────────────────────────────────────── */
+
+.dash .button,
+.dash button.button {
+  min-height: 44px;
+  padding: 10px 22px;
+  font-weight: 600;
+  background: var(--sunny-accent-ink);
+  color: #fff;
+  border: 1px solid transparent;
+  transition:
+    transform var(--motion-quick) var(--ease-out),
+    box-shadow var(--motion-quick) var(--ease-out),
+    background-color var(--motion-instant) linear;
+}
+.dash .button:hover:not(:disabled) {
+  filter: none;
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--sunny-accent-ink) 86%, #000);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--sunny-accent-ink) 28%, transparent);
+}
+.dash .button:active:not(:disabled) {
+  animation: dash-squash 120ms var(--ease-out);
+}
+.dash .button.secondary {
+  background: #fff;
+  color: var(--sunny-ink);
+  border: 1px solid rgba(23, 23, 23, 0.12);
+}
+.dash .button.secondary:hover:not(:disabled) {
+  background: var(--sunny-brand-orange-pale);
+  box-shadow: none;
+}
+.dash .button.secondary:active:not(:disabled) {
+  animation: dash-squash-soft 120ms var(--ease-out);
+}
+.dash .button.danger {
+  background: #fff;
+  color: var(--status-error-ink);
+  border: 1px solid color-mix(in srgb, var(--status-error-ink) 35%, transparent);
+}
+.dash .button.danger:hover:not(:disabled) {
+  background: var(--status-error-pale);
+  box-shadow: none;
+}
+.dash .link-button {
+  color: var(--sunny-accent-ink);
+  font-weight: 600;
+}
+.dash .link-button:hover {
+  text-decoration: underline;
+}
+
+@keyframes dash-squash {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.06, 0.92);
+  }
+  75% {
+    transform: scale(0.97, 1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes dash-squash-soft {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.03, 0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ── inputs (Part F: 48px, radius-md, label above, helper below) ────────── */
+
+.dash .field > label,
+.dash .field > span {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+.dash .field input:not([type='color']):not([type='checkbox']):not([type='radio']),
+.dash .field select {
+  min-height: 48px;
+}
+.dash .field input,
+.dash .field select,
+.dash .field textarea {
+  border: 1px solid rgba(23, 23, 23, 0.16);
+  transition: border-color var(--motion-quick) var(--ease-out);
+}
+.dash .field input:focus,
+.dash .field select:focus,
+.dash .field textarea:focus {
+  border-color: var(--sunny-accent-ink);
+}
+.dash .field [aria-invalid='true'] {
+  border-color: var(--status-error-ink);
+  animation: dash-shake 320ms var(--ease-out);
+}
+@keyframes dash-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25%,
+  75% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+/* Checkbox: the tick draws itself, the box squashes once (D3). */
+.dash input[type='checkbox']:not([role='switch']) {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 2px solid rgba(23, 23, 23, 0.35);
+  border-radius: 6px;
+  background: #fff;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  vertical-align: middle;
+  flex: none;
+}
+.dash input[type='checkbox']:not([role='switch'])::after {
+  content: '';
+  width: 11px;
+  height: 6px;
+  border-left: 2.5px solid #fff;
+  border-bottom: 2.5px solid #fff;
+  transform: translateY(-1px) rotate(-45deg);
+  clip-path: inset(0 100% 0 0);
+}
+.dash input[type='checkbox']:not([role='switch']):checked {
+  background: var(--sunny-accent-ink);
+  border-color: var(--sunny-accent-ink);
+  animation: dash-squash 180ms var(--ease-out);
+}
+.dash input[type='checkbox']:not([role='switch']):checked::after {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path var(--motion-quick) var(--ease-out);
+}
+
+/* Toggle: knob springs across, a six-ray sun burst on "on" (D3). */
+.dash .toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  min-height: 44px;
+  position: relative;
+}
+.dash .toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.dash .toggle-track {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: rgba(23, 23, 23, 0.25);
+  transition: background-color var(--motion-quick) var(--ease-out);
+  flex: none;
+}
+.dash .toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(23, 23, 23, 0.3);
+  transition: transform var(--motion-base) var(--ease-bounce);
+}
+.dash .toggle input:checked + .toggle-track {
+  background: var(--sunny-accent-ink);
+}
+.dash .toggle input:checked + .toggle-track .toggle-knob {
+  transform: translateX(20px);
+}
+.dash .toggle input:focus-visible + .toggle-track {
+  outline: 3px solid var(--sunny-brand-orange);
+  outline-offset: 3px;
+}
+.dash .toggle input:disabled + .toggle-track {
+  opacity: 0.5;
+}
+.dash .toggle-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.dash .toggle-burst i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 7px;
+  margin: -3.5px 0 0 -1.5px;
+  border-radius: 2px;
+  background: var(--sunny-brand-orange);
+  animation: dash-ray 300ms var(--ease-out) forwards;
+}
+@keyframes dash-ray {
+  from {
+    opacity: 1;
+    translate: 0 0;
+    scale: 0.4;
+  }
+  to {
+    opacity: 0;
+    translate: 0 -18px;
+    scale: 1;
+  }
+}
+
+/* ── chips (Part F: pale fill, dark text, small icon) ─────────────────────── */
+
+.dash .chip {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  background: rgba(23, 23, 23, 0.06);
+  color: var(--sunny-ink);
+}
+.dash .chip-connected,
+.dash .chip-tone-ok {
+  background: var(--status-success-pale);
+  color: var(--status-success-ink);
+}
+.dash .chip-connected::before,
+.dash .chip-tone-ok::before {
+  content: '\2713';
+}
+.dash .chip-pending,
+.dash .chip-syncing,
+.dash .chip-tone-orange {
+  background: var(--status-warning-pale);
+  color: var(--status-warning-ink);
+}
+.dash .chip-pending::before,
+.dash .chip-tone-orange::before {
+  content: '\25CF';
+  font-size: 0.6em;
+}
+.dash .chip-syncing::before {
+  content: '\21BB';
+}
+.dash .chip-failed,
+.dash .chip-tone-danger {
+  background: var(--status-error-pale);
+  color: var(--status-error-ink);
+}
+.dash .chip-failed::before,
+.dash .chip-tone-danger::before {
+  content: '!';
+  font-weight: 800;
+}
+
+/* Status notes and their icons (never colour alone). */
+.dash .error-note,
+.dash .ok-note,
+.dash .warning-note,
+.dash .info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.dash .error-note {
+  background: var(--status-error-pale);
+  color: var(--status-error-ink);
+}
+.dash .ok-note {
+  background: var(--status-success-pale);
+  color: var(--status-success-ink);
+}
+.dash .warning-note {
+  background: var(--status-warning-pale);
+  color: var(--status-warning-ink);
+}
+.dash .info-note {
+  background: var(--status-info-pale);
+  color: var(--status-info-ink);
+}
+.dash .status-icon {
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.dash .status-icon.warn {
+  display: inline-grid;
+  color: var(--status-warning-ink);
+  margin-right: 8px;
+  vertical-align: -4px;
+}
+.dash .warning-list li .link-button {
+  white-space: nowrap;
+}
+.dash .warning-list li {
+  background: var(--status-warning-pale);
+}
+.dash .escalation-banner {
+  background: var(--status-safety-pale);
+  color: var(--status-safety-ink);
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+.dash .escalation-banner a {
+  color: inherit;
+}
+
+/* ── cards, stats, layout ──────────────────────────────────────────────────── */
+
+.dash .card {
+  border: 1px solid var(--line);
+  padding: var(--space-5);
+}
+.dash .card-lead {
+  margin-bottom: 12px;
+}
+.dash a.card,
+.dash .card.clickable {
+  transition:
+    transform var(--motion-quick) var(--ease-out),
+    box-shadow var(--motion-quick) var(--ease-out);
+}
+.dash a.card:hover,
+.dash .card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-floating);
+}
+.dash .grid.stats {
+  margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+/* Page transition: content arrives 8px up, 240ms (D3). */
+.dash .content > * {
+  animation: dash-page-in var(--motion-base) var(--ease-out) both;
+}
+@keyframes dash-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── sidebar (Part F: icon + label; active = pale pill, accent-ink text) ──── */
+
+.dash .sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  transition: background-color var(--motion-quick) var(--ease-out);
+}
+.dash .nav-icon {
+  flex: none;
+  color: var(--sunny-muted-on-pale);
+}
+.dash .sidebar nav a[aria-current='page'] {
+  color: var(--sunny-accent-ink);
+}
+.dash .sidebar nav a[aria-current='page'] .nav-icon {
+  color: var(--sunny-accent-ink);
+  fill: color-mix(in srgb, var(--sunny-brand-orange) 30%, transparent);
+}
+
+/* ── tables (Part F) ────────────────────────────────────────────────────────── */
+
+.dash th {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sunny-muted-on-pale);
+}
+.dash tbody tr {
+  transition: background-color var(--motion-quick) var(--ease-out);
+}
+.dash tbody tr:hover {
+  background: var(--sunny-brand-orange-pale);
+}
+.dash td {
+  height: 52px;
+}
+
+/* ── tabs: the underline slides with the bounce ease (D3) ─────────────────── */
+
+.dash .tabs {
+  position: relative;
+}
+.dash .tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 0;
+}
+.dash .tabs a[aria-current='page'] {
+  color: var(--sunny-ink);
+}
+.dash .tab-underline {
+  position: absolute;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--sunny-brand-orange);
+  transition:
+    left var(--motion-base) var(--ease-bounce),
+    width var(--motion-base) var(--ease-bounce);
+}
+
+/* ── pills (filters) ───────────────────────────────────────────────────────── */
+
+.dash .pill {
+  min-height: 40px;
+  transition:
+    background-color var(--motion-quick) var(--ease-out),
+    transform var(--motion-quick) var(--ease-out);
+}
+.dash .pill[aria-pressed='true'],
+.dash .pill[aria-checked='true'] {
+  background: var(--sunny-brand-orange-pale);
+  color: var(--sunny-accent-ink);
+  border-color: color-mix(in srgb, var(--sunny-accent-ink) 30%, transparent);
+  transform: translateY(-1px);
+}
+
+/* ── empty states, loading, skeletons (Part G) ────────────────────────────── */
+
+.dash .empty-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-2);
+}
+.dash .empty-state h2 {
+  font-size: var(--type-1);
+  margin-bottom: 6px;
+}
+.dash .empty-state .actions {
+  margin-top: var(--space-4);
+}
+.dash .sunny-loading {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+}
+.dash .skeleton-rows {
+  display: grid;
+  gap: 10px;
+}
+.dash .skeleton {
+  display: block;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    rgba(23, 23, 23, 0.05),
+    var(--sunny-brand-orange-pale),
+    rgba(23, 23, 23, 0.05)
+  );
+  background-size: 200% 100%;
+  animation: dash-shimmer 1.4s linear infinite;
+}
+@keyframes dash-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ── progress: a sun rising along the bar (D3) ────────────────────────────── */
+
+.dash .sun-progress {
+  display: grid;
+  gap: 6px;
+}
+.dash .sun-progress-track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--sunny-brand-orange-pale);
+  margin: 8px 10px 0 0;
+}
+.dash .sun-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--sunny-brand-orange-soft), var(--sunny-brand-orange));
+  transition: width var(--motion-slow) var(--ease-out);
+}
+.dash .sun-progress-sun {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: var(--sunny-brand-orange);
+  border: 2px solid var(--sunny-ink);
+  transition: left var(--motion-slow) var(--ease-out);
+}
+.dash .sun-progress.done .sun-progress-sun {
+  animation: dash-sparkle 600ms var(--ease-bounce);
+}
+@keyframes dash-sparkle {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ── copy button (D3) ──────────────────────────────────────────────────────── */
+
+.dash .copy-button .sparkle {
+  display: inline-block;
+  color: var(--sunny-accent-ink);
+  animation: dash-sparkle-spin 600ms var(--ease-bounce);
+}
+.dash .copy-button.copied {
+  background: var(--status-success-pale);
+  color: var(--status-success-ink);
+  border-color: transparent;
+}
+@keyframes dash-sparkle-spin {
+  from {
+    transform: scale(0) rotate(-90deg);
+  }
+  to {
+    transform: scale(1) rotate(0);
+  }
+}
+
+/* ── toasts (D3, Part F) ───────────────────────────────────────────────────── */
+
+.dash .toasts {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+}
+.dash .toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  border: 1px solid var(--line);
+  animation: dash-toast-in var(--motion-base) var(--ease-bounce);
+}
+.dash .toast-text {
+  flex: 1;
+  font-weight: 600;
+}
+.dash .toast-error .status-icon {
+  color: var(--status-error-ink);
+}
+.dash .toast-info .status-icon {
+  color: var(--status-info-ink);
+}
+.dash .toast-close {
+  min-width: 32px;
+  min-height: 32px;
+  border: 0;
+  background: none;
+  font-size: 1.3rem;
+  color: var(--sunny-muted-on-pale);
+  cursor: pointer;
+  border-radius: 50%;
+}
+.dash .toast-close:hover {
+  background: var(--sunny-brand-orange-pale);
+}
+@keyframes dash-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 600px) {
+  .dash .toasts {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+  }
+}
+
+/* ── the go-live celebration (Part G: one per task) ───────────────────────── */
+
+.dash .celebration {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--sunny-cream), var(--sunny-brand-orange-pale));
+  margin-bottom: 18px;
+}
+.dash .celebration h2 {
+  font-size: var(--type-3);
+  margin-bottom: 6px;
+}
+
+/* ── quote on a lead (Part I: same card style as the widget) ──────────────── */
+
+.dash .quote-options {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.dash .quote-option {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  background: #fff;
+}
+.dash .quote-option.recommended {
+  border-color: var(--sunny-accent-ink);
+  box-shadow: 0 0 0 1px var(--sunny-accent-ink);
+}
+.dash .quote-option h3 {
+  font-size: var(--type-1);
+  margin: 6px 0 2px;
+}
+.dash .quote-price {
+  font-size: var(--type-2);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.dash .quote-option dl {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 10px 0;
+  font-size: 0.9rem;
+}
+.dash .quote-option dt {
+  color: var(--sunny-muted-on-pale);
+}
+.dash .quote-option dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.dash .quote-lines {
+  font-size: 0.85rem;
+}
+.dash .quote-lines td {
+  height: 36px;
+}
+
+/* ── reduced motion: movement becomes an instant change (D2.7) ─────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .dash *,
+  .dash *::before,
+  .dash *::after {
+    animation: none !important;
+  }
+  .dash .skeleton {
+    background: rgba(23, 23, 23, 0.06);
+  }
+}
+
+@media (max-width: 1023px) {
+  .dash .empty-state,
+  .dash .celebration {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+/* ── lead detail ───────────────────────────────────────────────────────────── */
+
+.dash .lead-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.dash .lead-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.dash .lead-facts dt {
+  font-size: 0.8rem;
+  color: var(--sunny-muted-on-pale);
+}
+.dash .lead-facts dd {
+  margin: 0;
+}
+.dash .lead-summary {
+  margin: 14px 0;
+}
+.dash .lead-section {
+  margin-top: 22px;
+}
+.dash .lead-section > h3 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+.dash ul.chip-row {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+/* ── onboarding (guidelines B2: 8/10 — Sunny guides each step) ─────────────── */
+
+.dash .content.onboarding {
+  margin: 0 auto;
+  max-width: 880px;
+}
+.dash .onboarding-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+.dash .onboarding-hero h1 {
+  font-size: var(--type-4);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.dash .onboarding-hero p {
+  font-size: 1.05rem;
+  max-width: 52ch;
+}
+.dash .onboarding .sun-progress {
+  margin-bottom: var(--space-3);
+}
+@media (max-width: 600px) {
+  .dash .onboarding-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ── lead: the 3D roof ─────────────────────────────────────────────────────── */
+
+.dash .roof-3d {
+  margin-top: var(--space-3);
+}
+.dash .roof-3d-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 260px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--sunny-brand-orange-pale);
+  box-shadow: var(--shadow-raised);
+}
+.dash .roof-3d-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.dash .roof-3d-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.dash .roof-3d-controls .pills {
+  margin: 0;
+}
+.dash .roof-3d-time {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1 1 260px;
+}
+.dash .roof-3d-time input {
+  flex: 1;
+  accent-color: var(--sunny-accent-ink);
+}
+.dash ul.roof-3d-planes {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-3);
+}
+.dash .pill.suitable {
+  background: var(--sunny-brand-orange-pale);
+  border-color: color-mix(in srgb, var(--sunny-accent-ink) 35%, transparent);
+  color: var(--sunny-accent-ink);
+}
+.dash .pill:hover,
+.dash .pill:focus-visible {
+  border-color: var(--sunny-accent-ink);
+  transition: border-color var(--motion-quick) var(--ease-out);
+}
+@media (max-width: 600px) {
+  .dash .roof-3d-stage {
+    aspect-ratio: 4 / 3;
+  }
+}
+
+/* A price that comes from the price list rather than the product row. */
+.dash .price-via-list {
+  color: var(--sunny-accent-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* ── Sentinel settings (price list) ─────────────────────────────────────── */
+.sentinel-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+.input-suffix {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.input-suffix input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sentinel-extras {
+  border: 1px solid rgba(23, 23, 23, 0.08);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  margin: 0;
+}
+.sentinel-extras legend {
+  font-weight: 600;
+  padding: 0 var(--space-2);
+}
+
+/* The package the visitor chose in the chat. */
+.dash .quote-option.chosen {
+  border-color: var(--sunny-accent-ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sunny-brand-orange) 25%, transparent);
+}
+.dash .quote-sentinel {
+  margin-top: 6px;
+}

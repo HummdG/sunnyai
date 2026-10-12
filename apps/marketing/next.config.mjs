@@ -2,6 +2,15 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // A separate output directory lets a test or review build run beside a
+  // developer's (or the owner's) server without overwriting its `.next`.
+  distDir: process.env.SUNNY_NEXT_DIST ?? '.next',
+
+  // The old "coming soon" sign-up page.
+  async redirects() {
+    return [{ source: '/start', destination: '/sign-up', permanent: true }];
+  },
+
   /**
    * The headers the widget's own files need when they are served from here.
    *
@@ -44,7 +53,15 @@ const nextConfig = {
   // compiled copy that can fall behind. It does mean the framework has to be
   // told to compile them, because by default it treats anything under
   // `node_modules` as already-built JavaScript.
-  transpilePackages: ['@sunny/character', '@sunny/animation-engine', '@sunny/ui'],
+  // The SunScan viewer (and the house model it rebuilds from) are loaded only
+  // by the lead page's 3D view, through a dynamic import.
+  transpilePackages: [
+    '@sunny/character',
+    '@sunny/animation-engine',
+    '@sunny/ui',
+    '@sunny/sunscan-viewer',
+    '@sunny/sunscan-core',
+  ],
 
   /**
    * Resolve `./tokens.js` to `./tokens.ts`.

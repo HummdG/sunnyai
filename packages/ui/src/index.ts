@@ -98,6 +98,36 @@ export const UI_TOKENS = {
 
   /** The breakpoint at which the site stops being a single column. */
   wide: '900px',
+
+  /**
+   * Colours the UI needs beyond the character's palette (brand guidelines A3).
+   * `accentInk` is the orange that may carry text and sit behind white text
+   * (AA on white and warm white); `#FF7900` itself never does.
+   */
+  ui: {
+    accentInk: '#B04E00',
+    cream: '#FFF3E2',
+    mutedOnPale: '#5C5C5C',
+  },
+
+  /** Status colours: pale fill + dark text/icon, for status only (A3). */
+  status: {
+    success: { pale: '#E8F6EC', ink: '#1E6B3A' },
+    warning: { pale: '#FFF4DB', ink: '#7A5200' },
+    error: { pale: '#FDE8E8', ink: '#A3201C' },
+    safety: { pale: '#FDE8E8', ink: '#A3201C' },
+    info: { pale: '#EAF2FF', ink: '#1D4E9E' },
+  },
+
+  /** Motion (brand guidelines D1). Overshoot-and-settle is the brand ease. */
+  motion: {
+    duration: { instant: '80ms', quick: '160ms', base: '240ms', slow: '420ms', hero: '650ms' },
+    ease: {
+      out: 'cubic-bezier(.22, 1, .36, 1)',
+      in: 'cubic-bezier(.55, 0, 1, .45)',
+      bounce: 'cubic-bezier(.34, 1.56, .64, 1)',
+    },
+  },
 } as const;
 
 /** The directory the committed `woff2` files sit in, relative to a bundle's own. */
@@ -223,7 +253,35 @@ export function cssVariables(): string {
   lines.push(`  --leading-normal: ${UI_TOKENS.type.leading.normal};`);
 
   lines.push('');
+  lines.push('  /* UI colour (brand guidelines A3) */');
+  for (const [name, value] of Object.entries(UI_TOKENS.ui)) {
+    lines.push(`  --sunny-${kebab(name)}: ${value};`);
+  }
+  for (const [name, pair] of Object.entries(UI_TOKENS.status)) {
+    lines.push(`  --status-${kebab(name)}-pale: ${pair.pale};`);
+    lines.push(`  --status-${kebab(name)}-ink: ${pair.ink};`);
+  }
+
+  lines.push('');
+  lines.push('  /* Motion (brand guidelines D1) */');
+  for (const [name, value] of Object.entries(UI_TOKENS.motion.duration)) {
+    lines.push(`  --motion-${kebab(name)}: ${value};`);
+  }
+  for (const [name, value] of Object.entries(UI_TOKENS.motion.ease)) {
+    lines.push(`  --ease-${kebab(name)}: ${value};`);
+  }
+
+  lines.push('');
   lines.push(`  --wide: ${UI_TOKENS.wide};`);
+  lines.push('}');
+  lines.push('');
+  lines.push('/* Reduced motion: movement becomes an instant change (guidelines D2.7). */');
+  lines.push('@media (prefers-reduced-motion: reduce) {');
+  lines.push('  :root {');
+  for (const name of Object.keys(UI_TOKENS.motion.duration)) {
+    lines.push(`    --motion-${kebab(name)}: 1ms;`);
+  }
+  lines.push('  }');
   lines.push('}');
   lines.push('');
 

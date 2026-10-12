@@ -28,29 +28,19 @@ test('renders the hero from the canonical character, not a placeholder', async (
   const hero = page.locator(HERO);
   await expect(hero).toBeVisible();
 
-  // The body is a `<circle>`, painted with the canonical orange and outlined in
-  // the character's ink. Selecting it specifically rather than "the first
-  // painted element" matters: the rays are drawn first and are stroke-only, so a
-  // naive selector finds `fill: none` and would pass for any shape at all.
-  //
-  // Read through `expect.poll`, and that is not defensive padding. The frame
-  // loop replaces the stage's markup about thirty times a second, so a node
-  // located a moment ago can be detached by the time it is read -- and a
-  // detached element has no computed style at all, so the read comes back
-  // empty. That is how this test failed the first time it ran alongside the rest
-  // of the suite: it passed alone and returned an empty string in the full run.
-  // Polling retries the read, and because an empty string cannot match the
-  // colours, a read that lost the race is retried rather than silently accepted.
+  // The character is drawn from the traced reference art, so there is no single
+  // element to name. What must be true is that the hero paints both the brand
+  // orange and the character's ink; a placeholder or an empty frame would not.
+  // Polled because the frame loop patches the SVG continuously.
   const paint = (): Promise<string> =>
-    hero
-      .locator('circle')
-      .first()
-      .evaluate((node) => {
-        const style = getComputedStyle(node);
-        return `${style.fill.toLowerCase()} / ${style.stroke.toLowerCase()}`;
-      });
+    hero.evaluate((svg) =>
+      [...svg.querySelectorAll('path, circle, ellipse')]
+        .map((node) => getComputedStyle(node).fill.toLowerCase())
+        .join(' | '),
+    );
 
-  await expect.poll(paint, { timeout: 15_000 }).toMatch(/255,\s*121,\s*0.*23,\s*23,\s*23/);
+  await expect.poll(paint, { timeout: 15_000 }).toMatch(/255,\s*121,\s*0/);
+  await expect.poll(paint, { timeout: 15_000 }).toMatch(/23,\s*23,\s*23/);
 });
 
 test('animates: the hero redraws as the visitor watches', async ({ page }) => {
@@ -96,18 +86,59 @@ test('mounts the real widget, not a picture of one', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: /solar assistant/i })).toBeVisible();
 });
 
-test('publishes no pricing, and says so', async ({ page }) => {
+test('shows the configured plans, with the headline the plan requires', async ({ page }) => {
   await page.goto('/');
 
-  const pricing = page.locator('#pricing');
-  await expect(pricing).toBeVisible();
+  // Plan §6.1 names the hero headline exactly.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    /Meet Sunny\.\s*Your brightest employee\./,
+  );
 
-  // A currency symbol or a per-month figure anywhere in the pricing section
-  // would be a price this repository has no authority to state. The plan forbids
-  // inventing one, so the assertion is that none has appeared by accident.
-  const text = (await pricing.innerText()).toLowerCase();
-  expect(text).not.toMatch(/£|\$|€|\bper month\b|\bpm\b/);
-  await expect(pricing).toContainText(/have not published one yet/i);
+  // Prices are configuration (plan §15, `apps/marketing/app/site.ts`); the page
+  // renders one card per configured plan, each with a monthly price.
+  const plans = page.locator('#pricing .plan');
+  await expect(plans).toHaveCount(4);
+  for (const plan of await plans.all()) {
+    await expect(plan).toContainText(/\$\d+/);
+  }
+});
+
+test('every page in the site map renders with its own heading', async ({ page }) => {
+  for (const path of [
+    '/product',
+    '/meet-sunny',
+    '/how-it-works',
+    '/integrations',
+    '/pricing',
+    '/resources',
+    '/privacy',
+    '/terms',
+    '/sign-in',
+    '/start',
+  ]) {
+    const response = await page.goto(path);
+    expect(response?.status(), path).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 }), path).toBeVisible();
+  }
+});
+
+test('the colour switcher re-themes the hero character', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#character').scrollIntoViewIfNeeded();
+  await page.getByRole('radio', { name: 'Purple' }).click();
+
+  const hero = page.locator('[data-testid="hero-stage"] svg');
+  await expect
+    .poll(
+      () =>
+        hero.evaluate((svg) =>
+          [...svg.querySelectorAll('path, circle, ellipse')]
+            .map((node) => getComputedStyle(node).fill)
+            .join(' | '),
+        ),
+      { timeout: 10_000 },
+    )
+    .toMatch(/124,\s*77,\s*255/);
 });
 
 test('claims no customers, logos or ratings it does not have', async ({ page }) => {

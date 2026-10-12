@@ -22,9 +22,13 @@ const REACT_PORT = Number(process.env.REACT_PORT ?? 4174);
 const NEXT_PORT = Number(process.env.NEXT_PORT ?? 4175);
 const MARKETING_PORT = Number(process.env.MARKETING_PORT ?? 4176);
 const LAB_PORT = Number(process.env.LAB_PORT ?? 4180);
+/** The Stripe webhook secret the dashboard suite signs its fake events with. */
+const E2E_STRIPE_WEBHOOK_SECRET = 'whsec_e2e_dashboard';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // Needs the Firebase Auth emulator; run with `npm run test:e2e:auth-firebase`.
+  testIgnore: ['**/auth-firebase.spec.ts'],
   // The API keeps process-local rate-limit buckets, so tests that share an
   // address share a budget. Fully parallel workers would let one test's requests
   // spend another's allowance and produce a 429 that reads as a broken widget.
@@ -73,6 +77,16 @@ export default defineConfig({
         SUNNY_RL_CHAT_LIMIT: '10000',
         SUNNY_RL_LEADS_LIMIT: '10000',
         SUNNY_RL_QUALIFICATION_LIMIT: '10000',
+        // The installer dashboard (tests/e2e/dashboard.spec.ts), now part of the
+        // website at /dashboard: dev sign-in, and a webhook secret and price ids
+        // so billing can be driven by signed events.
+        SUNNY_DEV_AUTH: '1',
+        SUNNY_DASHBOARD_URL: `http://localhost:${MARKETING_PORT}`,
+        STRIPE_WEBHOOK_SECRET: E2E_STRIPE_WEBHOOK_SECRET,
+        STRIPE_PRICE_BASE: 'price_e2e_base',
+        STRIPE_PRICE_EMAIL: 'price_e2e_email',
+        STRIPE_PRICE_VOICE: 'price_e2e_voice',
+        STRIPE_PRICE_SUITE: 'price_e2e_suite',
       },
       // Opt-in, and the reason is a failure that was measured rather than
       // imagined. This entry used to reuse whatever was on the port, which
@@ -101,7 +115,10 @@ export default defineConfig({
       // reads exactly like a passing test.
       command: `npm run build:widget && npx tsx apps/widget-demo/serve.ts --port ${DEMO_PORT}`,
       url: `http://127.0.0.1:${DEMO_PORT}/`,
-      env: { PORT: String(DEMO_PORT) },
+      // Point the demo pages at THIS run's API: their snippets name the default
+      // dev port, and a developer's own API on 8787 would otherwise answer the
+      // tests (with its own origins and data) and fail them for no code reason.
+      env: { PORT: String(DEMO_PORT), SUNNY_DEMO_API_URL: `http://localhost:${API_PORT}` },
       // Not reusable, unlike the API. A developer may reasonably have the API
       // running already, and it serves their source. These two serve a *built*
       // artefact, so an already-running one is by definition a different build,
@@ -132,7 +149,8 @@ export default defineConfig({
       timeout: 240_000,
     },
     {
-      // The marketing site, as a production build like the fixture above.
+      // The Sunny.ai app -- the website, the sign-in pages and the installer
+      // dashboard at /dashboard -- as a production build like the fixture above.
       //
       // It is a product surface rather than a host fixture, but it is started
       // here for the same reason: it is the only page that mounts the widget
@@ -140,12 +158,14 @@ export default defineConfig({
       // regression in either would be caught.
       command:
         `npm run build:widget && npm run build -w @sunny/marketing && ` +
-        `npm run start -w @sunny/marketing`,
+        `npx next start apps/marketing -p ${MARKETING_PORT}`,
       url: `http://127.0.0.1:${MARKETING_PORT}/`,
       // The site reads its API address at build time, so it must be told the
-      // port the API server above is actually on.
+      // port the API server above is actually on; the dashboard's server-side
+      // proxy reads SUNNY_API_URL at run time.
       env: {
         NEXT_PUBLIC_SUNNY_API_URL: `http://localhost:${API_PORT}`,
+        SUNNY_API_URL: `http://localhost:${API_PORT}`,
       },
       reuseExistingServer: false,
       timeout: 240_000,
