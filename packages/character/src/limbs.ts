@@ -180,7 +180,7 @@ export const LIMB_POSES = {
     visible: true,
     arms: {
       left: ARM_RAY_L,
-      right: arm({ x: 78, y: -2 }, -0.1, 'point', 0),
+      right: arm({ x: 60, y: -2 }, -0.1, 'point', 0),
     },
     legs: STAND,
   },
@@ -209,7 +209,7 @@ export const LIMB_POSES = {
   idea: {
     visible: true,
     arms: {
-      left: arm({ x: -62, y: -38 }, 0.3, 'point', -55),
+      left: arm({ x: -62, y: -38 }, 0.3, 'point', -35),
       right: ARM_RAY_R,
     },
     legs: STAND,
