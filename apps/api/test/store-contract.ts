@@ -508,6 +508,79 @@ export function storeContract(
       const { store } = await harness();
       expect((await store.health()).ok).toBe(true);
     });
+
+    it('keeps SunScan assessments per tenant, the latest save of an id current', async () => {
+      const { store, tenant } = await harness();
+      const a = tenant('sunscan-a');
+      const b = tenant('sunscan-b');
+      const record = {
+        id: 'ss_contract1',
+        tenantId: a,
+        status: 'queued' as const,
+        createdAt: at(0),
+        updatedAt: at(0),
+        target: { address: '20 Forthlin Road, Liverpool L18 9TN' },
+        sessionId: 's1',
+        summary: null,
+        error: null,
+        artefacts: [],
+        engine: 'sunscan-server/0.1.0',
+      };
+      await store.saveSunScanAssessment(record);
+      await store.saveSunScanAssessment({ ...record, status: 'running', updatedAt: at(1) });
+      const read = await store.getSunScanAssessment(a, 'ss_contract1');
+      expect(read?.status).toBe('running');
+      expect(read?.target.address).toMatch(/Forthlin/);
+      // Another installer naming the same id finds nothing.
+      expect(await store.getSunScanAssessment(b, 'ss_contract1')).toBeNull();
+      expect(await store.getSunScanAssessment(a, 'ss_missing')).toBeNull();
+    });
+
+    it('keeps the catalogue workspace and version snapshots per tenant', async () => {
+      const { store, tenant } = await harness();
+      const a = tenant('a');
+      const b = tenant('b');
+      expect(await store.getCatalogueState(a)).toBeNull();
+      const state = {
+        tenantId: a,
+        currentVersion: 1,
+        versions: [
+          {
+            version: 1,
+            publishedAt: at(0),
+            publishedBy: 'owner@example.test',
+            reason: 'upload' as const,
+            productCount: 1,
+            note: null,
+          },
+        ],
+        pendingUpload: null,
+        drafts: [],
+        rejectedKeys: ['acme|x1'],
+        sheet: null,
+        productSources: { p1: 'csv' as const },
+        updatedAt: at(0),
+      };
+      await store.putCatalogueState(state);
+      expect(await store.getCatalogueState(a)).toEqual(state);
+      expect(await store.getCatalogueState(b)).toBeNull();
+
+      const product = productSchema.parse({
+        id: 'p1',
+        tenantId: a,
+        category: 'panel',
+        manufacturer: 'Acme',
+        model: 'X1-400',
+        powerW: 400,
+        createdAt: at(0),
+      });
+      await store.putCatalogueSnapshot(a, 1, [product]);
+      expect(await store.getCatalogueSnapshot(a, 1)).toEqual([product]);
+      expect(await store.getCatalogueSnapshot(b, 1)).toBeNull();
+      expect(await store.getCatalogueSnapshot(a, 2)).toBeNull();
+      // The workspace is not the published catalogue the chat reads.
+      expect(await store.listProducts(a)).toEqual([]);
+    });
   });
 }
 

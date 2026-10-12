@@ -28,7 +28,7 @@ import {
   type KnowledgeSourceResponse,
   type QualificationAnswerResponse,
 } from '@sunny/contracts';
-import { chunkWithReport } from '@sunny/knowledge';
+import { chunkWithReport, findPlaceholders, scanForPii } from '@sunny/knowledge';
 import { importProducts, importRecords, mergeWant, parseCsv, recommend } from '@sunny/solar-rules';
 import { timingSafeEqual } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -36,13 +36,22 @@ import { Readable } from 'node:stream';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { runTurn } from './agent/agent.js';
+import { NotEntitledError, isEntitled } from './agent/channels.js';
+import type { PassageSearch } from './agent/retrieval.js';
+import { detectSafetyConcern } from './agent/support.js';
+import { verifyTurnstile } from './turnstile.js';
 import {
   ProviderUnavailableError,
   UnconfiguredProvider,
   type ChatProvider,
 } from './agent/provider.js';
 import { createAuditor, type Auditor } from './audit.js';
-import { capabilityReport, type ServerConfig } from './config.js';
+import {
+  DEFAULT_CHAT_IP_RULE,
+  DEFAULT_MAX_INPUT_CHARS,
+  capabilityReport,
+  type ServerConfig,
+} from './config.js';
 import { createKnowledgeLoader } from './knowledge.js';
 import {
   clientAddress,
@@ -56,16 +65,60 @@ import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './session
 import { newId, type DeletedConversation, type ModelCall, type Store } from './store.js';
 import type { TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
+import { FileVoiceUsage } from './channels/voice/usage.js';
+import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
+import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
+import { registerEmailRoutes, type EmailOverrides } from './routes/email.js';
+import type { SunScanService } from '@sunny/sunscan-adapter';
+import { registerVoiceRoutes, type VoiceRouteDeps } from './routes/voice.js';
+import { createDefaultSunScan, registerSunScanRoutes } from './routes/sunscan.js';
+import { registerQuoteRoutes, sunscanRoofLookup } from './routes/quote.js';
+import { registerProposalRoutes } from './routes/proposal.js';
+import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
+import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
+import type { PricingSource } from '@sunny/quote-engine';
+import { sha256 } from './ingest/prepare.js';
+import {
+  registerKnowledgeIngestRoutes,
+  type KnowledgePipelineOptions,
+} from './routes/knowledge-ingest.js';
+import { loadPortalConfig, type PortalConfig } from './routes/portal-config.js';
 
 export interface ServerDeps {
   config: ServerConfig;
   store: Store;
   tenants: TenantRegistry;
+  /**
+   * The SunScan roof assessment service (routes/sunscan.ts). Absent builds the
+   * default -- the vendored engine, records in `store`; null switches it off.
+   */
+  sunscan?: SunScanService | null;
   /** Defaults to the unconfigured provider when no key is set. */
   provider?: ChatProvider;
   /** Injected so tests can drive the clock and read bucket counts. */
   rateLimiter?: RateLimiter;
   now?: () => number;
+  /** Installer portal + billing settings; read from the environment when absent. */
+  portal?: PortalConfig;
+  /** How the portal starts knowledge syncs (provided by the ingestion pipeline). */
+  knowledgeSync?: KnowledgeSyncConnector;
+  /** Voice & Phone add-on overrides (Live connector, Twilio fetch, clocks); injected by tests. */
+  voice?: Partial<VoiceRouteDeps>;
+  /** Turnstile's siteverify transport; injected by tests. */
+  turnstileFetch?: typeof fetch;
+  /**
+   * How a chat turn finds the installer's passages. Defaults to the lexical
+   * search; the hybrid search (knowledge pipeline) is passed here.
+   */
+  passageSearch?: PassageSearch;
+  /** The knowledge pipeline's swappable parts (fetcher, Drive client, embedder); tests inject fakes. */
+  knowledge?: KnowledgePipelineOptions;
+  /** Email Assistant add-on test seams (routes/email.ts). */
+  emailAddon?: EmailOverrides;
+  /** Outbound mail for emailed quotes; null disables it. Defaults to the environment. */
+  proposalMailer?: ProposalMailer | null;
+  /** The quote journey's pricing (tests); defaults to the demo fixture. */
+  quotePricing?: PricingSource;
 }
 
 const SSE_HEADERS: Readonly<Record<string, string>> = {
@@ -92,6 +145,11 @@ const DEFAULT_DASHBOARD_DAYS = 30;
 export function buildServer(deps: ServerDeps): FastifyInstance {
   const { config, store, tenants } = deps;
   const now = deps.now ?? (() => Date.now());
+  // Where the quote journey prices from: each installer's published price list
+  // (catalogue, WS7). No published list → sizes and savings without prices.
+  const quotePricing = deps.quotePricing ?? catalogueBackedPricing(store);
+  const sunscan =
+    deps.sunscan !== undefined ? deps.sunscan : createDefaultSunScan(store, config.dataDir);
   const limiter = deps.rateLimiter ?? createRateLimiter({ now, maxKeys: config.rateLimit.maxKeys });
 
   // Built once per server, so the chunk cache survives across requests and a
@@ -160,6 +218,23 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     requestIdHeader: 'x-request-id',
   });
 
+  // The knowledge pipeline (website crawl, Drive sync, PII quarantine, hybrid
+  // search). Its routes live in routes/knowledge-ingest.ts; its search is the
+  // default `passageSearch` for chat turns below.
+  const knowledgePipeline = registerKnowledgeIngestRoutes(
+    app,
+    {
+      config,
+      store,
+      tenants,
+      now,
+      enforceRateLimit,
+      isAdmin: (request) =>
+        config.adminToken !== null && tokensMatch(bearer(request), config.adminToken),
+    },
+    deps.knowledge ?? {},
+  );
+
   app.setErrorHandler((error: unknown, request, reply) => {
     let apiError: ApiError;
     if (error instanceof ApiError) {
@@ -194,18 +269,26 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   // ─── CORS ──────────────────────────────────────────────────────────────────
   //
   // Written by hand rather than pulled from @fastify/cors so the wildcard case
-  // is visible: an empty allow-list echoes any origin, which is a development
-  // convenience only, and `assertProductionReady` refuses to boot in production
-  // without an explicit list.
+  // is visible. Two lists decide an origin:
+  //
+  //  - `WIDGET_ALLOWED_ORIGINS`, the platform's own sites (dashboard, marketing,
+  //    demo hosts). Empty means "echo any origin", a development convenience
+  //    that production refuses (see the session route).
+  //  - every installer's registered domains, read live from the tenant records.
+  //    A new installer's site works the moment they register it in the portal,
+  //    with no redeploy -- the static list alone made every sign-up a code change.
+  //
+  // CORS only decides whether a browser may call at all; *which* tenant a page
+  // may speak for is decided per request by the session route.
   app.addHook('onRequest', async (request, reply) => {
     const origin = request.headers.origin;
     if (!origin) return;
     const allowed =
-      config.allowedOrigins.length === 0
+      config.allowedOrigins.length === 0 ||
+      config.allowedOrigins.includes(origin) ||
+      tenants.all.some((t) => originOnDomains(origin, t.domains ?? []))
         ? origin
-        : config.allowedOrigins.includes(origin)
-          ? origin
-          : null;
+        : null;
 
     if (!allowed) {
       reply
@@ -216,7 +299,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     reply
       .header('access-control-allow-origin', allowed)
       .header('vary', 'origin')
-      .header('access-control-allow-methods', 'GET,POST,OPTIONS')
+      // PATCH, PUT and DELETE are the portal's catalogue routes (routes/catalogue-portal.ts);
+      // every one of them still needs a signed-in installer.
+      .header('access-control-allow-methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS')
       .header('access-control-allow-headers', 'content-type,authorization,x-request-id')
       .header('access-control-max-age', '600');
   });
@@ -323,7 +408,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // Config is public and cacheable, but briefly: an installer changing its
     // colour expects it live, not after a CDN's hour.
     reply.header('cache-control', 'public, max-age=60');
-    return widgetConfig;
+    return {
+      ...widgetConfig,
+      maxInputChars: config.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS,
+      ...(config.turnstile ? { turnstileSiteKey: config.turnstile.siteKey } : {}),
+    };
   });
 
   app.post('/v1/widget/session', async (request, reply) => {
@@ -349,8 +438,49 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!tenant) throw new ApiError('not_found', 'Unknown widget.');
 
     const origin = body.data.origin;
-    if (config.allowedOrigins.length > 0 && origin && !config.allowedOrigins.includes(origin)) {
-      throw new ApiError('forbidden', 'This origin is not allowed to open a session.');
+    // A tenant without registered domains falls back to the platform list; in
+    // production such a widget opens nowhere -- fail closed until the installer
+    // registers their site in the portal.
+    if (!tenant.domains || tenant.domains.length === 0) {
+      if (config.nodeEnv === 'production') {
+        throw new ApiError(
+          'forbidden',
+          'This assistant has no registered website yet. Add your domain in the Sunny portal.',
+        );
+      }
+      if (config.allowedOrigins.length > 0 && origin && !config.allowedOrigins.includes(origin)) {
+        throw new ApiError('forbidden', 'This origin is not allowed to open a session.');
+      }
+    }
+    // The tenant's registered domains (Blueprint §4.6). Both the origin the page
+    // reports and the browser's own Origin header must be on one of them, so a
+    // script cannot simply claim to be the installer's site.
+    if (tenant.domains && tenant.domains.length > 0) {
+      const headerOrigin =
+        typeof request.headers.origin === 'string' ? request.headers.origin : null;
+      for (const candidate of [origin, headerOrigin]) {
+        if (candidate !== null && !originOnDomains(candidate, tenant.domains)) {
+          throw new ApiError('forbidden', 'This site is not registered for this assistant.');
+        }
+      }
+    }
+    // Before a session is issued, the visitor proves they are not a script
+    // (Cloudflare Turnstile, when the deployment enables it).
+    if (config.turnstile) {
+      const check = await verifyTurnstile(
+        body.data.turnstileToken,
+        config.turnstile.secretKey,
+        clientAddress({
+          socketAddress: request.raw.socket.remoteAddress,
+          forwardedFor: request.headers['x-forwarded-for'],
+          trustedHops: config.rateLimit.trustProxyHops,
+        }),
+        deps.turnstileFetch,
+      );
+      if (!check.success) {
+        request.log.warn({ codes: check.errorCodes }, 'turnstile check failed');
+        throw new ApiError('forbidden', 'The visitor check failed. Please reload the page.');
+      }
     }
 
     // A session token presented back to us resumes that session; otherwise this
@@ -407,12 +537,39 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // sessions -- is itself limited by address above. Applied before the provider
     // is even resolved, so a caller over budget cannot cost a token.
     enforceRateLimit(request, reply, 'chat', claims.sessionId, config.rateLimit.rules.chat);
+    // And per address (Blueprint §4.6): fresh sessions do not buy more messages.
+    enforceRateLimit(
+      request,
+      reply,
+      'chat-ip',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.chatIp ?? DEFAULT_CHAT_IP_RULE,
+    );
+
+    // Blueprint §4.6: a hard ceiling on what one message can cost.
+    const maxInputChars = config.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS;
+    if (body.data.text.length > maxInputChars) {
+      throw new ApiError(
+        'bad_request',
+        `Messages are limited to ${maxInputChars} characters. Please shorten yours.`,
+      );
+    }
 
     const tenant = tenants.all.find((t) => t.id === claims.tenantId);
     if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
+    if (!isEntitled(tenant, 'chat')) {
+      throw new ApiError('not_enabled', new NotEntitledError('chat').message);
+    }
 
     const chat = await getProvider();
-    if (chat.kind === 'unconfigured') {
+    // A safety concern is answered by the server without a model, so it is
+    // answered even on a deployment with no model configured.
+    const safety = detectSafetyConcern(body.data.text);
+    if (chat.kind === 'unconfigured' && !safety) {
       // Refuse rather than simulate. The plan's rule, and the right one: a
       // visitor told the assistant is unavailable is honestly served, and an
       // operator sees the gap immediately.
@@ -444,7 +601,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // would be a claim about ordering that the code does not actually make.
     const tenantSnapshot = tenant;
     const sessionIdSnapshot = claims.sessionId;
-    const sunscanConnected = tenant.sunscanUrl !== null;
+    // The SunScan engine is vendored, so roof assessments are available wherever
+    // the service is on; `tenant.sunscanUrl` belonged to the external-service design.
+    const sunscanConnected = sunscan !== null;
     const userText = body.data.text;
     const clientMessageId = body.data.clientMessageId;
     // The assistant's effectful tool calls are audited, the same as any other
@@ -474,9 +633,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           message: userText,
           clientMessageId,
           sunscanConnected,
+          ...(sunscan ? { sunscan } : {}),
           knowledge,
           audit,
           origin,
+          channel: 'chat',
+          search: deps.passageSearch ?? knowledgePipeline.retrieve.passageSearch,
+          quote: { pricing: quotePricing },
           signal: abort.signal,
         })) {
           if (abort.signal.aborted) break;
@@ -484,7 +647,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'The assistant failed.';
-        const code = error instanceof ProviderUnavailableError ? 'not_enabled' : 'upstream_failed';
+        const code =
+          error instanceof ProviderUnavailableError || error instanceof NotEntitledError
+            ? 'not_enabled'
+            : 'upstream_failed';
         request.log.error({ err: error }, 'chat turn failed');
         yield frame({ type: 'error', messageId: newId('msg'), code, message });
       } finally {
@@ -1108,15 +1274,72 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
     const at = new Date(now()).toISOString();
     const sourceId = existing?.id ?? newId('ks');
+
+    // Personal data never reaches the index (Blueprint §4.5): a document holding
+    // someone's bank, card or identity details, or one customer's bill, is
+    // refused outright; a private email or mobile is masked.
+    const pii = scanForPii(body.data.text);
+    if (pii.verdict === 'quarantine') {
+      const job: IngestionJob = {
+        id: newId('job'),
+        tenantId: tenant.id,
+        sourceId: null,
+        status: 'failed',
+        documents: 1,
+        chunks: 0,
+        issues: [
+          {
+            code: 'quarantined-pii',
+            severity: 'error',
+            message: 'This document was not indexed: it appears to contain personal data.',
+            detail: pii.reason,
+          },
+        ],
+        startedAt: at,
+        finishedAt: new Date(now()).toISOString(),
+        kind: 'upload',
+      };
+      await store.saveIngestionJob(job);
+      await audit('failed', {
+        tenantId: tenant.id,
+        reason: 'refused',
+        detail: { characters: body.data.text.length, chunks: 0 },
+      });
+      const quarantined: KnowledgeSourceResponse = { source: null, job };
+      reply.code(200);
+      return quarantined;
+    }
+    const text = pii.redacted;
+
     const { chunks, emptySections } = chunkWithReport({
       id: sourceId,
       title: body.data.title,
       url: body.data.url ?? null,
       version: body.data.version,
-      text: body.data.text,
+      text,
     });
 
     const issues: KnowledgeIssue[] = [];
+    if (pii.verdict === 'redact') {
+      issues.push({
+        code: 'pii-redacted',
+        severity: 'warning',
+        message: 'Personal details were masked before indexing.',
+        detail: pii.reason,
+      });
+    }
+    // Unfilled template text: reported with its section so it can be fixed, and
+    // masked at retrieval so it is never quoted (see `findPlaceholders`).
+    const warnings = findPlaceholders(text);
+    if (warnings.length > 0) {
+      issues.push({
+        code: 'placeholder',
+        severity: 'warning',
+        message: `This document has ${warnings.length} unfilled placeholder(s), e.g. "${warnings[0]!.text}".`,
+        detail:
+          'The assistant will never quote these; it says the detail has not been provided instead. Fill them in and upload again.',
+      });
+    }
     if (emptySections > 0) {
       issues.push({
         code: 'empty-section',
@@ -1164,9 +1387,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       title: body.data.title,
       url: body.data.url ?? null,
       version: body.data.version,
-      text: body.data.text,
+      text,
       createdAt: existing?.createdAt ?? at,
       updatedAt: at,
+      kind: 'upload',
+      contentHash: sha256(text),
+      warnings,
     });
     const record = saved.find((row) => row.id === sourceId);
 
@@ -1203,10 +1429,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         title: body.data.title,
         url: body.data.url ?? null,
         version: body.data.version,
-        characters: body.data.text.length,
+        characters: text.length,
         chunkCount: chunks.length,
         createdAt: record?.createdAt ?? at,
         updatedAt: at,
+        kind: 'upload',
+        warnings,
       },
       job,
     };
@@ -1578,6 +1806,79 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     retention.stop();
   });
 
+  // SunScan roof assessments (routes/sunscan.ts).
+  registerSunScanRoutes(app, { service: sunscan, sessionSecret: config.sessionSecret, now });
+
+  // The quote journey: roof → questionnaire → priced options (routes/quote.ts).
+  registerQuoteRoutes(app, {
+    store,
+    tenants,
+    sessionSecret: config.sessionSecret,
+    now,
+    pricing: quotePricing,
+    roof: sunscanRoofLookup(sunscan),
+  });
+
+  // The customer proposal PDF and "email me my quote" (routes/proposal.ts).
+  registerProposalRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
+    mailer: deps.proposalMailer !== undefined ? deps.proposalMailer : mailerFromEnv(process.env),
+  });
+
+  // The Voice & Phone add-on (routes/voice.ts).
+  registerVoiceRoutes(app, {
+    store,
+    tenants,
+    sessionSecret: config.sessionSecret,
+    allowedOrigins: config.allowedOrigins,
+    originOnDomains,
+    loadKnowledgeIndex,
+    dataDir: config.dataDir,
+    adminToken: config.adminToken,
+    auditor,
+    ...deps.voice,
+  });
+
+  // The installer portal and billing (routes/portal.ts).
+  registerPortalRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
+    knowledgeSync: deps.knowledgeSync ?? knowledgePipeline.connector,
+    voiceUsage: deps.voice?.usage ?? new FileVoiceUsage(config.dataDir),
+    sunscan,
+  });
+
+  // The installer's product catalogue in the portal (routes/catalogue-portal.ts).
+  registerCataloguePortalRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
+    adminToken: config.adminToken,
+  });
+
+  // The Email Assistant add-on (routes/email.ts).
+  registerEmailRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    dataDir: config.dataDir,
+    ...(config.firestore ? { firestore: config.firestore } : {}),
+    now,
+    getProvider,
+    loadKnowledge: loadKnowledgeIndex,
+    search: deps.passageSearch ?? knowledgePipeline.retrieve.passageSearch,
+    ...(deps.emailAddon ? { overrides: deps.emailAddon } : {}),
+  });
   return app;
 }
 
@@ -1613,4 +1914,22 @@ function bearer(request: FastifyRequest): string | undefined {
   if (typeof header !== 'string') return undefined;
   const [scheme, token] = header.split(' ');
   return scheme?.toLowerCase() === 'bearer' ? token : undefined;
+}
+
+/**
+ * Whether an origin's host is one of the tenant's registered domains or a
+ * subdomain of one. `https://www.example.co.uk` is on `example.co.uk`;
+ * `https://example.co.uk.evil.test` is not.
+ */
+export function originOnDomains(origin: string, domains: readonly string[]): boolean {
+  let host: string;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return domains.some((domain) => {
+    const d = domain.trim().toLowerCase().replace(/^\*\./, '');
+    return d !== '' && (host === d || host.endsWith(`.${d}`));
+  });
 }

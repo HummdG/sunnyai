@@ -9,6 +9,12 @@ import type {
   RecommendationWant,
 } from '@sunny/contracts';
 
+import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
+import type { QuoteRecord } from './journey/quote.js';
+
+import type { CatalogueState } from './catalogue/types.js';
+import type { Tenant } from './tenants.js';
+
 /**
  * Persistence, behind an interface.
  *
@@ -31,6 +37,20 @@ export interface ConversationTurn {
   at: string;
   /** Present on user turns: the client's idempotency key. */
   clientMessageId?: string;
+  /**
+   * The channel the turn arrived on (Blueprint §5: one unified inbox across
+   * chat, voice and email). Absent on turns written before channels existed,
+   * which were all chat.
+   */
+  channel?: 'chat' | 'email' | 'voice';
+  /** Whether the visitor was buying or an existing customer needing support. */
+  intent?: 'sales' | 'support';
+  /**
+   * Set on the assistant turn when the server escalated the conversation -- a
+   * safety concern answered without the model. The installer's inbox derives
+   * its "needs attention" flag from this.
+   */
+  escalation?: 'safety';
   /** Tool calls the assistant made while producing this turn. */
   tools?: string[];
   /**
@@ -148,9 +168,54 @@ export interface Conversation {
    * instead of against the model's recollection of the conversation.
    */
   want?: RecommendationWant;
+  /**
+   * The channel the conversation came in on, for the unified inbox
+   * (Blueprint §5). Absent means web chat, which is every conversation written
+   * before the email and voice channels existed.
+   */
+  channel?: ConversationChannel;
+  /** Sales enquiry or post-install support, as the core classified it. */
+  intent?: ConversationIntent;
+  /**
+   * Set when the visitor reported a safety issue (smoke, fire, burning smell,
+   * exposed wiring). The inbox lists these first.
+   */
+  escalation?: ConversationEscalation | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ConversationChannel = 'chat' | 'voice' | 'email';
+export type ConversationIntent = 'sales' | 'support';
+export interface ConversationEscalation {
+  kind: 'safety';
+  reason: string;
+  at: string;
+}
+
+/** A person's role in one installer's portal. Ordered weakest to strongest. */
+export const MEMBER_ROLES = ['viewer', 'sales', 'admin', 'owner'] as const;
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+/**
+ * Membership of an installer's portal, keyed by verified email.
+ *
+ * Email rather than a sign-in provider's user id, so an owner can invite a
+ * colleague before the colleague has ever signed in; `userId` is recorded the
+ * first time they do.
+ */
+export interface Membership {
+  tenantId: string;
+  email: string;
+  userId: string | null;
+  role: MemberRole;
+  invitedBy: string | null;
+  createdAt: string;
+}
+
+/** Where an enquiry is in the installer's own pipeline. */
+export const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'won', 'lost'] as const;
+export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 /**
  * One of an installer's own documents, as stored.
@@ -169,6 +234,14 @@ export interface KnowledgeSourceRecord {
   text: string;
   createdAt: string;
   updatedAt: string;
+  /** Where it came from. Absent on rows written before syncs existed: an upload. */
+  kind?: 'upload' | 'website' | 'drive';
+  /** The website or Drive connection that keeps this source in sync. */
+  connectionId?: string | null;
+  /** sha256 of `text`, so an unchanged page or file is not rewritten. */
+  contentHash?: string;
+  /** Unfilled template text, with its section, for the installer to fix. */
+  warnings?: { kind: 'placeholder' | 'unfinished'; text: string; section: string | null }[];
 }
 
 export interface LeadRecord {
@@ -440,6 +513,64 @@ export interface Store {
   listAuditEvents(tenantId: string, limit?: number): Promise<AuditEvent[]>;
   /** Diagnostics for `/healthz`; must never throw. */
   health(): Promise<{ ok: boolean; detail: string }>;
+
+  // ── installer portal (tenants, members, lead pipeline, billing events) ──
+
+  /** Every tenant the deployment serves, for the registry. */
+  listTenants(): Promise<Tenant[]>;
+  getTenant(tenantId: string): Promise<Tenant | null>;
+  /** Create or replace a tenant by id. */
+  putTenant(tenant: Tenant): Promise<Tenant>;
+  /** Every portal this email address belongs to. */
+  listMembershipsByEmail(email: string): Promise<Membership[]>;
+  listMembers(tenantId: string): Promise<Membership[]>;
+  /** Create or replace one membership, keyed by tenant and email. */
+  putMembership(membership: Membership): Promise<Membership>;
+  deleteMembership(tenantId: string, email: string): Promise<boolean>;
+  setLeadStatus(tenantId: string, leadId: string, status: LeadStatus): Promise<void>;
+  listLeadStatuses(tenantId: string): Promise<Record<string, LeadStatus>>;
+  /**
+   * Claim a Stripe event id. True the first time, false for a redelivery, which
+   * is what makes webhook processing exactly-once.
+   */
+  claimStripeEvent(eventId: string): Promise<boolean>;
+  /** Give a claim back after processing failed, so Stripe's retry is processed. */
+  releaseStripeEvent(eventId: string): Promise<void>;
+  /**
+   * Portal sessions issued before this instant (epoch ms) are refused: "sign
+   * out everywhere". 0 when the person never revoked.
+   */
+  getSessionEpoch(email: string): Promise<number>;
+  revokeSessions(email: string, at: number): Promise<void>;
+  /**
+   * SunScan roof assessments (routes/sunscan.ts). Keyed by tenant and id: an id
+   * from another installer is not found. The latest save of an id is current --
+   * a job is saved as it moves from queued to running to finished.
+   */
+  saveSunScanAssessment(record: SunScanAssessmentRecord): Promise<void>;
+  getSunScanAssessment(tenantId: string, id: string): Promise<SunScanAssessmentRecord | null>;
+  /**
+   * Quotes presented in the quote journey (journey/quote.ts). Tenant-scoped,
+   * rewritten when a lead is attached; the latest write for an id is current.
+   */
+  saveQuote(record: QuoteRecord): Promise<void>;
+  getQuote(tenantId: string, id: string): Promise<QuoteRecord | null>;
+  /** One session's quotes, oldest first. */
+  listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]>;
+  /**
+   * The portal's catalogue workspace (catalogue/types.ts): pending uploads,
+   * drafts awaiting approval, version history, the Sheet source. Never read by
+   * the chat, which sees only the published catalogue (`listProducts`).
+   */
+  getCatalogueState(tenantId: string): Promise<CatalogueState | null>;
+  putCatalogueState(state: CatalogueState): Promise<void>;
+  /** The full product list as it was published at `version`, for rollback. */
+  getCatalogueSnapshot(tenantId: string, version: number): Promise<Product[] | null>;
+  putCatalogueSnapshot(
+    tenantId: string,
+    version: number,
+    products: readonly Product[],
+  ): Promise<void>;
 }
 
 export function newId(prefix: string): string {
@@ -1048,7 +1179,11 @@ export class FileStore implements Store {
     // Scoped by tenant *and* id: a job id is unguessable, but a read that is
     // only keyed by id would still hand another installer's job to a caller who
     // had one, which is exactly the cross-tenant read the plan forbids.
-    return this.#jobs.find((job) => job.id === jobId && job.tenantId === tenantId) ?? null;
+    //
+    // The *last* row with the id: a sync job is rewritten as it moves from
+    // queued to running to finished, and the file keeps every state it passed
+    // through, so the latest line is the current one (Firestore overwrites).
+    return this.#jobs.findLast((job) => job.id === jobId && job.tenantId === tenantId) ?? null;
   }
 
   get #auditDir(): string {
@@ -1102,6 +1237,133 @@ export class FileStore implements Store {
     }
     // Newest first: an audit trail is read from the recent end.
     return rows.slice(-limit).reverse();
+  }
+
+  #quoteFile(tenantId: string): string {
+    return join(this.#dir, 'quotes', `${encodeURIComponent(tenantId)}.jsonl`);
+  }
+
+  async #readQuotes(tenantId: string): Promise<Map<string, QuoteRecord>> {
+    const latest = new Map<string, QuoteRecord>();
+    let text: string;
+    try {
+      text = await readFile(this.#quoteFile(tenantId), 'utf8');
+    } catch {
+      return latest;
+    }
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as QuoteRecord;
+      // Belt and braces: the file is already per tenant.
+      if (row.tenantId === tenantId) latest.set(row.id, row);
+    }
+    return latest;
+  }
+
+  async saveQuote(record: QuoteRecord): Promise<void> {
+    await mkdir(join(this.#dir, 'quotes'), { recursive: true });
+    await appendFile(this.#quoteFile(record.tenantId), `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  async getQuote(tenantId: string, id: string): Promise<QuoteRecord | null> {
+    return (await this.#readQuotes(tenantId)).get(id) ?? null;
+  }
+
+  async listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]> {
+    return [...(await this.#readQuotes(tenantId)).values()]
+      .filter((q) => q.sessionId === sessionId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  #sunscanFile(tenantId: string): string {
+    return join(this.#dir, 'sunscan', `${encodeURIComponent(tenantId)}.jsonl`);
+  }
+
+  async saveSunScanAssessment(record: SunScanAssessmentRecord): Promise<void> {
+    await mkdir(join(this.#dir, 'sunscan'), { recursive: true });
+    // Append-only, like ingestion jobs: every state a job passed through is kept,
+    // and the last line for an id is the current one.
+    await appendFile(this.#sunscanFile(record.tenantId), `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  async getSunScanAssessment(
+    tenantId: string,
+    id: string,
+  ): Promise<SunScanAssessmentRecord | null> {
+    let text: string;
+    try {
+      text = await readFile(this.#sunscanFile(tenantId), 'utf8');
+    } catch {
+      return null;
+    }
+    let found: SunScanAssessmentRecord | null = null;
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as SunScanAssessmentRecord;
+      // The tenant check is belt and braces: the file is already per tenant.
+      if (row.id === id && row.tenantId === tenantId) found = row;
+    }
+    return found;
+  }
+
+  #catalogueStateFile(tenantId: string): string {
+    return join(this.#dir, 'catalogue-portal', `${encodeURIComponent(tenantId)}.json`);
+  }
+
+  #catalogueSnapshotFile(tenantId: string, version: number): string {
+    return join(
+      this.#dir,
+      'catalogue-portal',
+      'versions',
+      encodeURIComponent(tenantId),
+      `${version}.json`,
+    );
+  }
+
+  async getCatalogueState(tenantId: string): Promise<CatalogueState | null> {
+    try {
+      const state = JSON.parse(
+        await readFile(this.#catalogueStateFile(tenantId), 'utf8'),
+      ) as CatalogueState;
+      // The same defence the catalogue reader makes: a file naming another tenant is not read.
+      return state.tenantId === tenantId ? state : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async putCatalogueState(state: CatalogueState): Promise<void> {
+    const file = this.#catalogueStateFile(state.tenantId);
+    await mkdir(join(this.#dir, 'catalogue-portal'), { recursive: true });
+    // Write-then-rename, so a crash mid-write leaves the previous state intact.
+    await writeFile(`${file}.tmp`, JSON.stringify(state), 'utf8');
+    await rename(`${file}.tmp`, file);
+  }
+
+  async getCatalogueSnapshot(tenantId: string, version: number): Promise<Product[] | null> {
+    try {
+      const rows = JSON.parse(
+        await readFile(this.#catalogueSnapshotFile(tenantId, version), 'utf8'),
+      ) as Product[];
+      return rows.filter((row) => row.tenantId === tenantId);
+    } catch {
+      return null;
+    }
+  }
+
+  async putCatalogueSnapshot(
+    tenantId: string,
+    version: number,
+    products: readonly Product[],
+  ): Promise<void> {
+    await mkdir(join(this.#dir, 'catalogue-portal', 'versions', encodeURIComponent(tenantId)), {
+      recursive: true,
+    });
+    await writeFile(
+      this.#catalogueSnapshotFile(tenantId, version),
+      JSON.stringify(products),
+      'utf8',
+    );
   }
 
   async health(): Promise<{ ok: boolean; detail: string }> {
@@ -1181,5 +1443,140 @@ export class FileStore implements Store {
     } catch {
       /* no ingestion jobs yet */
     }
+  }
+
+  // ── installer portal ─────────────────────────────────────────────────────
+
+  get #portalDir(): string {
+    return join(this.#dir, 'portal');
+  }
+
+  async #readJson<T>(file: string, fallback: T): Promise<T> {
+    try {
+      return JSON.parse(await readFile(file, 'utf8')) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  async #writeJson(file: string, value: unknown): Promise<void> {
+    await mkdir(this.#portalDir, { recursive: true });
+    await this.#replaceFile(file, JSON.stringify(value));
+  }
+
+  get #tenantsFile(): string {
+    return join(this.#portalDir, 'tenants.json');
+  }
+
+  get #membersFile(): string {
+    return join(this.#portalDir, 'memberships.json');
+  }
+
+  get #stripeEventsFile(): string {
+    return join(this.#portalDir, 'stripe-events.json');
+  }
+
+  #leadStatusFile(tenantId: string): string {
+    return join(this.#portalDir, `lead-status-${encodeURIComponent(tenantId)}.json`);
+  }
+
+  async listTenants(): Promise<Tenant[]> {
+    return await this.#readJson<Tenant[]>(this.#tenantsFile, []);
+  }
+
+  async getTenant(tenantId: string): Promise<Tenant | null> {
+    return (await this.listTenants()).find((tenant) => tenant.id === tenantId) ?? null;
+  }
+
+  putTenant(tenant: Tenant): Promise<Tenant> {
+    return this.#exclusively(async () => {
+      const all = await this.listTenants();
+      const at = all.findIndex((row) => row.id === tenant.id);
+      const next = at === -1 ? [...all, tenant] : all.map((row, i) => (i === at ? tenant : row));
+      await this.#writeJson(this.#tenantsFile, next);
+      return tenant;
+    });
+  }
+
+  async #memberships(): Promise<Membership[]> {
+    return await this.#readJson<Membership[]>(this.#membersFile, []);
+  }
+
+  async listMembershipsByEmail(email: string): Promise<Membership[]> {
+    const key = email.toLowerCase();
+    return (await this.#memberships()).filter((m) => m.email === key);
+  }
+
+  async listMembers(tenantId: string): Promise<Membership[]> {
+    return (await this.#memberships()).filter((m) => m.tenantId === tenantId);
+  }
+
+  putMembership(membership: Membership): Promise<Membership> {
+    const row = { ...membership, email: membership.email.toLowerCase() };
+    return this.#exclusively(async () => {
+      const all = await this.#memberships();
+      const rest = all.filter((m) => !(m.tenantId === row.tenantId && m.email === row.email));
+      await this.#writeJson(this.#membersFile, [...rest, row]);
+      return row;
+    });
+  }
+
+  deleteMembership(tenantId: string, email: string): Promise<boolean> {
+    const key = email.toLowerCase();
+    return this.#exclusively(async () => {
+      const all = await this.#memberships();
+      const rest = all.filter((m) => !(m.tenantId === tenantId && m.email === key));
+      if (rest.length === all.length) return false;
+      await this.#writeJson(this.#membersFile, rest);
+      return true;
+    });
+  }
+
+  setLeadStatus(tenantId: string, leadId: string, status: LeadStatus): Promise<void> {
+    return this.#exclusively(async () => {
+      const current = await this.listLeadStatuses(tenantId);
+      await this.#writeJson(this.#leadStatusFile(tenantId), { ...current, [leadId]: status });
+    });
+  }
+
+  async listLeadStatuses(tenantId: string): Promise<Record<string, LeadStatus>> {
+    return await this.#readJson<Record<string, LeadStatus>>(this.#leadStatusFile(tenantId), {});
+  }
+
+  claimStripeEvent(eventId: string): Promise<boolean> {
+    return this.#exclusively(async () => {
+      const seen = await this.#readJson<string[]>(this.#stripeEventsFile, []);
+      if (seen.includes(eventId)) return false;
+      await this.#writeJson(this.#stripeEventsFile, [...seen, eventId]);
+      return true;
+    });
+  }
+
+  releaseStripeEvent(eventId: string): Promise<void> {
+    return this.#exclusively(async () => {
+      const seen = await this.#readJson<string[]>(this.#stripeEventsFile, []);
+      await this.#writeJson(
+        this.#stripeEventsFile,
+        seen.filter((id) => id !== eventId),
+      );
+    });
+  }
+
+  get #sessionEpochFile(): string {
+    return join(this.#portalDir, 'session-epochs.json');
+  }
+
+  async getSessionEpoch(email: string): Promise<number> {
+    const all = await this.#readJson<Record<string, number>>(this.#sessionEpochFile, {});
+    return all[email.toLowerCase()] ?? 0;
+  }
+
+  revokeSessions(email: string, at: number): Promise<void> {
+    return this.#exclusively(async () => {
+      const all = await this.#readJson<Record<string, number>>(this.#sessionEpochFile, {});
+      const key = email.toLowerCase();
+      all[key] = Math.max(all[key] ?? 0, at);
+      await this.#writeJson(this.#sessionEpochFile, all);
+    });
   }
 }

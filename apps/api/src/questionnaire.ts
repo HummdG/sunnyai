@@ -66,25 +66,48 @@ export interface Question {
   options?: readonly string[];
   appearsWhen?: AppearsWhen;
   numeric?: NumericRule;
+  /**
+   * "Select all that apply": the answer is a comma-separated list of options,
+   * each validated. Only SunScan's lifestyle step works this way.
+   */
+  multi?: true;
 }
 
 export const QUESTIONS: Readonly<Record<string, Question>> = {
   address: { step: 'address', prompt: 'What is the address you would like assessed?' },
+  // SunScan's roof confidence is how sure the *mapping* is, not the visitor:
+  // the quote journey sets it from the 3D roof assessment (journey/roof.ts),
+  // and `low` -- no assessment, an unreliable fit, or a visitor who says the
+  // mapped roof is wrong -- opens the size and direction questions below, as
+  // SunScan's `roofFallback` step does (`visibleSteps`: only when confidence is low).
   roof_confidence: {
     step: 'roof',
     prompt: 'How confident are you about your roof details?',
     options: ['high', 'medium', 'low'],
   },
+  // Sunny's addition: with a mapped roof, the visitor confirms what the 3D model
+  // found rather than describing their roof from scratch.
+  roof_confirmed: {
+    step: 'roof',
+    prompt: 'Does the roof I found look right to you?',
+    appearsWhen: { questionId: 'roof_confidence', anyOf: ['high', 'medium'] },
+    options: ['yes', 'no'],
+  },
   roof_size: {
     step: 'roof',
     prompt: 'Roughly how much roof space is available?',
+    appearsWhen: { questionId: 'roof_confidence', anyOf: ['low'] },
     options: ['small', 'medium', 'large', 'unsure'],
   },
   roof_direction: {
     step: 'roof',
     prompt: 'Which way does the main roof face?',
+    appearsWhen: { questionId: 'roof_confidence', anyOf: ['low'] },
     options: ['south', 'south_east', 'south_west', 'east', 'west', 'east_west', 'north', 'unsure'],
   },
+  // Asked whatever the roof confidence: the 3D assessment does not simulate
+  // shading (its summary always flags 'shading-not-assessed'), so a mapped roof
+  // tells us nothing about trees or a neighbour's extension.
   roof_shading: {
     step: 'roof',
     prompt: 'Is the roof shaded by trees or buildings?',
@@ -134,6 +157,25 @@ export const QUESTIONS: Readonly<Record<string, Question>> = {
     appearsWhen: { questionId: 'usage_source', anyOf: ['household'] },
     options: ['1', '2', '3', '4', '5'],
   },
+  // SunScan's lifestyle step ("select all that apply"; empty is valid, so
+  // `none` stands for it). It feeds the quote engine: EV and heat-pump plans
+  // raise the Sentinel uplift and the case for a battery.
+  lifestyle: {
+    step: 'lifestyle',
+    prompt:
+      'Do any of these apply: home in the daytime, mostly evening use, an electric car (now or planned), a heat pump (now or planned), high daytime use? Say all that apply, or none.',
+    multi: true,
+    options: [
+      'none',
+      'home_daytime',
+      'evening_use',
+      'ev_now',
+      'ev_planned',
+      'heatpump_now',
+      'heatpump_planned',
+      'high_daytime',
+    ],
+  },
   tariff_type: {
     step: 'tariff',
     prompt: 'What kind of electricity tariff are you on?',
@@ -171,7 +213,7 @@ export const QUESTIONS: Readonly<Record<string, Question>> = {
 };
 
 /**
- * The seven steps, in the order the journey visits them.
+ * The eight steps, in the order the journey visits them.
  *
  * Kept beside the questions because the two are meant to agree, and nothing
  * enforces that but a reader: every question's `step` is a member, and the
@@ -182,6 +224,7 @@ export const STEP_ORDER = [
   'roof',
   'property',
   'usage',
+  'lifestyle',
   'tariff',
   'existing',
   'motivation',
@@ -363,6 +406,22 @@ export function validateAnswer(
       needs: `${gate.questionId} to be one of ${gate.anyOf.join(', ')} (it is "${answers[gate.questionId]}")`,
     };
   }
+  if (question.multi && question.options) {
+    const parts = value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const bad = parts.filter((part) => !question.options!.includes(part));
+    if (parts.length === 0 || bad.length > 0) {
+      return { ok: false, error: 'value not among the allowed options', allowed: question.options };
+    }
+    if (parts.includes('none') && parts.length > 1) {
+      return { ok: false, error: '"none" cannot be combined with other options' };
+    }
+    // Normalised: de-duplicated, in the question's own option order.
+    const normal = question.options.filter((option) => parts.includes(option)).join(',');
+    return { ok: true, questionId, value: normal };
+  }
   if (question.options && !question.options.includes(value)) {
     return { ok: false, error: 'value not among the allowed options', allowed: question.options };
   }
@@ -401,4 +460,81 @@ export function explain(verdict: Extract<AnswerVerdict, { ok: false }>): string 
   if (verdict.expects) return `${verdict.error}: ${verdict.expects}`;
   if (verdict.needs) return `${verdict.error} — it needs ${verdict.needs}`;
   return verdict.error;
+}
+
+/**
+ * How each stored option value reads to a visitor. The values are the stable
+ * contract (they map onto SunScan's wizard); these labels are what chat, quick
+ * replies and the dashboard show, so a homeowner never sees "monthly_cost".
+ */
+export const OPTION_LABELS: Readonly<Record<string, string>> = {
+  high: 'Very confident',
+  medium: 'Fairly confident',
+  low: 'Not sure',
+  yes: 'Yes',
+  no: 'No',
+  maybe: 'Maybe',
+  learn_more: 'Tell me more',
+  small: 'Small',
+  large: 'Large',
+  unsure: 'Not sure',
+  south: 'South',
+  south_east: 'South-east',
+  south_west: 'South-west',
+  east: 'East',
+  west: 'West',
+  east_west: 'East and west',
+  north: 'North',
+  none: 'None',
+  trees: 'Trees',
+  buildings: 'Buildings',
+  heavy: 'Heavily shaded',
+  detached: 'Detached',
+  semi: 'Semi-detached',
+  terraced: 'Terraced',
+  bungalow: 'Bungalow',
+  flat: 'Flat',
+  other: 'Other',
+  own: 'I own it outright',
+  mortgage: 'I own it with a mortgage',
+  rent: 'I rent',
+  social: 'Social housing',
+  landlord: "I'm the landlord",
+  bill_ocr: 'Upload a bill',
+  manual_kwh: 'I know my yearly kWh',
+  monthly_cost: 'My monthly bill',
+  household: 'How many people live here',
+  home_daytime: 'Home in the daytime',
+  evening_use: 'Mostly evening use',
+  ev_now: 'An electric car',
+  ev_planned: 'An electric car planned',
+  heatpump_now: 'A heat pump',
+  heatpump_planned: 'A heat pump planned',
+  high_daytime: 'High daytime use',
+  standard: 'Standard',
+  economy7: 'Economy 7',
+  smart_tou: 'Smart / time-of-use',
+  import_export: 'Import and export',
+  already_exports: 'I already export',
+  unknown: "I don't know",
+  solar: 'Solar panels',
+  battery: 'A battery',
+  solar_battery: 'Solar and a battery',
+  reduce_bills: 'Lower bills',
+  price_protection: 'Protection from price rises',
+  cheap_tariffs: 'Using cheap tariffs',
+  earn_export: 'Earning from export',
+  independence: 'Energy independence',
+  carbon: 'Cutting carbon',
+  home_value: 'Adding value to my home',
+  exploring: 'Just exploring',
+  under_6k: 'Under £6,000',
+  '6k_10k': '£6,000 to £10,000',
+  '10k_15k': '£10,000 to £15,000',
+  '15k_plus': '£15,000 or more',
+};
+
+/** The visitor-facing label for an option value (falls back to plain words). */
+export function optionLabel(value: string): string {
+  return OPTION_LABELS[value] ?? value.replace(/_/g, ' ');
 }

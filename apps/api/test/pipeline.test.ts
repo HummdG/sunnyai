@@ -1020,7 +1020,9 @@ describe('POST /v1/qualification/answer', () => {
     // one.
     for (const [questionId, value] of [
       ['address', '1 Test Street'],
-      ['roof_confidence', 'high'],
+      // Low: no mapped roof, so the three roof questions apply (SunScan's
+      // fallback step); a trusted mapping would ask for confirmation instead.
+      ['roof_confidence', 'low'],
       ['roof_size', 'medium'],
       ['roof_direction', 'south'],
       ['roof_shading', 'none'],

@@ -40,6 +40,18 @@ export interface KnowledgeChunk {
   /** Position within the document, so an order can be reconstructed. */
   ordinal: number;
   text: string;
+  /**
+   * The full heading trail above the chunk (H1 › H2 › H3), when it is deeper
+   * than one heading. "Customer question: …" means little without the
+   * "12. Generation change" it sits under, and a citation can name both.
+   */
+  section?: string[];
+  /**
+   * Unfilled template text in this chunk ("XXXXX XXXXXX", "[insert link]").
+   * Retrieval masks these before the model sees the passage, so a placeholder
+   * can never be quoted to a customer as if it were a real detail.
+   */
+  placeholders?: string[];
 }
 
 export interface KnowledgeHit {

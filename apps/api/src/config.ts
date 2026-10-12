@@ -90,8 +90,31 @@ export interface RateLimitConfig {
      * the catalogue is: a leaked token should not be an unlimited write.
      */
     knowledge: RateLimitRule;
+    /**
+     * Per client address, on top of the per-session rule: Blueprint §4.6's "max
+     * 20 messages per 10 minutes per IP", so opening fresh sessions does not
+     * buy a script more model calls. Optional for configs written before it;
+     * the server applies the default.
+     */
+    chatIp?: RateLimitRule;
   };
   maxKeys: number;
+}
+
+/** Blueprint §4.6 / §5 matrix: 20 chat messages per 10 minutes per address. */
+export const DEFAULT_CHAT_IP_RULE: RateLimitRule = { limit: 20, windowMs: 10 * 60_000 };
+
+/** Blueprint §4.6: the longest visitor message the assistant accepts. */
+export const DEFAULT_MAX_INPUT_CHARS = 500;
+
+/**
+ * Cloudflare Turnstile (Blueprint §4.6), verified when a widget session opens.
+ * Both keys or neither: a site key without a secret would show a challenge the
+ * server never checks.
+ */
+export interface TurnstileConfig {
+  siteKey: string;
+  secretKey: string;
 }
 
 /**
@@ -157,6 +180,10 @@ export interface ServerConfig {
   adminToken: string | null;
   logLevel: string;
   rateLimit: RateLimitConfig;
+  /** Absent: Turnstile is off. Optional so configs written before it still type. */
+  turnstile?: TurnstileConfig | null;
+  /** The longest chat message accepted. Absent means `DEFAULT_MAX_INPUT_CHARS`. */
+  maxInputChars?: number;
   /**
    * Whether to serve the second, fictional installer as well as the demo one.
    *
@@ -303,6 +330,10 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         limit: Number(env('SUNNY_RL_KNOWLEDGE_LIMIT') ?? 20),
         windowMs: Number(env('SUNNY_RL_KNOWLEDGE_WINDOW_MS') ?? 60_000),
       },
+      chatIp: {
+        limit: Number(env('SUNNY_RL_CHAT_IP_LIMIT') ?? DEFAULT_CHAT_IP_RULE.limit),
+        windowMs: Number(env('SUNNY_RL_CHAT_IP_WINDOW_MS') ?? DEFAULT_CHAT_IP_RULE.windowMs),
+      },
     },
     maxKeys: Number(env('SUNNY_RL_MAX_KEYS') ?? 10_000),
   };
@@ -346,6 +377,11 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     adminToken: env('SUNNY_ADMIN_TOKEN') ?? null,
     logLevel: env('LOG_LEVEL') ?? (nodeEnv === 'test' ? 'silent' : 'info'),
     rateLimit,
+    turnstile:
+      env('TURNSTILE_SITE_KEY') && env('TURNSTILE_SECRET_KEY')
+        ? { siteKey: env('TURNSTILE_SITE_KEY')!, secretKey: env('TURNSTILE_SECRET_KEY')! }
+        : null,
+    maxInputChars: Number(env('SUNNY_CHAT_MAX_INPUT_CHARS') ?? DEFAULT_MAX_INPUT_CHARS),
     // Written as an explicit opt-in rather than "on unless production": a flag
     // whose default depends on the environment is one a staging deployment can
     // silently lose, and the sweep would then pass by having nothing to compare.
@@ -375,8 +411,14 @@ export function assertProductionReady(config: ServerConfig): string[] {
   if (config.sessionSecret === DEV_SECRET) {
     problems.push('SESSION_SECRET must be set to a real secret in production');
   }
+  // Installers' own sites are allowed through their registered domains (read
+  // live from the tenant records), so this list only names the platform's own
+  // origins -- the dashboard and marketing site. It must still be explicit:
+  // an empty list means "any origin" in development.
   if (config.allowedOrigins.length === 0) {
-    problems.push('WIDGET_ALLOWED_ORIGINS must list the customer origins in production');
+    problems.push(
+      'WIDGET_ALLOWED_ORIGINS must list the platform origins (dashboard, marketing) in production',
+    );
   }
   if (config.sandboxTenant) {
     problems.push(
@@ -537,8 +579,9 @@ export function capabilityReport(config: ServerConfig): CapabilityReport {
         surface: null,
         modelVerified: false,
         reason:
-          'GEMINI_API_KEY is not set. Chat is disabled rather than simulated: ' +
-          'run with a key to exercise the assistant.',
+          'GEMINI_API_KEY is not set. Chat is disabled rather than simulated. ' +
+          'To enable it locally: copy .env.example to .env at the repo root and set ' +
+          'GEMINI_API_KEY (get a key at https://aistudio.google.com/apikey).',
       },
       escalation: { available: false, model: null, reason: 'GEMINI_API_KEY is not set.' },
       persistence,

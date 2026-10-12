@@ -17,7 +17,15 @@
     "@google/genai": "^2.28.0",
     "@sunny/contracts": "*",
     "@sunny/knowledge": "*",
+    "@sunny/quote-engine": "*",
     "@sunny/solar-rules": "*",
-    "fastify": "^5.12.5"
+    "@types/pdfkit": "^0.17.6",
+    "fastify": "^5.12.5",
+    "pdfkit": "^0.17.2",
+    "ws": "^8.22.0",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
   }
 }

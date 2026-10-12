@@ -6,14 +6,18 @@
 // rather than observed as a conversation.
 //
 //   - `chunk.ts` splits a document into passages that keep their headings.
-//   - `search.ts` scores those passages against a query.
-//
-// What is deliberately absent matters as much as what is here. There is no
-// embedding model, no vector store and no call to a managed search service:
-// those are the parts this deployment cannot reach, and the honest position is a
-// lexical index that works and says so (see the note at the top of `search.ts`)
-// rather than a stub dressed as semantic retrieval.
+//   - `search.ts` scores those passages against a query (BM25).
+//   - `hybrid.ts` fuses that lexical ranking with a vector ranking (RRF) and
+//     an optional reranker. The vectors are passed in: computing embeddings
+//     is a network call and lives in the API, so this stays arithmetic.
+//   - `html.ts` turns crawled web pages into Markdown the chunker cuts well.
+//   - `pii.ts` decides whether a document may be indexed at all.
+//   - `placeholders.ts` finds unfilled template text so it is never quoted.
 
 export * from './types.js';
 export * from './chunk.js';
 export * from './search.js';
+export * from './hybrid.js';
+export * from './html.js';
+export * from './pii.js';
+export * from './placeholders.js';

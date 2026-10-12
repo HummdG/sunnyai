@@ -1,17 +1,31 @@
+import { createHmac } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { issueDevToken } from '../../apps/api/src/auth/dev.js';
+import { issueInviteToken } from '../../apps/api/src/auth/invite.js';
+import { issueSessionToken as issuePortalSession } from '../../apps/api/src/auth/session.js';
+import { inboundToken, signState } from '../../apps/api/src/channels/email/crypto.js';
+import { twilioSignature } from '../../apps/api/src/channels/voice/twilio.js';
+import { roleAtLeast } from '../../apps/api/src/auth/index.js';
+import type { Fetcher } from '../../apps/api/src/ingest/fetcher.js';
+import type { PortalConfig } from '../../apps/api/src/routes/portal-config.js';
 import { buildServer } from '../../apps/api/src/server.js';
 import { issueSessionToken, SESSION_TTL_MS } from '../../apps/api/src/sessions.js';
-import { FileStore } from '../../apps/api/src/store.js';
+import { FileStore, type MemberRole } from '../../apps/api/src/store.js';
 import { DEMO_TENANT, TenantRegistry, type Tenant } from '../../apps/api/src/tenants.js';
 import type { ChatProvider, ChatTurnRequest } from '../../apps/api/src/agent/provider.js';
 import type { ServerConfig } from '../../apps/api/src/config.js';
 import { csv, PANEL_430, PANEL_500 } from '../../apps/api/test/catalogue-fixture.js';
 import { ScriptedProvider } from '../../apps/api/test/scripted-provider.js';
+import {
+  createSunScanService,
+  MemoryArtefactStore,
+  type SunScanEngine,
+} from '@sunny/sunscan-adapter';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 
 /**
@@ -35,6 +49,27 @@ import type { FastifyInstance, InjectOptions } from 'fastify';
  */
 
 // ─── the two tenants ─────────────────────────────────────────────────────────
+
+/**
+ * The demo installer, entitled to every add-on and owning a phone number.
+ *
+ * Without the entitlements the email and voice routes would answer every
+ * credential `not_enabled`, and an allowed case would pass without the route
+ * ever reaching the code that decides who may see what.
+ */
+const DEMO_FULL: Tenant = {
+  ...DEMO_TENANT,
+  config: {
+    ...DEMO_TENANT.config,
+    addons: { web_chat: true, email_assistant: true, voice_widget: true, phone_agent: true },
+    voice: { maxCallSeconds: 300, concurrency: 2, twilioNumbers: ['+441632960001'] },
+    email: {
+      provider: 'forwarding',
+      inboundAddress: 'enquiries@northwind.example',
+      autoSend: false,
+    },
+  },
+};
 
 const RIVAL: Tenant = {
   id: 't_rival001',
@@ -85,6 +120,40 @@ const SECRET = 'security-suite-session-secret';
 const ADMIN_TOKEN = 'security-suite-admin-token';
 const ORIGIN = 'http://localhost:4173';
 
+// Secrets for the routes that authenticate with something other than a bearer
+// token: webhooks and the provider callbacks. Configured so their refusals are
+// real signature checks rather than "not configured on this deployment".
+const STRIPE_WEBHOOK_SECRET = 'whsec_security_sweep';
+const TWILIO_AUTH_TOKEN = 'twilio-security-sweep';
+const PUBLIC_BASE_URL = 'https://api.sweep.test';
+const INBOUND_BASIC = { user: 'postmark', password: 'security-sweep-basic' };
+const GMAIL_PUSH_TOKEN = 'gmail-push-security-sweep';
+const EMAIL_WEBHOOK_SECRET = 'email-webhook-security-sweep';
+
+/** The installers' people. Memberships are seeded before the sweep runs. */
+const OWNER_EMAIL = 'owner@demo.sweep.test';
+const VIEWER_EMAIL = 'viewer@demo.sweep.test';
+const RIVAL_OWNER_EMAIL = 'owner@rival.sweep.test';
+
+const PORTAL: PortalConfig = {
+  devAuth: true,
+  firebaseProjectId: null,
+  firebaseEmulator: false,
+  driveServiceAccountEmail: 'bot-sync@sweep.iam.gserviceaccount.com',
+  widgetScriptUrl: 'http://localhost:4173/widget/sunny-widget.js',
+  publicApiUrl: PUBLIC_BASE_URL,
+  dashboardUrl: 'http://localhost:4176',
+  stripe: { secretKey: null, webhookSecret: STRIPE_WEBHOOK_SECRET, prices: {} },
+};
+
+/** Every crawl answers 404: the sweep is about who may start one, not what it finds. */
+const NO_NETWORK: Fetcher = (url) =>
+  Promise.resolve({ url, status: 404, contentType: 'text/plain', body: '' });
+
+/** Twilio's REST API, faked: a call is "placed" and nothing leaves the process. */
+const TWILIO_FAKE: typeof fetch = () =>
+  Promise.resolve(new Response(JSON.stringify({ sid: 'CA_sweep' }), { status: 201 }));
+
 function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   return {
     port: 0,
@@ -126,16 +195,121 @@ let dirs: string[] = [];
 async function harness(provider?: ChatProvider): Promise<FastifyInstance> {
   const dir = await mkdtemp(join(tmpdir(), 'sunny-security-'));
   dirs.push(dir);
+  const store = new FileStore(dir);
   const app = buildServer({
     config: makeConfig(),
-    store: new FileStore(dir),
-    tenants: new TenantRegistry([DEMO_TENANT, RIVAL]),
+    store,
+    tenants: new TenantRegistry([DEMO_FULL, RIVAL]),
     ...(provider ? { provider } : {}),
     now: () => NOW,
+    portal: PORTAL,
+    knowledgeSync: {
+      syncWebsite: () => Promise.resolve({ jobId: 'job_sweep_site' }),
+      syncDrive: () => Promise.resolve({ jobId: 'job_sweep_drive' }),
+    },
+    knowledge: { fetcher: NO_NETWORK, urlCheck: () => Promise.resolve(), embedder: null },
+    voice: {
+      voice: {
+        apiKey: null,
+        liveModel: 'sweep-live',
+        liveUrl: 'ws://127.0.0.1:9/never',
+        maxSessionSeconds: 300,
+        defaultConcurrency: 2,
+        twilio: { accountSid: 'AC_sweep', authToken: TWILIO_AUTH_TOKEN, fromNumber: null },
+        publicBaseUrl: PUBLIC_BASE_URL,
+      },
+      fetch: TWILIO_FAKE,
+    },
+    emailAddon: {
+      config: {
+        inboundBasic: INBOUND_BASIC,
+        gmailPush: { topic: 'projects/sweep/topics/gmail', token: GMAIL_PUSH_TOKEN },
+        webhookSecret: EMAIL_WEBHOOK_SECRET,
+      },
+      // A reply without a model: the sweep asks who reaches the assistant.
+      // eslint-disable-next-line @typescript-eslint/require-await
+      core: async function* () {
+        yield { type: 'text_delta', messageId: 'm_sweep', text: 'Thanks for your email.' } as never;
+      },
+      mailbox: () => Promise.resolve(null),
+    },
+    // "Email me my quote" configured, so its route reaches the session check
+    // rather than answering everyone `not_enabled`.
+    proposalMailer: { send: () => Promise.resolve({ messageId: 'sweep' }) },
+    // Roof assessments on a stand-in engine: the sweep is about who reaches a
+    // record, and the real engine would go to the network for every POST.
+    sunscan: createSunScanService({
+      engine: SWEEP_SUNSCAN_ENGINE,
+      repository: {
+        save: (record) => store.saveSunScanAssessment(record),
+        get: (tenantId, id) => store.getSunScanAssessment(tenantId, id),
+      },
+      artefacts: new MemoryArtefactStore(),
+    }),
   });
   await app.ready();
+  const at = new Date(NOW).toISOString();
+  for (const [tenantId, email, role] of [
+    [DEMO.tenantId, OWNER_EMAIL, 'owner'],
+    [DEMO.tenantId, VIEWER_EMAIL, 'viewer'],
+    [RIVAL.id, RIVAL_OWNER_EMAIL, 'owner'],
+  ] as const) {
+    await store.putMembership({
+      tenantId,
+      email,
+      userId: null,
+      role,
+      invitedBy: null,
+      createdAt: at,
+    });
+  }
+  stores.set(app, store);
   return app;
 }
+
+/** Each harness's store, for fixtures the sweep seeds directly. */
+const stores = new WeakMap<FastifyInstance, FileStore>();
+
+/** Answers every roof assessment at once with a fixed, minimal model. */
+const SWEEP_SUNSCAN_ENGINE: SunScanEngine = {
+  version: 'sweep/1',
+  assess: (target) =>
+    Promise.resolve({
+      summary: {
+        address: target.address ?? 'point',
+        postcode: null,
+        builtForm: 'detached',
+        era: 'unknown',
+        storeys: 2,
+        roofType: 'gabled',
+        eaveHeightM: 5,
+        roofPlanes: [],
+        suitableRoofAreaM2: 0,
+        usableRoofAreaM2: 0,
+        estimatedMaxPanels: 0,
+        mainPlaneId: null,
+        obstructions: { chimneys: 0 },
+        shadingFlags: ['shading-not-assessed'],
+        bestFacing: null,
+        confidence: { geocode: 'high', footprint: 'high', heights: 'measured', roof: 'high' },
+        reliable: true,
+        flags: [],
+        notes: [],
+        sources: [],
+        label: 'Indicative — subject to an on-site survey',
+      },
+      specJson: '{"schema":"sunscan.house/1"}',
+      glb: new Uint8Array([0x67, 0x6c, 0x54, 0x46]),
+    }),
+};
+
+/**
+ * One finished roof assessment per tenant, started in that tenant's sweep
+ * session, keyed by tenant id. The SunScan read routes address a record by id,
+ * so the URL a case sends depends on whose ids it names.
+ */
+const seededAssessments = new Map<string, string>();
+const assessmentFor = (ids: Ids) => seededAssessments.get(ids.tenantId) ?? 'ss_unseeded';
 
 // ─── credentials ─────────────────────────────────────────────────────────────
 
@@ -160,6 +334,9 @@ const CREDENTIALS = [
   'foreignSession',
   'foreignTenant',
   'admin',
+  'owner',
+  'viewer',
+  'installerForeign',
 ] as const;
 
 type Credential = (typeof CREDENTIALS)[number];
@@ -194,6 +371,17 @@ function attempt(credential: Credential): { token: string | undefined; ids: Ids 
       return { token: tokenFor(RIVAL_IDS), ids: DEMO };
     case 'admin':
       return { token: ADMIN_TOKEN, ids: DEMO };
+    // The installer portal's people. Dev sign-in tokens rather than portal
+    // sessions so "sign out everywhere", which the sweep itself calls, cannot
+    // revoke a credential a later case still needs (sessions are covered by
+    // their own tests below).
+    case 'owner':
+      return { token: issueDevToken(SECRET, OWNER_EMAIL, NOW), ids: DEMO };
+    case 'viewer':
+      return { token: issueDevToken(SECRET, VIEWER_EMAIL, NOW), ids: DEMO };
+    case 'installerForeign':
+      // The rival's owner asking for the demo installer's portal by its id.
+      return { token: issueDevToken(SECRET, RIVAL_OWNER_EMAIL, NOW), ids: DEMO };
   }
 }
 
@@ -236,10 +424,38 @@ let seededJobId = 'job_unseeded';
 let seededLeadId = 'lead_unseeded';
 
 interface RouteSpec {
-  method: 'GET' | 'POST' | 'DELETE';
+  method: 'GET' | 'POST' | 'DELETE' | 'PATCH' | 'PUT';
   pattern: string;
   url: (ids: Ids) => string;
-  kind: 'public' | 'visitor' | 'admin';
+  /**
+   * The credential boundary (see the note above `ROUTES`), plus four kinds the
+   * installer portal and the add-ons brought:
+   *
+   * - `installer`: a signed-in installer who is a member of the tenant in the
+   *   path, at `minRole` or above. Another installer gets `not_found` -- the
+   *   same answer as a tenant that does not exist -- and a member below the
+   *   role gets `forbidden`.
+   * - `installerAny`: any signed-in installer, scoped by who they are rather
+   *   than by a path (their own profile, sign-up, signing out).
+   * - `secret`: authenticated by a webhook signature or shared secret, not a
+   *   bearer token, so every credential in this sweep is refused with
+   *   `refuses`. What a *valid* secret may reach is tested case by case below.
+   * - `custom`: the sign-in exchanges and invitations, whose credential lives
+   *   in the body; each has dedicated cases below instead of the matrix.
+   */
+  kind: 'public' | 'visitor' | 'admin' | 'installer' | 'installerAny' | 'secret' | 'custom';
+  /** The least role an `installer` route needs. */
+  minRole?: MemberRole;
+  /** What every sweep credential gets from a `secret` route. */
+  refuses?: 'unauthorized' | 'forbidden' | 'bad_request';
+  /**
+   * The URL names a record by a placeholder id, so the *allowed* caller may be
+   * told `not_found` (or `bad_request` for a state the placeholder cannot be
+   * in). Nothing is relaxed for any other credential: they are turned away
+   * before the id is read, and their exact refusal is still asserted. The
+   * records that matter are seeded and checked by the isolation cases below.
+   */
+  namesRecord?: boolean;
   namesSession?: boolean;
   /** The body a well-formed call sends. Absent for a bare GET. */
   payload?: (ids: Ids) => Record<string, unknown>;
@@ -253,6 +469,13 @@ interface RouteSpec {
    * refused before the id is read, and their exact code is still asserted.
    */
   consumesFixture?: boolean;
+  /**
+   * The URL names one visitor's own record by id (a SunScan assessment). A valid
+   * token from another session or another tenant asking for it is told
+   * `not_found` -- exactly what a missing id is told -- rather than being served
+   * or told it is forbidden, either of which would confirm the record exists.
+   */
+  ownRecord?: boolean;
 }
 
 const ROUTES: RouteSpec[] = [
@@ -411,6 +634,742 @@ const ROUTES: RouteSpec[] = [
     url: () => '/v1/recommendations',
     kind: 'visitor',
   },
+  {
+    method: 'POST',
+    pattern: '/v1/sunscan/assessments',
+    url: () => '/v1/sunscan/assessments',
+    // Started as the tenant and session the token names; there is no field that
+    // could name another.
+    kind: 'visitor',
+    payload: () => ({ address: '20 Forthlin Road, Liverpool L18 9TN' }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/sunscan/assessments/:id',
+    url: (ids) => `/v1/sunscan/assessments/${assessmentFor(ids)}`,
+    kind: 'visitor',
+    ownRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/sunscan/assessments/:id/model.glb',
+    url: (ids) => `/v1/sunscan/assessments/${assessmentFor(ids)}/model.glb`,
+    kind: 'visitor',
+    ownRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/sunscan/assessments/:id/spec.json',
+    url: (ids) => `/v1/sunscan/assessments/${assessmentFor(ids)}/spec.json`,
+    kind: 'visitor',
+    ownRecord: true,
+  },
+  // ─── the installer portal (routes/portal.ts) ──────────────────────────────
+  {
+    method: 'GET',
+    pattern: '/v1/portal/auth-config',
+    url: () => '/v1/portal/auth-config',
+    kind: 'public',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/dev-login',
+    url: () => '/v1/portal/dev-login',
+    // Public on a development deployment by design, and refused in production
+    // (config.ts); the portal-session tests check the token it mints is only a
+    // sign-in proof, never a session.
+    kind: 'public',
+    payload: () => ({ email: 'someone@sweep.test' }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/session',
+    url: () => '/v1/portal/session',
+    kind: 'custom',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/session/refresh',
+    url: () => '/v1/portal/session/refresh',
+    // Only a live portal session renews; no credential in the sweep is one.
+    kind: 'secret',
+    refuses: 'unauthorized',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/sessions/revoke',
+    url: () => '/v1/portal/sessions/revoke',
+    kind: 'installerAny',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/invite',
+    url: () => '/v1/portal/invite?token=none',
+    kind: 'custom',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/invite/accept',
+    url: () => '/v1/portal/invite/accept',
+    kind: 'custom',
+  },
+  { method: 'GET', pattern: '/v1/portal/me', url: () => '/v1/portal/me', kind: 'installerAny' },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants',
+    url: () => '/v1/portal/tenants',
+    kind: 'installerAny',
+    payload: () => ({ companyName: 'Sweep Solar' }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/settings',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/settings`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ tagline: 'Set by the security sweep' }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/overview',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/overview`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/inbox',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/inbox`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/inbox/:conversationId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/inbox/conv_placeholder`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads.csv',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads.csv`,
+    kind: 'installer',
+    minRole: 'sales',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/status',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/status`,
+    kind: 'installer',
+    minRole: 'sales',
+    payload: () => ({ status: 'contacted' }),
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/quote',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/quote`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/assessment',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/assessment`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/assessment/model.glb',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/assessment/model.glb`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/assessment/spec.json',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/assessment/spec.json`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/knowledge',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/knowledge`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/knowledge/website',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/knowledge/website`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ url: 'https://www.northwind.example/' }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/knowledge/drive',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/knowledge/drive`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ folder: 'https://drive.google.com/drive/folders/1AbC_sweep-folder' }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/knowledge/sync',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/knowledge/sync`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/members',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/members`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/members',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/members`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ email: 'colleague@demo.sweep.test', role: 'sales' }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/members/remove',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/members/remove`,
+    kind: 'installer',
+    minRole: 'admin',
+    // Never one of the sweep's own people: removing them would change the
+    // credentials later cases rely on.
+    payload: () => ({ email: 'colleague@demo.sweep.test' }),
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/billing',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/billing`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/billing/checkout',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/billing/checkout`,
+    kind: 'installer',
+    minRole: 'owner',
+    payload: () => ({ plan: 'email' }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/billing/portal',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/billing/portal`,
+    kind: 'installer',
+    minRole: 'owner',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/billing/webhook',
+    url: () => '/v1/billing/webhook',
+    // Stripe's signature, not a bearer token: an unsigned event is refused
+    // before it is read (see "a forged Stripe event changes no entitlement").
+    kind: 'secret',
+    refuses: 'bad_request',
+    payload: () => ({ id: 'evt_forged', type: 'checkout.session.completed', data: { object: {} } }),
+  },
+
+  // ─── the product catalogue (routes/catalogue-portal.ts) ───────────────────
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/template.csv',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/template.csv`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/export.csv',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/export.csv`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/upload',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/upload`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ csv: csv(PANEL_430), mode: 'append' }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/upload/:uploadId/publish',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/upload/up_placeholder/publish`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/upload/:uploadId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/upload/up_placeholder`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'PATCH',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/products/:productId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/products/prod_placeholder`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ warrantyYears: 25 }),
+    namesRecord: true,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/products/:productId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/products/prod_placeholder`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/versions/:version/rollback',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/versions/999/rollback`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/drafts',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/drafts`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'PATCH',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/drafts/:draftId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/drafts/draft_placeholder`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ warrantyYears: 25 }),
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/drafts/approve',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/drafts/approve`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ ids: ['draft_placeholder'] }),
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/drafts/reject',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/drafts/reject`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ ids: ['draft_placeholder'] }),
+    namesRecord: true,
+  },
+  {
+    method: 'PUT',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/sheet',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/sheet`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ url: 'https://docs.google.com/spreadsheets/d/1SweepSheetId/edit' }),
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/sheet',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/sheet`,
+    kind: 'installer',
+    minRole: 'admin',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/sheet/sync',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/sheet/sync`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/website/scan',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/website/scan`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list/template.csv',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list/template.csv`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list/export.csv',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list/export.csv`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list/upload',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list/upload`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ csv: 'sku,name\nADMIN-FEE,Admin fee\n' }),
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list/upload/:pendingId/publish',
+    url: (ids) =>
+      `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list/upload/pl_placeholder/publish`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list/upload/:pendingId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list/upload/pl_placeholder`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list/versions/:version/rollback',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list/versions/999/rollback`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/example',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/example`,
+    kind: 'installer',
+    minRole: 'admin',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/catalogue/example/publish',
+    url: () => '/v1/catalogue/example/publish',
+    // Admin, and the single deployment secret: the tenant is the caller's
+    // choice here, as on the other operator routes (D-35).
+    kind: 'admin',
+    payload: (ids) => ({ tenantId: ids.tenantId }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/catalogue/sync-due',
+    url: () => '/v1/catalogue/sync-due',
+    kind: 'admin',
+  },
+
+  // ─── knowledge connections (routes/knowledge-ingest.ts) ───────────────────
+  {
+    method: 'GET',
+    pattern: '/v1/knowledge/capabilities',
+    url: () => '/v1/knowledge/capabilities',
+    kind: 'admin',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/knowledge/connections',
+    url: () => '/v1/knowledge/connections',
+    kind: 'admin',
+    payload: (ids) => ({
+      tenantId: ids.tenantId,
+      kind: 'website',
+      url: 'https://www.northwind.example/',
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/knowledge/connections',
+    url: (ids) => `/v1/knowledge/connections?tenantId=${ids.tenantId}`,
+    kind: 'admin',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/knowledge/connections/:id/sync',
+    url: (ids) => `/v1/knowledge/connections/kc_placeholder/sync?tenantId=${ids.tenantId}`,
+    kind: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/knowledge/connections/:id',
+    url: (ids) => `/v1/knowledge/connections/kc_placeholder?tenantId=${ids.tenantId}`,
+    kind: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/knowledge/sync-due',
+    url: () => '/v1/knowledge/sync-due',
+    kind: 'admin',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/knowledge/sources',
+    url: (ids) => `/v1/knowledge/sources?tenantId=${ids.tenantId}`,
+    kind: 'admin',
+  },
+
+  // ─── the Email Assistant add-on (routes/email.ts) ─────────────────────────
+  {
+    method: 'POST',
+    pattern: '/v1/webhooks/inbound-email',
+    url: () => '/v1/webhooks/inbound-email',
+    // Postmark's basic auth; a bearer token is not it.
+    kind: 'secret',
+    refuses: 'unauthorized',
+    payload: () => ({
+      From: 'a@b.test',
+      To: 'inbox@northwind.example',
+      Subject: 'x',
+      TextBody: 'x',
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/webhooks/inbound-email/:tenantId/:token',
+    url: (ids) => `/v1/webhooks/inbound-email/${ids.tenantId}/not-the-inbound-token`,
+    kind: 'secret',
+    refuses: 'unauthorized',
+    payload: () => ({
+      From: 'a@b.test',
+      To: 'inbox@northwind.example',
+      Subject: 'x',
+      TextBody: 'x',
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/webhooks/gmail-push',
+    url: () => '/v1/webhooks/gmail-push',
+    kind: 'secret',
+    refuses: 'unauthorized',
+    payload: () => ({ message: { data: '' } }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/email/oauth/callback',
+    url: () => '/v1/email/oauth/callback?code=x&state=forged',
+    // Public by nature -- the provider redirects the browser here -- and
+    // authenticated by the signed state, which a forged one fails (see the
+    // dedicated case): the answer is always a redirect, never a write.
+    kind: 'public',
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/email',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/email`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/email/settings',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/email/settings`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ autoSend: false }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/email/connect',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/email/connect`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ provider: 'gmail' }),
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/email/disconnect',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/email/disconnect`,
+    kind: 'installer',
+    minRole: 'admin',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/email/watch',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/email/watch`,
+    kind: 'installer',
+    minRole: 'admin',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/email/threads/:sessionId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/email/threads/sess_placeholder`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+
+  // ─── the Voice & Phone add-on (routes/voice.ts) ───────────────────────────
+  {
+    method: 'GET',
+    pattern: '/v1/voice/capabilities/:publicId',
+    url: (ids) => `/v1/voice/capabilities/${ids.publicId}`,
+    // What the widget needs to decide whether to show the mic; no tenant data.
+    kind: 'public',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/voice/twilio/incoming',
+    url: () => '/v1/voice/twilio/incoming',
+    // Twilio's request signature; anything unsigned is refused.
+    kind: 'secret',
+    refuses: 'forbidden',
+    payload: () => ({ CallSid: 'CA_forged', To: '+441632960001', From: '+447700900123' }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/voice/twilio/outbound',
+    url: () => '/v1/voice/twilio/outbound',
+    kind: 'admin',
+    payload: (ids) => ({ tenantId: ids.tenantId, to: '+447700900123' }),
+  },
+
+  // ─── the quote journey (routes/quote.ts) ──────────────────────────────────
+  { method: 'GET', pattern: '/v1/quote/journey', url: () => '/v1/quote/journey', kind: 'visitor' },
+  {
+    method: 'POST',
+    pattern: '/v1/quote/journey/answers',
+    url: () => '/v1/quote/journey/answers',
+    kind: 'visitor',
+    namesSession: true,
+    payload: (ids) => ({
+      sessionId: ids.sessionId,
+      answers: [{ questionId: 'roof_shading', value: 'none' }],
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/quote/options',
+    url: () => '/v1/quote/options',
+    kind: 'visitor',
+    namesSession: true,
+    payload: (ids) => ({ sessionId: ids.sessionId }),
+    // The sweep's session has not answered the questionnaire, so the allowed
+    // caller is told what is missing (400) -- after the token was accepted.
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/quote/:id',
+    url: () => '/v1/quote/q_placeholder',
+    kind: 'visitor',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/quote/:id/lead',
+    url: () => '/v1/quote/q_placeholder/lead',
+    kind: 'visitor',
+    namesSession: true,
+    payload: (ids) => ({ sessionId: ids.sessionId, leadId: 'lead_placeholder' }),
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/quote/:id/choose',
+    url: () => '/v1/quote/q_placeholder/choose',
+    kind: 'visitor',
+    namesSession: true,
+    payload: (ids) => ({ sessionId: ids.sessionId, optionId: 'recommended' }),
+    namesRecord: true,
+  },
+  // ─── the proposal PDF and "email me my quote" (routes/proposal.ts) ────────
+  {
+    method: 'GET',
+    pattern: '/v1/quote/:id/proposal.pdf',
+    url: () => '/v1/quote/q_placeholder/proposal.pdf',
+    kind: 'visitor',
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/quote/:id/proposal/email',
+    url: () => '/v1/quote/q_placeholder/proposal/email',
+    kind: 'visitor',
+    payload: () => ({ email: 'visitor@example.test', consent: true }),
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/quote/proposal.pdf',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/quote/proposal.pdf`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'PUT',
+    pattern: '/v1/portal/tenants/:tenantId/catalogue/price-list/sentinel',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/price-list/sentinel`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ sentinel: null }),
+    namesRecord: true,
+  },
 ];
 
 /**
@@ -446,7 +1405,7 @@ function registeredRoutes(app: FastifyInstance): Set<string> {
     const full = segments.join('');
 
     for (const method of (methods ?? '').split(',').map((m) => m.trim())) {
-      if (method === 'GET' || method === 'POST' || method === 'DELETE') {
+      if (['GET', 'POST', 'DELETE', 'PATCH', 'PUT'].includes(method)) {
         routes.add(`${method} ${full}`);
       }
     }
@@ -480,6 +1439,12 @@ interface Response {
  */
 function refusal(response: Response): { code: string; status: number } | null {
   const status = response.statusCode;
+  // A webhook with no valid signature is refused as malformed (Stripe's own
+  // convention); `secret` routes say which code they refuse with.
+  if (status === 400) {
+    const code = (response.json() as { error?: { code?: string } }).error?.code;
+    return code === 'bad_request' ? { code, status } : null;
+  }
   if (status !== 401 && status !== 403 && status !== 404) return null;
   const body = response.json() as { error?: { code?: string } };
   const code = body.error?.code;
@@ -499,8 +1464,21 @@ function refusal(response: Response): { code: string; status: number } | null {
 function expected(
   route: RouteSpec,
   credential: Credential,
-): 'allow' | 'unauthorized' | 'forbidden' {
+): 'allow' | 'unauthorized' | 'forbidden' | 'not_found' | 'bad_request' {
   if (route.kind === 'public') return 'allow';
+  if (route.kind === 'secret') return route.refuses ?? 'unauthorized';
+
+  const installer =
+    credential === 'owner' || credential === 'viewer' || credential === 'installerForeign';
+  if (route.kind === 'installerAny') return installer ? 'allow' : 'unauthorized';
+  if (route.kind === 'installer') {
+    if (!installer) return 'unauthorized';
+    if (credential === 'installerForeign') return 'not_found';
+    const role: MemberRole = credential === 'owner' ? 'owner' : 'viewer';
+    return roleAtLeast(role, route.minRole ?? 'viewer') ? 'allow' : 'forbidden';
+  }
+  // An installer's sign-in is not a visitor's session or the admin secret.
+  if (installer) return 'unauthorized';
 
   if (route.kind === 'admin') {
     // Single deployment-wide secret, so every session credential -- valid or
@@ -523,6 +1501,7 @@ function expected(
       // session id the request cannot disagree with the token, so it is simply
       // served -- as the tenant the token names, which is what the isolation
       // tests below check.
+      if (route.ownRecord) return 'not_found';
       return route.namesSession ? 'forbidden' : 'allow';
   }
 }
@@ -587,6 +1566,28 @@ beforeAll(async () => {
   });
   expect(filed.statusCode).toBe(201);
   seededLeadId = json<{ leadId: string }>(filed).leadId;
+
+  // A finished roof assessment in each tenant's sweep session (see `assessmentFor`).
+  for (const ids of [DEMO, RIVAL_IDS]) {
+    const started = await app.inject({
+      method: 'POST',
+      url: '/v1/sunscan/assessments',
+      headers: { authorization: `Bearer ${tokenFor(ids)}` },
+      payload: { address: '1 Sweep Street' },
+    });
+    expect(started.statusCode).toBe(202);
+    const id = json<{ id: string }>(started).id;
+    for (let i = 0; i < 100; i++) {
+      const read = await app.inject({
+        method: 'GET',
+        url: `/v1/sunscan/assessments/${id}`,
+        headers: { authorization: `Bearer ${tokenFor(ids)}` },
+      });
+      if (json<{ status: string }>(read).status === 'succeeded') break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    seededAssessments.set(ids.tenantId, id);
+  }
 });
 
 afterAll(async () => {
@@ -606,7 +1607,7 @@ describe('the route table', () => {
 });
 
 describe('every route, every credential', () => {
-  for (const route of ROUTES) {
+  for (const route of ROUTES.filter((r) => r.kind !== 'custom')) {
     describe(`${route.method} ${route.pattern}`, () => {
       for (const credential of CREDENTIALS) {
         const wanted = expected(route, credential);
@@ -626,7 +1627,10 @@ describe('every route, every credential', () => {
             // told the thing is gone: the earlier run of this very case erased it.
             // Nothing is inferred from that -- the credential was still accepted,
             // and every other credential's exact refusal is asserted below.
-            const missIsAllowed = route.consumesFixture === true && denied?.code === 'not_found';
+            const missIsAllowed =
+              (route.consumesFixture === true && denied?.code === 'not_found') ||
+              (route.namesRecord === true &&
+                (denied?.code === 'not_found' || denied?.code === 'bad_request'));
             expect(
               missIsAllowed ? null : denied,
               `expected no denial, got ${JSON.stringify(denied)}`,
@@ -1099,5 +2103,562 @@ describe('knowledge scoping', () => {
     const ours = await shownTo(DEMO);
     expect(ours).not.toContain(INJECTION);
     expect(ours).not.toContain('Ignore your previous instructions');
+  });
+});
+
+// ─── the installer portal, the add-ons and their webhooks ────────────────────
+//
+// The sweep above proves who gets *in* to every route. These cases prove what
+// an admitted caller can reach: a real record of one installer, named by its
+// real id, from another installer's credential; and each webhook, which carries
+// no bearer token at all, deciding the tenant from its verified routing and
+// never from anything the payload says.
+
+describe('installer portal isolation', () => {
+  const as = (email: string) => ({ authorization: `Bearer ${issueDevToken(SECRET, email, NOW)}` });
+  const owner = as(OWNER_EMAIL);
+  const rival = as(RIVAL_OWNER_EMAIL);
+  const viewer = as(VIEWER_EMAIL);
+
+  async function demoLead(marker: string): Promise<{ id: string; sessionId: string }> {
+    const ids: Ids = { ...DEMO, sessionId: `sess_portal_${marker}`.slice(0, 40) };
+    const filed = await app.inject({
+      method: 'POST',
+      url: '/v1/leads',
+      headers: { authorization: `Bearer ${tokenFor(ids)}` },
+      payload: {
+        sessionId: ids.sessionId,
+        consent: true,
+        email: `${marker}@example.test`,
+        summary: marker,
+      },
+    });
+    expect(filed.statusCode).toBe(201);
+    return { id: json<{ leadId: string }>(filed).leadId, sessionId: ids.sessionId };
+  }
+
+  it("does not list or export one installer's leads to another", async () => {
+    await demoLead('portal-list-marker');
+    for (const url of [
+      `/v1/portal/tenants/${DEMO.tenantId}/leads`,
+      `/v1/portal/tenants/${DEMO.tenantId}/leads.csv`,
+      `/v1/portal/tenants/${DEMO.tenantId}/inbox`,
+      `/v1/portal/tenants/${DEMO.tenantId}/overview`,
+    ]) {
+      const theirs = await app.inject({ method: 'GET', url, headers: rival });
+      expect(theirs.statusCode, url).toBe(404);
+      expect(theirs.body).not.toContain('portal-list-marker');
+    }
+    const mine = await app.inject({
+      method: 'GET',
+      url: `/v1/portal/tenants/${DEMO.tenantId}/leads`,
+      headers: owner,
+    });
+    expect(mine.statusCode).toBe(200);
+    expect(mine.body).toContain('portal-list-marker');
+  });
+
+  it("cannot change another installer's lead by naming its id under its own tenant", async () => {
+    const lead = await demoLead('portal-status-marker');
+    // The rival's own path, the demo's lead id: the lead is looked up inside
+    // the rival's tenant and is not there.
+    const attempt = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${RIVAL.id}/leads/${lead.id}/status`,
+      headers: rival,
+      payload: { status: 'lost' },
+    });
+    expect(attempt.statusCode).toBe(404);
+    const quote = await app.inject({
+      method: 'GET',
+      url: `/v1/portal/tenants/${RIVAL.id}/leads/${lead.id}/quote`,
+      headers: rival,
+    });
+    expect(quote.statusCode).toBe(404);
+    // Lead status is kept beside the lead, not on it.
+    const statuses = await stores.get(app)!.listLeadStatuses(DEMO.tenantId);
+    expect(statuses[lead.id] ?? 'new').toBe('new');
+
+    // A viewer of the right installer is still below the role that may change it.
+    const asViewer = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${DEMO.tenantId}/leads/${lead.id}/status`,
+      headers: viewer,
+      payload: { status: 'lost' },
+    });
+    expect(asViewer.statusCode).toBe(403);
+  });
+
+  it("does not open another installer's conversation in the inbox", async () => {
+    const lead = await demoLead('portal-inbox-marker');
+    const conversation = await stores.get(app)!.getConversation(DEMO.tenantId, lead.sessionId);
+    const conversationId = conversation?.sessionId ?? lead.sessionId;
+    const theirs = await app.inject({
+      method: 'GET',
+      url: `/v1/portal/tenants/${RIVAL.id}/inbox/${conversationId}`,
+      headers: rival,
+    });
+    expect(theirs.statusCode).toBe(404);
+    expect(theirs.body).not.toContain('portal-inbox-marker');
+  });
+
+  it("cannot edit or delete another installer's published product", async () => {
+    const uploaded = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${DEMO.tenantId}/catalogue/upload`,
+      headers: owner,
+      payload: { csv: csv(PANEL_500), mode: 'replace' },
+    });
+    expect(uploaded.statusCode).toBeLessThan(300);
+    const uploadId = json<{ uploadId?: string; upload?: { id: string } }>(uploaded);
+    const id = uploadId.uploadId ?? uploadId.upload?.id;
+    expect(id).toBeTruthy();
+    const published = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${DEMO.tenantId}/catalogue/upload/${id}/publish`,
+      headers: owner,
+    });
+    expect(published.statusCode).toBeLessThan(300);
+    const products = await stores.get(app)!.listProducts(DEMO.tenantId);
+    expect(products.length).toBeGreaterThan(0);
+    const product = products[0]!;
+
+    const edit = await app.inject({
+      method: 'PATCH',
+      url: `/v1/portal/tenants/${RIVAL.id}/catalogue/products/${product.id}`,
+      headers: rival,
+      payload: { warrantyYears: 1 },
+    });
+    expect(edit.statusCode).toBe(404);
+    const remove = await app.inject({
+      method: 'DELETE',
+      url: `/v1/portal/tenants/${RIVAL.id}/catalogue/products/${product.id}`,
+      headers: rival,
+    });
+    expect(remove.statusCode).toBe(404);
+    const after = await stores.get(app)!.listProducts(DEMO.tenantId);
+    expect(after.map((p) => p.id)).toContain(product.id);
+    expect(after.find((p) => p.id === product.id)?.warrantyYears).toBe(product.warrantyYears);
+  });
+
+  it('ignores a tenant id smuggled into a settings body', async () => {
+    const before = await stores.get(app)!.getTenant(DEMO.tenantId);
+    const write = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${RIVAL.id}/settings`,
+      headers: rival,
+      payload: { tenantId: DEMO.tenantId, companyName: 'Hijacked Solar' },
+    });
+    expect(write.statusCode).toBeLessThan(500);
+    const demo = await app.inject({
+      method: 'GET',
+      url: `/v1/portal/tenants/${DEMO.tenantId}`,
+      headers: owner,
+    });
+    expect(demo.body).not.toContain('Hijacked Solar');
+    const after = await stores.get(app)!.getTenant(DEMO.tenantId);
+    expect(after?.config.companyName ?? null).toBe(before?.config.companyName ?? null);
+  });
+});
+
+describe('portal sessions', () => {
+  const email = 'sessions@demo.sweep.test';
+
+  async function signIn(): Promise<string> {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/session',
+      payload: { idToken: issueDevToken(SECRET, email, NOW) },
+    });
+    expect(response.statusCode).toBe(200);
+    return json<{ token: string }>(response).token;
+  }
+
+  it('trades a sign-in proof for a session, and nothing else', async () => {
+    const session = await signIn();
+    const me = await app.inject({
+      method: 'GET',
+      url: '/v1/portal/me',
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(me.statusCode).toBe(200);
+    expect(json<{ user: { email: string } }>(me).user.email).toBe(email);
+
+    // A session is not a sign-in proof: it cannot mint itself a fresh session.
+    const loop = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/session',
+      payload: { idToken: session },
+    });
+    expect(loop.statusCode).toBe(401);
+    // Neither is a visitor's widget token, the admin secret, or a forged proof.
+    for (const idToken of [
+      tokenFor(DEMO),
+      ADMIN_TOKEN.padEnd(12, '_'),
+      issueDevToken('not-the-secret', email, NOW),
+    ]) {
+      const refused = await app.inject({
+        method: 'POST',
+        url: '/v1/portal/session',
+        payload: { idToken },
+      });
+      expect(refused.statusCode, idToken.slice(0, 12)).toBe(401);
+    }
+  });
+
+  it('refuses a session signed with another key, and renews only a real one', async () => {
+    const forged = issuePortalSession('not-the-secret', { uid: 'u', email }, NOW).token;
+    for (const url of ['/v1/portal/me', '/v1/portal/session/refresh']) {
+      const refused = await app.inject({
+        method: url.endsWith('refresh') ? 'POST' : 'GET',
+        url,
+        headers: { authorization: `Bearer ${forged}` },
+      });
+      expect(refused.statusCode, url).toBe(401);
+    }
+    const session = await signIn();
+    const renewed = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/session/refresh',
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(renewed.statusCode).toBe(200);
+  });
+
+  it('signs out everywhere: earlier sessions stop working and stop renewing', async () => {
+    const session = await signIn();
+    const revoke = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/sessions/revoke',
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(revoke.statusCode).toBe(200);
+    const me = await app.inject({
+      method: 'GET',
+      url: '/v1/portal/me',
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(me.statusCode).toBe(401);
+    const renew = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/session/refresh',
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(renew.statusCode).toBe(401);
+  });
+});
+
+describe('team invitations', () => {
+  const invitee = 'invitee@demo.sweep.test';
+
+  it('lets only the invited address accept, and previews nothing for a forged link', async () => {
+    const invited = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${DEMO.tenantId}/members`,
+      headers: { authorization: `Bearer ${issueDevToken(SECRET, OWNER_EMAIL, NOW)}` },
+      payload: { email: invitee, role: 'viewer' },
+    });
+    expect(invited.statusCode).toBeLessThan(300);
+    const token = issueInviteToken(SECRET, { tenantId: DEMO.tenantId, email: invitee }, NOW);
+
+    const preview = await app.inject({
+      method: 'GET',
+      url: `/v1/portal/invite?token=${encodeURIComponent(token)}`,
+    });
+    expect(preview.statusCode).toBe(200);
+    for (const bad of [
+      'none',
+      issueInviteToken('not-the-secret', { tenantId: DEMO.tenantId, email: invitee }, NOW),
+      // A real signature over an invitation to an address with no pending membership.
+      issueInviteToken(SECRET, { tenantId: RIVAL.id, email: invitee }, NOW),
+    ]) {
+      const refused = await app.inject({
+        method: 'GET',
+        url: `/v1/portal/invite?token=${encodeURIComponent(bad)}`,
+      });
+      expect(refused.statusCode).toBe(404);
+    }
+
+    // Somebody else -- the rival's owner -- holding the link cannot use it.
+    const hijack = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/invite/accept',
+      headers: { authorization: `Bearer ${issueDevToken(SECRET, RIVAL_OWNER_EMAIL, NOW)}` },
+      payload: { token },
+    });
+    expect(hijack.statusCode).toBe(403);
+    const anonymous = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/invite/accept',
+      payload: { token },
+    });
+    expect(anonymous.statusCode).toBe(401);
+
+    const accepted = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/invite/accept',
+      headers: { authorization: `Bearer ${issueDevToken(SECRET, invitee, NOW)}` },
+      payload: { token },
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(json<{ tenantId: string; role: string }>(accepted)).toEqual({
+      tenantId: DEMO.tenantId,
+      role: 'viewer',
+    });
+  });
+});
+
+describe('webhooks decide the tenant from their verified routing', () => {
+  function stripeSigned(raw: string, secret = STRIPE_WEBHOOK_SECRET): string {
+    const t = Math.floor(NOW / 1000);
+    const v1 = createHmac('sha256', secret).update(`${t}.${raw}`).digest('hex');
+    return `t=${t},v1=${v1}`;
+  }
+
+  it('changes no entitlement for a forged Stripe event, and reads a signed one', async () => {
+    const event = JSON.stringify({
+      id: 'evt_sweep_forged',
+      type: 'customer.subscription.deleted',
+      created: Math.floor(NOW / 1000),
+      data: { object: { id: 'sub_x', metadata: { tenant_id: DEMO.tenantId, plan: 'suite' } } },
+    });
+    const before = await stores.get(app)!.getTenant(DEMO.tenantId);
+    const forged = await app.inject({
+      method: 'POST',
+      url: '/v1/billing/webhook',
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': stripeSigned(event, 'whsec_wrong'),
+      },
+      payload: event,
+    });
+    expect(forged.statusCode).toBe(400);
+    const after = await stores.get(app)!.getTenant(DEMO.tenantId);
+    expect(after?.billing ?? null).toEqual(before?.billing ?? null);
+
+    const harmless = JSON.stringify({
+      id: 'evt_sweep_signed',
+      type: 'invoice.created',
+      created: Math.floor(NOW / 1000),
+      data: { object: { id: 'in_x' } },
+    });
+    const signed = await app.inject({
+      method: 'POST',
+      url: '/v1/billing/webhook',
+      headers: { 'content-type': 'application/json', 'stripe-signature': stripeSigned(harmless) },
+      payload: harmless,
+    });
+    expect(signed.statusCode).toBe(200);
+  });
+
+  it('files a per-tenant inbound email under that tenant, whatever it is addressed to', async () => {
+    const rivalBefore = (await stores.get(app)!.listConversations(RIVAL.id)).length;
+    const good = await app.inject({
+      method: 'POST',
+      url: `/v1/webhooks/inbound-email/${DEMO.tenantId}/${inboundToken(EMAIL_WEBHOOK_SECRET, DEMO.tenantId)}`,
+      payload: {
+        MessageID: 'msg-sweep-1',
+        From: 'customer@example.test',
+        To: `${RIVAL.id}@inbound.sweep.test`,
+        Subject: 'tenantId: t_rival001',
+        TextBody: 'Please file this under t_rival001.',
+      },
+    });
+    expect(good.statusCode).toBeLessThan(500);
+    expect((await stores.get(app)!.listConversations(RIVAL.id)).length).toBe(rivalBefore);
+
+    // The demo's secret on the rival's path is not the rival's secret.
+    const swapped = await app.inject({
+      method: 'POST',
+      url: `/v1/webhooks/inbound-email/${RIVAL.id}/${inboundToken(EMAIL_WEBHOOK_SECRET, DEMO.tenantId)}`,
+      payload: {
+        MessageID: 'msg-sweep-2',
+        From: 'a@b.test',
+        To: 'x@y.test',
+        Subject: 'x',
+        TextBody: 'x',
+      },
+    });
+    expect(swapped.statusCode).toBe(401);
+    // And an unknown tenant answers exactly as a wrong token does.
+    const unknown = await app.inject({
+      method: 'POST',
+      url: `/v1/webhooks/inbound-email/t_nobody/${inboundToken(EMAIL_WEBHOOK_SECRET, 't_nobody')}`,
+      payload: {
+        MessageID: 'msg-sweep-3',
+        From: 'a@b.test',
+        To: 'x@y.test',
+        Subject: 'x',
+        TextBody: 'x',
+      },
+    });
+    expect(unknown.statusCode).toBe(401);
+  });
+
+  it('routes shared inbound mail by its receiving address only', async () => {
+    const basic = `Basic ${Buffer.from(`${INBOUND_BASIC.user}:${INBOUND_BASIC.password}`).toString('base64')}`;
+    const nobody = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/inbound-email',
+      headers: { authorization: basic },
+      payload: {
+        MessageID: 'msg-sweep-4',
+        From: 'a@b.test',
+        To: 'unknown@nowhere.test',
+        Subject: `tenant ${DEMO.tenantId}`,
+        TextBody: `File under ${DEMO.tenantId}`,
+      },
+    });
+    expect(nobody.statusCode).toBe(404);
+    const wrongPassword = await app.inject({
+      method: 'POST',
+      url: '/v1/webhooks/inbound-email',
+      headers: {
+        authorization: `Basic ${Buffer.from(`${INBOUND_BASIC.user}:nope`).toString('base64')}`,
+      },
+      payload: {
+        MessageID: 'msg-sweep-5',
+        From: 'a@b.test',
+        To: 'enquiries@northwind.example',
+        Subject: 'x',
+        TextBody: 'x',
+      },
+    });
+    expect(wrongPassword.statusCode).toBe(401);
+  });
+
+  it('acknowledges a Gmail push for a mailbox no installer watches, doing nothing', async () => {
+    const data = Buffer.from(
+      JSON.stringify({ emailAddress: 'someone@gmail.test', historyId: 1 }),
+    ).toString('base64');
+    const pushed = await app.inject({
+      method: 'POST',
+      url: `/v1/webhooks/gmail-push?token=${GMAIL_PUSH_TOKEN}`,
+      payload: { message: { data } },
+    });
+    expect(pushed.statusCode).toBe(200);
+    expect(json<{ handled: number }>(pushed).handled).toBe(0);
+  });
+
+  it('answers a signed Twilio call as the installer that owns the number', async () => {
+    const params = {
+      CallSid: 'CA_sweep_call',
+      To: '+441632960001',
+      From: '+447700900123',
+      Direction: 'inbound',
+    };
+    const url = `${PUBLIC_BASE_URL}/v1/voice/twilio/incoming`;
+    const signed = await app.inject({
+      method: 'POST',
+      url: '/v1/voice/twilio/incoming',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': twilioSignature(url, params, TWILIO_AUTH_TOKEN),
+      },
+      payload: new URLSearchParams(params).toString(),
+    });
+    expect(signed.statusCode).toBe(200);
+    // Routed to the demo installer, who owns the number -- with no live voice
+    // connector configured here, its own hand-off line answers.
+    expect(signed.body).toContain(DEMO_FULL.config.companyName);
+    expect(signed.body).not.toContain(RIVAL.config.companyName);
+
+    // Signed for other parameters: the signature covers the number called.
+    const tampered = await app.inject({
+      method: 'POST',
+      url: '/v1/voice/twilio/incoming',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': twilioSignature(url, params, TWILIO_AUTH_TOKEN),
+      },
+      payload: new URLSearchParams({ ...params, To: '+441632960999' }).toString(),
+    });
+    expect(tampered.statusCode).toBe(403);
+  });
+
+  it('connects no mailbox for a forged OAuth state', async () => {
+    for (const state of [
+      'forged',
+      signState('not-the-secret', {
+        tenantId: DEMO.tenantId,
+        provider: 'gmail',
+        returnTo: '/dashboard/settings/email',
+        exp: NOW + 60_000,
+      }),
+    ]) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/v1/email/oauth/callback?code=stolen&state=${encodeURIComponent(state)}`,
+      });
+      expect(response.statusCode).toBe(302);
+      expect(String(response.headers.location)).toContain('email=invalid_state');
+    }
+  });
+});
+
+describe('quote isolation', () => {
+  const quoteFor = (ids: Ids, id: string) =>
+    ({
+      id,
+      tenantId: ids.tenantId,
+      sessionId: ids.sessionId,
+      createdAt: new Date(NOW).toISOString(),
+      assessmentId: null,
+      priced: false,
+      pricing: null,
+      basis: {},
+      options: [],
+      recommendedId: null,
+      disclaimer: 'Indicative.',
+      warnings: [],
+      leadId: null,
+    }) as never;
+
+  it('serves a quote only to the visitor session it was made for', async () => {
+    const owner: Ids = { ...DEMO, sessionId: 'sess_quote_owner' };
+    await stores.get(app)!.saveQuote(quoteFor(owner, 'q_sweep_demo'));
+
+    const mine = await app.inject({
+      method: 'GET',
+      url: '/v1/quote/q_sweep_demo',
+      headers: { authorization: `Bearer ${tokenFor(owner)}` },
+    });
+    expect(mine.statusCode).toBe(200);
+    for (const other of [
+      { ...DEMO, sessionId: 'sess_quote_other' },
+      { ...RIVAL_IDS, sessionId: 'sess_quote_owner' },
+    ]) {
+      const theirs = await app.inject({
+        method: 'GET',
+        url: '/v1/quote/q_sweep_demo',
+        headers: { authorization: `Bearer ${tokenFor(other)}` },
+      });
+      expect(theirs.statusCode).toBe(404);
+      expect(theirs.body).not.toContain(DEMO.tenantId);
+    }
+    // Nor its proposal, by the same rule.
+    const pdf = await app.inject({
+      method: 'GET',
+      url: '/v1/quote/q_sweep_demo/proposal.pdf',
+      headers: {
+        authorization: `Bearer ${tokenFor({ ...RIVAL_IDS, sessionId: 'sess_quote_owner' })}`,
+      },
+    });
+    expect(pdf.statusCode).toBe(404);
+    const emailed = await app.inject({
+      method: 'POST',
+      url: '/v1/quote/q_sweep_demo/proposal/email',
+      headers: { authorization: `Bearer ${tokenFor({ ...DEMO, sessionId: 'sess_quote_other' })}` },
+      payload: { email: 'attacker@example.test', consent: true },
+    });
+    expect(emailed.statusCode).toBe(404);
+    // Nor can another session attach it to a lead.
+    const attach = await app.inject({
+      method: 'POST',
+      url: '/v1/quote/q_sweep_demo/lead',
+      headers: { authorization: `Bearer ${tokenFor({ ...DEMO, sessionId: 'sess_quote_other' })}` },
+      payload: { sessionId: 'sess_quote_other', leadId: 'lead_x' },
+    });
+    expect(attach.statusCode).toBe(404);
   });
 });

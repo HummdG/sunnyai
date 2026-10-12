@@ -90,7 +90,7 @@ describe('configuration', () => {
       allowedOrigins: [],
     };
     expect(assertProductionReady(config)).toContain(
-      'WIDGET_ALLOWED_ORIGINS must list the customer origins in production',
+      'WIDGET_ALLOWED_ORIGINS must list the platform origins (dashboard, marketing) in production',
     );
   });
 

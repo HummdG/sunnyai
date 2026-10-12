@@ -7,6 +7,11 @@ import type {
   RecommendationWant,
 } from '@sunny/contracts';
 import { searchChunks, type KnowledgeIndex } from '@sunny/knowledge';
+import {
+  toRoofAssessmentSummary,
+  type AssessmentRecord,
+  type SunScanService,
+} from '@sunny/sunscan-adapter';
 import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
 import { newId, type LeadRecord, type Store } from '../store.js';
@@ -22,6 +27,15 @@ import {
 } from '../questionnaire.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatToolCall, ToolDeclaration } from './provider.js';
+import type { Channel } from './channels.js';
+import { verifiedContext } from './prompt.js';
+import { CitationLedger, lexicalSearch, type PassageSearch } from './retrieval.js';
+import { ESTIMATE_DISCLAIMER, estimateSavings } from './savings.js';
+import {
+  linkAssessmentFromTool,
+  QUOTE_TOOLS,
+  type QuoteToolContext,
+} from '../journey/agent-tools.js';
 
 /**
  * The approved tool surface.
@@ -41,7 +55,14 @@ import type { ChatToolCall, ToolDeclaration } from './provider.js';
 
 /** What a tool may change or report during a turn. */
 export interface ToolEvent {
-  kind: 'page_action' | 'lead_saved' | 'handoff_requested' | 'recommendation_ready';
+  kind:
+    | 'page_action'
+    | 'lead_saved'
+    | 'handoff_requested'
+    | 'recommendation_ready'
+    | 'estimate_disclaimer'
+    | 'sunscan'
+    | 'quote';
   detail: Record<string, unknown>;
 }
 
@@ -56,6 +77,8 @@ export interface ToolContext {
   events: ToolEvent[];
   /** True when a SunScan adapter is configured for this tenant. */
   sunscanConnected: boolean;
+  /** The roof assessment service (the vendored SunScan engine), when it is on. */
+  sunscan?: SunScanService;
   /**
    * Where an effectful tool call is recorded, when the caller supplied one.
    *
@@ -84,6 +107,14 @@ export interface ToolContext {
    * scoring index is built per lookup, which is the cheap half.
    */
   knowledge: KnowledgeIndex;
+  /** The channel this turn is on. Absent means chat, which is every older caller. */
+  channel?: Channel;
+  /** How passages are found; the lexical search unless the caller plugs in another. */
+  search?: PassageSearch;
+  /** The turn's citation markers, so a tool lookup and the up-front context share them. */
+  ledger?: CitationLedger;
+  /** The quote journey's pricing, when the chat route enables quotes. */
+  quote?: QuoteToolContext;
 }
 
 export interface ToolResult {
@@ -100,6 +131,44 @@ interface ToolDefinition {
   parameters: Record<string, unknown>;
   required: string[];
   run: (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
+}
+
+/** How long a turn waits for an assessment before handing it to the widget to poll. */
+const SUNSCAN_WAIT_MS = 25_000;
+
+/**
+ * What the model is told about an assessment: the geometry and the engine's
+ * own doubts, labelled indicative. No yield, no panel count, no price -- those
+ * belong to `recommend_packages` and the installer's survey.
+ */
+function sunscanResult(record: AssessmentRecord): ToolResult {
+  const base = { assessmentId: record.id, status: record.status };
+  if (record.status === 'queued' || record.status === 'running') {
+    return {
+      ok: true,
+      data: {
+        ...base,
+        note: 'Still measuring; the result will appear in the chat when it is ready.',
+      },
+      summary: 'I have started measuring the roof; the result will appear here shortly.',
+    };
+  }
+  if (record.status === 'failed' || !record.summary) {
+    return {
+      ok: false,
+      data: { ...base, error: record.error },
+      summary: record.error?.message ?? 'The roof could not be measured.',
+    };
+  }
+  const s = record.summary;
+  // The full RoofAssessmentSummary: the stable shape the quote journey reads
+  // (usable area, per-plane geometry and capacity, main plane, flags).
+  const data = toRoofAssessmentSummary(record) ?? { ...base, error: record.error };
+  const where = s.bestFacing ? `, best facing ${s.bestFacing}` : '';
+  const lead = s.reliable
+    ? `I have measured the roof: about ${s.usableRoofAreaM2} m² usable, facing east to west${where}.`
+    : `I have a rough roof measurement (low confidence): about ${s.usableRoofAreaM2} m² usable, facing east to west${where}.`;
+  return { ok: true, data, summary: `${lead} ${s.label}.` };
 }
 
 function str(args: Record<string, unknown>, key: string): string | null {
@@ -281,6 +350,12 @@ function packageForModel(option: PackageOption): Record<string, unknown> {
  * system instruction that says the text is data.
  */
 const PASSAGES_PER_LOOKUP = 4;
+
+/** The query words the installer's documents never use, for the "not documented" reply. */
+function missingTermsFor(index: KnowledgeIndex, query: string): string[] {
+  return searchChunks(index.chunks, query, { limit: 1, sourceCount: index.sourceCount })
+    .missingTerms;
+}
 const MAX_PASSAGE_CHARS = 900;
 
 // ─── the tool implementations ────────────────────────────────────────────────
@@ -317,10 +392,19 @@ const DEFINITIONS: ToolDefinition[] = [
         };
       }
 
-      const result = searchChunks(ctx.knowledge.chunks, query, {
-        limit: PASSAGES_PER_LOOKUP,
-        sourceCount: ctx.knowledge.sourceCount,
-      });
+      const search = ctx.search ?? lexicalSearch;
+      const hits = await search(ctx.knowledge, query, PASSAGES_PER_LOOKUP);
+      // The lexical search also says which words were absent, which is the
+      // difference between "not documented" and "try other words" below. A
+      // plugged-in search that cannot say leaves it empty.
+      const result = {
+        hits,
+        missingTerms:
+          hits.length === 0 && search === lexicalSearch
+            ? missingTermsFor(ctx.knowledge, query)
+            : [],
+        indexedChunks: ctx.knowledge.chunks.length,
+      };
 
       if (result.hits.length === 0) {
         // Two different failures, and the difference is actionable: a query
@@ -338,7 +422,9 @@ const DEFINITIONS: ToolDefinition[] = [
         };
       }
 
-      const passages = result.hits.map((hit) => ({
+      const cited = (ctx.ledger ?? new CitationLedger()).add(result.hits);
+      const passages = result.hits.map((hit, i) => ({
+        ref: cited[i]!.ref,
         source: hit.chunk.title,
         url: hit.chunk.url,
         version: hit.chunk.version,
@@ -357,6 +443,9 @@ const DEFINITIONS: ToolDefinition[] = [
         // assistant's own words into a conversation a customer reads.
         data: {
           query,
+          // The same framing as the up-front context: installer text is
+          // evidence to quote, never an instruction (Blueprint §4.3).
+          verified_context: verifiedContext(cited),
           passages,
           missingTerms: result.missingTerms,
           indexedChunks: result.indexedChunks,
@@ -720,7 +809,9 @@ const DEFINITIONS: ToolDefinition[] = [
   {
     name: 'start_sunscan_assessment',
     description:
-      'Begin a SunScan roof assessment for an address. Requires the visitor to have given an address.',
+      'Measure the roof of the visitor’s house from its address (SunScan: open UK LiDAR and map ' +
+      'outlines) -- roof planes, pitch, which way they face, and the area facing east to west. ' +
+      'Only with an address the visitor gave. Results are indicative, subject to a survey.',
     parameters: {
       type: 'object',
       properties: { address: { type: 'string' } },
@@ -736,7 +827,7 @@ const DEFINITIONS: ToolDefinition[] = [
           summary: 'I need an address first.',
         };
       }
-      if (!ctx.sunscanConnected) {
+      if (!ctx.sunscanConnected || !ctx.sunscan) {
         return {
           ok: false,
           data: { connected: false, address },
@@ -744,11 +835,28 @@ const DEFINITIONS: ToolDefinition[] = [
             'The roof assessment service is not connected in this environment, so I cannot run one.',
         };
       }
-      return {
-        ok: false,
-        data: { connected: true, pending: 'assessment-not-implemented' },
-        summary: 'Assessment dispatch is not implemented in this build yet.',
-      };
+      const postcode = ctx.answers['postcode'] ?? null;
+      const started = await ctx.sunscan.startAssessment(
+        ctx.tenant.id,
+        {
+          address,
+          ...(postcode && !address.toUpperCase().includes(postcode.toUpperCase())
+            ? { postcode }
+            : {}),
+        },
+        { sessionId: ctx.sessionId },
+      );
+      // Most houses model in a few seconds. Waiting a little keeps the answer in
+      // this turn; a slow one is reported as in progress and the widget polls.
+      const record =
+        (await ctx.sunscan.waitFor(ctx.tenant.id, started.id, SUNSCAN_WAIT_MS)) ?? started;
+      // The quote journey picks the roof up from here (journey/service.ts).
+      await linkAssessmentFromTool(ctx, record.id);
+      ctx.events.push({
+        kind: 'sunscan',
+        detail: { assessmentId: record.id, status: record.status, summary: record.summary },
+      });
+      return sunscanResult(record);
     },
   },
   {
@@ -760,12 +868,26 @@ const DEFINITIONS: ToolDefinition[] = [
       required: ['assessmentId'],
     },
     required: ['assessmentId'],
-    async run() {
-      return {
-        ok: false,
-        data: { reason: 'No assessment service is connected.' },
-        summary: 'I have no assessment to look up.',
-      };
+    async run(args, ctx) {
+      const id = str(args, 'assessmentId');
+      if (!ctx.sunscan) {
+        return {
+          ok: false,
+          data: { reason: 'No assessment service is connected.' },
+          summary: 'I have no assessment to look up.',
+        };
+      }
+      const record = id ? await ctx.sunscan.getAssessment(ctx.tenant.id, id) : null;
+      // Only this conversation's own assessments: an id from another visitor is
+      // not found, exactly as the HTTP route answers it.
+      if (!record || record.sessionId !== ctx.sessionId) {
+        return {
+          ok: false,
+          data: { error: 'not found' },
+          summary: 'I could not find that roof assessment.',
+        };
+      }
+      return sunscanResult(record);
     },
   },
   {
@@ -924,6 +1046,108 @@ const DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
+// ─── base package: savings estimate (Blueprint §5 matrix) ───────────────────
+
+DEFINITIONS.push({
+  name: 'estimate_savings',
+  description:
+    "Give a non-binding savings estimate from the visitor's monthly electricity bill, using only this installer's own tariff assumptions. Always pass on the disclaimer it returns.",
+  parameters: {
+    type: 'object',
+    properties: {
+      monthlyBill: { type: 'number', description: 'Monthly electricity bill, major units.' },
+      currency: { type: 'string', description: 'ISO currency of the bill, e.g. GBP.' },
+    },
+    required: ['monthlyBill'],
+  },
+  required: ['monthlyBill'],
+  async run(args, ctx) {
+    const result = estimateSavings(ctx.tenant.savingsModel, {
+      monthlyBill: num(args, 'monthlyBill') ?? Number.NaN,
+      currency: str(args, 'currency'),
+    });
+    // The disclaimer reaches the visitor as a fixed notice from the server,
+    // whether or not the model repeats it (Blueprint §4.4).
+    ctx.events.push({ kind: 'estimate_disclaimer', detail: { text: ESTIMATE_DISCLAIMER } });
+    return result.ok
+      ? {
+          ok: true,
+          data: result,
+          summary: `Estimated ${result.currency} ${result.annualSavingsLow}-${result.annualSavingsHigh} a year for a ${result.systemKwp} kWp system (non-binding).`,
+        }
+      : { ok: false, data: result, summary: 'I could not give a savings estimate here.' };
+  },
+});
+
+// The quote journey's tools (journey/agent-tools.ts).
+DEFINITIONS.push(...QUOTE_TOOLS);
+
+// ─── add-on tools (voice, email) ────────────────────────────────────────────
+//
+// Declared in the core so the channel matrix is complete and the model sees a
+// stable surface, but each refuses until the add-on module that implements it
+// registers itself. An add-on that is not installed therefore cannot be
+// half-working: it says "not enabled" and does nothing.
+
+type AddonToolName = 'transfer_to_human' | 'send_sms_link' | 'create_gmail_draft';
+type AddonToolRun = ToolDefinition['run'];
+
+const ADDON_RUNNERS = new Map<AddonToolName, AddonToolRun>();
+
+/** Called by the voice and email add-on modules to provide their tools. */
+export function registerAddonTool(name: AddonToolName, run: AddonToolRun): void {
+  ADDON_RUNNERS.set(name, run);
+}
+
+/** For tests: forget registered add-on tools. */
+export function resetAddonTools(): void {
+  ADDON_RUNNERS.clear();
+}
+
+function addonTool(
+  name: AddonToolName,
+  description: string,
+  properties: Record<string, unknown>,
+  required: string[],
+): ToolDefinition {
+  return {
+    name,
+    description,
+    parameters: { type: 'object', properties, required },
+    required,
+    async run(args, ctx) {
+      const runner = ADDON_RUNNERS.get(name);
+      if (runner) return runner(args, ctx);
+      return {
+        ok: false,
+        data: { enabled: false, reason: `${name} is not enabled on this deployment.` },
+        summary: `${name.replace(/_/g, ' ')} is not enabled.`,
+      };
+    },
+  };
+}
+
+DEFINITIONS.push(
+  addonTool(
+    'transfer_to_human',
+    'Transfer the call to a person at the installer (phone channel).',
+    { reason: { type: 'string' } },
+    ['reason'],
+  ),
+  addonTool(
+    'send_sms_link',
+    'Text the caller a link to book a survey (phone channel). Only with their agreement.',
+    { purpose: { type: 'string', enum: ['book_survey', 'quote_request'] } },
+    ['purpose'],
+  ),
+  addonTool(
+    'create_gmail_draft',
+    "Create a draft reply in the installer's inbox for a person to approve (email channel). Never sends.",
+    { subject: { type: 'string' }, body: { type: 'string' } },
+    ['subject', 'body'],
+  ),
+);
+
 const BY_NAME = new Map(DEFINITIONS.map((d) => [d.name, d]));
 
 export const TOOL_DECLARATIONS: ToolDeclaration[] = DEFINITIONS.map((d) => ({
@@ -931,6 +1155,11 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = DEFINITIONS.map((d) => ({
   description: d.description,
   parameters: d.parameters,
 }));
+
+/** The declarations a channel's model may see (Blueprint §5 matrix). */
+export function declarationsFor(allowed: readonly string[]): ToolDeclaration[] {
+  return TOOL_DECLARATIONS.filter((d) => allowed.includes(d.name));
+}
 
 /** Every declared tool must be one the plan approved. Asserted, not assumed. */
 export function assertToolSurfaceClosed(): string[] {

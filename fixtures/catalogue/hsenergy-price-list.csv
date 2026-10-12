@@ -1,0 +1,119 @@
+Category,Key,Name,Manufacturer,Model,Pricing,Amount,Unit,Flat fee,Per unit,Counts,Percent,From,To,Price with solar,Price retrofit,Expansion price,Expansion capacity (kWh),Max units,Additional unit discount,Capacity (kWh),Power (kW),Mandatory,Price status,Exclusive group,Expansion SKU,Band SKU,Prices include VAT,Currency,Notes
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£3,985",,,,,,1,,,,,,,,,,,,,,,,,0.43 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£4,195",,,,,,2,,,,,,,,,,,,,,,,,0.86 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£4,425",,,,,,3,,,,,,,,,,,,,,,,,1.29 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£4,734",,,,,,4,,,,,,,,,,,,,,,,,1.72 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£4,854",,,,,,5,,,,,,,,,,,,,,,,,2.15 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£4,973",,,,,,6,,,,,,,,,,,,,,,,,2.58 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£5,153",,,,,,7,,,,,,,,,,,,,,,,,3.01 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£5,513",,,,,,8,,,,,,,,,,,,,,,,,3.44 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£5,752",,,,,,9,,,,,,,,,,,,,,,,,3.87 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£5,932",,,,,,10,,,,,,,,,,,,,,,,,4.3 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£6,352",,,,,,11,,,,,,,,,,,,,,,,,4.73 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£6,471",,,,,,12,,,,,,,,,,,,,,,,,5.16 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£6,591",,,,,,13,,,,,,,,,,,,,,,,,5.59 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£6,711",,,,,,14,,,,,,,,,,,,,,,,,6.02 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£6,891",,,,,,15,,,,,,,,,,,,,,,,,6.45 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£7,310",,,,,,16,,,,,,,,,,,,,,,,,6.88 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£7,430",,,,,,17,,,,,,,,,,,,,,,,,7.31 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£7,550",,,,,,18,,,,,,,,,,,,,,,,,7.74 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£7,909",,,,,,19,,,,,,,,,,,,,,,,,8.17 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£8,449",,,,,,20,,,,,,,,,,,,,,,,,8.6 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£8,928",,,,,,21,,,,,,,,,,,,,,,,,9.03 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£9,108",,,,,,22,,,,,,,,,,,,,,,,,9.46 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£9,407",,,,,,23,,,,,,,,,,,,,,,,,9.89 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£9,647",,,,,,24,,,,,,,,,,,,,,,,,10.32 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£9,827",,,,,,25,,,,,,,,,,,,,,,,,10.75 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£10,230",,,,,,26,,,,,,,,,,,,,,,,,11.18 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£10,623",,,,,,27,,,,,,,,,,,,,,,,,11.61 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£11,017",,,,,,28,,,,,,,,,,,,,,,,,12.04 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£11,410",,,,,,29,,,,,,,,,,,,,,,,,12.47 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£11,804",,,,,,30,,,,,,,,,,,,,,,,,12.9 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£12,197",,,,,,31,,,,,,,,,,,,,,,,,13.33 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£12,590",,,,,,32,,,,,,,,,,,,,,,,,13.76 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£12,984",,,,,,33,,,,,,,,,,,,,,,,,14.19 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£13,377",,,,,,34,,,,,,,,,,,,,,,,,14.62 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£13,771",,,,,,35,,,,,,,,,,,,,,,,,15.05 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£14,164",,,,,,36,,,,,,,,,,,,,,,,,15.48 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£14,558",,,,,,37,,,,,,,,,,,,,,,,,15.91 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£14,951",,,,,,38,,,,,,,,,,,,,,,,,16.34 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£15,345",,,,,,39,,,,,,,,,,,,,,,,,16.77 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£15,738",,,,,,40,,,,,,,,,,,,,,,,,17.2 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£16,131",,,,,,41,,,,,,,,,,,,,,,,,17.63 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£16,525",,,,,,42,,,,,,,,,,,,,,,,,18.06 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£16,918",,,,,,43,,,,,,,,,,,,,,,,,18.49 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£17,312",,,,,,44,,,,,,,,,,,,,,,,,18.92 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£17,705",,,,,,45,,,,,,,,,,,,,,,,,19.35 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£18,099",,,,,,46,,,,,,,,,,,,,,,,,19.78 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£18,492",,,,,,47,,,,,,,,,,,,,,,,,20.21 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£18,886",,,,,,48,,,,,,,,,,,,,,,,,20.64 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£19,279",,,,,,49,,,,,,,,,,,,,,,,,21.07 kWp
+pv,PV-BASE,"Solar PV system (DMEGC 430 W base), by panel count",,,table,"£19,673",,,,,,50,,,,,,,,,,,,,,,,,21.5 kWp
+panel_uplift,DMEGC-DM430,DMEGC DM430M10RT-54HBB Mono-facial (base panel),DMEGC,DM430M10RT-54HBB,percent,,,,,,0,,,,,,,,,,0.43,,,,,,,,
+panel_uplift,DMEGC-DM455,DMEGC DM455M10RT-54HBB Mono-facial,DMEGC,DM455M10RT-54HBB,percent,,,,,,7.5,,,,,,,,,,0.455,,,,,,,,
+panel_uplift,REA-HD96-460,REA 460W REA-HD96N-C2-460 Bifacial,REA,REA-HD96N-C2-460,percent,,,,,,8,,,,,,,,,,0.46,,,,,,,,
+panel_uplift,REA-HD108-450-ENPHASE,REA 450W REA-HD108N-450-ACM w/ Enphase,REA,REA-HD108N-450-ACM,per_unit,£150,panel,,,,,,,,,,,,,,0.45,,,,,,,,
+inverter,FOX-H1-3.7,Fox ESS H1 3.7kW Hybrid,Fox ESS,H1-3.7,flat,£0,,,,,,,,,,,,,,,3.7,,indicative,,,,,,Included in the PV price (SunScan v1); not on the 2026 sheet - confirm
+inverter,SE-SE5000H,SolarEdge SE5000H,SolarEdge,SE5000H,flat,£0,,,,,,,,,,,,,,,5,,indicative,,,,,,Default inverter in SunScan v1. Included in the PV price; not on the 2026 sheet - confirm
+inverter,FOX-H3-8.0,Fox ESS H3 8.0kW Hybrid (3-phase ready),Fox ESS,H3-8.0,flat,£0,,,,,,,,,,,,,,,8,,indicative,,,,,,Included in the PV price (SunScan v1); not on the 2026 sheet - confirm
+mounting,MOUNT-PITCHED-TILE,"Pitched tile charge; slate, rosemary/clay",,,per_unit,£30,panel,,,,,,,,,,,,,,,,,,,,,,Applies to pitched roofs
+mounting,MOUNT-GROUND-15,Ground mount only; 15° Renusol ConSole+ tubs,,,per_unit,£50,panel,,,,,,,,,,,,,,,,,,,,,,Applies to ground mounts
+mounting,MOUNT-FLAT-VDV,Flat roof / ground mount; 10° Van der Valk,,,per_unit,£65,panel,,,,,,,,,,,,,,,,,,,,,,Applies to flat roofs
+battery,FOX-EC2900,Fox ESS EC2900 (x2),Fox ESS,EC2900 (x2),with_solar,,,,,,,,,"£2,595","£3,195",£895,2.9,7,,5.8,,,,,FOX-ECS2900,,,,Standard
+battery,FOX-EQ4800,Fox ESS EQ4800 (x2),Fox ESS,EQ4800 (x2),with_solar,,,,,,,,,"£3,995","£4,695","£1,395",4.8,7,,9.6,,,,,FOX-EQS4800,,,,Standard
+battery,FOX-EVO-1024,Fox ESS EVO All-in-One,Fox ESS,EVO 10.24 All-in-One,with_solar,,,,,,,,,"£4,295","£4,995",,,,£200,10.24,,,,,,,,,"Premium. Inverter capacities 5, 8, 10 kW"
+battery,TESLA-PW3,Tesla Powerwall 3 + Gateway,Tesla,Powerwall 3 + Gateway,with_solar,,,,,,,,,"£9,195","£9,795",,,,,13.5,,,,,,,,,Premium
+scaffold,SCAFFOLD-EXTRA-SIDE,Additional scaffold side,,,flat,£500,,,,,,,,,,,,,,,,,,,,,,,
+scaffold,SCAFFOLD-EXTRA-STOREY,Extra height/storey (>2 storey),,,flat,£300,,,,,,,,,,,,,,,,,,,,,,,
+scaffold,SCAFFOLD-SMALL-OBSTACLE,"Small obstacle (porch, fence)",,,flat,£300,,,,,,,,,,,,,,,,,,,,,,,
+scaffold,SCAFFOLD-LARGE-OBSTACLE,"Large obstacle (flat roof, conservatory)",,,flat,£600,,,,,,,,,,,,,,,,,,,,,,,
+scaffold,SCAFFOLD-RESTRICTED-ACCESS,Restricted access,,,flat,£150,,,,,,,,,,,,,,,,,,,,,,,
+electrical,ELEC-INVERTER-HYBRID,Additional Inverter (Hybrid or AC Charger),,,flat,£800,,,,,,,,,,,,,,,,,,,,,,,
+electrical,ELEC-INVERTER-PV-STRING,Additional Inverter (PV string),,,flat,£650,,,,,,,,,,,,,,,,,,,,,,,
+electrical,ELEC-SUB-BOARD,Sub-board,,,flat,£250,,,,,,,,,,,,,,,,,,,,,,,
+electrical,ELEC-INTERNAL-CABLE-RUN,Internal cable run,,,flat,£250,,,,,,,,,,,,,,,,,,,,,,,
+admin,ELEC-ADMIN-FEE,Administration fee (mandatory),,,flat,£350,,,,,,,,,,,,,,,,yes,,,,,,,
+electrical,STRUCT-FLATROOF-SURVEY,Flat roof - desktop structural survey,,,per_unit,£261,roof,,,,,,,,,,,,,,,,,,,,,,
+optional,EV-PROJECTEV-7KW-UNTETHERED,Project EV Apex 7kW Single Phase EV Charger (un-tethered),Project EV,Apex 7kW untethered,flat,£995,,,,,,,,,,,,,,,7,,,,,,,,
+optional,EV-PROJECTEV-7KW-TETHERED,Project EV Apex 7kW Single Phase EV Charger (tethered),Project EV,Apex 7kW tethered,flat,"£1,095",,,,,,,,,,,,,,,7,,,,,,,,
+optional,EV-PROJECTEV-22KW-UNTETHERED,Project EV Apex 22kW Three Phase EV Charger (un-tethered),Project EV,Apex 22kW untethered,flat,"£1,745",,,,,,,,,,,,,,,22,,,,,,,,
+optional,EV-PROJECTEV-22KW-TETHERED,Project EV Apex 22kW Three Phase EV Charger (tethered),Project EV,Apex 22kW tethered,flat,"£1,795",,,,,,,,,,,,,,,22,,,,,,,,
+optional,OPT-TIGO-PART,Tigo TSA-04 frame mounted solar optimiser (part system),Tigo Energy,TSA-04,per_unit,£60,panel,,,,,,,,,,,,,,,,,tigo,,,,,
+optional,OPT-TIGO-FULL,Tigo TSA-04 frame mounted solar optimiser (full system),Tigo Energy,TSA-04,per_unit,£50,panel,,,,,,,,,,,,,,,,,tigo,,,,,
+optional,OPT-BIRDMESH,EnviroGuard galvanised solar bird proofing mesh,EnviroGuard,,tier,£600,panel,,,,,1,20,,,,,,,,,,,,,,,,£600 up to 20 panels
+optional,OPT-BIRDMESH,EnviroGuard galvanised solar bird proofing mesh,EnviroGuard,,tier,£600,panel,,£30,above,,21,,,,,,,,,,,,,,,,,£30 per panel onwards
+optional,EPS-FOX,Fox ESS EPS Box Single Phase Whole Home Back Up,Fox ESS,EPS Box single phase,flat,£825,,,,,,,,,,,,,,,,,,eps,,,,,
+optional,EPS-GENERIC,Generic EPS - up to 16a emergency power supply,Generic,EPS 16A,flat,£450,,,,,,,,,,,,,,,,,,eps,,,,,
+optional,OPT-ENPHASE-IQ8HC,Enphase IQ8HC Microinverter w/ communication gateway,Enphase,IQ8HC,per_unit,£150,panel,£250,,,,,,,,,,,,,,,,,,,,,
+trenching,TRENCH-SOFT,"Cable trenching - soft ground (grass, gravel), 450 mm depth",,,tier,£250,metre,,£15,,,0,49,,,,,,,,,,,,,TRENCH-SOFT-0-49,,,
+trenching,TRENCH-SOFT,"Cable trenching - soft ground (grass, gravel), 450 mm depth",,,tier,£350,metre,,£20,,,50,99,,,,,,,,,,,,,TRENCH-SOFT-50-99,,,
+trenching,TRENCH-SOFT,"Cable trenching - soft ground (grass, gravel), 450 mm depth",,,tier,£400,metre,,£25,,,100,149,,,,,,,,,,,,,TRENCH-SOFT-100-149,,,
+trenching,TRENCH-SOFT,"Cable trenching - soft ground (grass, gravel), 450 mm depth",,,tier,bespoke,metre,,,,,150,,,,,,,,,,,,,,TRENCH-SOFT-150PLUS,,,
+trenching,TRENCH-HARD,"Cable trenching - hard ground (tarmac, patio), 450 mm depth",,,tier,£650,metre,,£75,,,0,24,,,,,,,,,,,,,TRENCH-HARD-0-24,,,
+trenching,TRENCH-HARD,"Cable trenching - hard ground (tarmac, patio), 450 mm depth",,,tier,£850,metre,,£85,,,25,99,,,,,,,,,,,,,TRENCH-HARD-25-99,,,
+trenching,TRENCH-HARD,"Cable trenching - hard ground (tarmac, patio), 450 mm depth",,,tier,"£1,050",metre,,£95,,,100,149,,,,,,,,,,,,,TRENCH-HARD-100-149,,,
+trenching,TRENCH-HARD,"Cable trenching - hard ground (tarmac, patio), 450 mm depth",,,tier,bespoke,metre,,,,,150,,,,,,,,,,,,,,TRENCH-HARD-150PLUS,,,
+budget_band,under_6k,"Under £6,000",,,,,,,,,,£0,"£6,000",,,,,,,,,,,,,,,,
+budget_band,6k_8k,"£6,000 to £8,000",,,,,,,,,,"£6,000","£8,000",,,,,,,,,,,,,,,,
+budget_band,8k_10k,"£8,000 to £10,000",,,,,,,,,,"£8,000","£10,000",,,,,,,,,,,,,,,,
+budget_band,10k_12k,"£10,000 to £12,000",,,,,,,,,,"£10,000","£12,000",,,,,,,,,,,,,,,,
+budget_band,12k_15k,"£12,000 to £15,000",,,,,,,,,,"£12,000","£15,000",,,,,,,,,,,,,,,,
+budget_band,15k_plus,"£15,000+",,,,,,,,,,"£15,000","£30,000",,,,,,,,,,,,,,,,
+budget_band,unsure,I'm not sure yet,,,,,,,,,,£0,"£30,000",,,,,,,,,,,,,,,,
+sentinel,enabled,Sentinel optimisation offered,,,,,,,,,,,,,,,,,,,,yes,,,,,,,
+sentinel,base,Base uplift on annual savings,,,,,,,,,12,,,,,,,,,,,,,,,,,,
+sentinel,tariff:standard,Tariff extra (standard),,,,,,,,,0,,,,,,,,,,,,,,,,,,
+sentinel,tariff:economy7,Tariff extra (economy7),,,,,,,,,3,,,,,,,,,,,,,,,,,,
+sentinel,tariff:smart_tou,Tariff extra (smart_tou),,,,,,,,,8,,,,,,,,,,,,,,,,,,
+sentinel,tariff:import_export,Tariff extra (import_export),,,,,,,,,6,,,,,,,,,,,,,,,,,,
+sentinel,tariff:already_exports,Tariff extra (already_exports),,,,,,,,,4,,,,,,,,,,,,,,,,,,
+sentinel,tariff:unknown,Tariff extra (unknown),,,,,,,,,0,,,,,,,,,,,,,,,,,,
+sentinel,lifestyle:ev_now,Lifestyle extra (ev_now),,,,,,,,,3,,,,,,,,,,,,,,,,,,
+sentinel,lifestyle:ev_planned,Lifestyle extra (ev_planned),,,,,,,,,1.5,,,,,,,,,,,,,,,,,,
+sentinel,lifestyle:heatpump_now,Lifestyle extra (heatpump_now),,,,,,,,,3,,,,,,,,,,,,,,,,,,
+sentinel,lifestyle:heatpump_planned,Lifestyle extra (heatpump_planned),,,,,,,,,1.5,,,,,,,,,,,,,,,,,,
+sentinel,lifestyle:high_daytime,Lifestyle extra (high_daytime),,,,,,,,,2,,,,,,,,,,,,,,,,,,
+sentinel,battery_required,Full uplift needs a battery,,,,,,,,,,,,,,,,,,,,yes,,,,,,,
+sentinel,no_battery,Share of the uplift without a battery,,,,,,,,,40,,,,,,,,,,,,,,,,,,
+sentinel,cap,Most the uplift can be,,,,,,,,,30,,,,,,,,,,,,,,,,,,
+sentinel,cost,One-off cost of adding Sentinel,,,,£0,,,,,,,,,,,,,,,,,,,,,,GBP,

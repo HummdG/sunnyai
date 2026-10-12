@@ -48,7 +48,20 @@ describe('the question set', () => {
 
 describe('applicability', () => {
   it('applies an ungated question with nothing answered', () => {
-    expect(applicability('roof_direction', {})).toBe('applies');
+    expect(applicability('property_type', {})).toBe('applies');
+  });
+
+  it('asks the roof questions only when the roof mapping is not trusted', () => {
+    // SunScan's `roofFallback` step: shown only when confidence is low. With a
+    // mapped roof the visitor confirms it instead.
+    for (const id of ['roof_size', 'roof_direction']) {
+      expect(applicability(id, { roof_confidence: 'low' })).toBe('applies');
+      expect(applicability(id, { roof_confidence: 'high' })).toBe('conflicts');
+    }
+    // Shading is always asked: the 3D assessment does not simulate it.
+    expect(applicability('roof_shading', { roof_confidence: 'high' })).toBe('applies');
+    expect(applicability('roof_confirmed', { roof_confidence: 'high' })).toBe('applies');
+    expect(applicability('roof_confirmed', { roof_confidence: 'low' })).toBe('conflicts');
   });
 
   it('holds a gated question pending until its gate is answered', () => {
@@ -241,9 +254,22 @@ describe('the sentence a refusal becomes', () => {
     // The journey's two other ways of saying it.
     expect(QUESTIONS['tariff_type']!.options).toContain('unknown');
     expect(QUESTIONS['usage_source']!.options).toContain('household');
-    // The one optional step in the journey is not a question here at all, which
-    // is the reason there is nothing to skip.
-    expect(QUESTIONS['lifestyle']).toBeUndefined();
+    // SunScan's one optional step, lifestyle, is now asked because the quote
+    // engine prices from it (2026-10-12); its "empty" answer is `none`.
+    expect(QUESTIONS['lifestyle']!.multi).toBe(true);
+    expect(QUESTIONS['lifestyle']!.options).toContain('none');
+  });
+
+  it('takes "select all that apply" answers as a list, and normalises them', () => {
+    const verdict = validateAnswer('lifestyle', 'ev_planned, home_daytime,ev_planned');
+    expect(verdict).toEqual({
+      ok: true,
+      questionId: 'lifestyle',
+      value: 'home_daytime,ev_planned',
+    });
+    expect(validateAnswer('lifestyle', 'none').ok).toBe(true);
+    expect(validateAnswer('lifestyle', 'none,ev_now').ok).toBe(false);
+    expect(validateAnswer('lifestyle', 'jetpack').ok).toBe(false);
   });
 
   it('says what to change when an earlier answer ruled the question out', () => {

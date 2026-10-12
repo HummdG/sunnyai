@@ -1,0 +1,865 @@
+{
+  "_demo": "DEMO DATA for the demo tenant only: HSEnergy Group Ltd residential sales price list (v 23rd Feb 2026), imported from SunScan v1 prisma/seed.ts. Not for any other installer.",
+  "source": {
+    "seed": "C:\\Work\\Arkalith\\SunScan\\sunscan\\prisma\\seed.ts",
+    "seedSha256": "5b14af9d454b0b4e",
+    "pdf": "C:\\Work\\Arkalith\\SunScan\\Residential Sales Pricelists - Google Sheets.pdf",
+    "importedAt": "2026-10-12"
+  },
+  "installer": "HSEnergy Residential (demo)",
+  "currency": "GBP",
+  "vatRatePercent": null,
+  "priceStatus": "indicative",
+  "catalogue": {
+    "version": "hsenergy-2026-02-23",
+    "panels": [
+      {
+        "widthMm": 1134,
+        "heightMm": 1762,
+        "depthMm": 30,
+        "sku": "DMEGC-DM430",
+        "modelName": "DMEGC DM430M10RT-54HBB Mono-facial",
+        "manufacturer": "DMEGC",
+        "wattPeak": 430,
+        "upliftType": "base",
+        "upliftValue": 0,
+        "productTier": "budget",
+        "isBase": true,
+        "sortOrder": 1
+      },
+      {
+        "widthMm": 1134,
+        "heightMm": 1762,
+        "depthMm": 30,
+        "sku": "DMEGC-DM455",
+        "modelName": "DMEGC DM455M10RT-54HBB Mono-facial",
+        "manufacturer": "DMEGC",
+        "wattPeak": 455,
+        "upliftType": "percent",
+        "upliftValue": 0.075,
+        "productTier": "standard",
+        "isBase": false,
+        "sortOrder": 2
+      },
+      {
+        "widthMm": 1134,
+        "heightMm": 1762,
+        "depthMm": 30,
+        "sku": "REA-HD96-460",
+        "modelName": "REA HD96N-C2-460 Bifacial",
+        "manufacturer": "REA",
+        "wattPeak": 460,
+        "upliftType": "percent",
+        "upliftValue": 0.08,
+        "productTier": "premium",
+        "isBase": false,
+        "sortOrder": 3
+      },
+      {
+        "widthMm": 1134,
+        "heightMm": 1762,
+        "depthMm": 30,
+        "sku": "REA-HD108-450-ENPHASE",
+        "modelName": "REA HD108N-450-ACM w/ Enphase",
+        "manufacturer": "REA",
+        "wattPeak": 450,
+        "upliftType": "flat_per_panel",
+        "upliftValue": 150,
+        "productTier": "premium",
+        "isBase": false,
+        "sortOrder": 4
+      }
+    ],
+    "inverters": [
+      {
+        "sku": "FOX-H1-3.7",
+        "modelName": "Fox ESS H1 3.7kW Hybrid",
+        "manufacturer": "Fox ESS",
+        "ratedKw": 3.7,
+        "efficiency": 0.97,
+        "productTier": "budget",
+        "priceGbp": 0,
+        "isDefault": false,
+        "sortOrder": 1
+      },
+      {
+        "sku": "SE-SE5000H",
+        "modelName": "SolarEdge SE5000H",
+        "manufacturer": "SolarEdge",
+        "ratedKw": 5,
+        "efficiency": 0.97,
+        "productTier": "standard",
+        "priceGbp": 0,
+        "isDefault": true,
+        "sortOrder": 2
+      },
+      {
+        "sku": "FOX-H3-8.0",
+        "modelName": "Fox ESS H3 8.0kW Hybrid (3-phase ready)",
+        "manufacturer": "Fox ESS",
+        "ratedKw": 8,
+        "efficiency": 0.975,
+        "productTier": "premium",
+        "priceGbp": 0,
+        "isDefault": false,
+        "sortOrder": 3
+      }
+    ],
+    "pvBasePrice": [
+      {
+        "panelCount": 1,
+        "kwp": 0.43,
+        "priceGbp": 3985
+      },
+      {
+        "panelCount": 2,
+        "kwp": 0.86,
+        "priceGbp": 4195
+      },
+      {
+        "panelCount": 3,
+        "kwp": 1.29,
+        "priceGbp": 4425
+      },
+      {
+        "panelCount": 4,
+        "kwp": 1.72,
+        "priceGbp": 4734
+      },
+      {
+        "panelCount": 5,
+        "kwp": 2.15,
+        "priceGbp": 4854
+      },
+      {
+        "panelCount": 6,
+        "kwp": 2.58,
+        "priceGbp": 4973
+      },
+      {
+        "panelCount": 7,
+        "kwp": 3.01,
+        "priceGbp": 5153
+      },
+      {
+        "panelCount": 8,
+        "kwp": 3.44,
+        "priceGbp": 5513
+      },
+      {
+        "panelCount": 9,
+        "kwp": 3.87,
+        "priceGbp": 5752
+      },
+      {
+        "panelCount": 10,
+        "kwp": 4.3,
+        "priceGbp": 5932
+      },
+      {
+        "panelCount": 11,
+        "kwp": 4.73,
+        "priceGbp": 6352
+      },
+      {
+        "panelCount": 12,
+        "kwp": 5.16,
+        "priceGbp": 6471
+      },
+      {
+        "panelCount": 13,
+        "kwp": 5.59,
+        "priceGbp": 6591
+      },
+      {
+        "panelCount": 14,
+        "kwp": 6.02,
+        "priceGbp": 6711
+      },
+      {
+        "panelCount": 15,
+        "kwp": 6.45,
+        "priceGbp": 6891
+      },
+      {
+        "panelCount": 16,
+        "kwp": 6.88,
+        "priceGbp": 7310
+      },
+      {
+        "panelCount": 17,
+        "kwp": 7.31,
+        "priceGbp": 7430
+      },
+      {
+        "panelCount": 18,
+        "kwp": 7.74,
+        "priceGbp": 7550
+      },
+      {
+        "panelCount": 19,
+        "kwp": 8.17,
+        "priceGbp": 7909
+      },
+      {
+        "panelCount": 20,
+        "kwp": 8.6,
+        "priceGbp": 8449
+      },
+      {
+        "panelCount": 21,
+        "kwp": 9.03,
+        "priceGbp": 8928
+      },
+      {
+        "panelCount": 22,
+        "kwp": 9.46,
+        "priceGbp": 9108
+      },
+      {
+        "panelCount": 23,
+        "kwp": 9.89,
+        "priceGbp": 9407
+      },
+      {
+        "panelCount": 24,
+        "kwp": 10.32,
+        "priceGbp": 9647
+      },
+      {
+        "panelCount": 25,
+        "kwp": 10.75,
+        "priceGbp": 9827
+      },
+      {
+        "panelCount": 26,
+        "kwp": 11.18,
+        "priceGbp": 10230
+      },
+      {
+        "panelCount": 27,
+        "kwp": 11.61,
+        "priceGbp": 10623
+      },
+      {
+        "panelCount": 28,
+        "kwp": 12.04,
+        "priceGbp": 11017
+      },
+      {
+        "panelCount": 29,
+        "kwp": 12.47,
+        "priceGbp": 11410
+      },
+      {
+        "panelCount": 30,
+        "kwp": 12.9,
+        "priceGbp": 11804
+      },
+      {
+        "panelCount": 31,
+        "kwp": 13.33,
+        "priceGbp": 12197
+      },
+      {
+        "panelCount": 32,
+        "kwp": 13.76,
+        "priceGbp": 12590
+      },
+      {
+        "panelCount": 33,
+        "kwp": 14.19,
+        "priceGbp": 12984
+      },
+      {
+        "panelCount": 34,
+        "kwp": 14.62,
+        "priceGbp": 13377
+      },
+      {
+        "panelCount": 35,
+        "kwp": 15.05,
+        "priceGbp": 13771
+      },
+      {
+        "panelCount": 36,
+        "kwp": 15.48,
+        "priceGbp": 14164
+      },
+      {
+        "panelCount": 37,
+        "kwp": 15.91,
+        "priceGbp": 14558
+      },
+      {
+        "panelCount": 38,
+        "kwp": 16.34,
+        "priceGbp": 14951
+      },
+      {
+        "panelCount": 39,
+        "kwp": 16.77,
+        "priceGbp": 15345
+      },
+      {
+        "panelCount": 40,
+        "kwp": 17.2,
+        "priceGbp": 15738
+      },
+      {
+        "panelCount": 41,
+        "kwp": 17.63,
+        "priceGbp": 16131
+      },
+      {
+        "panelCount": 42,
+        "kwp": 18.06,
+        "priceGbp": 16525
+      },
+      {
+        "panelCount": 43,
+        "kwp": 18.49,
+        "priceGbp": 16918
+      },
+      {
+        "panelCount": 44,
+        "kwp": 18.92,
+        "priceGbp": 17312
+      },
+      {
+        "panelCount": 45,
+        "kwp": 19.35,
+        "priceGbp": 17705
+      },
+      {
+        "panelCount": 46,
+        "kwp": 19.78,
+        "priceGbp": 18099
+      },
+      {
+        "panelCount": 47,
+        "kwp": 20.21,
+        "priceGbp": 18492
+      },
+      {
+        "panelCount": 48,
+        "kwp": 20.64,
+        "priceGbp": 18886
+      },
+      {
+        "panelCount": 49,
+        "kwp": 21.07,
+        "priceGbp": 19279
+      },
+      {
+        "panelCount": 50,
+        "kwp": 21.5,
+        "priceGbp": 19673
+      }
+    ],
+    "mounting": [
+      {
+        "sku": "MOUNT-PITCHED-TILE",
+        "label": "Pitched tile mounting (slate / rosemary / clay)",
+        "pricePerPanel": 30,
+        "appliesTo": "pitched",
+        "isDefault": true,
+        "sortOrder": 1
+      },
+      {
+        "sku": "MOUNT-GROUND-15",
+        "label": "Ground mount 15° (Renusol ConSole+ tubs)",
+        "pricePerPanel": 50,
+        "appliesTo": "ground",
+        "isDefault": true,
+        "sortOrder": 2
+      },
+      {
+        "sku": "MOUNT-FLAT-VDV",
+        "label": "Flat roof / ground mount 10° (Van der Valk)",
+        "pricePerPanel": 65,
+        "appliesTo": "flat",
+        "isDefault": true,
+        "sortOrder": 3
+      }
+    ],
+    "batteries": [
+      {
+        "sku": "FOX-EC2900",
+        "modelName": "Fox ESS EC2900 (×2)",
+        "tier": "standard",
+        "baseCapacityKwh": 5.8,
+        "priceWithSolar": 2595,
+        "priceRetrofit": 3195,
+        "expansionSku": "FOX-ECS2900",
+        "expansionCapacityKwh": 2.9,
+        "expansionPriceGbp": 895,
+        "expansionMaxUnits": 7,
+        "multiUnitDiscountGbp": 0,
+        "sortOrder": 1
+      },
+      {
+        "sku": "FOX-EQ4800",
+        "modelName": "Fox ESS EQ4800 (×2)",
+        "tier": "standard",
+        "baseCapacityKwh": 9.6,
+        "priceWithSolar": 3995,
+        "priceRetrofit": 4695,
+        "expansionSku": "FOX-EQS4800",
+        "expansionCapacityKwh": 4.8,
+        "expansionPriceGbp": 1395,
+        "expansionMaxUnits": 7,
+        "multiUnitDiscountGbp": 0,
+        "sortOrder": 2
+      },
+      {
+        "sku": "FOX-EVO-1024",
+        "modelName": "Fox ESS EVO All-in-One",
+        "tier": "premium",
+        "baseCapacityKwh": 10.24,
+        "priceWithSolar": 4295,
+        "priceRetrofit": 4995,
+        "expansionSku": null,
+        "expansionCapacityKwh": null,
+        "expansionPriceGbp": null,
+        "expansionMaxUnits": null,
+        "multiUnitDiscountGbp": 200,
+        "sortOrder": 3
+      },
+      {
+        "sku": "TESLA-PW3",
+        "modelName": "Tesla Powerwall 3 + Gateway",
+        "tier": "premium",
+        "baseCapacityKwh": 13.5,
+        "priceWithSolar": 9195,
+        "priceRetrofit": 9795,
+        "expansionSku": null,
+        "expansionCapacityKwh": null,
+        "expansionPriceGbp": null,
+        "expansionMaxUnits": null,
+        "multiUnitDiscountGbp": 0,
+        "sortOrder": 4
+      }
+    ],
+    "extras": [
+      {
+        "sku": "SCAFFOLD-EXTRA-SIDE",
+        "category": "scaffold",
+        "label": "Additional scaffold side",
+        "priceCalc": "flat",
+        "baseGbp": 500,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 1
+      },
+      {
+        "sku": "SCAFFOLD-EXTRA-STOREY",
+        "category": "scaffold",
+        "label": "Extra height/storey (>2 storey)",
+        "priceCalc": "flat",
+        "baseGbp": 300,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 2
+      },
+      {
+        "sku": "SCAFFOLD-SMALL-OBSTACLE",
+        "category": "scaffold",
+        "label": "Small obstacle (porch, fence)",
+        "priceCalc": "flat",
+        "baseGbp": 300,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 3
+      },
+      {
+        "sku": "SCAFFOLD-LARGE-OBSTACLE",
+        "category": "scaffold",
+        "label": "Large obstacle (flat roof, conservatory)",
+        "priceCalc": "flat",
+        "baseGbp": 600,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 4
+      },
+      {
+        "sku": "SCAFFOLD-RESTRICTED-ACCESS",
+        "category": "scaffold",
+        "label": "Restricted access",
+        "priceCalc": "flat",
+        "baseGbp": 150,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 5
+      },
+      {
+        "sku": "ELEC-INVERTER-HYBRID",
+        "category": "general_electrical",
+        "label": "Additional Inverter (Hybrid or AC Charger)",
+        "priceCalc": "flat",
+        "baseGbp": 800,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 1
+      },
+      {
+        "sku": "ELEC-INVERTER-PV-STRING",
+        "category": "general_electrical",
+        "label": "Additional Inverter (PV string)",
+        "priceCalc": "flat",
+        "baseGbp": 650,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 2
+      },
+      {
+        "sku": "ELEC-SUB-BOARD",
+        "category": "general_electrical",
+        "label": "Sub-board",
+        "priceCalc": "flat",
+        "baseGbp": 250,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 3
+      },
+      {
+        "sku": "ELEC-INTERNAL-CABLE-RUN",
+        "category": "general_electrical",
+        "label": "Internal cable run",
+        "priceCalc": "flat",
+        "baseGbp": 250,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 4
+      },
+      {
+        "sku": "ELEC-ADMIN-FEE",
+        "category": "general_electrical",
+        "label": "Administration fee",
+        "priceCalc": "flat",
+        "baseGbp": 350,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": true,
+        "exclusiveGroup": null,
+        "sortOrder": 5
+      },
+      {
+        "sku": "STRUCT-FLATROOF-SURVEY",
+        "category": "structural",
+        "label": "Flat roof — desktop structural survey",
+        "priceCalc": "flat",
+        "baseGbp": 261,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 6
+      },
+      {
+        "sku": "EV-PROJECTEV-7KW-UNTETHERED",
+        "category": "ev",
+        "label": "Project EV Apex 7kW Single Phase (un-tethered)",
+        "priceCalc": "flat",
+        "baseGbp": 995,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 1
+      },
+      {
+        "sku": "EV-PROJECTEV-7KW-TETHERED",
+        "category": "ev",
+        "label": "Project EV Apex 7kW Single Phase (tethered)",
+        "priceCalc": "flat",
+        "baseGbp": 1095,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 2
+      },
+      {
+        "sku": "EV-PROJECTEV-22KW-UNTETHERED",
+        "category": "ev",
+        "label": "Project EV Apex 22kW Three Phase (un-tethered)",
+        "priceCalc": "flat",
+        "baseGbp": 1745,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 3
+      },
+      {
+        "sku": "EV-PROJECTEV-22KW-TETHERED",
+        "category": "ev",
+        "label": "Project EV Apex 22kW Three Phase (tethered)",
+        "priceCalc": "flat",
+        "baseGbp": 1795,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 4
+      },
+      {
+        "sku": "OPT-TIGO-PART",
+        "category": "optimiser",
+        "label": "Tigo TSA-04 optimiser (part system)",
+        "priceCalc": "per_panel",
+        "baseGbp": 0,
+        "perPanelGbp": 60,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": "tigo",
+        "sortOrder": 1
+      },
+      {
+        "sku": "OPT-TIGO-FULL",
+        "category": "optimiser",
+        "label": "Tigo TSA-04 optimiser (full system)",
+        "priceCalc": "per_panel",
+        "baseGbp": 0,
+        "perPanelGbp": 50,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": "tigo",
+        "sortOrder": 2
+      },
+      {
+        "sku": "OPT-BIRDMESH",
+        "category": "bird_mesh",
+        "label": "EnviroGuard galvanised solar bird-proofing mesh",
+        "priceCalc": "per_panel_with_threshold",
+        "baseGbp": 600,
+        "perPanelGbp": 30,
+        "panelThreshold": 20,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 1
+      },
+      {
+        "sku": "EPS-FOX",
+        "category": "eps",
+        "label": "Fox ESS EPS Box (Single Phase Whole Home Backup)",
+        "priceCalc": "flat",
+        "baseGbp": 825,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": "eps",
+        "sortOrder": 1
+      },
+      {
+        "sku": "EPS-GENERIC",
+        "category": "eps",
+        "label": "Generic EPS (up to 16A emergency power supply)",
+        "priceCalc": "flat",
+        "baseGbp": 450,
+        "perPanelGbp": 0,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": "eps",
+        "sortOrder": 2
+      },
+      {
+        "sku": "OPT-ENPHASE-IQ8HC",
+        "category": "microinverter",
+        "label": "Enphase IQ8HC Microinverter w/ communication gateway",
+        "priceCalc": "fixed_plus_per_panel",
+        "baseGbp": 250,
+        "perPanelGbp": 150,
+        "panelThreshold": null,
+        "isMandatory": false,
+        "exclusiveGroup": null,
+        "sortOrder": 1
+      }
+    ],
+    "trenching": [
+      {
+        "sku": "TRENCH-SOFT-0-49",
+        "surface": "soft",
+        "metresFrom": 0,
+        "metresTo": 49,
+        "perMetreGbp": 15,
+        "fixedFeeGbp": 250,
+        "isBespoke": false,
+        "sortOrder": 1
+      },
+      {
+        "sku": "TRENCH-SOFT-50-99",
+        "surface": "soft",
+        "metresFrom": 50,
+        "metresTo": 99,
+        "perMetreGbp": 20,
+        "fixedFeeGbp": 350,
+        "isBespoke": false,
+        "sortOrder": 2
+      },
+      {
+        "sku": "TRENCH-SOFT-100-149",
+        "surface": "soft",
+        "metresFrom": 100,
+        "metresTo": 149,
+        "perMetreGbp": 25,
+        "fixedFeeGbp": 400,
+        "isBespoke": false,
+        "sortOrder": 3
+      },
+      {
+        "sku": "TRENCH-SOFT-150PLUS",
+        "surface": "soft",
+        "metresFrom": 150,
+        "metresTo": null,
+        "perMetreGbp": 0,
+        "fixedFeeGbp": 0,
+        "isBespoke": true,
+        "sortOrder": 4
+      },
+      {
+        "sku": "TRENCH-HARD-0-24",
+        "surface": "hard",
+        "metresFrom": 0,
+        "metresTo": 24,
+        "perMetreGbp": 75,
+        "fixedFeeGbp": 650,
+        "isBespoke": false,
+        "sortOrder": 5
+      },
+      {
+        "sku": "TRENCH-HARD-25-99",
+        "surface": "hard",
+        "metresFrom": 25,
+        "metresTo": 99,
+        "perMetreGbp": 85,
+        "fixedFeeGbp": 850,
+        "isBespoke": false,
+        "sortOrder": 6
+      },
+      {
+        "sku": "TRENCH-HARD-100-149",
+        "surface": "hard",
+        "metresFrom": 100,
+        "metresTo": 149,
+        "perMetreGbp": 95,
+        "fixedFeeGbp": 1050,
+        "isBespoke": false,
+        "sortOrder": 7
+      },
+      {
+        "sku": "TRENCH-HARD-150PLUS",
+        "surface": "hard",
+        "metresFrom": 150,
+        "metresTo": null,
+        "perMetreGbp": 0,
+        "fixedFeeGbp": 0,
+        "isBespoke": true,
+        "sortOrder": 8
+      }
+    ]
+  },
+  "config": {
+    "budgetBands": [
+      {
+        "id": "under_6k",
+        "label": "Under £6,000",
+        "minGbp": 0,
+        "maxGbp": 6000
+      },
+      {
+        "id": "6k_8k",
+        "label": "£6,000 to £8,000",
+        "minGbp": 6000,
+        "maxGbp": 8000
+      },
+      {
+        "id": "8k_10k",
+        "label": "£8,000 to £10,000",
+        "minGbp": 8000,
+        "maxGbp": 10000
+      },
+      {
+        "id": "10k_12k",
+        "label": "£10,000 to £12,000",
+        "minGbp": 10000,
+        "maxGbp": 12000
+      },
+      {
+        "id": "12k_15k",
+        "label": "£12,000 to £15,000",
+        "minGbp": 12000,
+        "maxGbp": 15000
+      },
+      {
+        "id": "15k_plus",
+        "label": "£15,000+",
+        "minGbp": 15000,
+        "maxGbp": 30000
+      },
+      {
+        "id": "unsure",
+        "label": "I'm not sure yet",
+        "minGbp": 0,
+        "maxGbp": 30000
+      }
+    ],
+    "sentinel": {
+      "enabled": true,
+      "baseUpliftPercent": 0.12,
+      "tariffModifiers": {
+        "standard": 0,
+        "economy7": 0.03,
+        "smart_tou": 0.08,
+        "import_export": 0.06,
+        "already_exports": 0.04,
+        "unknown": 0
+      },
+      "batteryRequiredForFullUplift": true,
+      "noBatteryUpliftFactor": 0.4,
+      "lifestyleBonus": {
+        "ev_now": 0.03,
+        "ev_planned": 0.015,
+        "heatpump_now": 0.03,
+        "heatpump_planned": 0.015,
+        "high_daytime": 0.02
+      },
+      "capUpliftPercent": 0.3,
+      "addedCostGbp": 0
+    },
+    "surveyOptions": {
+      "remote": true,
+      "onsite": true,
+      "installerChoice": true
+    },
+    "financeOptions": {
+      "available": true,
+      "providers": []
+    },
+    "warranty": {
+      "panels": "25 years product / 30 years performance",
+      "inverter": "10 years",
+      "battery": "10 years",
+      "workmanship": "10 years (HSEnergy / MCS)"
+    }
+  }
+}

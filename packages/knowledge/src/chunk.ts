@@ -1,3 +1,4 @@
+import { placeholdersIn } from './placeholders.js';
 import type { KnowledgeChunk, KnowledgeDocument } from './types.js';
 
 /**
@@ -37,43 +38,114 @@ export const MAX_CHUNK_CHARS = 1200;
 /** `# Heading` through `###### Heading`, which is also how plain text is marked. */
 const HEADING = /^(#{1,6})\s+(.*)$/;
 
-function paragraphs(text: string): string[] {
-  return text
-    .split(/\n\s*\n/)
-    .map((part) => part.trim())
-    .filter((part) => part !== '');
+/** A Markdown table row: `| a | b |`. */
+const TABLE_ROW = /^\s*\|.*\|\s*$/;
+/** The rule under a table header: `| --- | :---: |`. */
+const TABLE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+
+interface Block {
+  text: string;
+  table: boolean;
 }
 
 /**
- * Split one section's body into chunk-sized pieces, at paragraph boundaries.
+ * The body as blocks: paragraphs, with every Markdown table pulled out as a
+ * block of its own even when no blank line separates it from the prose around
+ * it. A table glued to the sentence that introduces it is the normal shape of a
+ * converted web page, and treating the pair as one paragraph is what would let
+ * a long one be cut through the middle of a row.
+ */
+function blocks(text: string): Block[] {
+  const out: Block[] = [];
+  for (const part of text.split(/\n\s*\n/)) {
+    let run: string[] = [];
+    let runIsTable = false;
+    const flush = (): void => {
+      const joined = run.join('\n').trim();
+      if (joined !== '') out.push({ text: joined, table: runIsTable });
+      run = [];
+    };
+    for (const line of part.split(/\r?\n/)) {
+      const isTable: boolean = TABLE_ROW.test(line) || (runIsTable && TABLE_RULE.test(line));
+      if (run.length > 0 && isTable !== runIsTable) flush();
+      runIsTable = isTable;
+      run.push(line);
+    }
+    flush();
+  }
+  return out;
+}
+
+/**
+ * A table too long for one chunk, split at row boundaries with the header (and
+ * its rule) repeated on every piece -- so a row read on its own still says which
+ * column is the price and which is the warranty.
+ */
+function splitTable(table: string): string[] {
+  const rows = table.split('\n');
+  const hasHeader = rows.length > 1 && TABLE_RULE.test(rows[1] ?? '');
+  const header = hasHeader ? rows.slice(0, 2) : [];
+  const body = hasHeader ? rows.slice(2) : rows;
+  const out: string[] = [];
+  let current: string[] = [...header];
+  for (const row of body) {
+    const next = [...current, row].join('\n');
+    if (current.length > header.length && next.length > MAX_CHUNK_CHARS) {
+      out.push(current.join('\n'));
+      current = [...header];
+    }
+    current.push(row);
+  }
+  if (current.length > header.length || out.length === 0) out.push(current.join('\n'));
+  return out;
+}
+
+/**
+ * Cut an over-long run of prose into chunk-sized pieces without losing a
+ * character: at the last space before the limit where there is one, and by hard
+ * cut where there is not (a pasted blob, a list of part numbers). A passage the
+ * model cannot take in whole is worse than one cut mid-sentence, and a silently
+ * truncated warranty is worse than both.
+ */
+function hardSplit(part: string): string[] {
+  const out: string[] = [];
+  let rest = part;
+  while (rest.length > MAX_CHUNK_CHARS) {
+    const space = rest.lastIndexOf(' ', MAX_CHUNK_CHARS - 1);
+    const cut = space >= MAX_CHUNK_CHARS / 2 ? space + 1 : MAX_CHUNK_CHARS;
+    out.push(rest.slice(0, cut));
+    rest = rest.slice(cut);
+  }
+  if (rest !== '') out.push(rest);
+  return out;
+}
+
+/**
+ * Split one section's body into chunk-sized pieces, at block boundaries.
  *
- * A single paragraph longer than the limit is split by hard cut, and that is
- * deliberate: the alternative is to emit an over-long chunk, and a passage the
- * model cannot take in whole is worse than one cut mid-sentence, because the
- * cut at least keeps every word in the index. Nothing else here is allowed to
- * end up on the floor.
+ * A table is never cut through a row: one that fits stays whole (moved to a
+ * fresh chunk rather than split across two), and one that does not is split by
+ * rows with its header repeated on each piece. Nothing here is allowed to end up
+ * on the floor.
  */
 function splitBody(body: string): string[] {
   const out: string[] = [];
   let current = '';
-  for (const part of paragraphs(body)) {
-    if (current !== '' && current.length + part.length + 2 > MAX_CHUNK_CHARS) {
-      out.push(current);
-      current = '';
-    }
+  const push = (): void => {
+    if (current !== '') out.push(current);
+    current = '';
+  };
+  for (const block of blocks(body)) {
+    const part = block.text;
+    if (current !== '' && current.length + part.length + 2 > MAX_CHUNK_CHARS) push();
     if (part.length > MAX_CHUNK_CHARS) {
-      if (current !== '') {
-        out.push(current);
-        current = '';
-      }
-      for (let i = 0; i < part.length; i += MAX_CHUNK_CHARS) {
-        out.push(part.slice(i, i + MAX_CHUNK_CHARS));
-      }
+      push();
+      out.push(...(block.table ? splitTable(part) : hardSplit(part)));
       continue;
     }
     current = current === '' ? part : `${current}\n\n${part}`;
   }
-  if (current !== '') out.push(current);
+  push();
   return out;
 }
 
@@ -95,14 +167,21 @@ export function chunkWithReport(document: KnowledgeDocument): {
   chunks: KnowledgeChunk[];
   emptySections: number;
 } {
-  const sections: { heading: string | null; lines: string[] }[] = [];
-  let current: { heading: string | null; lines: string[] } = { heading: null, lines: [] };
+  type Section = { heading: string | null; path: string[]; lines: string[] };
+  const sections: Section[] = [];
+  let current: Section = { heading: null, path: [], lines: [] };
+  // The heading trail above the current line, by level: H1 › H2 › H3.
+  const trail: string[] = [];
 
   for (const raw of document.text.split(/\r?\n/)) {
     const match = HEADING.exec(raw.trim());
     if (match) {
       sections.push(current);
-      current = { heading: (match[2] ?? '').trim() || null, lines: [] };
+      const heading = (match[2] ?? '').trim() || null;
+      const level = (match[1] ?? '#').length;
+      trail.length = Math.min(trail.length, level - 1);
+      trail[level - 1] = heading ?? '';
+      current = { heading, path: trail.filter((h) => h !== ''), lines: [] };
       continue;
     }
     current.lines.push(raw);
@@ -121,6 +200,7 @@ export function chunkWithReport(document: KnowledgeDocument): {
     }
     for (const text of splitBody(body)) {
       const ordinal = chunks.length;
+      const placeholders = placeholdersIn(text).map((p) => p.text);
       chunks.push({
         id: `${document.id}#${ordinal}`,
         documentId: document.id,
@@ -130,6 +210,8 @@ export function chunkWithReport(document: KnowledgeDocument): {
         heading: section.heading,
         ordinal,
         text,
+        ...(section.path.length > 1 ? { section: section.path } : {}),
+        ...(placeholders.length > 0 ? { placeholders } : {}),
       });
     }
   }

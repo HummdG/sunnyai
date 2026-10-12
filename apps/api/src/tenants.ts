@@ -1,5 +1,9 @@
 import { widgetConfigSchema, type WidgetConfig } from '@sunny/contracts';
 
+import type { SavingsModel } from './agent/savings.js';
+import type { AddonConfig, AddonKey, BillingState } from './entitlements.js';
+import type { Store } from './store.js';
+
 /**
  * Tenant resolution.
  *
@@ -15,7 +19,49 @@ import { widgetConfigSchema, type WidgetConfig } from '@sunny/contracts';
 export interface Tenant {
   id: string;
   publicId: string;
-  config: WidgetConfig;
+  /**
+   * The public widget config, plus server-only settings. `addons` never reaches
+   * the browser: `configFor` parses through `widgetConfigSchema`, which drops it.
+   */
+  config: WidgetConfig & {
+    addons?: Partial<Record<AddonKey, boolean>>;
+    /**
+     * Who customers call after installation (the support knowledge base's
+     * escalation line). Unset is a setup warning in the portal overview.
+     */
+    supportContact?: SupportContact;
+    /** Email Assistant add-on settings (Blueprint §5, Add-On 2). */
+    email?: EmailChannelConfig;
+    /** Voice & Phone add-on settings (Blueprint §5, Add-On 1). */
+    voice?: VoiceChannelConfig;
+  };
+  /**
+   * The installer's registered website domains (Blueprint §4.6). When set, a
+   * widget session is only opened for a page on one of these hosts or their
+   * subdomains. Unset means not yet registered, which only a development
+   * deployment should run with.
+   */
+  domains?: readonly string[];
+  /**
+   * The installer's own tariff assumptions for `estimate_savings`. Absent means
+   * the installer has not supplied any, and the tool declines rather than
+   * inventing a price per kWh.
+   */
+  savingsModel?: SavingsModel;
+  /** The installer's website, crawled into the knowledge base (Blueprint §3.1). */
+  websiteUrl?: string | null;
+  /** The Google Drive folder synced into the knowledge base. */
+  gdriveFolderId?: string | null;
+  stripeCustomerId?: string | null;
+  /** `config_json` per add-on: quotas and channel settings, never secrets. */
+  addonConfig?: Partial<Record<AddonKey, AddonConfig>>;
+  billing?: BillingState;
+  /** Where the installer is in the onboarding wizard, so it resumes there. */
+  onboarding?: { step: OnboardingStep; completedAt: string | null };
+  /** Last sync of each knowledge connection, as the portal shows it. */
+  sync?: Partial<Record<'website' | 'drive', SyncState>>;
+  createdAt?: string;
+  updatedAt?: string;
   /** The SunScan installer slug this tenant maps to, when it has one. */
   sunscanSlug: string | null;
   /**
@@ -29,6 +75,58 @@ export interface Tenant {
    */
   sunscanUrl: string | null;
 }
+
+export interface EmailChannelConfig {
+  provider: 'gmail' | 'outlook' | 'forwarding';
+  /** The address forwarded mail arrives at (forwarding provider). */
+  inboundAddress?: string;
+  /**
+   * Send replies without a person approving them. Off by default: the
+   * blueprint's human-in-the-loop draft mode.
+   */
+  autoSend: boolean;
+  /** A Secret Manager reference to the OAuth token, never the token itself. */
+  tokenRef?: string;
+  /** The name replies are signed with (e.g. "The Brightside Solar team"). */
+  signatureName?: string;
+}
+
+export interface VoiceChannelConfig {
+  /** Twilio numbers assigned to this installer's phone receptionist (E.164). */
+  twilioNumbers?: string[];
+  voiceName?: string;
+  /** Longest call before a polite hand-off; the blueprint caps calls at 5 minutes. */
+  maxCallSeconds: number;
+  /** Simultaneous calls allowed. */
+  concurrency: number;
+  /** The booking link texted to callers (`send_sms_link`); falls back to `websiteUrl`. */
+  bookingUrl?: string;
+  /** What Sunny says when it answers a call: the AI disclosure. A default when unset. */
+  disclosure?: string;
+}
+
+export interface SyncState {
+  status: 'pending' | 'syncing' | 'connected' | 'failed';
+  at: string;
+  jobId: string | null;
+  error: string | null;
+}
+
+export interface SupportContact {
+  phone?: string;
+  email?: string;
+  hours?: string;
+}
+
+export const ONBOARDING_STEPS = [
+  'organisation',
+  'website',
+  'drive',
+  'customise',
+  'install',
+  'live',
+] as const;
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 const DEMO_TENANT: Tenant = {
   id: 't_demo0001',
@@ -118,14 +216,62 @@ function resolveSunscanUrl(slug: string | null): string | null {
 
 export class TenantRegistry {
   #byPublicId = new Map<string, Tenant>();
+  #store: Store | null = null;
 
   constructor(tenants: Tenant[] = [DEMO_TENANT]) {
-    for (const tenant of tenants) {
-      this.#byPublicId.set(tenant.publicId, {
-        ...tenant,
-        sunscanUrl: resolveSunscanUrl(tenant.sunscanSlug),
-      });
+    for (const tenant of tenants) this.#set(tenant);
+  }
+
+  /**
+   * The registry for a running deployment: seeded tenants written to the store
+   * if they are not there yet, then every tenant the store holds -- including
+   * those installers created through the portal.
+   *
+   * Lookups stay synchronous (every request resolves its tenant first), so the
+   * registry is a cache over the store: `save` writes through, and `refresh`
+   * re-reads, which `main.ts` runs on an interval so a second instance picks up
+   * a tenant created on the first.
+   */
+  static async load(store: Store, seed: Tenant[] = [DEMO_TENANT]): Promise<TenantRegistry> {
+    for (const tenant of seed) {
+      if (!(await store.getTenant(tenant.id))) await store.putTenant(tenant);
     }
+    const registry = new TenantRegistry([]);
+    registry.#store = store;
+    await registry.refresh();
+    return registry;
+  }
+
+  #set(tenant: Tenant): void {
+    for (const [publicId, existing] of this.#byPublicId) {
+      if (existing.id === tenant.id && publicId !== tenant.publicId) {
+        this.#byPublicId.delete(publicId);
+      }
+    }
+    this.#byPublicId.set(tenant.publicId, {
+      ...tenant,
+      sunscanUrl: resolveSunscanUrl(tenant.sunscanSlug),
+    });
+  }
+
+  /** Re-read every tenant from the store. A no-op for a registry built in memory. */
+  async refresh(): Promise<void> {
+    if (!this.#store) return;
+    for (const tenant of await this.#store.listTenants()) this.#set(tenant);
+  }
+
+  /** Write a tenant through to the store (when there is one) and the cache. */
+  async save(tenant: Tenant): Promise<Tenant> {
+    const stamped = { ...tenant, updatedAt: new Date().toISOString() };
+    // `sunscanUrl` is resolved from the environment at load, never persisted.
+    if (this.#store) await this.#store.putTenant({ ...stamped, sunscanUrl: null });
+    this.#set(stamped);
+    return this.byId(tenant.id) ?? stamped;
+  }
+
+  byId(tenantId: string): Tenant | null {
+    for (const tenant of this.#byPublicId.values()) if (tenant.id === tenantId) return tenant;
+    return null;
   }
 
   byPublicId(publicId: string): Tenant | null {

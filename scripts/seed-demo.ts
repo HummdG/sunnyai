@@ -23,13 +23,12 @@
  *   SUNNY_ADMIN_TOKEN   required -- the same token the API was started with
  *   SUNNY_API_URL       default http://localhost:8787
  *   SUNNY_TENANT_ID     default t_demo0001
- *   SUNNY_SOURCE_ID     the document to replace, from an earlier run
+ *   SUNNY_SOURCE_ID     the demo document to replace (optional; matched by title otherwise)
  *
- * The catalogue is `replace`, so re-running leaves one price list. The document
- * is not: a source can only be replaced by *naming* it, and no route lists the
- * sources, so a second run without `SUNNY_SOURCE_ID` ingests a second copy of
- * the same document. This script prints the id it created and says so, rather
- * than pretending to be idempotent when it is not.
+ * Idempotent: the catalogue is `replace`, and both documents -- the demo service
+ * page and the aftercare knowledge base (`fixtures/knowledge/support-knowledge-base.md`)
+ * -- are looked up by title through `GET /v1/knowledge/sources` and replaced in
+ * place, so re-running leaves one copy of each.
  *
  * Exit codes: 0 seeded, 1 the deployment refused part of it or answered with
  * something that is not a report, 2 it was not run at all (no token, or a
@@ -134,12 +133,27 @@ async function main(): Promise<number> {
 
   // ── the document the assistant answers from ────────────────────────────────
 
+  // Sources already on the tenant, by title, so a re-run replaces rather than
+  // duplicates even without SUNNY_SOURCE_ID.
+  const listed = await fetch(
+    `${baseUrl}/v1/knowledge/sources?tenantId=${encodeURIComponent(tenantId)}`,
+    {
+      headers: { authorization: `Bearer ${token}` },
+    },
+  );
+  const existingSources = listed.ok
+    ? (((await listed.json()) as { sources?: { id: string; title: string }[] }).sources ?? [])
+    : [];
+  const byTitle = (title: string) => existingSources.find((s) => s.title === title)?.id;
+
   const docPath = 'fixtures/demo-knowledge.md';
+  const docTitle = 'Northwind Solar — service, warranty and surveys (demo)';
+  const docId = sourceId ?? byTitle(docTitle);
   const text = await readFile(docPath, 'utf8');
   const ingested = await post('/v1/knowledge/sources', {
     tenantId,
-    ...(sourceId ? { sourceId } : {}),
-    title: 'Northwind Solar — service, warranty and surveys (demo)',
+    ...(docId ? { sourceId: docId } : {}),
+    title: docTitle,
     url: null,
     version: 'demo-1',
     text,
@@ -171,16 +185,54 @@ async function main(): Promise<number> {
     console.warn(`    ${issue.severity}: ${issue.message}`);
   }
 
-  // ── what to run next time ──────────────────────────────────────────────────
-
-  if (sourceId) {
-    console.log(`\nReplaced ${sourceId}.`);
-  } else {
-    console.log(
-      `\nThe document is ${source.id}. Keep that id: re-running without it adds a second ` +
-        `copy, so\nreplace it with SUNNY_SOURCE_ID=${source.id} npm run seed:demo`,
+  // ── the aftercare / support knowledge base ─────────────────────────────────
+  //
+  // The owner's real support document (`Knowledge Base.pdf`), converted to
+  // Markdown by `scripts/pdf-to-markdown.py`. It still contains unfilled
+  // placeholders (the safety phone number, a "To do" checklist); the upload
+  // reports them as warnings and retrieval masks them, so they are listed here
+  // for whoever fills them in.
+  //
+  // Re-running replaces it in place: the existing source with this title is
+  // looked up and its id reused, so the demo never holds two copies.
+  const supportPath = 'fixtures/knowledge/support-knowledge-base.md';
+  const supportTitle = 'Solar support knowledge base (aftercare)';
+  const existingSupport = byTitle(supportTitle);
+  const supportReply = await post('/v1/knowledge/sources', {
+    tenantId,
+    ...(existingSupport ? { sourceId: existingSupport } : {}),
+    title: supportTitle,
+    url: null,
+    version: 'kb-pdf-2026-10',
+    text: await readFile(supportPath, 'utf8'),
+  });
+  const supportReport = knowledgeSourceResponseSchema.safeParse(supportReply.json);
+  if (!supportReport.success || supportReport.data.source === null) {
+    console.error(`  document   ${supportPath} -> not stored (HTTP ${supportReply.status}).`);
+    if (supportReport.success) {
+      for (const issue of supportReport.data.job.issues)
+        console.error(`    ${issue.severity}: ${issue.message}`);
+    }
+    return 1;
+  }
+  const support = supportReport.data.source;
+  console.log(
+    `  document   ${supportPath} -> ${support.chunkCount} passages, ${support.characters} characters` +
+      (existingSupport ? ' (replaced)' : ''),
+  );
+  for (const warning of support.warnings ?? []) {
+    console.warn(
+      `    placeholder: "${warning.text}" in ${warning.section ?? 'the top of the document'}`,
     );
   }
+
+  // ── what to run next time ──────────────────────────────────────────────────
+
+  console.log(
+    docId
+      ? `\nReplaced ${docId}. Re-running replaces both documents in place (matched by title).`
+      : `\nSeeded ${source.id}. Re-running replaces both documents in place (matched by title).`,
+  );
 
   return 0;
 }

@@ -11,9 +11,16 @@ import type {
   KnowledgeSourceRecord,
   LeadRecord,
   LeadResult,
+  LeadStatus,
+  Membership,
   PurgeResult,
   Store,
 } from './store.js';
+import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
+
+import type { CatalogueState } from './catalogue/types.js';
+import type { QuoteRecord } from './journey/quote.js';
+import type { Tenant } from './tenants.js';
 import type { AuditEvent, IngestionJob, Product, RecommendationWant } from '@sunny/contracts';
 
 /**
@@ -768,6 +775,91 @@ export class FirestoreStore implements Store {
   }
 
   /** Diagnostics for `/healthz`; must never throw. */
+  async saveSunScanAssessment(record: SunScanAssessmentRecord): Promise<void> {
+    // The tenant is a path segment, so another installer's id names a document
+    // in a collection this tenant's reads never touch. Overwritten as the job
+    // moves on; the model files live in the artefact store, not here.
+    await this.#tenantDoc(record.tenantId)
+      .collection('sunscan_assessments')
+      .doc(docId('ss', record.id))
+      .set(JSON.parse(JSON.stringify(record)) as Record<string, unknown>);
+  }
+
+  async getSunScanAssessment(
+    tenantId: string,
+    id: string,
+  ): Promise<SunScanAssessmentRecord | null> {
+    const snap = await this.#tenantDoc(tenantId)
+      .collection('sunscan_assessments')
+      .doc(docId('ss', id))
+      .get();
+    return snap.exists ? (snap.data() as SunScanAssessmentRecord) : null;
+  }
+
+  // ── quotes (journey/quote.ts) ─────────────────────────────────────────────
+
+  async saveQuote(record: QuoteRecord): Promise<void> {
+    await this.#tenantDoc(record.tenantId)
+      .collection('quotes')
+      .doc(docId('q', record.id))
+      .set(JSON.parse(JSON.stringify(record)) as Record<string, unknown>);
+  }
+
+  async getQuote(tenantId: string, id: string): Promise<QuoteRecord | null> {
+    const snap = await this.#tenantDoc(tenantId).collection('quotes').doc(docId('q', id)).get();
+    return snap.exists ? (snap.data() as QuoteRecord) : null;
+  }
+
+  async listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]> {
+    const snap = await this.#tenantDoc(tenantId)
+      .collection('quotes')
+      .where('sessionId', '==', sessionId)
+      .get();
+    return snap.docs
+      .map((doc) => doc.data() as QuoteRecord)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  // ── catalogue workspace (catalogue/types.ts) ─────────────────────────────
+  //
+  // Under the tenant's own document, beside `products` rather than in it: the
+  // chat reads `products`, and nothing here may ever be in that collection.
+
+  async getCatalogueState(tenantId: string): Promise<CatalogueState | null> {
+    const snap = await this.#tenantDoc(tenantId).collection('catalogue_portal').doc('state').get();
+    if (!snap.exists) return null;
+    const state = snap.data() as CatalogueState;
+    return state.tenantId === tenantId ? state : null;
+  }
+
+  async putCatalogueState(state: CatalogueState): Promise<void> {
+    await this.#tenantDoc(state.tenantId)
+      .collection('catalogue_portal')
+      .doc('state')
+      .set(JSON.parse(JSON.stringify(state)) as Record<string, unknown>);
+  }
+
+  async getCatalogueSnapshot(tenantId: string, version: number): Promise<Product[] | null> {
+    const snap = await this.#tenantDoc(tenantId)
+      .collection('catalogue_versions')
+      .doc(`v${version}`)
+      .get();
+    if (!snap.exists) return null;
+    const rows = (snap.data() as { products?: Product[] }).products ?? [];
+    return rows.filter((row) => row.tenantId === tenantId);
+  }
+
+  async putCatalogueSnapshot(
+    tenantId: string,
+    version: number,
+    products: readonly Product[],
+  ): Promise<void> {
+    await this.#tenantDoc(tenantId)
+      .collection('catalogue_versions')
+      .doc(`v${version}`)
+      .set(JSON.parse(JSON.stringify({ version, products })) as Record<string, unknown>);
+  }
+
   async health(): Promise<{ ok: boolean; detail: string }> {
     try {
       // A read of a document that is not expected to exist: the point is that the
@@ -778,5 +870,122 @@ export class FirestoreStore implements Store {
     } catch (error) {
       return { ok: false, detail: error instanceof Error ? error.message : String(error) };
     }
+  }
+
+  // ── installer portal ─────────────────────────────────────────────────────
+  //
+  // Tenant profiles live in their own collection rather than on the
+  // `tenants/{id}` document that parents each tenant's data: that document is a
+  // path segment every scoped read is built from, and keeping it free of fields
+  // means no write to a profile can race a scoped write's transaction.
+
+  #profiles() {
+    return this.#db.collection('tenant_profiles');
+  }
+
+  async listTenants(): Promise<Tenant[]> {
+    const snap = await this.#profiles().get();
+    return snap.docs.map((doc) => doc.data() as Tenant);
+  }
+
+  async getTenant(tenantId: string): Promise<Tenant | null> {
+    const snap = await this.#profiles().doc(docId('t', tenantId)).get();
+    return snap.exists ? (snap.data() as Tenant) : null;
+  }
+
+  async putTenant(tenant: Tenant): Promise<Tenant> {
+    // Firestore rejects `undefined`; a JSON round trip drops optional fields
+    // that are absent, which is what the file store's serialisation does too.
+    await this.#profiles()
+      .doc(docId('t', tenant.id))
+      .set(JSON.parse(JSON.stringify(tenant)) as Record<string, unknown>);
+    return tenant;
+  }
+
+  #memberships() {
+    return this.#db.collection('memberships');
+  }
+
+  #membershipId(tenantId: string, email: string): string {
+    return docId('m', `${tenantId}:${email.toLowerCase()}`);
+  }
+
+  async listMembershipsByEmail(email: string): Promise<Membership[]> {
+    const snap = await this.#memberships().where('email', '==', email.toLowerCase()).get();
+    return snap.docs.map((doc) => doc.data() as Membership);
+  }
+
+  async listMembers(tenantId: string): Promise<Membership[]> {
+    const snap = await this.#memberships().where('tenantId', '==', tenantId).get();
+    return snap.docs.map((doc) => doc.data() as Membership);
+  }
+
+  async putMembership(membership: Membership): Promise<Membership> {
+    const row = { ...membership, email: membership.email.toLowerCase() };
+    await this.#memberships().doc(this.#membershipId(row.tenantId, row.email)).set(row);
+    return row;
+  }
+
+  async deleteMembership(tenantId: string, email: string): Promise<boolean> {
+    const ref = this.#memberships().doc(this.#membershipId(tenantId, email));
+    return await this.#db.runTransaction<boolean>(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) return false;
+      transaction.delete(ref);
+      return true;
+    });
+  }
+
+  async setLeadStatus(tenantId: string, leadId: string, status: LeadStatus): Promise<void> {
+    await this.#tenantDoc(tenantId)
+      .collection('lead_status')
+      .doc(docId('l', leadId))
+      .set({ leadId, status });
+  }
+
+  async listLeadStatuses(tenantId: string): Promise<Record<string, LeadStatus>> {
+    const snap = await this.#tenantDoc(tenantId).collection('lead_status').get();
+    const out: Record<string, LeadStatus> = {};
+    for (const doc of snap.docs) {
+      const row = doc.data() as { leadId: string; status: LeadStatus };
+      out[row.leadId] = row.status;
+    }
+    return out;
+  }
+
+  async claimStripeEvent(eventId: string): Promise<boolean> {
+    try {
+      // `create` fails if the document exists, which is the atomic
+      // "first delivery wins" a webhook redelivered in parallel needs.
+      await this.#db
+        .collection('stripe_events')
+        .doc(docId('e', eventId))
+        .create({ eventId, at: new Date().toISOString() });
+      return true;
+    } catch (error) {
+      if ((error as { code?: number }).code === 6) return false; // ALREADY_EXISTS
+      throw error;
+    }
+  }
+
+  async releaseStripeEvent(eventId: string): Promise<void> {
+    await this.#db.collection('stripe_events').doc(docId('e', eventId)).delete();
+  }
+
+  async getSessionEpoch(email: string): Promise<number> {
+    const snap = await this.#db
+      .collection('session_epochs')
+      .doc(docId('u', email.toLowerCase()))
+      .get();
+    return snap.exists ? ((snap.data() as { at: number }).at ?? 0) : 0;
+  }
+
+  async revokeSessions(email: string, at: number): Promise<void> {
+    const ref = this.#db.collection('session_epochs').doc(docId('u', email.toLowerCase()));
+    await this.#db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(ref);
+      const current = snap.exists ? ((snap.data() as { at: number }).at ?? 0) : 0;
+      transaction.set(ref, { email: email.toLowerCase(), at: Math.max(current, at) });
+    });
   }
 }
