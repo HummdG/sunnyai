@@ -1,7 +1,7 @@
 # Recovery progress
 
 Live tracker for the fixes in `docs/EVALUATION.md`. Updated as each item lands.
-Nothing here is committed until the owner asks.
+Committed on branch recovery/sunny-ai-rebuild (not pushed).
 
 **Last updated:** 2026-10-12
 
@@ -35,7 +35,7 @@ layer. See `docs/PRODUCT_PLAN.md` for packages, gap analysis and workstreams.
 | 14. Character v3 — rays morph into arms/legs, new hands/feet, frame-drop fixes, sunglasses + deckchair redone                                                                     | ✅ Done (frame drops fixed: 0 dropped at 4× throttle) — polish pass running  |
 | 15. Sunny everywhere — cameo system, skiing Sunny on the hills, cameos across website + dashboard                                                                                 | ✅ Done (skier, ~20 website cameos, dashboard greetings/empty states/toasts) |
 | 16. Savings simulation — choose a package, panels on the 3D roof, monthly £ pop-ups, year and 25-year totals                                                                      | ✅ Done (lead page: add chosen-package savings figures)                      |
-| 17. Character polish + widget size — wrist seams, point/hips/droop hands, bundle back to ≤ 52 kB                                                                                  | 🔄 In progress                                                               |
+| 17. Character polish + widget size — wrist seams, point/hips/droop hands, bundle back to ≤ 52 kB                                                                                  | ✅ Done (widget 50.8 kB gz)                                                  |
 
 ## Character status
 
