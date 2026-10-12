@@ -1,0 +1,25 @@
+{
+  "name": "@sunny/sunscan-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SunScan address -> 3D house pipeline as a library (vendored from SunScanV2 apps/server): UK geocoding, OSM/Overture footprints, open UK LiDAR, reconstruction, GLB export",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "@types/pngjs": "^6.0.5",
+    "gltf-validator": "^2.0.0-dev.3.10"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@mapbox/vector-tile": "3.0.0",
+    "geotiff": "3.0.5",
+    "jpeg-js": "0.4.4",
+    "pbf": "5.1.2",
+    "pmtiles": "4.5.0",
+    "pngjs": "7.0.0",
+    "proj4": "2.22.0"
+  }
+}

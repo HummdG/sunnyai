@@ -1,0 +1,15 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "ea-wcs",
+ "request": {
+  "method": "GET",
+  "url": "https://environment.data.gov.uk/geoservices/datasets/9ba4d5ac-d596-445a-9056-dae3ddec0178/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=9ba4d5ac-d596-445a-9056-dae3ddec0178__Lidar_Composite_Elevation_LZ_DSM_1m&format=image/tiff&subset=E(341504,341632)&subset=N(386944,387072)&geotiff:compression=DEFLATE"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "image/tiff"
+ },
+ "url": "https://environment.data.gov.uk/geoservices/datasets/9ba4d5ac-d596-445a-9056-dae3ddec0178/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=9ba4d5ac-d596-445a-9056-dae3ddec0178__Lidar_Composite_Elevation_LZ_DSM_1m&format=image/tiff&subset=E(341504,341632)&subset=N(386944,387072)&geotiff:compression=DEFLATE",
+ "fetchedAt": "2026-10-08T19:16:41.240Z",
+ "bytes": 40087
+}

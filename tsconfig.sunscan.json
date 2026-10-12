@@ -1,0 +1,37 @@
+{
+  // The SunScan packages (vendored from SunScanV2 on 2026-10-12) and the two
+  // Sunny packages built directly on them. SunScanV2 compiles under these
+  // settings -- strict, without `noUncheckedIndexedAccess`, which its 18k lines
+  // of geometry were never written against (3,297 errors under the root
+  // config, none of them a defect the tests did not already pin down). The
+  // root project consumes the adapter and the viewer through declared public
+  // APIs (`src/public.d.ts`, `sunny-facade` export condition), and each
+  // package's `src/facade-check.ts` proves here that the implementation
+  // satisfies its declaration.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "packages/sunscan-core/src",
+    "packages/sunscan-core/test",
+    "packages/sunscan-engine/src",
+    "packages/sunscan-engine/test",
+    "packages/sunscan-viewer/src",
+    "packages/sunscan-viewer/test",
+    "packages/sunscan-adapter/src",
+    "packages/sunscan-adapter/test"
+  ]
+}

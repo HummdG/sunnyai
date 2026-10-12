@@ -1,0 +1,15 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "ea-index",
+ "request": {
+  "method": "GET",
+  "url": "https://environment.data.gov.uk/spatialdata/survey-index-files/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=LIDAR_Composite_1m_First_Return_DSM_2022_extents&outputFormat=application/json&propertyName=filename,polygon_id,resolution,year,sd_flown,ed_flown&bbox=340287.5,386239.5,340288.5,386240.5,urn:ogc:def:crs:EPSG::27700&count=5"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json;charset=UTF-8"
+ },
+ "url": "https://environment.data.gov.uk/spatialdata/survey-index-files/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=LIDAR_Composite_1m_First_Return_DSM_2022_extents&outputFormat=application/json&propertyName=filename,polygon_id,resolution,year,sd_flown,ed_flown&bbox=340287.5,386239.5,340288.5,386240.5,urn:ogc:def:crs:EPSG::27700&count=5",
+ "fetchedAt": "2026-10-08T19:17:09.974Z",
+ "bytes": 440
+}

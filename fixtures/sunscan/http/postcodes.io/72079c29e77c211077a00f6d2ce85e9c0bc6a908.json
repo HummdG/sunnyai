@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "postcodes.io",
+ "request": {
+  "method": "GET",
+  "url": "https://api.postcodes.io/postcodes/SA2%200RA"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "etag": "W/\"712-FjHUdjMlsAMtoApSaSNjwCP2FbY\""
+ },
+ "url": "https://api.postcodes.io/postcodes/SA2%200RA",
+ "fetchedAt": "2026-10-08T19:18:04.830Z",
+ "bytes": 1810
+}

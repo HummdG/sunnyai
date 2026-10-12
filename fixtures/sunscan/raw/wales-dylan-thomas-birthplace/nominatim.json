@@ -1,0 +1,321 @@
+{
+  "slug": "wales-dylan-thomas-birthplace",
+  "input": "5 Cwmdonkin Drive, Swansea SA2 0RA",
+  "generatedAt": "2026-10-08T18:20:45.354Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "policy": "https://operations.osmfoundation.org/policies/nominatim/",
+  "attribution": "Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+  "requests": [
+    {
+      "purpose": "nominatim free-form",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=5+Cwmdonkin+Drive%2C+Swansea%2C+SA2+0RA",
+      "status": 200,
+      "ms": 667,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 281980993,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 518358901,
+          "lat": "51.6210127",
+          "lon": "-3.9647993",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.00006776455329208847,
+          "addresstype": "tourism",
+          "name": "Dylan Thomas House",
+          "display_name": "Dylan Thomas House, 5, Cwmdonkin Drive, Brynmill, Uplands, Swansea, Wales, SA2 0RA, United Kingdom",
+          "address": {
+            "tourism": "Dylan Thomas House",
+            "house_number": "5",
+            "road": "Cwmdonkin Drive",
+            "suburb": "Brynmill",
+            "city": "Swansea",
+            "county": "Swansea",
+            "ISO3166-2-lvl6": "GB-SWA",
+            "state": "Wales",
+            "ISO3166-2-lvl4": "GB-WLS",
+            "postcode": "SA2 0RA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "email": "info@dylanthomasbirthplace.com",
+            "phone": "+44 1792 472555",
+            "website": "https://www.dylanthomasbirthplace.com",
+            "building": "yes",
+            "subject:wikidata": "Q191023",
+            "subject:wikipedia": "en:Dylan Thomas"
+          },
+          "namedetails": {
+            "name": "Dylan Thomas House",
+            "name:en": "Dylan Thomas House",
+            "addr:housename": "Dylan Thomas House"
+          },
+          "boundingbox": [
+            "51.6209881",
+            "51.6210428",
+            "-3.9649321",
+            "-3.9646673"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim bounded (postcode viewbox)",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=5+Cwmdonkin+Drive&viewbox=-3.98657%2C51.63455%2C-3.94316%2C51.60760&bounded=1",
+      "status": 200,
+      "ms": 545,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 281980993,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 518358901,
+          "lat": "51.6210127",
+          "lon": "-3.9647993",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.00006776455329208847,
+          "addresstype": "tourism",
+          "name": "Dylan Thomas House",
+          "display_name": "Dylan Thomas House, 5, Cwmdonkin Drive, Brynmill, Uplands, Swansea, Wales, SA2 0RA, United Kingdom",
+          "address": {
+            "tourism": "Dylan Thomas House",
+            "house_number": "5",
+            "road": "Cwmdonkin Drive",
+            "suburb": "Brynmill",
+            "city": "Swansea",
+            "county": "Swansea",
+            "ISO3166-2-lvl6": "GB-SWA",
+            "state": "Wales",
+            "ISO3166-2-lvl4": "GB-WLS",
+            "postcode": "SA2 0RA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "email": "info@dylanthomasbirthplace.com",
+            "phone": "+44 1792 472555",
+            "website": "https://www.dylanthomasbirthplace.com",
+            "building": "yes",
+            "subject:wikidata": "Q191023",
+            "subject:wikipedia": "en:Dylan Thomas"
+          },
+          "namedetails": {
+            "name": "Dylan Thomas House",
+            "name:en": "Dylan Thomas House",
+            "addr:housename": "Dylan Thomas House"
+          },
+          "boundingbox": [
+            "51.6209881",
+            "51.6210428",
+            "-3.9649321",
+            "-3.9646673"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim structured",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&street=5+Cwmdonkin+Drive&city=Swansea&postalcode=SA2+0RA",
+      "status": 200,
+      "ms": 154,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 281568214,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 518358901,
+          "lat": "51.6210127",
+          "lon": "-3.9647993",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.00006776455329208847,
+          "addresstype": "tourism",
+          "name": "Dylan Thomas House",
+          "display_name": "Dylan Thomas House, 5, Cwmdonkin Drive, Brynmill, Uplands, Swansea, Wales, SA2 0RA, United Kingdom",
+          "address": {
+            "tourism": "Dylan Thomas House",
+            "house_number": "5",
+            "road": "Cwmdonkin Drive",
+            "suburb": "Brynmill",
+            "city": "Swansea",
+            "county": "Swansea",
+            "ISO3166-2-lvl6": "GB-SWA",
+            "state": "Wales",
+            "ISO3166-2-lvl4": "GB-WLS",
+            "postcode": "SA2 0RA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "email": "info@dylanthomasbirthplace.com",
+            "phone": "+44 1792 472555",
+            "website": "https://www.dylanthomasbirthplace.com",
+            "building": "yes",
+            "subject:wikidata": "Q191023",
+            "subject:wikipedia": "en:Dylan Thomas"
+          },
+          "namedetails": {
+            "name": "Dylan Thomas House",
+            "name:en": "Dylan Thomas House",
+            "addr:housename": "Dylan Thomas House"
+          },
+          "boundingbox": [
+            "51.6209881",
+            "51.6210428",
+            "-3.9649321",
+            "-3.9646673"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim lookup (osm id, polygon_geojson=1)",
+      "url": "https://nominatim.openstreetmap.org/lookup?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&osm_ids=W518358901&polygon_geojson=1",
+      "status": 200,
+      "ms": 102,
+      "fromCache": true,
+      "response": [
+        {
+          "place_id": 281568214,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 518358901,
+          "lat": "51.6210127",
+          "lon": "-3.9647993",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.00006776455329208847,
+          "addresstype": "tourism",
+          "name": "Dylan Thomas House",
+          "display_name": "Dylan Thomas House, 5, Cwmdonkin Drive, Brynmill, Uplands, Swansea, Wales, SA2 0RA, United Kingdom",
+          "address": {
+            "tourism": "Dylan Thomas House",
+            "house_number": "5",
+            "road": "Cwmdonkin Drive",
+            "suburb": "Brynmill",
+            "city": "Swansea",
+            "county": "Swansea",
+            "ISO3166-2-lvl6": "GB-SWA",
+            "state": "Wales",
+            "ISO3166-2-lvl4": "GB-WLS",
+            "postcode": "SA2 0RA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "email": "info@dylanthomasbirthplace.com",
+            "phone": "+44 1792 472555",
+            "website": "https://www.dylanthomasbirthplace.com",
+            "building": "yes",
+            "subject:wikidata": "Q191023",
+            "subject:wikipedia": "en:Dylan Thomas"
+          },
+          "namedetails": {
+            "name": "Dylan Thomas House",
+            "name:en": "Dylan Thomas House",
+            "addr:housename": "Dylan Thomas House"
+          },
+          "boundingbox": [
+            "51.6209881",
+            "51.6210428",
+            "-3.9649321",
+            "-3.9646673"
+          ],
+          "geojson": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -3.9649321,
+                  51.6210379
+                ],
+                [
+                  -3.9649278,
+                  51.6209881
+                ],
+                [
+                  -3.9646673,
+                  51.6209969
+                ],
+                [
+                  -3.9646704,
+                  51.6210326
+                ],
+                [
+                  -3.9647904,
+                  51.6210285
+                ],
+                [
+                  -3.9647919,
+                  51.6210428
+                ],
+                [
+                  -3.9649321,
+                  51.6210379
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim reverse zoom=18 @ postcode centroid",
+      "url": "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&lat=51.6210740&lon=-3.9648660&zoom=18",
+      "status": 200,
+      "ms": 299,
+      "fromCache": true,
+      "response": {
+        "place_id": 282047557,
+        "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "way",
+        "osm_id": 518358906,
+        "lat": "51.6210757",
+        "lon": "-3.9648055",
+        "category": "building",
+        "type": "house",
+        "place_rank": 30,
+        "importance": 0.00006776455329208847,
+        "addresstype": "building",
+        "name": "",
+        "display_name": "6, Cwmdonkin Drive, Brynmill, Uplands, Swansea, Wales, SA2 0RA, United Kingdom",
+        "address": {
+          "house_number": "6",
+          "road": "Cwmdonkin Drive",
+          "suburb": "Brynmill",
+          "city": "Swansea",
+          "county": "Swansea",
+          "ISO3166-2-lvl6": "GB-SWA",
+          "state": "Wales",
+          "ISO3166-2-lvl4": "GB-WLS",
+          "postcode": "SA2 0RA",
+          "country": "United Kingdom",
+          "country_code": "gb"
+        },
+        "extratags": {
+          "ref:GB:uprn": "100100351699"
+        },
+        "namedetails": null,
+        "boundingbox": [
+          "51.6210379",
+          "51.6210984",
+          "-3.9649368",
+          "-3.9646742"
+        ]
+      }
+    }
+  ]
+}

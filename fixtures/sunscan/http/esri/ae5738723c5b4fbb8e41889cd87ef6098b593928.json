@@ -1,0 +1,17 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "esri",
+ "request": {
+  "method": "GET",
+  "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/19/169887/257924"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "image/jpeg",
+  "etag": "\"27nadtvv9d9vf\"",
+  "cache-control": "max-age=86400"
+ },
+ "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/19/169887/257924",
+ "fetchedAt": "2026-10-08T23:41:03.206Z",
+ "bytes": 11563
+}

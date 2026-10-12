@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "nominatim",
+ "request": {
+  "method": "GET",
+  "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=5+Cwmdonkin+Drive%2C+Abertawe%2C+SA2+0RA"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "accept-ranges": "bytes"
+ },
+ "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=5+Cwmdonkin+Drive%2C+Abertawe%2C+SA2+0RA",
+ "fetchedAt": "2026-10-08T22:48:08.539Z",
+ "bytes": 1132
+}

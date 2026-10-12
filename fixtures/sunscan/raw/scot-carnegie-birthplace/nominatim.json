@@ -1,0 +1,499 @@
+{
+  "slug": "scot-carnegie-birthplace",
+  "input": "Andrew Carnegie Birthplace Museum, Moodie Street, Dunfermline KY12 7PL",
+  "generatedAt": "2026-10-08T18:20:45.383Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "policy": "https://operations.osmfoundation.org/policies/nominatim/",
+  "attribution": "Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+  "requests": [
+    {
+      "purpose": "nominatim free-form",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=Andrew+Carnegie+Birthplace+Museum%2C+Moodie+Street%2C+Dunfermline%2C+KY12+7PL",
+      "status": 200,
+      "ms": 198,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 274795754,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 429457399,
+          "lat": "56.0679358",
+          "lon": "-3.4612310",
+          "category": "tourism",
+          "type": "museum",
+          "place_rank": 30,
+          "importance": 0.31461790426364866,
+          "addresstype": "tourism",
+          "name": "Andrew Carnegie Birthplace Museum",
+          "display_name": "Andrew Carnegie Birthplace Museum, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Scotland, KY12 7PL, United Kingdom",
+          "address": {
+            "tourism": "Andrew Carnegie Birthplace Museum",
+            "road": "Moodie Street",
+            "suburb": "Abbey Parks",
+            "village": "Wellwood",
+            "city": "Dunfermline",
+            "county": "Fife",
+            "ISO3166-2-lvl6": "GB-FIF",
+            "state": "Scotland",
+            "ISO3166-2-lvl4": "GB-SCT",
+            "postcode": "KY12 7PL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "fee": "no",
+            "image": "https://www.geograph.org.uk/photo/4404339",
+            "website": "https://www.carnegiebirthplace.com/",
+            "building": "yes",
+            "historic": "memorial",
+            "memorial": "museum_building",
+            "wikidata": "Q101004116",
+            "wheelchair": "yes",
+            "ref:GB:uprn": "320188639",
+            "ref:canmore": "79630",
+            "opening_hours": "11:00-16:00",
+            "check_date:opening_hours": "2023-09-01"
+          },
+          "namedetails": {
+            "name": "Andrew Carnegie Birthplace Museum"
+          },
+          "boundingbox": [
+            "56.0678257",
+            "56.0680540",
+            "-3.4615440",
+            "-3.4609176"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim bounded (postcode viewbox)",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=Andrew+Carnegie+Birthplace+Museum%2C+Moodie+Street&viewbox=-3.48480%2C56.08066%2C-3.43652%2C56.05371&bounded=1",
+      "status": 200,
+      "ms": 537,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 274182755,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 429457399,
+          "lat": "56.0679358",
+          "lon": "-3.4612310",
+          "category": "tourism",
+          "type": "museum",
+          "place_rank": 30,
+          "importance": 0.31461790426364866,
+          "addresstype": "tourism",
+          "name": "Andrew Carnegie Birthplace Museum",
+          "display_name": "Andrew Carnegie Birthplace Museum, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Scotland, KY12 7PL, United Kingdom",
+          "address": {
+            "tourism": "Andrew Carnegie Birthplace Museum",
+            "road": "Moodie Street",
+            "suburb": "Abbey Parks",
+            "village": "Wellwood",
+            "city": "Dunfermline",
+            "county": "Fife",
+            "ISO3166-2-lvl6": "GB-FIF",
+            "state": "Scotland",
+            "ISO3166-2-lvl4": "GB-SCT",
+            "postcode": "KY12 7PL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "fee": "no",
+            "image": "https://www.geograph.org.uk/photo/4404339",
+            "website": "https://www.carnegiebirthplace.com/",
+            "building": "yes",
+            "historic": "memorial",
+            "memorial": "museum_building",
+            "wikidata": "Q101004116",
+            "wheelchair": "yes",
+            "ref:GB:uprn": "320188639",
+            "ref:canmore": "79630",
+            "opening_hours": "11:00-16:00",
+            "check_date:opening_hours": "2023-09-01"
+          },
+          "namedetails": {
+            "name": "Andrew Carnegie Birthplace Museum"
+          },
+          "boundingbox": [
+            "56.0678257",
+            "56.0680540",
+            "-3.4615440",
+            "-3.4609176"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim name-only bounded",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=Andrew+Carnegie+Birthplace+Museum&viewbox=-3.48480%2C56.08066%2C-3.43652%2C56.05371&bounded=1",
+      "status": 200,
+      "ms": 540,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 274675211,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 429457399,
+          "lat": "56.0679358",
+          "lon": "-3.4612310",
+          "category": "tourism",
+          "type": "museum",
+          "place_rank": 30,
+          "importance": 0.31461790426364866,
+          "addresstype": "tourism",
+          "name": "Andrew Carnegie Birthplace Museum",
+          "display_name": "Andrew Carnegie Birthplace Museum, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Scotland, KY12 7PL, United Kingdom",
+          "address": {
+            "tourism": "Andrew Carnegie Birthplace Museum",
+            "road": "Moodie Street",
+            "suburb": "Abbey Parks",
+            "village": "Wellwood",
+            "city": "Dunfermline",
+            "county": "Fife",
+            "ISO3166-2-lvl6": "GB-FIF",
+            "state": "Scotland",
+            "ISO3166-2-lvl4": "GB-SCT",
+            "postcode": "KY12 7PL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "fee": "no",
+            "image": "https://www.geograph.org.uk/photo/4404339",
+            "website": "https://www.carnegiebirthplace.com/",
+            "building": "yes",
+            "historic": "memorial",
+            "memorial": "museum_building",
+            "wikidata": "Q101004116",
+            "wheelchair": "yes",
+            "ref:GB:uprn": "320188639",
+            "ref:canmore": "79630",
+            "opening_hours": "11:00-16:00",
+            "check_date:opening_hours": "2023-09-01"
+          },
+          "namedetails": {
+            "name": "Andrew Carnegie Birthplace Museum"
+          },
+          "boundingbox": [
+            "56.0678257",
+            "56.0680540",
+            "-3.4615440",
+            "-3.4609176"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim structured",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&street=Moodie+Street&amenity=Andrew+Carnegie+Birthplace+Museum&city=Dunfermline&postalcode=KY12+7PL",
+      "status": 200,
+      "ms": 558,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 274182755,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 429457399,
+          "lat": "56.0679358",
+          "lon": "-3.4612310",
+          "category": "tourism",
+          "type": "museum",
+          "place_rank": 30,
+          "importance": 0.31461790426364866,
+          "addresstype": "tourism",
+          "name": "Andrew Carnegie Birthplace Museum",
+          "display_name": "Andrew Carnegie Birthplace Museum, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Scotland, KY12 7PL, United Kingdom",
+          "address": {
+            "tourism": "Andrew Carnegie Birthplace Museum",
+            "road": "Moodie Street",
+            "suburb": "Abbey Parks",
+            "village": "Wellwood",
+            "city": "Dunfermline",
+            "county": "Fife",
+            "ISO3166-2-lvl6": "GB-FIF",
+            "state": "Scotland",
+            "ISO3166-2-lvl4": "GB-SCT",
+            "postcode": "KY12 7PL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "fee": "no",
+            "image": "https://www.geograph.org.uk/photo/4404339",
+            "website": "https://www.carnegiebirthplace.com/",
+            "building": "yes",
+            "historic": "memorial",
+            "memorial": "museum_building",
+            "wikidata": "Q101004116",
+            "wheelchair": "yes",
+            "ref:GB:uprn": "320188639",
+            "ref:canmore": "79630",
+            "opening_hours": "11:00-16:00",
+            "check_date:opening_hours": "2023-09-01"
+          },
+          "namedetails": {
+            "name": "Andrew Carnegie Birthplace Museum"
+          },
+          "boundingbox": [
+            "56.0678257",
+            "56.0680540",
+            "-3.4615440",
+            "-3.4609176"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim lookup (osm id, polygon_geojson=1)",
+      "url": "https://nominatim.openstreetmap.org/lookup?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&osm_ids=W429457399&polygon_geojson=1",
+      "status": 200,
+      "ms": 112,
+      "fromCache": true,
+      "response": [
+        {
+          "place_id": 274795754,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 429457399,
+          "lat": "56.0679358",
+          "lon": "-3.4612310",
+          "category": "tourism",
+          "type": "museum",
+          "place_rank": 30,
+          "importance": 0.31461790426364866,
+          "addresstype": "tourism",
+          "name": "Andrew Carnegie Birthplace Museum",
+          "display_name": "Andrew Carnegie Birthplace Museum, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Scotland, KY12 7PL, United Kingdom",
+          "address": {
+            "tourism": "Andrew Carnegie Birthplace Museum",
+            "road": "Moodie Street",
+            "suburb": "Abbey Parks",
+            "village": "Wellwood",
+            "city": "Dunfermline",
+            "county": "Fife",
+            "ISO3166-2-lvl6": "GB-FIF",
+            "state": "Scotland",
+            "ISO3166-2-lvl4": "GB-SCT",
+            "postcode": "KY12 7PL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "fee": "no",
+            "image": "https://www.geograph.org.uk/photo/4404339",
+            "website": "https://www.carnegiebirthplace.com/",
+            "building": "yes",
+            "historic": "memorial",
+            "memorial": "museum_building",
+            "wikidata": "Q101004116",
+            "wheelchair": "yes",
+            "ref:GB:uprn": "320188639",
+            "ref:canmore": "79630",
+            "opening_hours": "11:00-16:00",
+            "check_date:opening_hours": "2023-09-01"
+          },
+          "namedetails": {
+            "name": "Andrew Carnegie Birthplace Museum"
+          },
+          "boundingbox": [
+            "56.0678257",
+            "56.0680540",
+            "-3.4615440",
+            "-3.4609176"
+          ],
+          "geojson": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -3.461544,
+                  56.0680168
+                ],
+                [
+                  -3.4614565,
+                  56.0679157
+                ],
+                [
+                  -3.4614237,
+                  56.0679242
+                ],
+                [
+                  -3.4613989,
+                  56.0678968
+                ],
+                [
+                  -3.4613841,
+                  56.0679015
+                ],
+                [
+                  -3.4613226,
+                  56.0678394
+                ],
+                [
+                  -3.4613045,
+                  56.0678447
+                ],
+                [
+                  -3.4612878,
+                  56.0678496
+                ],
+                [
+                  -3.4612635,
+                  56.0678257
+                ],
+                [
+                  -3.4611545,
+                  56.0678537
+                ],
+                [
+                  -3.4611483,
+                  56.0678465
+                ],
+                [
+                  -3.4610703,
+                  56.0678676
+                ],
+                [
+                  -3.4610755,
+                  56.0678736
+                ],
+                [
+                  -3.4609991,
+                  56.0678942
+                ],
+                [
+                  -3.4610261,
+                  56.0679255
+                ],
+                [
+                  -3.4609176,
+                  56.0679548
+                ],
+                [
+                  -3.4609206,
+                  56.0679582
+                ],
+                [
+                  -3.4609628,
+                  56.068007
+                ],
+                [
+                  -3.4609585,
+                  56.0680448
+                ],
+                [
+                  -3.4611133,
+                  56.0680503
+                ],
+                [
+                  -3.4611183,
+                  56.0680055
+                ],
+                [
+                  -3.4611868,
+                  56.0679871
+                ],
+                [
+                  -3.4611915,
+                  56.0679926
+                ],
+                [
+                  -3.4612615,
+                  56.0679737
+                ],
+                [
+                  -3.4612566,
+                  56.0679681
+                ],
+                [
+                  -3.4613385,
+                  56.067946
+                ],
+                [
+                  -3.4613474,
+                  56.0679564
+                ],
+                [
+                  -3.4613265,
+                  56.067962
+                ],
+                [
+                  -3.461406,
+                  56.068054
+                ],
+                [
+                  -3.461544,
+                  56.0680168
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim reverse zoom=18 @ postcode centroid",
+      "url": "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&lat=56.0671890&lon=-3.4606630&zoom=18",
+      "status": 200,
+      "ms": 235,
+      "fromCache": true,
+      "response": {
+        "place_id": 274876680,
+        "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "node",
+        "osm_id": 6216990208,
+        "lat": "56.0670066",
+        "lon": "-3.4606584",
+        "category": "highway",
+        "type": "bus_stop",
+        "place_rank": 30,
+        "importance": 0.000059304951552559966,
+        "addresstype": "highway",
+        "name": "Pittencrieff Park",
+        "display_name": "Pittencrieff Park, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Scotland, KY12 7PL, United Kingdom",
+        "address": {
+          "highway": "Pittencrieff Park",
+          "road": "Moodie Street",
+          "suburb": "Abbey Parks",
+          "village": "Wellwood",
+          "city": "Dunfermline",
+          "county": "Fife",
+          "ISO3166-2-lvl6": "GB-FIF",
+          "state": "Scotland",
+          "ISO3166-2-lvl4": "GB-SCT",
+          "postcode": "KY12 7PL",
+          "country": "United Kingdom",
+          "country_code": "gb"
+        },
+        "extratags": {
+          "bus": "yes",
+          "lit": "no",
+          "bench": "no",
+          "shelter": "no",
+          "public_transport": "platform",
+          "passenger_information_display": "no"
+        },
+        "namedetails": {
+          "name": "Pittencrieff Park"
+        },
+        "boundingbox": [
+          "56.0669566",
+          "56.0670566",
+          "-3.4607084",
+          "-3.4606084"
+        ]
+      }
+    }
+  ]
+}

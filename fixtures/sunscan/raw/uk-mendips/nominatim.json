@@ -1,0 +1,330 @@
+{
+  "slug": "uk-mendips",
+  "input": "251 Menlove Avenue, Liverpool L25 7SA",
+  "generatedAt": "2026-10-08T18:20:45.083Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "policy": "https://operations.osmfoundation.org/policies/nominatim/",
+  "attribution": "Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+  "requests": [
+    {
+      "purpose": "nominatim free-form",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=251+Menlove+Avenue%2C+Liverpool%2C+L25+7SA",
+      "status": 200,
+      "ms": 525,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 275520277,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516128867,
+          "lat": "53.3772527",
+          "lon": "-2.8813616",
+          "category": "building",
+          "type": "semidetached_house",
+          "place_rank": 30,
+          "importance": 0.4523270596625797,
+          "addresstype": "building",
+          "name": "John Lennon's Childhood Home",
+          "display_name": "John Lennon's Childhood Home, 251, Menlove Avenue, Woolton, Liverpool, Liverpool City Region, England, L25 7SA, United Kingdom",
+          "address": {
+            "building": "John Lennon's Childhood Home",
+            "house_number": "251",
+            "road": "Menlove Avenue",
+            "suburb": "Woolton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L25 7SA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "tourism": "attraction",
+            "operator": "National Trust",
+            "wikidata": "Q2702874",
+            "wikipedia": "en:251 Menlove Avenue",
+            "ref:GB:uprn": "38102543",
+            "building:levels": "2"
+          },
+          "namedetails": {
+            "name": "John Lennon's Childhood Home",
+            "name:en": "John Lennon's Childhood Home",
+            "alt_name": "Mendips"
+          },
+          "boundingbox": [
+            "53.3772015",
+            "53.3773159",
+            "-2.8814507",
+            "-2.8812717"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim bounded (postcode viewbox)",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=251+Menlove+Avenue&viewbox=-2.90311%2C53.39021%2C-2.85793%2C53.36326&bounded=1",
+      "status": 200,
+      "ms": 168,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 277252645,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516128867,
+          "lat": "53.3772527",
+          "lon": "-2.8813616",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.4523270596625797,
+          "addresstype": "tourism",
+          "name": "John Lennon's Childhood Home",
+          "display_name": "John Lennon's Childhood Home, 251, Menlove Avenue, Woolton, Liverpool, Liverpool City Region, England, L25 7SA, United Kingdom",
+          "address": {
+            "tourism": "John Lennon's Childhood Home",
+            "house_number": "251",
+            "road": "Menlove Avenue",
+            "suburb": "Woolton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L25 7SA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "building": "semidetached_house",
+            "operator": "National Trust",
+            "wikidata": "Q2702874",
+            "wikipedia": "en:251 Menlove Avenue",
+            "ref:GB:uprn": "38102543",
+            "building:levels": "2"
+          },
+          "namedetails": {
+            "name": "John Lennon's Childhood Home",
+            "name:en": "John Lennon's Childhood Home",
+            "alt_name": "Mendips"
+          },
+          "boundingbox": [
+            "53.3772015",
+            "53.3773159",
+            "-2.8814507",
+            "-2.8812717"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim structured",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&street=251+Menlove+Avenue&city=Liverpool&postalcode=L25+7SA",
+      "status": 200,
+      "ms": 141,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 277252645,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516128867,
+          "lat": "53.3772527",
+          "lon": "-2.8813616",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.4523270596625797,
+          "addresstype": "tourism",
+          "name": "John Lennon's Childhood Home",
+          "display_name": "John Lennon's Childhood Home, 251, Menlove Avenue, Woolton, Liverpool, Liverpool City Region, England, L25 7SA, United Kingdom",
+          "address": {
+            "tourism": "John Lennon's Childhood Home",
+            "house_number": "251",
+            "road": "Menlove Avenue",
+            "suburb": "Woolton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L25 7SA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "building": "semidetached_house",
+            "operator": "National Trust",
+            "wikidata": "Q2702874",
+            "wikipedia": "en:251 Menlove Avenue",
+            "ref:GB:uprn": "38102543",
+            "building:levels": "2"
+          },
+          "namedetails": {
+            "name": "John Lennon's Childhood Home",
+            "name:en": "John Lennon's Childhood Home",
+            "alt_name": "Mendips"
+          },
+          "boundingbox": [
+            "53.3772015",
+            "53.3773159",
+            "-2.8814507",
+            "-2.8812717"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim lookup (osm id, polygon_geojson=1)",
+      "url": "https://nominatim.openstreetmap.org/lookup?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&osm_ids=W516128867&polygon_geojson=1",
+      "status": 200,
+      "ms": 107,
+      "fromCache": true,
+      "response": [
+        {
+          "place_id": 277252645,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516128867,
+          "lat": "53.3772527",
+          "lon": "-2.8813616",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.4523270596625797,
+          "addresstype": "tourism",
+          "name": "John Lennon's Childhood Home",
+          "display_name": "John Lennon's Childhood Home, 251, Menlove Avenue, Woolton, Liverpool, Liverpool City Region, England, L25 7SA, United Kingdom",
+          "address": {
+            "tourism": "John Lennon's Childhood Home",
+            "house_number": "251",
+            "road": "Menlove Avenue",
+            "suburb": "Woolton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L25 7SA",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "building": "semidetached_house",
+            "operator": "National Trust",
+            "wikidata": "Q2702874",
+            "wikipedia": "en:251 Menlove Avenue",
+            "ref:GB:uprn": "38102543",
+            "building:levels": "2"
+          },
+          "namedetails": {
+            "name": "John Lennon's Childhood Home",
+            "name:en": "John Lennon's Childhood Home",
+            "alt_name": "Mendips"
+          },
+          "boundingbox": [
+            "53.3772015",
+            "53.3773159",
+            "-2.8814507",
+            "-2.8812717"
+          ],
+          "geojson": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -2.8814507,
+                  53.3772466
+                ],
+                [
+                  -2.8813805,
+                  53.3772015
+                ],
+                [
+                  -2.8812717,
+                  53.3772588
+                ],
+                [
+                  -2.8813098,
+                  53.3772843
+                ],
+                [
+                  -2.8812881,
+                  53.3772965
+                ],
+                [
+                  -2.8813187,
+                  53.3773159
+                ],
+                [
+                  -2.8813412,
+                  53.3773032
+                ],
+                [
+                  -2.8813453,
+                  53.3773058
+                ],
+                [
+                  -2.8814507,
+                  53.3772466
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim reverse zoom=18 @ postcode centroid",
+      "url": "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&lat=53.3767350&lon=-2.8805190&zoom=18",
+      "status": 200,
+      "ms": 697,
+      "fromCache": true,
+      "response": {
+        "place_id": 277485846,
+        "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "way",
+        "osm_id": 1321879203,
+        "lat": "53.3772081",
+        "lon": "-2.8812862",
+        "category": "building",
+        "type": "semidetached_house",
+        "place_rank": 30,
+        "importance": 0.00007707560845345262,
+        "addresstype": "building",
+        "name": "",
+        "display_name": "253, Menlove Avenue, Woolton, Liverpool, Liverpool City Region, England, L25 7SA, United Kingdom",
+        "address": {
+          "house_number": "253",
+          "road": "Menlove Avenue",
+          "suburb": "Woolton",
+          "city": "Liverpool",
+          "ISO3166-2-lvl8": "GB-LIV",
+          "state_district": "Liverpool City Region",
+          "state": "England",
+          "ISO3166-2-lvl4": "GB-ENG",
+          "postcode": "L25 7SA",
+          "country": "United Kingdom",
+          "country_code": "gb"
+        },
+        "extratags": {
+          "ref:GB:uprn": "38102544",
+          "building:levels": "2"
+        },
+        "namedetails": null,
+        "boundingbox": [
+          "53.3771435",
+          "53.3772670",
+          "-2.8813805",
+          "-2.8811602"
+        ]
+      }
+    }
+  ]
+}

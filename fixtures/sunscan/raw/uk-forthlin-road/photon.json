@@ -1,0 +1,216 @@
+{
+  "slug": "uk-forthlin-road",
+  "input": "20 Forthlin Road, Liverpool L18 9TN",
+  "generatedAt": "2026-10-08T18:20:45.142Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "attribution": "Data © OpenStreetMap contributors (ODbL); geocoder: Photon by komoot",
+  "requests": [
+    {
+      "purpose": "photon",
+      "url": "https://photon.komoot.io/api?q=20+Forthlin+Road%2C+Liverpool%2C+L18+9TN&limit=5&lang=en&lat=53.369683&lon=-2.898018&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95",
+      "status": 200,
+      "ms": 2533,
+      "fromCache": true,
+      "count": 3,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 516125064,
+              "osm_key": "tourism",
+              "osm_value": "attraction",
+              "type": "house",
+              "housenumber": "20",
+              "name": "Paul McCartney's Childhood Home",
+              "street": "Forthlin Road",
+              "district": "Allerton",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "postcode": "L18 9TL",
+              "countrycode": "GB",
+              "extent": [
+                -2.8979651,
+                53.3697553,
+                -2.8978283,
+                53.3696667
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.8978967,
+                53.3697111
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 4990659,
+              "osm_key": "highway",
+              "osm_value": "pedestrian",
+              "type": "street",
+              "name": "Forthlin Road",
+              "district": "Allerton",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "postcode": "L18 9TW",
+              "countrycode": "GB",
+              "extent": [
+                -2.8998781,
+                53.3693841,
+                -2.8986673,
+                53.3691311
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.8992931,
+                53.3692864
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 4990640,
+              "osm_key": "highway",
+              "osm_value": "residential",
+              "type": "street",
+              "name": "Forthlin Road",
+              "district": "Allerton",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "postcode": "L18 9TL",
+              "countrycode": "GB",
+              "extent": [
+                -2.8986673,
+                53.3699387,
+                -2.8962265,
+                53.3693697
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.8974414,
+                53.3696326
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "purpose": "photon reverse @ postcode centroid",
+      "url": "https://photon.komoot.io/reverse?lat=53.369683&lon=-2.898018&lang=en&limit=3",
+      "status": 200,
+      "ms": 1127,
+      "fromCache": true,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_key": "place",
+              "osm_value": "postcode",
+              "type": "other",
+              "name": "L18 9TN",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "countrycode": "GB",
+              "extent": [
+                -2.9085406441299586,
+                53.37596219503738,
+                -2.887499361525715,
+                53.36337779828615
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.89802,
+                53.36967
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 516125064,
+              "osm_key": "tourism",
+              "osm_value": "attraction",
+              "type": "house",
+              "housenumber": "20",
+              "name": "Paul McCartney's Childhood Home",
+              "street": "Forthlin Road",
+              "district": "Allerton",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "postcode": "L18 9TL",
+              "countrycode": "GB",
+              "extent": [
+                -2.8979651,
+                53.3697553,
+                -2.8978283,
+                53.3696667
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.8978967,
+                53.3697111
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_key": "place",
+              "osm_value": "postcode",
+              "type": "other",
+              "name": "L18 9TL",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "countrycode": "GB",
+              "extent": [
+                -2.908170589815704,
+                53.375742195198185,
+                -2.887129415860419,
+                53.363157798125314
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.89765,
+                53.36945
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

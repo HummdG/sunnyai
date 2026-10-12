@@ -1,0 +1,4998 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.7 375dc00a",
+  "osm3s": {
+    "timestamp_osm_base": "2026-10-08T19:16:06Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 334631276,
+  "lat": 51.5235936,
+  "lon": -0.1163232,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "48-49",
+    "addr:postcode": "WC1N 2LX",
+    "addr:street": "Doughty Street",
+    "check_date": "2025-07-03",
+    "contact:email": "info@dickensmuseum.com",
+    "contact:facebook": "dickensmuseum",
+    "contact:instagram": "dickensmuseum",
+    "contact:phone": "+44 20 7405 2127",
+    "contact:twitter": "DickensMuseum",
+    "fee": "yes",
+    "museum": "person",
+    "name": "Charles Dickens Museum",
+    "opening_hours": "We-Su 10:00-16:00",
+    "toilets:wheelchair": "yes",
+    "tourism": "museum",
+    "website": "https://dickensmuseum.com/",
+    "wheelchair": "yes",
+    "wikidata": "Q2723633",
+    "wikimedia_commons": "Category:Charles Dickens Museum",
+    "wikipedia": "en:Charles Dickens Museum"
+  }
+},
+{
+  "type": "node",
+  "id": 948810118,
+  "lat": 51.5239078,
+  "lon": -0.1158501,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "15",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948810136,
+  "lat": 51.5237537,
+  "lon": -0.1157113,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "10-13",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948810173,
+  "lat": 51.5235275,
+  "lon": -0.1155074,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "9",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948810250,
+  "lat": 51.5238552,
+  "lon": -0.1158027,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "14",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948810254,
+  "lat": 51.5236591,
+  "lon": -0.1156261,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "9a",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948810265,
+  "lat": 51.5237205,
+  "lon": -0.1154020,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "123",
+    "addr:street": "Gray's Inn Road",
+    "phone": "+44 20 7905 1234",
+    "was:amenity": "dentist",
+    "was:healthcare": "dentist",
+    "was:name": "The Eastman Dental Practice",
+    "was:ref:GB:cqc_location": "1-197183276",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 948810290,
+  "lat": 51.5240239,
+  "lon": -0.1159547,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "20",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948810325,
+  "lat": 51.5236195,
+  "lon": -0.1152955,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "121",
+    "addr:street": "Gray's Inn Road"
+  }
+},
+{
+  "type": "node",
+  "id": 948810330,
+  "lat": 51.5235124,
+  "lon": -0.1151826,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "115-119",
+    "addr:street": "Gray's Inn Road",
+    "name": "St Mungo's"
+  }
+},
+{
+  "type": "node",
+  "id": 948866583,
+  "lat": 51.5233591,
+  "lon": -0.1156341,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "27a",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948866615,
+  "lat": 51.5231784,
+  "lon": -0.1154732,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "29",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948866669,
+  "lat": 51.5239559,
+  "lon": -0.1161656,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "20a",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948866696,
+  "lat": 51.5235607,
+  "lon": -0.1158137,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "24-26",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948866712,
+  "lat": 51.5241502,
+  "lon": -0.1163797,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "4",
+    "addr:street": "Guilford Street",
+    "check_date": "2025-09-10",
+    "name": "Greenville Hotel",
+    "tourism": "hotel"
+  }
+},
+{
+  "type": "node",
+  "id": 948866756,
+  "lat": 51.5234663,
+  "lon": -0.1157296,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "27",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948866784,
+  "lat": 51.5241154,
+  "lon": -0.1165432,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "6",
+    "addr:street": "Guilford Street",
+    "check_date": "2025-09-10",
+    "name": "Guildford",
+    "phone": "+44 20 7430 2504",
+    "tourism": "hotel"
+  }
+},
+{
+  "type": "node",
+  "id": 948866819,
+  "lat": 51.5237750,
+  "lon": -0.1160045,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "21",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948866850,
+  "lat": 51.5236560,
+  "lon": -0.1158985,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "22",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948866886,
+  "lat": 51.5232490,
+  "lon": -0.1155360,
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "28",
+    "addr:street": "Brownlow Mews"
+  }
+},
+{
+  "type": "node",
+  "id": 948928340,
+  "lat": 51.5228961,
+  "lon": -0.1164486,
+  "tags": {
+    "entrance": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 12013421102,
+  "lat": 51.5235589,
+  "lon": -0.1163801,
+  "tags": {
+    "entrance": "main"
+  }
+},
+{
+  "type": "way",
+  "id": 2837144,
+  "bounds": {
+    "minlat": 51.5229182,
+    "minlon": -0.1176451,
+    "maxlat": 51.5237671,
+    "maxlon": -0.1169273
+  },
+  "nodes": [
+    12689779,
+    7530072759,
+    7530072760,
+    305250586
+  ],
+  "geometry": [
+    { "lat": 51.5229182, "lon": -0.1169273 },
+    { "lat": 51.5236803, "lon": -0.1175478 },
+    { "lat": 51.5236944, "lon": -0.1175961 },
+    { "lat": 51.5237671, "lon": -0.1176451 }
+  ],
+  "tags": {
+    "cycleway:both": "no",
+    "highway": "unclassified",
+    "lane_markings": "no",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Doughty Mews",
+    "sidewalk": "no",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 3076827,
+  "bounds": {
+    "minlat": 51.5228709,
+    "minlon": -0.1161236,
+    "maxlat": 51.5241125,
+    "maxlon": -0.1150459
+  },
+  "nodes": [
+    11506538,
+    7530189398,
+    7530151772,
+    7530151773,
+    948810170
+  ],
+  "geometry": [
+    { "lat": 51.5228709, "lon": -0.1150459 },
+    { "lat": 51.5234867, "lon": -0.1155885 },
+    { "lat": 51.5240349, "lon": -0.1160270 },
+    { "lat": 51.5240491, "lon": -0.1160780 },
+    { "lat": 51.5241125, "lon": -0.1161236 }
+  ],
+  "tags": {
+    "highway": "unclassified",
+    "lane_markings": "no",
+    "maxspeed": "20 mph",
+    "name": "Brownlow Mews",
+    "surface": "sett"
+  }
+},
+{
+  "type": "way",
+  "id": 3088642,
+  "bounds": {
+    "minlat": 51.5241203,
+    "minlon": -0.1175768,
+    "maxlat": 51.5247837,
+    "maxlon": -0.1169697
+  },
+  "nodes": [
+    12150299,
+    13842559894,
+    948866854,
+    14258015792,
+    109826
+  ],
+  "geometry": [
+    { "lat": 51.5247837, "lon": -0.1175768 },
+    { "lat": 51.5247479, "lon": -0.1175470 },
+    { "lat": 51.5241819, "lon": -0.1170176 },
+    { "lat": 51.5241547, "lon": -0.1169962 },
+    { "lat": 51.5241203, "lon": -0.1169697 }
+  ],
+  "tags": {
+    "highway": "residential",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Doughty Street",
+    "sidewalk": "both",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 49932204,
+  "bounds": {
+    "minlat": 51.5235621,
+    "minlon": -0.1193590,
+    "maxlat": 51.5241203,
+    "maxlon": -0.1169697
+  },
+  "nodes": [
+    25475744,
+    634541898,
+    13842516710,
+    893428750,
+    109827,
+    6335492873,
+    12689778,
+    948866702,
+    109826
+  ],
+  "geometry": [
+    { "lat": 51.5235621, "lon": -0.1193590 },
+    { "lat": 51.5235939, "lon": -0.1192417 },
+    { "lat": 51.5236170, "lon": -0.1191411 },
+    { "lat": 51.5237991, "lon": -0.1183488 },
+    { "lat": 51.5238365, "lon": -0.1181844 },
+    { "lat": 51.5238723, "lon": -0.1180287 },
+    { "lat": 51.5239344, "lon": -0.1177613 },
+    { "lat": 51.5240841, "lon": -0.1171025 },
+    { "lat": 51.5241203, "lon": -0.1169697 }
+  ],
+  "tags": {
+    "highway": "secondary",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Guilford Street",
+    "name:etymology:wikidata": "Q312593",
+    "ref": "B502",
+    "sidewalk:both": "separate",
+    "source:ref": "OS OpenData StreetView",
+    "surface": "asphalt",
+    "wikidata": "Q5615940"
+  }
+},
+{
+  "type": "way",
+  "id": 81430722,
+  "bounds": {
+    "minlat": 51.5242275,
+    "minlon": -0.1162323,
+    "maxlat": 51.5242771,
+    "maxlon": -0.1161978
+  },
+  "nodes": [
+    948810056,
+    13396011559,
+    12443172
+  ],
+  "geometry": [
+    { "lat": 51.5242275, "lon": -0.1161978 },
+    { "lat": 51.5242310, "lon": -0.1162002 },
+    { "lat": 51.5242771, "lon": -0.1162323 }
+  ],
+  "tags": {
+    "highway": "unclassified",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Brownlow Mews",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 81430731,
+  "bounds": {
+    "minlat": 51.5241125,
+    "minlon": -0.1161908,
+    "maxlat": 51.5242165,
+    "maxlon": -0.1161236
+  },
+  "nodes": [
+    948810170,
+    948810149,
+    10884083496
+  ],
+  "geometry": [
+    { "lat": 51.5241125, "lon": -0.1161236 },
+    { "lat": 51.5241551, "lon": -0.1161519 },
+    { "lat": 51.5242165, "lon": -0.1161908 }
+  ],
+  "tags": {
+    "covered": "yes",
+    "highway": "unclassified",
+    "layer": "-1",
+    "maxheight": "below_default",
+    "maxspeed": "20 mph",
+    "name": "Brownlow Mews",
+    "surface": "sett",
+    "tunnel": "building_passage"
+  }
+},
+{
+  "type": "way",
+  "id": 81446555,
+  "bounds": {
+    "minlat": 51.5228925,
+    "minlon": -0.1166556,
+    "maxlat": 51.5229664,
+    "maxlon": -0.1163850
+  },
+  "nodes": [
+    948928288,
+    948928369,
+    948928305,
+    948928340,
+    948928283,
+    948928288
+  ],
+  "geometry": [
+    { "lat": 51.5229547, "lon": -0.1164485 },
+    { "lat": 51.5229664, "lon": -0.1166453 },
+    { "lat": 51.5229096, "lon": -0.1166556 },
+    { "lat": 51.5228961, "lon": -0.1164486 },
+    { "lat": 51.5228925, "lon": -0.1163850 },
+    { "lat": 51.5229547, "lon": -0.1164485 }
+  ],
+  "tags": {
+    "building": "yes",
+    "building:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 155731371,
+  "bounds": {
+    "minlat": 51.5241095,
+    "minlon": -0.1159887,
+    "maxlat": 51.5241912,
+    "maxlon": -0.1158553
+  },
+  "nodes": [
+    1680893580,
+    1680893577,
+    1680893575,
+    383932468,
+    1680893579,
+    1680893580
+  ],
+  "geometry": [
+    { "lat": 51.5241912, "lon": -0.1159072 },
+    { "lat": 51.5241458, "lon": -0.1158553 },
+    { "lat": 51.5241185, "lon": -0.1159254 },
+    { "lat": 51.5241095, "lon": -0.1159536 },
+    { "lat": 51.5241648, "lon": -0.1159887 },
+    { "lat": 51.5241912, "lon": -0.1159072 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "137",
+    "addr:street": "Gray's Inn Road",
+    "building": "commercial",
+    "name": "Little Peregrine",
+    "source": "survey;Bing",
+    "wheelchair": "limited"
+  }
+},
+{
+  "type": "way",
+  "id": 155731378,
+  "bounds": {
+    "minlat": 51.5236045,
+    "minlon": -0.1155284,
+    "maxlat": 51.5237884,
+    "maxlon": -0.1152811
+  },
+  "nodes": [
+    1680893561,
+    1680893557,
+    1680893554,
+    1680893553,
+    1680893555,
+    1680893556,
+    1680893558,
+    1680893561
+  ],
+  "geometry": [
+    { "lat": 51.5237884, "lon": -0.1154304 },
+    { "lat": 51.5236607, "lon": -0.1152811 },
+    { "lat": 51.5236181, "lon": -0.1153780 },
+    { "lat": 51.5236045, "lon": -0.1154088 },
+    { "lat": 51.5236400, "lon": -0.1154494 },
+    { "lat": 51.5236515, "lon": -0.1154263 },
+    { "lat": 51.5237415, "lon": -0.1155284 },
+    { "lat": 51.5237884, "lon": -0.1154304 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:country": "GB",
+    "addr:housenumber": "107",
+    "addr:street": "Gray's Inn Road",
+    "building": "office",
+    "building:levels": "4",
+    "ref:GB:uprn": "5083278",
+    "source": "Bing;photographic_survey"
+  }
+},
+{
+  "type": "way",
+  "id": 155731381,
+  "bounds": {
+    "minlat": 51.5237549,
+    "minlon": -0.1158040,
+    "maxlat": 51.5239824,
+    "maxlon": -0.1154771
+  },
+  "nodes": [
+    25497831,
+    1680893563,
+    1680893560,
+    1680893559,
+    1680893562,
+    1680893564,
+    1680893566,
+    1680893565,
+    1680893567,
+    1680893568,
+    25497831
+  ],
+  "geometry": [
+    { "lat": 51.5239824, "lon": -0.1156647 },
+    { "lat": 51.5238272, "lon": -0.1154771 },
+    { "lat": 51.5237808, "lon": -0.1155762 },
+    { "lat": 51.5237549, "lon": -0.1156321 },
+    { "lat": 51.5238227, "lon": -0.1157139 },
+    { "lat": 51.5238482, "lon": -0.1156566 },
+    { "lat": 51.5239147, "lon": -0.1157369 },
+    { "lat": 51.5238955, "lon": -0.1157778 },
+    { "lat": 51.5239172, "lon": -0.1158040 },
+    { "lat": 51.5239538, "lon": -0.1157290 },
+    { "lat": 51.5239824, "lon": -0.1156647 }
+  ],
+  "tags": {
+    "building": "yes",
+    "name": "International Centre for Excellence in Dentistry",
+    "source": "Bing;photographic_survey"
+  }
+},
+{
+  "type": "way",
+  "id": 155731384,
+  "bounds": {
+    "minlat": 51.5241616,
+    "minlon": -0.1160786,
+    "maxlat": 51.5242593,
+    "maxlon": -0.1159072
+  },
+  "nodes": [
+    1680893578,
+    1680893581,
+    25497834,
+    1680893580,
+    1680893579,
+    1680893578
+  ],
+  "geometry": [
+    { "lat": 51.5241616, "lon": -0.1160296 },
+    { "lat": 51.5242389, "lon": -0.1160786 },
+    { "lat": 51.5242593, "lon": -0.1159899 },
+    { "lat": 51.5241912, "lon": -0.1159072 },
+    { "lat": 51.5241648, "lon": -0.1159887 },
+    { "lat": 51.5241616, "lon": -0.1160296 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "137A",
+    "addr:street": "Gray's Inn Road",
+    "building": "yes",
+    "check_date": "2025-09-10",
+    "name": "Peregrine's Pianos",
+    "shop": "musical_instrument",
+    "source": "Bing;photographic_survey"
+  }
+},
+{
+  "type": "way",
+  "id": 155731385,
+  "bounds": {
+    "minlat": 51.5239538,
+    "minlon": -0.1158227,
+    "maxlat": 51.5240616,
+    "maxlon": -0.1156647
+  },
+  "nodes": [
+    948810295,
+    25497831,
+    1680893568,
+    7530151767,
+    7530151768,
+    1680893570,
+    1680893571,
+    1680893573,
+    948810295
+  ],
+  "geometry": [
+    { "lat": 51.5240616, "lon": -0.1157556 },
+    { "lat": 51.5239824, "lon": -0.1156647 },
+    { "lat": 51.5239538, "lon": -0.1157290 },
+    { "lat": 51.5239802, "lon": -0.1157594 },
+    { "lat": 51.5239635, "lon": -0.1157990 },
+    { "lat": 51.5239840, "lon": -0.1158227 },
+    { "lat": 51.5240011, "lon": -0.1157824 },
+    { "lat": 51.5240326, "lon": -0.1158203 },
+    { "lat": 51.5240616, "lon": -0.1157556 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "133",
+    "addr:postcode": "WC1X 8TU",
+    "addr:street": "Gray's Inn Road",
+    "amenity": "pub",
+    "building": "yes",
+    "building:levels": "4",
+    "indoor_seating": "yes",
+    "internet_access": "wlan",
+    "name": "The Blue Lion",
+    "opening_hours": "Mo-Fr 12:00-23:00; Sa Off; Su Off",
+    "outdoor_seating": "yes",
+    "sport": "billiards",
+    "wheelchair": "no",
+    "wikidata": "Q136705188"
+  }
+},
+{
+  "type": "way",
+  "id": 155731387,
+  "bounds": {
+    "minlat": 51.5241438,
+    "minlon": -0.1161619,
+    "maxlat": 51.5242389,
+    "maxlon": -0.1160296
+  },
+  "nodes": [
+    1680893581,
+    948810303,
+    1680893576,
+    1680893578,
+    1680893581
+  ],
+  "geometry": [
+    { "lat": 51.5242389, "lon": -0.1160786 },
+    { "lat": 51.5242193, "lon": -0.1161619 },
+    { "lat": 51.5241438, "lon": -0.1161087 },
+    { "lat": 51.5241616, "lon": -0.1160296 },
+    { "lat": 51.5242389, "lon": -0.1160786 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "1",
+    "addr:postcode": "WC1N 1DR",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 155731388,
+  "bounds": {
+    "minlat": 51.5240179,
+    "minlon": -0.1159254,
+    "maxlat": 51.5241458,
+    "maxlon": -0.1157556
+  },
+  "nodes": [
+    1680893572,
+    1680893575,
+    1680893577,
+    948810295,
+    1680893573,
+    1680893572
+  ],
+  "geometry": [
+    { "lat": 51.5240179, "lon": -0.1158531 },
+    { "lat": 51.5241185, "lon": -0.1159254 },
+    { "lat": 51.5241458, "lon": -0.1158553 },
+    { "lat": 51.5240616, "lon": -0.1157556 },
+    { "lat": 51.5240326, "lon": -0.1158203 },
+    { "lat": 51.5240179, "lon": -0.1158531 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:street": "Gray's Inn Road",
+    "building": "yes",
+    "name": "Unique24.co.uk",
+    "shop": "convenience"
+  }
+},
+{
+  "type": "way",
+  "id": 155731391,
+  "bounds": {
+    "minlat": 51.5237415,
+    "minlon": -0.1155762,
+    "maxlat": 51.5238272,
+    "maxlon": -0.1154304
+  },
+  "nodes": [
+    1680893563,
+    1680893561,
+    1680893558,
+    1680893560,
+    1680893563
+  ],
+  "geometry": [
+    { "lat": 51.5238272, "lon": -0.1154771 },
+    { "lat": 51.5237884, "lon": -0.1154304 },
+    { "lat": 51.5237415, "lon": -0.1155284 },
+    { "lat": 51.5237808, "lon": -0.1155762 },
+    { "lat": 51.5238272, "lon": -0.1154771 }
+  ],
+  "tags": {
+    "building": "house",
+    "building:levels": "4",
+    "ref:GB:uprn": "5016648;5016646;5016611;5107637",
+    "source": "Bing;photographic_survey"
+  }
+},
+{
+  "type": "way",
+  "id": 155731394,
+  "bounds": {
+    "minlat": 51.5239807,
+    "minlon": -0.1160188,
+    "maxlat": 51.5241185,
+    "maxlon": -0.1158531
+  },
+  "nodes": [
+    1680893572,
+    1680893569,
+    1680893574,
+    383932468,
+    1680893575,
+    1680893572
+  ],
+  "geometry": [
+    { "lat": 51.5240179, "lon": -0.1158531 },
+    { "lat": 51.5239807, "lon": -0.1159346 },
+    { "lat": 51.5240897, "lon": -0.1160188 },
+    { "lat": 51.5241095, "lon": -0.1159536 },
+    { "lat": 51.5241185, "lon": -0.1159254 },
+    { "lat": 51.5240179, "lon": -0.1158531 }
+  ],
+  "tags": {
+    "building": "yes",
+    "building:levels": "3",
+    "check_date": "2024-04-20",
+    "email": "info@theperimeter.co.uk",
+    "fee": "no",
+    "name": "The Perimeter",
+    "source": "Bing",
+    "tourism": "gallery",
+    "website": "https://www.theperimeter.co.uk/"
+  }
+},
+{
+  "type": "way",
+  "id": 155731396,
+  "bounds": {
+    "minlat": 51.5233994,
+    "minlon": -0.1153780,
+    "maxlat": 51.5236607,
+    "maxlon": -0.1150385
+  },
+  "nodes": [
+    1680893557,
+    1680893550,
+    1680893549,
+    1680893551,
+    1680893552,
+    1680893554,
+    1680893557
+  ],
+  "geometry": [
+    { "lat": 51.5236607, "lon": -0.1152811 },
+    { "lat": 51.5234476, "lon": -0.1150385 },
+    { "lat": 51.5233994, "lon": -0.1151763 },
+    { "lat": 51.5235654, "lon": -0.1153585 },
+    { "lat": 51.5235747, "lon": -0.1153338 },
+    { "lat": 51.5236181, "lon": -0.1153780 },
+    { "lat": 51.5236607, "lon": -0.1152811 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1X 8TZ",
+    "building": "yes",
+    "ref:GB:uprn": "5146216;5146215;5146212;5146214;5146213",
+    "source": "Bing;photographic_survey"
+  }
+},
+{
+  "type": "way",
+  "id": 741748763,
+  "bounds": {
+    "minlat": 51.5230214,
+    "minlon": -0.1158785,
+    "maxlat": 51.5243059,
+    "maxlon": -0.1145074
+  },
+  "nodes": [
+    8837317628,
+    6943750649,
+    9024001783,
+    10547761257,
+    9287286714,
+    9024001789,
+    6943750652,
+    9042102899,
+    6943750654,
+    12709846284,
+    9042126286,
+    9287286716,
+    8837317636,
+    6943750665,
+    6335504269
+  ],
+  "geometry": [
+    { "lat": 51.5230214, "lon": -0.1145074 },
+    { "lat": 51.5230247, "lon": -0.1146317 },
+    { "lat": 51.5230444, "lon": -0.1146483 },
+    { "lat": 51.5230765, "lon": -0.1146750 },
+    { "lat": 51.5231095, "lon": -0.1146993 },
+    { "lat": 51.5232606, "lon": -0.1148145 },
+    { "lat": 51.5233698, "lon": -0.1149178 },
+    { "lat": 51.5234330, "lon": -0.1149716 },
+    { "lat": 51.5234703, "lon": -0.1150075 },
+    { "lat": 51.5235467, "lon": -0.1150912 },
+    { "lat": 51.5238451, "lon": -0.1154182 },
+    { "lat": 51.5241649, "lon": -0.1157873 },
+    { "lat": 51.5242472, "lon": -0.1158716 },
+    { "lat": 51.5242535, "lon": -0.1158785 },
+    { "lat": 51.5243059, "lon": -0.1158387 }
+  ],
+  "tags": {
+    "foot": "yes",
+    "highway": "cycleway",
+    "lit": "yes",
+    "name": "Gray's Inn Road",
+    "name:etymology:wikidata": "Q7308924",
+    "oneway": "yes",
+    "sidewalk": "left",
+    "source": "https://consultations.wearecamden.org/communications-strategy-improvement/gray-s-inn-road-cycling-walking-road-safety-propos/supporting_documents/Consultation%20plans.pdf",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 804668315,
+  "bounds": {
+    "minlat": 51.5242810,
+    "minlon": -0.1167016,
+    "maxlat": 51.5243828,
+    "maxlon": -0.1165695
+  },
+  "nodes": [
+    7526556884,
+    7526556881,
+    7526556880,
+    7526556883,
+    7526556884
+  ],
+  "geometry": [
+    { "lat": 51.5242810, "lon": -0.1166513 },
+    { "lat": 51.5242998, "lon": -0.1165695 },
+    { "lat": 51.5243828, "lon": -0.1166204 },
+    { "lat": 51.5243649, "lon": -0.1167016 },
+    { "lat": 51.5242810, "lon": -0.1166513 }
+  ],
+  "tags": {
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 804668316,
+  "bounds": {
+    "minlat": 51.5242614,
+    "minlon": -0.1167948,
+    "maxlat": 51.5243649,
+    "maxlon": -0.1166513
+  },
+  "nodes": [
+    7526598487,
+    7526556884,
+    7526556883,
+    7526556882,
+    7526598486,
+    7526598487
+  ],
+  "geometry": [
+    { "lat": 51.5242614, "lon": -0.1167338 },
+    { "lat": 51.5242810, "lon": -0.1166513 },
+    { "lat": 51.5243649, "lon": -0.1167016 },
+    { "lat": 51.5243444, "lon": -0.1167948 },
+    { "lat": 51.5242973, "lon": -0.1167619 },
+    { "lat": 51.5242614, "lon": -0.1167338 }
+  ],
+  "tags": {
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 804668317,
+  "bounds": {
+    "minlat": 51.5242176,
+    "minlon": -0.1169725,
+    "maxlat": 51.5243077,
+    "maxlon": -0.1167338
+  },
+  "nodes": [
+    7526598490,
+    7526598488,
+    7526598487,
+    7526598486,
+    7526598485,
+    7526598489,
+    7526598490
+  ],
+  "geometry": [
+    { "lat": 51.5242689, "lon": -0.1169725 },
+    { "lat": 51.5242176, "lon": -0.1169309 },
+    { "lat": 51.5242614, "lon": -0.1167338 },
+    { "lat": 51.5242973, "lon": -0.1167619 },
+    { "lat": 51.5242852, "lon": -0.1168069 },
+    { "lat": 51.5243077, "lon": -0.1168243 },
+    { "lat": 51.5242689, "lon": -0.1169725 }
+  ],
+  "tags": {
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125305,
+  "bounds": {
+    "minlat": 51.5237312,
+    "minlon": -0.1175671,
+    "maxlat": 51.5238203,
+    "maxlon": -0.1174184
+  },
+  "nodes": [
+    7530072724,
+    7530072720,
+    7530072758,
+    7530072757,
+    7530072723,
+    7530072765,
+    7530072763,
+    7530072724
+  ],
+  "geometry": [
+    { "lat": 51.5237935, "lon": -0.1175671 },
+    { "lat": 51.5237574, "lon": -0.1175451 },
+    { "lat": 51.5237312, "lon": -0.1175290 },
+    { "lat": 51.5237674, "lon": -0.1174184 },
+    { "lat": 51.5238203, "lon": -0.1174461 },
+    { "lat": 51.5238153, "lon": -0.1174683 },
+    { "lat": 51.5237975, "lon": -0.1175489 },
+    { "lat": 51.5237935, "lon": -0.1175671 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125306,
+  "bounds": {
+    "minlat": 51.5229172,
+    "minlon": -0.1169220,
+    "maxlat": 51.5230619,
+    "maxlon": -0.1166452
+  },
+  "nodes": [
+    7530072731,
+    7530072728,
+    948928263,
+    7530072727,
+    7530072726,
+    7530072725,
+    7530072756,
+    7530072731
+  ],
+  "geometry": [
+    { "lat": 51.5229936, "lon": -0.1169220 },
+    { "lat": 51.5229226, "lon": -0.1168612 },
+    { "lat": 51.5229172, "lon": -0.1167842 },
+    { "lat": 51.5229376, "lon": -0.1167673 },
+    { "lat": 51.5229752, "lon": -0.1166452 },
+    { "lat": 51.5230619, "lon": -0.1167136 },
+    { "lat": 51.5230294, "lon": -0.1168089 },
+    { "lat": 51.5229936, "lon": -0.1169220 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "1A",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125307,
+  "bounds": {
+    "minlat": 51.5231514,
+    "minlon": -0.1171059,
+    "maxlat": 51.5232523,
+    "maxlon": -0.1169401
+  },
+  "nodes": [
+    7530072730,
+    7530072736,
+    7530072737,
+    7530072729,
+    7530072730
+  ],
+  "geometry": [
+    { "lat": 51.5231514, "lon": -0.1170518 },
+    { "lat": 51.5232171, "lon": -0.1171059 },
+    { "lat": 51.5232523, "lon": -0.1169930 },
+    { "lat": 51.5231883, "lon": -0.1169401 },
+    { "lat": 51.5231514, "lon": -0.1170518 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "4",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125308,
+  "bounds": {
+    "minlat": 51.5231019,
+    "minlon": -0.1170518,
+    "maxlat": 51.5231883,
+    "maxlon": -0.1168986
+  },
+  "nodes": [
+    7530072735,
+    7530072730,
+    7530072729,
+    7530072734,
+    7530072735
+  ],
+  "geometry": [
+    { "lat": 51.5231019, "lon": -0.1170111 },
+    { "lat": 51.5231514, "lon": -0.1170518 },
+    { "lat": 51.5231883, "lon": -0.1169401 },
+    { "lat": 51.5231381, "lon": -0.1168986 },
+    { "lat": 51.5231019, "lon": -0.1170111 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "3",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5020719"
+  }
+},
+{
+  "type": "way",
+  "id": 805125309,
+  "bounds": {
+    "minlat": 51.5229936,
+    "minlon": -0.1169695,
+    "maxlat": 51.5230873,
+    "maxlon": -0.1168089
+  },
+  "nodes": [
+    7530072733,
+    7530072756,
+    7530072731,
+    7530072732,
+    7530072733
+  ],
+  "geometry": [
+    { "lat": 51.5230873, "lon": -0.1168567 },
+    { "lat": 51.5230294, "lon": -0.1168089 },
+    { "lat": 51.5229936, "lon": -0.1169220 },
+    { "lat": 51.5230514, "lon": -0.1169695 },
+    { "lat": 51.5230873, "lon": -0.1168567 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "1",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5093109"
+  }
+},
+{
+  "type": "way",
+  "id": 805125310,
+  "bounds": {
+    "minlat": 51.5230514,
+    "minlon": -0.1170111,
+    "maxlat": 51.5231381,
+    "maxlon": -0.1168567
+  },
+  "nodes": [
+    7530072735,
+    7530072734,
+    7530072733,
+    7530072732,
+    7530072735
+  ],
+  "geometry": [
+    { "lat": 51.5231019, "lon": -0.1170111 },
+    { "lat": 51.5231381, "lon": -0.1168986 },
+    { "lat": 51.5230873, "lon": -0.1168567 },
+    { "lat": 51.5230514, "lon": -0.1169695 },
+    { "lat": 51.5231019, "lon": -0.1170111 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "2",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5105810"
+  }
+},
+{
+  "type": "way",
+  "id": 805125311,
+  "bounds": {
+    "minlat": 51.5232171,
+    "minlon": -0.1171549,
+    "maxlat": 51.5233125,
+    "maxlon": -0.1169930
+  },
+  "nodes": [
+    7530072739,
+    7530072737,
+    7530072736,
+    7530072738,
+    7530072739
+  ],
+  "geometry": [
+    { "lat": 51.5233125, "lon": -0.1170427 },
+    { "lat": 51.5232523, "lon": -0.1169930 },
+    { "lat": 51.5232171, "lon": -0.1171059 },
+    { "lat": 51.5232766, "lon": -0.1171549 },
+    { "lat": 51.5233125, "lon": -0.1170427 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "5",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5078171;5040397"
+  }
+},
+{
+  "type": "way",
+  "id": 805125312,
+  "bounds": {
+    "minlat": 51.5232766,
+    "minlon": -0.1171951,
+    "maxlat": 51.5233603,
+    "maxlon": -0.1170427
+  },
+  "nodes": [
+    7530072741,
+    7530072739,
+    7530072738,
+    7530072740,
+    7530072741
+  ],
+  "geometry": [
+    { "lat": 51.5233603, "lon": -0.1170822 },
+    { "lat": 51.5233125, "lon": -0.1170427 },
+    { "lat": 51.5232766, "lon": -0.1171549 },
+    { "lat": 51.5233254, "lon": -0.1171951 },
+    { "lat": 51.5233603, "lon": -0.1170822 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "6",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5031221"
+  }
+},
+{
+  "type": "way",
+  "id": 805125313,
+  "bounds": {
+    "minlat": 51.5233254,
+    "minlon": -0.1172351,
+    "maxlat": 51.5234110,
+    "maxlon": -0.1170822
+  },
+  "nodes": [
+    7530072743,
+    7530072741,
+    7530072740,
+    7530072742,
+    7530072743
+  ],
+  "geometry": [
+    { "lat": 51.5234110, "lon": -0.1171240 },
+    { "lat": 51.5233603, "lon": -0.1170822 },
+    { "lat": 51.5233254, "lon": -0.1171951 },
+    { "lat": 51.5233741, "lon": -0.1172351 },
+    { "lat": 51.5234110, "lon": -0.1171240 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "7",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125314,
+  "bounds": {
+    "minlat": 51.5233741,
+    "minlon": -0.1172778,
+    "maxlat": 51.5234621,
+    "maxlon": -0.1171240
+  },
+  "nodes": [
+    7530072745,
+    7530072743,
+    7530072742,
+    7530072744,
+    7530072745
+  ],
+  "geometry": [
+    { "lat": 51.5234621, "lon": -0.1171662 },
+    { "lat": 51.5234110, "lon": -0.1171240 },
+    { "lat": 51.5233741, "lon": -0.1172351 },
+    { "lat": 51.5234259, "lon": -0.1172778 },
+    { "lat": 51.5234621, "lon": -0.1171662 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "8",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5128183;5128182;10092002526;5068429"
+  }
+},
+{
+  "type": "way",
+  "id": 805125315,
+  "bounds": {
+    "minlat": 51.5234259,
+    "minlon": -0.1173210,
+    "maxlat": 51.5235145,
+    "maxlon": -0.1171662
+  },
+  "nodes": [
+    7530072747,
+    7530072745,
+    7530072744,
+    7530072746,
+    7530072747
+  ],
+  "geometry": [
+    { "lat": 51.5235145, "lon": -0.1172095 },
+    { "lat": 51.5234621, "lon": -0.1171662 },
+    { "lat": 51.5234259, "lon": -0.1172778 },
+    { "lat": 51.5234784, "lon": -0.1173210 },
+    { "lat": 51.5235145, "lon": -0.1172095 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "9",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5050290"
+  }
+},
+{
+  "type": "way",
+  "id": 805125316,
+  "bounds": {
+    "minlat": 51.5234784,
+    "minlon": -0.1173619,
+    "maxlat": 51.5235651,
+    "maxlon": -0.1172095
+  },
+  "nodes": [
+    7530072749,
+    7530072747,
+    7530072746,
+    7530072748,
+    7530072749
+  ],
+  "geometry": [
+    { "lat": 51.5235651, "lon": -0.1172513 },
+    { "lat": 51.5235145, "lon": -0.1172095 },
+    { "lat": 51.5234784, "lon": -0.1173210 },
+    { "lat": 51.5235280, "lon": -0.1173619 },
+    { "lat": 51.5235651, "lon": -0.1172513 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "10",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5082968"
+  }
+},
+{
+  "type": "way",
+  "id": 805125317,
+  "bounds": {
+    "minlat": 51.5235280,
+    "minlon": -0.1174039,
+    "maxlat": 51.5236163,
+    "maxlon": -0.1172513
+  },
+  "nodes": [
+    7530072751,
+    7530072749,
+    7530072748,
+    7530072750,
+    7530072751
+  ],
+  "geometry": [
+    { "lat": 51.5236163, "lon": -0.1172935 },
+    { "lat": 51.5235651, "lon": -0.1172513 },
+    { "lat": 51.5235280, "lon": -0.1173619 },
+    { "lat": 51.5235792, "lon": -0.1174039 },
+    { "lat": 51.5236163, "lon": -0.1172935 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "11",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125318,
+  "bounds": {
+    "minlat": 51.5235792,
+    "minlon": -0.1174474,
+    "maxlat": 51.5236687,
+    "maxlon": -0.1172935
+  },
+  "nodes": [
+    7530072753,
+    7530072751,
+    7530072750,
+    7530072752,
+    7530072753
+  ],
+  "geometry": [
+    { "lat": 51.5236687, "lon": -0.1173368 },
+    { "lat": 51.5236163, "lon": -0.1172935 },
+    { "lat": 51.5235792, "lon": -0.1174039 },
+    { "lat": 51.5236320, "lon": -0.1174474 },
+    { "lat": 51.5236687, "lon": -0.1173368 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "12",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5015216;5094388;5124217"
+  }
+},
+{
+  "type": "way",
+  "id": 805125319,
+  "bounds": {
+    "minlat": 51.5236320,
+    "minlon": -0.1174895,
+    "maxlat": 51.5237193,
+    "maxlon": -0.1173368
+  },
+  "nodes": [
+    7530072755,
+    7530072753,
+    7530072752,
+    7530072754,
+    7530072755
+  ],
+  "geometry": [
+    { "lat": 51.5237193, "lon": -0.1173786 },
+    { "lat": 51.5236687, "lon": -0.1173368 },
+    { "lat": 51.5236320, "lon": -0.1174474 },
+    { "lat": 51.5236832, "lon": -0.1174895 },
+    { "lat": 51.5237193, "lon": -0.1173786 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "13",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5106296;5093110"
+  }
+},
+{
+  "type": "way",
+  "id": 805125320,
+  "bounds": {
+    "minlat": 51.5236832,
+    "minlon": -0.1175290,
+    "maxlat": 51.5237674,
+    "maxlon": -0.1173786
+  },
+  "nodes": [
+    7530072758,
+    7530072757,
+    7530072755,
+    7530072754,
+    7530072758
+  ],
+  "geometry": [
+    { "lat": 51.5237312, "lon": -0.1175290 },
+    { "lat": 51.5237674, "lon": -0.1174184 },
+    { "lat": 51.5237193, "lon": -0.1173786 },
+    { "lat": 51.5236832, "lon": -0.1174895 },
+    { "lat": 51.5237312, "lon": -0.1175290 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "14",
+    "addr:postcode": "WC1N 2PG",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5093111"
+  }
+},
+{
+  "type": "way",
+  "id": 805125323,
+  "bounds": {
+    "minlat": 51.5238153,
+    "minlon": -0.1175209,
+    "maxlat": 51.5239216,
+    "maxlon": -0.1173797
+  },
+  "nodes": [
+    7530072768,
+    7530072766,
+    7530072765,
+    7530072723,
+    7530072767,
+    7530072768
+  ],
+  "geometry": [
+    { "lat": 51.5239216, "lon": -0.1174359 },
+    { "lat": 51.5239021, "lon": -0.1175209 },
+    { "lat": 51.5238153, "lon": -0.1174683 },
+    { "lat": 51.5238203, "lon": -0.1174461 },
+    { "lat": 51.5238355, "lon": -0.1173797 },
+    { "lat": 51.5239216, "lon": -0.1174359 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "10",
+    "addr:postcode": "WC1N 1DT",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125324,
+  "bounds": {
+    "minlat": 51.5238355,
+    "minlon": -0.1174359,
+    "maxlat": 51.5239427,
+    "maxlon": -0.1172856
+  },
+  "nodes": [
+    7530072768,
+    7530072767,
+    7530072769,
+    7530072770,
+    7530072771,
+    7530072772,
+    7530072768
+  ],
+  "geometry": [
+    { "lat": 51.5239216, "lon": -0.1174359 },
+    { "lat": 51.5238355, "lon": -0.1173797 },
+    { "lat": 51.5238555, "lon": -0.1172856 },
+    { "lat": 51.5238667, "lon": -0.1172930 },
+    { "lat": 51.5238780, "lon": -0.1172910 },
+    { "lat": 51.5239427, "lon": -0.1173440 },
+    { "lat": 51.5239216, "lon": -0.1174359 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "9",
+    "addr:postcode": "WC1N 1DT",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125326,
+  "bounds": {
+    "minlat": 51.5238780,
+    "minlon": -0.1173440,
+    "maxlat": 51.5240011,
+    "maxlon": -0.1170536
+  },
+  "nodes": [
+    7530072775,
+    7530072774,
+    7530072772,
+    7530072771,
+    7530109296,
+    7530072775
+  ],
+  "geometry": [
+    { "lat": 51.5239502, "lon": -0.1170536 },
+    { "lat": 51.5240011, "lon": -0.1170952 },
+    { "lat": 51.5239427, "lon": -0.1173440 },
+    { "lat": 51.5238780, "lon": -0.1172910 },
+    { "lat": 51.5239093, "lon": -0.1171857 },
+    { "lat": 51.5239502, "lon": -0.1170536 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "8",
+    "addr:postcode": "WC1N 1DA",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125327,
+  "bounds": {
+    "minlat": 51.5238561,
+    "minlon": -0.1171857,
+    "maxlat": 51.5239502,
+    "maxlon": -0.1170094
+  },
+  "nodes": [
+    7530072777,
+    7530072775,
+    7530109296,
+    7530072776,
+    7530072777
+  ],
+  "geometry": [
+    { "lat": 51.5238972, "lon": -0.1170094 },
+    { "lat": 51.5239502, "lon": -0.1170536 },
+    { "lat": 51.5239093, "lon": -0.1171857 },
+    { "lat": 51.5238561, "lon": -0.1171395 },
+    { "lat": 51.5238972, "lon": -0.1170094 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "19",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125328,
+  "bounds": {
+    "minlat": 51.5238054,
+    "minlon": -0.1171395,
+    "maxlat": 51.5238972,
+    "maxlon": -0.1169671
+  },
+  "nodes": [
+    7530072779,
+    7530072777,
+    7530072776,
+    7530072778,
+    7530072779
+  ],
+  "geometry": [
+    { "lat": 51.5238471, "lon": -0.1169671 },
+    { "lat": 51.5238972, "lon": -0.1170094 },
+    { "lat": 51.5238561, "lon": -0.1171395 },
+    { "lat": 51.5238054, "lon": -0.1170978 },
+    { "lat": 51.5238471, "lon": -0.1169671 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "18",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125329,
+  "bounds": {
+    "minlat": 51.5237564,
+    "minlon": -0.1170978,
+    "maxlat": 51.5238471,
+    "maxlon": -0.1169269
+  },
+  "nodes": [
+    7530072781,
+    7530072779,
+    7530072778,
+    7530072780,
+    7530072781
+  ],
+  "geometry": [
+    { "lat": 51.5237979, "lon": -0.1169269 },
+    { "lat": 51.5238471, "lon": -0.1169671 },
+    { "lat": 51.5238054, "lon": -0.1170978 },
+    { "lat": 51.5237564, "lon": -0.1170575 },
+    { "lat": 51.5237979, "lon": -0.1169269 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "17",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125330,
+  "bounds": {
+    "minlat": 51.5237046,
+    "minlon": -0.1170575,
+    "maxlat": 51.5237979,
+    "maxlon": -0.1168833
+  },
+  "nodes": [
+    7530072783,
+    7530072781,
+    7530072780,
+    7530072782,
+    7530072783
+  ],
+  "geometry": [
+    { "lat": 51.5237453, "lon": -0.1168833 },
+    { "lat": 51.5237979, "lon": -0.1169269 },
+    { "lat": 51.5237564, "lon": -0.1170575 },
+    { "lat": 51.5237046, "lon": -0.1170148 },
+    { "lat": 51.5237453, "lon": -0.1168833 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "16",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5163723;5163724;5061873;5138285"
+  }
+},
+{
+  "type": "way",
+  "id": 805125331,
+  "bounds": {
+    "minlat": 51.5236548,
+    "minlon": -0.1170148,
+    "maxlat": 51.5237453,
+    "maxlon": -0.1168431
+  },
+  "nodes": [
+    7530109285,
+    7530072783,
+    7530072782,
+    7530072784,
+    7530109285
+  ],
+  "geometry": [
+    { "lat": 51.5236961, "lon": -0.1168431 },
+    { "lat": 51.5237453, "lon": -0.1168833 },
+    { "lat": 51.5237046, "lon": -0.1170148 },
+    { "lat": 51.5236548, "lon": -0.1169738 },
+    { "lat": 51.5236961, "lon": -0.1168431 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "15",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125332,
+  "bounds": {
+    "minlat": 51.5236042,
+    "minlon": -0.1169738,
+    "maxlat": 51.5236961,
+    "maxlon": -0.1168001
+  },
+  "nodes": [
+    7530109287,
+    7976402208,
+    7530109285,
+    7530072784,
+    7530109286,
+    7530109287
+  ],
+  "geometry": [
+    { "lat": 51.5236456, "lon": -0.1168001 },
+    { "lat": 51.5236750, "lon": -0.1168251 },
+    { "lat": 51.5236961, "lon": -0.1168431 },
+    { "lat": 51.5236548, "lon": -0.1169738 },
+    { "lat": 51.5236042, "lon": -0.1169332 },
+    { "lat": 51.5236456, "lon": -0.1168001 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "14",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5086988"
+  }
+},
+{
+  "type": "way",
+  "id": 805125333,
+  "bounds": {
+    "minlat": 51.5235480,
+    "minlon": -0.1169332,
+    "maxlat": 51.5236456,
+    "maxlon": -0.1167545
+  },
+  "nodes": [
+    7530109289,
+    7530109287,
+    7530109286,
+    7530109288,
+    7530109289
+  ],
+  "geometry": [
+    { "lat": 51.5235901, "lon": -0.1167545 },
+    { "lat": 51.5236456, "lon": -0.1168001 },
+    { "lat": 51.5236042, "lon": -0.1169332 },
+    { "lat": 51.5235480, "lon": -0.1168881 },
+    { "lat": 51.5235901, "lon": -0.1167545 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "13",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "building:levels": "3",
+    "ref:GB:uprn": "5003094;5137761;5137762",
+    "roof:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 805125334,
+  "bounds": {
+    "minlat": 51.5234992,
+    "minlon": -0.1168881,
+    "maxlat": 51.5235901,
+    "maxlon": -0.1167136
+  },
+  "nodes": [
+    7530109291,
+    7530109289,
+    7530109288,
+    7530109290,
+    7530109291
+  ],
+  "geometry": [
+    { "lat": 51.5235397, "lon": -0.1167136 },
+    { "lat": 51.5235901, "lon": -0.1167545 },
+    { "lat": 51.5235480, "lon": -0.1168881 },
+    { "lat": 51.5234992, "lon": -0.1168490 },
+    { "lat": 51.5235397, "lon": -0.1167136 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "12",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "building:levels": "3",
+    "ref:GB:uprn": "5046626",
+    "roof:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 805125335,
+  "bounds": {
+    "minlat": 51.5234436,
+    "minlon": -0.1168490,
+    "maxlat": 51.5235397,
+    "maxlon": -0.1166687
+  },
+  "nodes": [
+    7530109293,
+    7530109291,
+    7530109290,
+    7530109292,
+    7530109293
+  ],
+  "geometry": [
+    { "lat": 51.5234862, "lon": -0.1166687 },
+    { "lat": 51.5235397, "lon": -0.1167136 },
+    { "lat": 51.5234992, "lon": -0.1168490 },
+    { "lat": 51.5234436, "lon": -0.1168044 },
+    { "lat": 51.5234862, "lon": -0.1166687 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "11",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "building:levels": "3",
+    "roof:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 805125336,
+  "bounds": {
+    "minlat": 51.5233947,
+    "minlon": -0.1168044,
+    "maxlat": 51.5234862,
+    "maxlon": -0.1166258
+  },
+  "nodes": [
+    7530109295,
+    7530109293,
+    7530109292,
+    7530109294,
+    7530109295
+  ],
+  "geometry": [
+    { "lat": 51.5234358, "lon": -0.1166258 },
+    { "lat": 51.5234862, "lon": -0.1166687 },
+    { "lat": 51.5234436, "lon": -0.1168044 },
+    { "lat": 51.5233947, "lon": -0.1167651 },
+    { "lat": 51.5234358, "lon": -0.1166258 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "10",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "building:levels": "3",
+    "roof:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 805125337,
+  "bounds": {
+    "minlat": 51.5233397,
+    "minlon": -0.1167651,
+    "maxlat": 51.5234358,
+    "maxlon": -0.1165809
+  },
+  "nodes": [
+    7530109300,
+    7530109295,
+    7530109294,
+    7530109297,
+    7530109300
+  ],
+  "geometry": [
+    { "lat": 51.5233824, "lon": -0.1165809 },
+    { "lat": 51.5234358, "lon": -0.1166258 },
+    { "lat": 51.5233947, "lon": -0.1167651 },
+    { "lat": 51.5233397, "lon": -0.1167210 },
+    { "lat": 51.5233824, "lon": -0.1165809 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "9",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "building:levels": "3",
+    "ref:GB:uprn": "5122278;5136949;5136948;5136947;5136946;5087733",
+    "roof:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 805125338,
+  "bounds": {
+    "minlat": 51.5232699,
+    "minlon": -0.1167385,
+    "maxlat": 51.5233824,
+    "maxlon": -0.1165306
+  },
+  "nodes": [
+    7530109300,
+    7530109297,
+    7530109299,
+    7530109298,
+    7530109312,
+    7530109301,
+    7530109300
+  ],
+  "geometry": [
+    { "lat": 51.5233824, "lon": -0.1165809 },
+    { "lat": 51.5233397, "lon": -0.1167210 },
+    { "lat": 51.5233344, "lon": -0.1167385 },
+    { "lat": 51.5232699, "lon": -0.1166878 },
+    { "lat": 51.5232751, "lon": -0.1166721 },
+    { "lat": 51.5233202, "lon": -0.1165306 },
+    { "lat": 51.5233824, "lon": -0.1165809 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "8",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "building:levels": "3",
+    "ref:GB:uprn": "5036107;5036154;5036155;5093117;5136607;5136606;5136605;5136604;5136603;5126623;5136602;5127424",
+    "roof:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 805125339,
+  "bounds": {
+    "minlat": 51.5232255,
+    "minlon": -0.1166721,
+    "maxlat": 51.5233202,
+    "maxlon": -0.1164897
+  },
+  "nodes": [
+    7530109303,
+    7530109301,
+    7530109312,
+    7530109302,
+    7530109303
+  ],
+  "geometry": [
+    { "lat": 51.5232689, "lon": -0.1164897 },
+    { "lat": 51.5233202, "lon": -0.1165306 },
+    { "lat": 51.5232751, "lon": -0.1166721 },
+    { "lat": 51.5232255, "lon": -0.1166303 },
+    { "lat": 51.5232689, "lon": -0.1164897 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "7",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "building:levels": "3",
+    "roof:levels": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 805125340,
+  "bounds": {
+    "minlat": 51.5231709,
+    "minlon": -0.1166303,
+    "maxlat": 51.5232689,
+    "maxlon": -0.1164441
+  },
+  "nodes": [
+    7530109305,
+    7530109303,
+    7530109302,
+    7530109304,
+    7530109305
+  ],
+  "geometry": [
+    { "lat": 51.5232151, "lon": -0.1164441 },
+    { "lat": 51.5232689, "lon": -0.1164897 },
+    { "lat": 51.5232255, "lon": -0.1166303 },
+    { "lat": 51.5231709, "lon": -0.1165845 },
+    { "lat": 51.5232151, "lon": -0.1164441 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "6",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5057495;5057494;5057493;5106015;5057491;5121308"
+  }
+},
+{
+  "type": "way",
+  "id": 805125341,
+  "bounds": {
+    "minlat": 51.5231174,
+    "minlon": -0.1165845,
+    "maxlat": 51.5232151,
+    "maxlon": -0.1163998
+  },
+  "nodes": [
+    7530109307,
+    7530109305,
+    7530109304,
+    7530109306,
+    7530109307
+  ],
+  "geometry": [
+    { "lat": 51.5231612, "lon": -0.1163998 },
+    { "lat": 51.5232151, "lon": -0.1164441 },
+    { "lat": 51.5231709, "lon": -0.1165845 },
+    { "lat": 51.5231174, "lon": -0.1165396 },
+    { "lat": 51.5231612, "lon": -0.1163998 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "5",
+    "addr:postcode": "WC1N 2PL",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5003093;5055335;5003229;5003228;5003239;5003238;5003236;5003234;5003231;5003230;5003241;5003240"
+  }
+},
+{
+  "type": "way",
+  "id": 805125342,
+  "bounds": {
+    "minlat": 51.5230692,
+    "minlon": -0.1165396,
+    "maxlat": 51.5231612,
+    "maxlon": -0.1163596
+  },
+  "nodes": [
+    7530109309,
+    7530109307,
+    7530109306,
+    7530109308,
+    7530109309
+  ],
+  "geometry": [
+    { "lat": 51.5231137, "lon": -0.1163596 },
+    { "lat": 51.5231612, "lon": -0.1163998 },
+    { "lat": 51.5231174, "lon": -0.1165396 },
+    { "lat": 51.5230692, "lon": -0.1164992 },
+    { "lat": 51.5231137, "lon": -0.1163596 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "4",
+    "addr:postcode": "WC1N 2PN",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805125343,
+  "bounds": {
+    "minlat": 51.5230220,
+    "minlon": -0.1164992,
+    "maxlat": 51.5231137,
+    "maxlon": -0.1163214
+  },
+  "nodes": [
+    7530109311,
+    7530109309,
+    7530109308,
+    7530109310,
+    7530109311
+  ],
+  "geometry": [
+    { "lat": 51.5230657, "lon": -0.1163214 },
+    { "lat": 51.5231137, "lon": -0.1163596 },
+    { "lat": 51.5230692, "lon": -0.1164992 },
+    { "lat": 51.5230220, "lon": -0.1164597 },
+    { "lat": 51.5230657, "lon": -0.1163214 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "3",
+    "addr:postcode": "WC1N 2PN",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5154664"
+  }
+},
+{
+  "type": "way",
+  "id": 805125344,
+  "bounds": {
+    "minlat": 51.5229718,
+    "minlon": -0.1164597,
+    "maxlat": 51.5230657,
+    "maxlon": -0.1162798
+  },
+  "nodes": [
+    7530109316,
+    7530109311,
+    7530109310,
+    7530109313,
+    7530109316
+  ],
+  "geometry": [
+    { "lat": 51.5230152, "lon": -0.1162798 },
+    { "lat": 51.5230657, "lon": -0.1163214 },
+    { "lat": 51.5230220, "lon": -0.1164597 },
+    { "lat": 51.5229718, "lon": -0.1164176 },
+    { "lat": 51.5230152, "lon": -0.1162798 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "2",
+    "addr:postcode": "WC1N 2PN",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5042819;5042818;5042815;5121368;5105812"
+  }
+},
+{
+  "type": "way",
+  "id": 805125345,
+  "bounds": {
+    "minlat": 51.5228821,
+    "minlon": -0.1164541,
+    "maxlat": 51.5230152,
+    "maxlon": -0.1161866
+  },
+  "nodes": [
+    948928288,
+    7530109317,
+    7530109313,
+    7530109316,
+    7530109315,
+    7530109314,
+    948928283,
+    948928288
+  ],
+  "geometry": [
+    { "lat": 51.5229547, "lon": -0.1164485 },
+    { "lat": 51.5229603, "lon": -0.1164541 },
+    { "lat": 51.5229718, "lon": -0.1164176 },
+    { "lat": 51.5230152, "lon": -0.1162798 },
+    { "lat": 51.5229051, "lon": -0.1161866 },
+    { "lat": 51.5228821, "lon": -0.1162141 },
+    { "lat": 51.5228925, "lon": -0.1163850 },
+    { "lat": 51.5229547, "lon": -0.1164485 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "1",
+    "addr:postcode": "WC1N 2PH",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5078954;5078955;5078956;5078957;5078942;5078953;5160805;10091861151;5160804;5160803;5160802;5088545"
+  }
+},
+{
+  "type": "way",
+  "id": 805125348,
+  "bounds": {
+    "minlat": 51.5232591,
+    "minlon": -0.1174057,
+    "maxlat": 51.5233482,
+    "maxlon": -0.1172917
+  },
+  "nodes": [
+    7530109325,
+    7530109337,
+    7530109336,
+    7530109324,
+    7530109325
+  ],
+  "geometry": [
+    { "lat": 51.5232843, "lon": -0.1172917 },
+    { "lat": 51.5233482, "lon": -0.1173446 },
+    { "lat": 51.5233294, "lon": -0.1174057 },
+    { "lat": 51.5232591, "lon": -0.1173644 },
+    { "lat": 51.5232843, "lon": -0.1172917 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "22",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125349,
+  "bounds": {
+    "minlat": 51.5232015,
+    "minlon": -0.1173644,
+    "maxlat": 51.5232843,
+    "maxlon": -0.1172447
+  },
+  "nodes": [
+    7530109327,
+    7530109325,
+    7530109324,
+    7530109326,
+    7530109327
+  ],
+  "geometry": [
+    { "lat": 51.5232274, "lon": -0.1172447 },
+    { "lat": 51.5232843, "lon": -0.1172917 },
+    { "lat": 51.5232591, "lon": -0.1173644 },
+    { "lat": 51.5232015, "lon": -0.1173292 },
+    { "lat": 51.5232274, "lon": -0.1172447 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "23",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5040290"
+  }
+},
+{
+  "type": "way",
+  "id": 805125350,
+  "bounds": {
+    "minlat": 51.5231460,
+    "minlon": -0.1173292,
+    "maxlat": 51.5232274,
+    "maxlon": -0.1172011
+  },
+  "nodes": [
+    7530109329,
+    7530109327,
+    7530109326,
+    7530109328,
+    7530109329
+  ],
+  "geometry": [
+    { "lat": 51.5231752, "lon": -0.1172011 },
+    { "lat": 51.5232274, "lon": -0.1172447 },
+    { "lat": 51.5232015, "lon": -0.1173292 },
+    { "lat": 51.5231460, "lon": -0.1172960 },
+    { "lat": 51.5231752, "lon": -0.1172011 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "24",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125351,
+  "bounds": {
+    "minlat": 51.5230914,
+    "minlon": -0.1172960,
+    "maxlat": 51.5231752,
+    "maxlon": -0.1171562
+  },
+  "nodes": [
+    7530109331,
+    7530109329,
+    7530109328,
+    7530109330,
+    7530109331
+  ],
+  "geometry": [
+    { "lat": 51.5231212, "lon": -0.1171562 },
+    { "lat": 51.5231752, "lon": -0.1172011 },
+    { "lat": 51.5231460, "lon": -0.1172960 },
+    { "lat": 51.5230914, "lon": -0.1172618 },
+    { "lat": 51.5231212, "lon": -0.1171562 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "25",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5061528;5108002"
+  }
+},
+{
+  "type": "way",
+  "id": 805125352,
+  "bounds": {
+    "minlat": 51.5230352,
+    "minlon": -0.1172618,
+    "maxlat": 51.5231212,
+    "maxlon": -0.1171109
+  },
+  "nodes": [
+    7530109332,
+    7530109331,
+    7530109330,
+    7530109333,
+    7530109332
+  ],
+  "geometry": [
+    { "lat": 51.5230676, "lon": -0.1171109 },
+    { "lat": 51.5231212, "lon": -0.1171562 },
+    { "lat": 51.5230914, "lon": -0.1172618 },
+    { "lat": 51.5230352, "lon": -0.1172290 },
+    { "lat": 51.5230676, "lon": -0.1171109 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "26",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125353,
+  "bounds": {
+    "minlat": 51.5229793,
+    "minlon": -0.1172290,
+    "maxlat": 51.5230676,
+    "maxlon": -0.1170670
+  },
+  "nodes": [
+    7530109335,
+    7530109334,
+    7530109333,
+    7530109332,
+    7530109335
+  ],
+  "geometry": [
+    { "lat": 51.5230154, "lon": -0.1170670 },
+    { "lat": 51.5229793, "lon": -0.1171964 },
+    { "lat": 51.5230352, "lon": -0.1172290 },
+    { "lat": 51.5230676, "lon": -0.1171109 },
+    { "lat": 51.5230154, "lon": -0.1170670 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "28",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5006747;5108003;5089480"
+  }
+},
+{
+  "type": "way",
+  "id": 805125354,
+  "bounds": {
+    "minlat": 51.5233294,
+    "minlon": -0.1174439,
+    "maxlat": 51.5234066,
+    "maxlon": -0.1173446
+  },
+  "nodes": [
+    7530109339,
+    7530109337,
+    7530109336,
+    7530109338,
+    7530109339
+  ],
+  "geometry": [
+    { "lat": 51.5234066, "lon": -0.1173929 },
+    { "lat": 51.5233482, "lon": -0.1173446 },
+    { "lat": 51.5233294, "lon": -0.1174057 },
+    { "lat": 51.5233915, "lon": -0.1174439 },
+    { "lat": 51.5234066, "lon": -0.1173929 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "21",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125355,
+  "bounds": {
+    "minlat": 51.5233915,
+    "minlon": -0.1174848,
+    "maxlat": 51.5234691,
+    "maxlon": -0.1173929
+  },
+  "nodes": [
+    7530109341,
+    7530109339,
+    7530109338,
+    7530109340,
+    7530109341
+  ],
+  "geometry": [
+    { "lat": 51.5234691, "lon": -0.1174452 },
+    { "lat": 51.5234066, "lon": -0.1173929 },
+    { "lat": 51.5233915, "lon": -0.1174439 },
+    { "lat": 51.5234600, "lon": -0.1174848 },
+    { "lat": 51.5234691, "lon": -0.1174452 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "20",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805125356,
+  "bounds": {
+    "minlat": 51.5234600,
+    "minlon": -0.1175160,
+    "maxlat": 51.5235173,
+    "maxlon": -0.1174452
+  },
+  "nodes": [
+    7530109344,
+    7530109341,
+    7530109340,
+    7530109343,
+    7530109344
+  ],
+  "geometry": [
+    { "lat": 51.5235173, "lon": -0.1174854 },
+    { "lat": 51.5234691, "lon": -0.1174452 },
+    { "lat": 51.5234600, "lon": -0.1174848 },
+    { "lat": 51.5235098, "lon": -0.1175160 },
+    { "lat": 51.5235173, "lon": -0.1174854 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "19",
+    "addr:postcode": "WC1N 2PF",
+    "addr:street": "Doughty Mews",
+    "building": "yes",
+    "ref:GB:uprn": "5183961"
+  }
+},
+{
+  "type": "way",
+  "id": 805137239,
+  "bounds": {
+    "minlat": 51.5238496,
+    "minlon": -0.1159346,
+    "maxlat": 51.5240326,
+    "maxlon": -0.1157290
+  },
+  "nodes": [
+    7530151770,
+    1680893569,
+    1680893572,
+    1680893573,
+    1680893571,
+    1680893570,
+    7530151768,
+    7530151767,
+    1680893568,
+    1680893567,
+    1680893565,
+    7530151766,
+    7530151769,
+    7530151770
+  ],
+  "geometry": [
+    { "lat": 51.5238496, "lon": -0.1158285 },
+    { "lat": 51.5239807, "lon": -0.1159346 },
+    { "lat": 51.5240179, "lon": -0.1158531 },
+    { "lat": 51.5240326, "lon": -0.1158203 },
+    { "lat": 51.5240011, "lon": -0.1157824 },
+    { "lat": 51.5239840, "lon": -0.1158227 },
+    { "lat": 51.5239635, "lon": -0.1157990 },
+    { "lat": 51.5239802, "lon": -0.1157594 },
+    { "lat": 51.5239538, "lon": -0.1157290 },
+    { "lat": 51.5239172, "lon": -0.1158040 },
+    { "lat": 51.5238955, "lon": -0.1157778 },
+    { "lat": 51.5238801, "lon": -0.1157608 },
+    { "lat": 51.5238751, "lon": -0.1157715 },
+    { "lat": 51.5238496, "lon": -0.1158285 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137240,
+  "bounds": {
+    "minlat": 51.5237136,
+    "minlon": -0.1158285,
+    "maxlat": 51.5238751,
+    "maxlon": -0.1156321
+  },
+  "nodes": [
+    7530151771,
+    7530151770,
+    7530151769,
+    1680893562,
+    1680893559,
+    7530151771
+  ],
+  "geometry": [
+    { "lat": 51.5237136, "lon": -0.1157212 },
+    { "lat": 51.5238496, "lon": -0.1158285 },
+    { "lat": 51.5238751, "lon": -0.1157715 },
+    { "lat": 51.5238227, "lon": -0.1157139 },
+    { "lat": 51.5237549, "lon": -0.1156321 },
+    { "lat": 51.5237136, "lon": -0.1157212 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137241,
+  "bounds": {
+    "minlat": 51.5236673,
+    "minlon": -0.1157212,
+    "maxlat": 51.5237808,
+    "maxlon": -0.1155284
+  },
+  "nodes": [
+    7530189394,
+    7530151771,
+    1680893559,
+    1680893560,
+    1680893558,
+    7530151779,
+    7530189394
+  ],
+  "geometry": [
+    { "lat": 51.5236673, "lon": -0.1156884 },
+    { "lat": 51.5237136, "lon": -0.1157212 },
+    { "lat": 51.5237549, "lon": -0.1156321 },
+    { "lat": 51.5237808, "lon": -0.1155762 },
+    { "lat": 51.5237415, "lon": -0.1155284 },
+    { "lat": 51.5236915, "lon": -0.1156347 },
+    { "lat": 51.5236673, "lon": -0.1156884 }
+  ],
+  "tags": {
+    "building": "yes",
+    "ref:GB:uprn": "5121351;5109426"
+  }
+},
+{
+  "type": "way",
+  "id": 805137242,
+  "bounds": {
+    "minlat": 51.5234883,
+    "minlon": -0.1156884,
+    "maxlat": 51.5236915,
+    "maxlon": -0.1154571
+  },
+  "nodes": [
+    7530151781,
+    7530189394,
+    7530151779,
+    7530151778,
+    7530151777,
+    7530151776,
+    7530151775,
+    7530151774,
+    7530151781
+  ],
+  "geometry": [
+    { "lat": 51.5234883, "lon": -0.1155382 },
+    { "lat": 51.5236673, "lon": -0.1156884 },
+    { "lat": 51.5236915, "lon": -0.1156347 },
+    { "lat": 51.5236561, "lon": -0.1155999 },
+    { "lat": 51.5236748, "lon": -0.1155590 },
+    { "lat": 51.5235922, "lon": -0.1154604 },
+    { "lat": 51.5235734, "lon": -0.1155066 },
+    { "lat": 51.5235286, "lon": -0.1154571 },
+    { "lat": 51.5234883, "lon": -0.1155382 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137243,
+  "bounds": {
+    "minlat": 51.5234509,
+    "minlon": -0.1155382,
+    "maxlat": 51.5235476,
+    "maxlon": -0.1153719
+  },
+  "nodes": [
+    7530151783,
+    7530151781,
+    7530151774,
+    7530151780,
+    7530151782,
+    7530151783
+  ],
+  "geometry": [
+    { "lat": 51.5234509, "lon": -0.1155068 },
+    { "lat": 51.5234883, "lon": -0.1155382 },
+    { "lat": 51.5235286, "lon": -0.1154571 },
+    { "lat": 51.5235476, "lon": -0.1154188 },
+    { "lat": 51.5234988, "lon": -0.1153719 },
+    { "lat": 51.5234509, "lon": -0.1155068 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LD",
+    "building": "yes",
+    "ref:GB:uprn": "5076864"
+  }
+},
+{
+  "type": "way",
+  "id": 805137244,
+  "bounds": {
+    "minlat": 51.5234113,
+    "minlon": -0.1155068,
+    "maxlat": 51.5234988,
+    "maxlon": -0.1153327
+  },
+  "nodes": [
+    7530189385,
+    7530151783,
+    7530151782,
+    7530151784,
+    7530189385
+  ],
+  "geometry": [
+    { "lat": 51.5234113, "lon": -0.1154734 },
+    { "lat": 51.5234509, "lon": -0.1155068 },
+    { "lat": 51.5234988, "lon": -0.1153719 },
+    { "lat": 51.5234580, "lon": -0.1153327 },
+    { "lat": 51.5234113, "lon": -0.1154734 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LD",
+    "building": "yes",
+    "ref:GB:uprn": "5028386"
+  }
+},
+{
+  "type": "way",
+  "id": 805137245,
+  "bounds": {
+    "minlat": 51.5233708,
+    "minlon": -0.1154734,
+    "maxlat": 51.5234580,
+    "maxlon": -0.1152988
+  },
+  "nodes": [
+    7530189386,
+    7530189385,
+    7530151784,
+    7530189387,
+    7530189386
+  ],
+  "geometry": [
+    { "lat": 51.5233708, "lon": -0.1154396 },
+    { "lat": 51.5234113, "lon": -0.1154734 },
+    { "lat": 51.5234580, "lon": -0.1153327 },
+    { "lat": 51.5234199, "lon": -0.1152988 },
+    { "lat": 51.5233708, "lon": -0.1154396 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LD",
+    "building": "yes",
+    "ref:GB:uprn": "5076865"
+  }
+},
+{
+  "type": "way",
+  "id": 805137246,
+  "bounds": {
+    "minlat": 51.5233308,
+    "minlon": -0.1154396,
+    "maxlat": 51.5234199,
+    "maxlon": -0.1152619
+  },
+  "nodes": [
+    7530189389,
+    7530189387,
+    7530189386,
+    7530189388,
+    7530189389
+  ],
+  "geometry": [
+    { "lat": 51.5233778, "lon": -0.1152619 },
+    { "lat": 51.5234199, "lon": -0.1152988 },
+    { "lat": 51.5233708, "lon": -0.1154396 },
+    { "lat": 51.5233308, "lon": -0.1154060 },
+    { "lat": 51.5233778, "lon": -0.1152619 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LD",
+    "building": "yes",
+    "ref:GB:uprn": "5028385"
+  }
+},
+{
+  "type": "way",
+  "id": 805137247,
+  "bounds": {
+    "minlat": 51.5232422,
+    "minlon": -0.1154060,
+    "maxlat": 51.5233778,
+    "maxlon": -0.1151787
+  },
+  "nodes": [
+    7530189396,
+    7530189393,
+    7530189392,
+    7530189391,
+    7530189390,
+    7530189389,
+    7530189388,
+    7530189395,
+    7530189396
+  ],
+  "geometry": [
+    { "lat": 51.5232927, "lon": -0.1151828 },
+    { "lat": 51.5233194, "lon": -0.1152076 },
+    { "lat": 51.5233281, "lon": -0.1151787 },
+    { "lat": 51.5233561, "lon": -0.1152042 },
+    { "lat": 51.5233473, "lon": -0.1152331 },
+    { "lat": 51.5233778, "lon": -0.1152619 },
+    { "lat": 51.5233308, "lon": -0.1154060 },
+    { "lat": 51.5232422, "lon": -0.1153316 },
+    { "lat": 51.5232927, "lon": -0.1151828 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LD",
+    "building": "yes",
+    "ref:GB:uprn": "5017907;5017903;5017913;5017901;5017899;5017910;5106055;5017881"
+  }
+},
+{
+  "type": "way",
+  "id": 805137248,
+  "bounds": {
+    "minlat": 51.5230854,
+    "minlon": -0.1153316,
+    "maxlat": 51.5232927,
+    "maxlon": -0.1150399
+  },
+  "nodes": [
+    948810129,
+    1680893539,
+    7530189397,
+    7530189396,
+    7530189395,
+    948810129
+  ],
+  "geometry": [
+    { "lat": 51.5230854, "lon": -0.1151953 },
+    { "lat": 51.5231120, "lon": -0.1151035 },
+    { "lat": 51.5231316, "lon": -0.1150399 },
+    { "lat": 51.5232927, "lon": -0.1151828 },
+    { "lat": 51.5232422, "lon": -0.1153316 },
+    { "lat": 51.5230854, "lon": -0.1151953 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137249,
+  "bounds": {
+    "minlat": 51.5241028,
+    "minlon": -0.1162630,
+    "maxlat": 51.5242193,
+    "maxlon": -0.1161087
+  },
+  "nodes": [
+    7530189402,
+    948810303,
+    1680893576,
+    7530189401,
+    7530189400,
+    7530189399,
+    7530189409,
+    7530189402
+  ],
+  "geometry": [
+    { "lat": 51.5241965, "lon": -0.1162630 },
+    { "lat": 51.5242193, "lon": -0.1161619 },
+    { "lat": 51.5241438, "lon": -0.1161087 },
+    { "lat": 51.5241255, "lon": -0.1161799 },
+    { "lat": 51.5241104, "lon": -0.1161685 },
+    { "lat": 51.5241028, "lon": -0.1162003 },
+    { "lat": 51.5241133, "lon": -0.1162067 },
+    { "lat": 51.5241965, "lon": -0.1162630 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "2",
+    "addr:postcode": "WC1N 1DR",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137250,
+  "bounds": {
+    "minlat": 51.5240922,
+    "minlon": -0.1163466,
+    "maxlat": 51.5241965,
+    "maxlon": -0.1162067
+  },
+  "nodes": [
+    7530189404,
+    7530189409,
+    7530189402,
+    7530189403,
+    7530189404
+  ],
+  "geometry": [
+    { "lat": 51.5240922, "lon": -0.1162899 },
+    { "lat": 51.5241133, "lon": -0.1162067 },
+    { "lat": 51.5241965, "lon": -0.1162630 },
+    { "lat": 51.5241768, "lon": -0.1163466 },
+    { "lat": 51.5240922, "lon": -0.1162899 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "3",
+    "addr:postcode": "WC1N 1DR",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137251,
+  "bounds": {
+    "minlat": 51.5240727,
+    "minlon": -0.1164270,
+    "maxlat": 51.5241768,
+    "maxlon": -0.1162899
+  },
+  "nodes": [
+    7530189406,
+    7530189404,
+    7530189403,
+    7530189405,
+    7530189406
+  ],
+  "geometry": [
+    { "lat": 51.5240727, "lon": -0.1163718 },
+    { "lat": 51.5240922, "lon": -0.1162899 },
+    { "lat": 51.5241768, "lon": -0.1163466 },
+    { "lat": 51.5241578, "lon": -0.1164270 },
+    { "lat": 51.5240727, "lon": -0.1163718 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "4",
+    "addr:postcode": "WC1N 1DR",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137252,
+  "bounds": {
+    "minlat": 51.5240535,
+    "minlon": -0.1165075,
+    "maxlat": 51.5241578,
+    "maxlon": -0.1163718
+  },
+  "nodes": [
+    7530189408,
+    7530189406,
+    7530189405,
+    7530189407,
+    7530189408
+  ],
+  "geometry": [
+    { "lat": 51.5240535, "lon": -0.1164525 },
+    { "lat": 51.5240727, "lon": -0.1163718 },
+    { "lat": 51.5241578, "lon": -0.1164270 },
+    { "lat": 51.5241387, "lon": -0.1165075 },
+    { "lat": 51.5240535, "lon": -0.1164525 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "5",
+    "addr:postcode": "WC1N 1DR",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137253,
+  "bounds": {
+    "minlat": 51.5240349,
+    "minlon": -0.1165853,
+    "maxlat": 51.5241387,
+    "maxlon": -0.1164525
+  },
+  "nodes": [
+    7530189413,
+    7530189412,
+    7530189410,
+    7530189408,
+    7530189407,
+    7530189413
+  ],
+  "geometry": [
+    { "lat": 51.5241204, "lon": -0.1165853 },
+    { "lat": 51.5240695, "lon": -0.1165534 },
+    { "lat": 51.5240349, "lon": -0.1165306 },
+    { "lat": 51.5240535, "lon": -0.1164525 },
+    { "lat": 51.5241387, "lon": -0.1165075 },
+    { "lat": 51.5241204, "lon": -0.1165853 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "6",
+    "addr:postcode": "WC1N 1DR",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137254,
+  "bounds": {
+    "minlat": 51.5240408,
+    "minlon": -0.1167096,
+    "maxlat": 51.5241204,
+    "maxlon": -0.1165534
+  },
+  "nodes": [
+    7530189414,
+    7530189413,
+    7530189412,
+    7530189411,
+    7530189414
+  ],
+  "geometry": [
+    { "lat": 51.5240910, "lon": -0.1167096 },
+    { "lat": 51.5241204, "lon": -0.1165853 },
+    { "lat": 51.5240695, "lon": -0.1165534 },
+    { "lat": 51.5240408, "lon": -0.1166744 },
+    { "lat": 51.5240910, "lon": -0.1167096 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "7",
+    "addr:postcode": "WC1N 1DR",
+    "addr:street": "Guilford Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137255,
+  "bounds": {
+    "minlat": 51.5239920,
+    "minlon": -0.1168022,
+    "maxlat": 51.5240910,
+    "maxlon": -0.1166573
+  },
+  "nodes": [
+    7530189415,
+    7530189411,
+    7530189414,
+    7530189416,
+    7530189500,
+    7530189415
+  ],
+  "geometry": [
+    { "lat": 51.5240165, "lon": -0.1166573 },
+    { "lat": 51.5240408, "lon": -0.1166744 },
+    { "lat": 51.5240910, "lon": -0.1167096 },
+    { "lat": 51.5240691, "lon": -0.1168022 },
+    { "lat": 51.5239920, "lon": -0.1167382 },
+    { "lat": 51.5240165, "lon": -0.1166573 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "39",
+    "addr:postcode": "WC1N 2LF",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137256,
+  "bounds": {
+    "minlat": 51.5238234,
+    "minlon": -0.1162275,
+    "maxlat": 51.5240578,
+    "maxlon": -0.1159640
+  },
+  "nodes": [
+    7530189421,
+    7530189418,
+    7530189417,
+    7530189420,
+    7530189421
+  ],
+  "geometry": [
+    { "lat": 51.5238534, "lon": -0.1159640 },
+    { "lat": 51.5240578, "lon": -0.1161323 },
+    { "lat": 51.5240299, "lon": -0.1162275 },
+    { "lat": 51.5238234, "lon": -0.1160625 },
+    { "lat": 51.5238534, "lon": -0.1159640 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137257,
+  "bounds": {
+    "minlat": 51.5237353,
+    "minlon": -0.1160625,
+    "maxlat": 51.5238534,
+    "maxlon": -0.1158949
+  },
+  "nodes": [
+    7530189423,
+    7530189421,
+    7530189420,
+    7530189419,
+    7530189422,
+    7530189423
+  ],
+  "geometry": [
+    { "lat": 51.5237674, "lon": -0.1158949 },
+    { "lat": 51.5238534, "lon": -0.1159640 },
+    { "lat": 51.5238234, "lon": -0.1160625 },
+    { "lat": 51.5237353, "lon": -0.1159962 },
+    { "lat": 51.5237437, "lon": -0.1159734 },
+    { "lat": 51.5237674, "lon": -0.1158949 }
+  ],
+  "tags": {
+    "building": "yes",
+    "ref:GB:uprn": "5081809"
+  }
+},
+{
+  "type": "way",
+  "id": 805137258,
+  "bounds": {
+    "minlat": 51.5236147,
+    "minlon": -0.1159734,
+    "maxlat": 51.5237674,
+    "maxlon": -0.1157876
+  },
+  "nodes": [
+    7530189426,
+    7530189423,
+    7530189422,
+    7530189425,
+    7530189426
+  ],
+  "geometry": [
+    { "lat": 51.5236385, "lon": -0.1157876 },
+    { "lat": 51.5237674, "lon": -0.1158949 },
+    { "lat": 51.5237437, "lon": -0.1159734 },
+    { "lat": 51.5236147, "lon": -0.1158661 },
+    { "lat": 51.5236385, "lon": -0.1157876 }
+  ],
+  "tags": {
+    "building": "yes",
+    "ref:GB:uprn": "5079109"
+  }
+},
+{
+  "type": "way",
+  "id": 805137259,
+  "bounds": {
+    "minlat": 51.5235018,
+    "minlon": -0.1158661,
+    "maxlat": 51.5236385,
+    "maxlon": -0.1156964
+  },
+  "nodes": [
+    7530189428,
+    7530189426,
+    7530189425,
+    7530189424,
+    7530189428
+  ],
+  "geometry": [
+    { "lat": 51.5235271, "lon": -0.1156964 },
+    { "lat": 51.5236385, "lon": -0.1157876 },
+    { "lat": 51.5236147, "lon": -0.1158661 },
+    { "lat": 51.5235018, "lon": -0.1157769 },
+    { "lat": 51.5235271, "lon": -0.1156964 }
+  ],
+  "tags": {
+    "building": "yes",
+    "ref:GB:uprn": "5087186"
+  }
+},
+{
+  "type": "way",
+  "id": 805137260,
+  "bounds": {
+    "minlat": 51.5234558,
+    "minlon": -0.1158010,
+    "maxlat": 51.5235271,
+    "maxlon": -0.1156649
+  },
+  "nodes": [
+    7530189430,
+    7530189428,
+    7530189424,
+    7530189427,
+    7530189429,
+    7530189430
+  ],
+  "geometry": [
+    { "lat": 51.5234871, "lon": -0.1156649 },
+    { "lat": 51.5235271, "lon": -0.1156964 },
+    { "lat": 51.5235018, "lon": -0.1157769 },
+    { "lat": 51.5234942, "lon": -0.1158010 },
+    { "lat": 51.5234558, "lon": -0.1157655 },
+    { "lat": 51.5234871, "lon": -0.1156649 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137261,
+  "bounds": {
+    "minlat": 51.5234162,
+    "minlon": -0.1157655,
+    "maxlat": 51.5234871,
+    "maxlon": -0.1156327
+  },
+  "nodes": [
+    7530189432,
+    7530189430,
+    7530189429,
+    7530189431,
+    7530189432
+  ],
+  "geometry": [
+    { "lat": 51.5234487, "lon": -0.1156327 },
+    { "lat": 51.5234871, "lon": -0.1156649 },
+    { "lat": 51.5234558, "lon": -0.1157655 },
+    { "lat": 51.5234162, "lon": -0.1157340 },
+    { "lat": 51.5234487, "lon": -0.1156327 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LA",
+    "building": "yes",
+    "ref:GB:uprn": "5082607"
+  }
+},
+{
+  "type": "way",
+  "id": 805137262,
+  "bounds": {
+    "minlat": 51.5233803,
+    "minlon": -0.1157340,
+    "maxlat": 51.5234487,
+    "maxlon": -0.1156032
+  },
+  "nodes": [
+    7530189434,
+    7530189432,
+    7530189431,
+    7530189433,
+    7530189434
+  ],
+  "geometry": [
+    { "lat": 51.5234124, "lon": -0.1156032 },
+    { "lat": 51.5234487, "lon": -0.1156327 },
+    { "lat": 51.5234162, "lon": -0.1157340 },
+    { "lat": 51.5233803, "lon": -0.1157071 },
+    { "lat": 51.5234124, "lon": -0.1156032 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137263,
+  "bounds": {
+    "minlat": 51.5233235,
+    "minlon": -0.1157071,
+    "maxlat": 51.5234124,
+    "maxlon": -0.1155563
+  },
+  "nodes": [
+    7530189436,
+    7530189434,
+    7530189433,
+    7530189435,
+    7530189436
+  ],
+  "geometry": [
+    { "lat": 51.5233565, "lon": -0.1155563 },
+    { "lat": 51.5234124, "lon": -0.1156032 },
+    { "lat": 51.5233803, "lon": -0.1157071 },
+    { "lat": 51.5233235, "lon": -0.1156615 },
+    { "lat": 51.5233565, "lon": -0.1155563 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 805137264,
+  "bounds": {
+    "minlat": 51.5232881,
+    "minlon": -0.1156615,
+    "maxlat": 51.5233565,
+    "maxlon": -0.1155268
+  },
+  "nodes": [
+    7530189438,
+    7530189436,
+    7530189435,
+    7530189437,
+    7530189438
+  ],
+  "geometry": [
+    { "lat": 51.5233223, "lon": -0.1155268 },
+    { "lat": 51.5233565, "lon": -0.1155563 },
+    { "lat": 51.5233235, "lon": -0.1156615 },
+    { "lat": 51.5232881, "lon": -0.1156327 },
+    { "lat": 51.5233223, "lon": -0.1155268 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LQ",
+    "building": "yes",
+    "ref:GB:uprn": "5067825"
+  }
+},
+{
+  "type": "way",
+  "id": 805137265,
+  "bounds": {
+    "minlat": 51.5232365,
+    "minlon": -0.1156327,
+    "maxlat": 51.5233223,
+    "maxlon": -0.1154859
+  },
+  "nodes": [
+    7530189445,
+    7530189438,
+    7530189437,
+    7530189444,
+    7530189445
+  ],
+  "geometry": [
+    { "lat": 51.5232710, "lon": -0.1154859 },
+    { "lat": 51.5233223, "lon": -0.1155268 },
+    { "lat": 51.5232881, "lon": -0.1156327 },
+    { "lat": 51.5232365, "lon": -0.1155911 },
+    { "lat": 51.5232710, "lon": -0.1154859 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LQ",
+    "building": "yes",
+    "ref:GB:uprn": "10091945920;10091945198;5087272"
+  }
+},
+{
+  "type": "way",
+  "id": 805137266,
+  "bounds": {
+    "minlat": 51.5230810,
+    "minlon": -0.1155138,
+    "maxlat": 51.5231746,
+    "maxlon": -0.1153544
+  },
+  "nodes": [
+    7530189440,
+    7530189447,
+    7530189443,
+    7530189439,
+    7530189440
+  ],
+  "geometry": [
+    { "lat": 51.5231746, "lon": -0.1154055 },
+    { "lat": 51.5231133, "lon": -0.1153544 },
+    { "lat": 51.5230810, "lon": -0.1154643 },
+    { "lat": 51.5231417, "lon": -0.1155138 },
+    { "lat": 51.5231746, "lon": -0.1154055 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LA",
+    "building": "yes",
+    "ref:GB:uprn": "5079142;5079127;5047911"
+  }
+},
+{
+  "type": "way",
+  "id": 805137267,
+  "bounds": {
+    "minlat": 51.5231417,
+    "minlon": -0.1155590,
+    "maxlat": 51.5232306,
+    "maxlon": -0.1154055
+  },
+  "nodes": [
+    7530189442,
+    7530189440,
+    7530189439,
+    7530189441,
+    7530189442
+  ],
+  "geometry": [
+    { "lat": 51.5232306, "lon": -0.1154522 },
+    { "lat": 51.5231746, "lon": -0.1154055 },
+    { "lat": 51.5231417, "lon": -0.1155138 },
+    { "lat": 51.5231971, "lon": -0.1155590 },
+    { "lat": 51.5232306, "lon": -0.1154522 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LA",
+    "building": "yes",
+    "ref:GB:uprn": "5127642;5127643;5106769"
+  }
+},
+{
+  "type": "way",
+  "id": 805137268,
+  "bounds": {
+    "minlat": 51.5231971,
+    "minlon": -0.1155911,
+    "maxlat": 51.5232710,
+    "maxlon": -0.1154522
+  },
+  "nodes": [
+    7530189442,
+    7530189441,
+    7530189444,
+    7530189445,
+    7530189442
+  ],
+  "geometry": [
+    { "lat": 51.5232306, "lon": -0.1154522 },
+    { "lat": 51.5231971, "lon": -0.1155590 },
+    { "lat": 51.5232365, "lon": -0.1155911 },
+    { "lat": 51.5232710, "lon": -0.1154859 },
+    { "lat": 51.5232306, "lon": -0.1154522 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:postcode": "WC1N 2LA",
+    "building": "yes",
+    "ref:GB:uprn": "5093130"
+  }
+},
+{
+  "type": "way",
+  "id": 805137272,
+  "bounds": {
+    "minlat": 51.5228985,
+    "minlon": -0.1158770,
+    "maxlat": 51.5229930,
+    "maxlon": -0.1156992
+  },
+  "nodes": [
+    7530189458,
+    7530189456,
+    7530189455,
+    7530189457,
+    7530189458
+  ],
+  "geometry": [
+    { "lat": 51.5229503, "lon": -0.1158770 },
+    { "lat": 51.5228985, "lon": -0.1158342 },
+    { "lat": 51.5229399, "lon": -0.1156992 },
+    { "lat": 51.5229930, "lon": -0.1157431 },
+    { "lat": 51.5229503, "lon": -0.1158770 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "61",
+    "addr:postcode": "WC1N 2JY",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5139966;5139967;5021543"
+  }
+},
+{
+  "type": "way",
+  "id": 805137273,
+  "bounds": {
+    "minlat": 51.5229503,
+    "minlon": -0.1159195,
+    "maxlat": 51.5230464,
+    "maxlon": -0.1157431
+  },
+  "nodes": [
+    7530189460,
+    7530189458,
+    7530189457,
+    7530189459,
+    7530189460
+  ],
+  "geometry": [
+    { "lat": 51.5230017, "lon": -0.1159195 },
+    { "lat": 51.5229503, "lon": -0.1158770 },
+    { "lat": 51.5229930, "lon": -0.1157431 },
+    { "lat": 51.5230464, "lon": -0.1157874 },
+    { "lat": 51.5230017, "lon": -0.1159195 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "60",
+    "addr:postcode": "WC1N 2JT",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5088070"
+  }
+},
+{
+  "type": "way",
+  "id": 805137274,
+  "bounds": {
+    "minlat": 51.5230017,
+    "minlon": -0.1159608,
+    "maxlat": 51.5230928,
+    "maxlon": -0.1157874
+  },
+  "nodes": [
+    7530189462,
+    7530189460,
+    7530189459,
+    7530189461,
+    7530189462
+  ],
+  "geometry": [
+    { "lat": 51.5230517, "lon": -0.1159608 },
+    { "lat": 51.5230017, "lon": -0.1159195 },
+    { "lat": 51.5230464, "lon": -0.1157874 },
+    { "lat": 51.5230928, "lon": -0.1158258 },
+    { "lat": 51.5230517, "lon": -0.1159608 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "59",
+    "addr:postcode": "WC1N 2JT",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5093120"
+  }
+},
+{
+  "type": "way",
+  "id": 805137275,
+  "bounds": {
+    "minlat": 51.5230517,
+    "minlon": -0.1160020,
+    "maxlat": 51.5231434,
+    "maxlon": -0.1158258
+  },
+  "nodes": [
+    7530189464,
+    7948163218,
+    7530189462,
+    7530189461,
+    7530189463,
+    7530189464
+  ],
+  "geometry": [
+    { "lat": 51.5231014, "lon": -0.1160020 },
+    { "lat": 51.5230758, "lon": -0.1159808 },
+    { "lat": 51.5230517, "lon": -0.1159608 },
+    { "lat": 51.5230928, "lon": -0.1158258 },
+    { "lat": 51.5231434, "lon": -0.1158677 },
+    { "lat": 51.5231014, "lon": -0.1160020 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "58",
+    "addr:postcode": "WC1N 2JT",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5038846;5093231"
+  }
+},
+{
+  "type": "way",
+  "id": 805137276,
+  "bounds": {
+    "minlat": 51.5231014,
+    "minlon": -0.1160435,
+    "maxlat": 51.5231939,
+    "maxlon": -0.1158677
+  },
+  "nodes": [
+    7530189466,
+    7530189464,
+    7530189463,
+    7530189465,
+    7530189466
+  ],
+  "geometry": [
+    { "lat": 51.5231517, "lon": -0.1160435 },
+    { "lat": 51.5231014, "lon": -0.1160020 },
+    { "lat": 51.5231434, "lon": -0.1158677 },
+    { "lat": 51.5231939, "lon": -0.1159095 },
+    { "lat": 51.5231517, "lon": -0.1160435 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "57",
+    "addr:postcode": "WC1N 2JT",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137277,
+  "bounds": {
+    "minlat": 51.5231517,
+    "minlon": -0.1160836,
+    "maxlat": 51.5232418,
+    "maxlon": -0.1159095
+  },
+  "nodes": [
+    7530189468,
+    7530189466,
+    7530189465,
+    7530189467,
+    7530189468
+  ],
+  "geometry": [
+    { "lat": 51.5232002, "lon": -0.1160836 },
+    { "lat": 51.5231517, "lon": -0.1160435 },
+    { "lat": 51.5231939, "lon": -0.1159095 },
+    { "lat": 51.5232418, "lon": -0.1159492 },
+    { "lat": 51.5232002, "lon": -0.1160836 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "56",
+    "addr:postcode": "WC1N 2JT",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5058017"
+  }
+},
+{
+  "type": "way",
+  "id": 805137278,
+  "bounds": {
+    "minlat": 51.5232002,
+    "minlon": -0.1161245,
+    "maxlat": 51.5232912,
+    "maxlon": -0.1159492
+  },
+  "nodes": [
+    7530189470,
+    7530189468,
+    7530189467,
+    7530189469,
+    7530189470
+  ],
+  "geometry": [
+    { "lat": 51.5232496, "lon": -0.1161245 },
+    { "lat": 51.5232002, "lon": -0.1160836 },
+    { "lat": 51.5232418, "lon": -0.1159492 },
+    { "lat": 51.5232912, "lon": -0.1159901 },
+    { "lat": 51.5232496, "lon": -0.1161245 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "55",
+    "addr:postcode": "WC1N 2JT",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5121279;5121277;5121276;5121287;5121286;5107199;5121285;5121284;5003929;5121283;5121282;5121280;5003933;5003932;5003821;5003931"
+  }
+},
+{
+  "type": "way",
+  "id": 805137279,
+  "bounds": {
+    "minlat": 51.5232496,
+    "minlon": -0.1161668,
+    "maxlat": 51.5233425,
+    "maxlon": -0.1159901
+  },
+  "nodes": [
+    7530189472,
+    7530189470,
+    7530189469,
+    7530189471,
+    7530189472
+  ],
+  "geometry": [
+    { "lat": 51.5233009, "lon": -0.1161668 },
+    { "lat": 51.5232496, "lon": -0.1161245 },
+    { "lat": 51.5232912, "lon": -0.1159901 },
+    { "lat": 51.5233425, "lon": -0.1160326 },
+    { "lat": 51.5233009, "lon": -0.1161668 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "54",
+    "addr:postcode": "WC1N 2LS",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5083690"
+  }
+},
+{
+  "type": "way",
+  "id": 805137280,
+  "bounds": {
+    "minlat": 51.5233009,
+    "minlon": -0.1162107,
+    "maxlat": 51.5233944,
+    "maxlon": -0.1160326
+  },
+  "nodes": [
+    7530189474,
+    7530189472,
+    7530189471,
+    7530189473,
+    7530189474
+  ],
+  "geometry": [
+    { "lat": 51.5233540, "lon": -0.1162107 },
+    { "lat": 51.5233009, "lon": -0.1161668 },
+    { "lat": 51.5233425, "lon": -0.1160326 },
+    { "lat": 51.5233944, "lon": -0.1160756 },
+    { "lat": 51.5233540, "lon": -0.1162107 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "53",
+    "addr:postcode": "WC1N 2LS",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137281,
+  "bounds": {
+    "minlat": 51.5233540,
+    "minlon": -0.1162533,
+    "maxlat": 51.5234478,
+    "maxlon": -0.1160756
+  },
+  "nodes": [
+    7530189476,
+    7530189474,
+    7530189473,
+    7530189475,
+    7530189476
+  ],
+  "geometry": [
+    { "lat": 51.5234054, "lon": -0.1162533 },
+    { "lat": 51.5233540, "lon": -0.1162107 },
+    { "lat": 51.5233944, "lon": -0.1160756 },
+    { "lat": 51.5234478, "lon": -0.1161198 },
+    { "lat": 51.5234054, "lon": -0.1162533 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "52",
+    "addr:postcode": "WC1N 2LS",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5088625"
+  }
+},
+{
+  "type": "way",
+  "id": 805137282,
+  "bounds": {
+    "minlat": 51.5234054,
+    "minlon": -0.1162937,
+    "maxlat": 51.5234951,
+    "maxlon": -0.1161198
+  },
+  "nodes": [
+    7530189478,
+    7530189476,
+    7530189475,
+    7530189477,
+    7530189478
+  ],
+  "geometry": [
+    { "lat": 51.5234544, "lon": -0.1162937 },
+    { "lat": 51.5234054, "lon": -0.1162533 },
+    { "lat": 51.5234478, "lon": -0.1161198 },
+    { "lat": 51.5234951, "lon": -0.1161589 },
+    { "lat": 51.5234544, "lon": -0.1162937 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "51",
+    "addr:postcode": "WC1N 2JS",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5027626"
+  }
+},
+{
+  "type": "way",
+  "id": 805137283,
+  "bounds": {
+    "minlat": 51.5234544,
+    "minlon": -0.1163323,
+    "maxlat": 51.5235429,
+    "maxlon": -0.1161589
+  },
+  "nodes": [
+    7530189480,
+    7530189478,
+    7530189477,
+    7530189479,
+    7530189480
+  ],
+  "geometry": [
+    { "lat": 51.5235010, "lon": -0.1163323 },
+    { "lat": 51.5234544, "lon": -0.1162937 },
+    { "lat": 51.5234951, "lon": -0.1161589 },
+    { "lat": 51.5235429, "lon": -0.1161985 },
+    { "lat": 51.5235010, "lon": -0.1163323 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "50",
+    "addr:postcode": "WC1N 2JS",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5087499"
+  }
+},
+{
+  "type": "way",
+  "id": 805137284,
+  "bounds": {
+    "minlat": 51.5235010,
+    "minlon": -0.1163734,
+    "maxlat": 51.5235929,
+    "maxlon": -0.1161985
+  },
+  "nodes": [
+    7530189482,
+    7530189480,
+    7530189479,
+    7530189481,
+    7530189482
+  ],
+  "geometry": [
+    { "lat": 51.5235508, "lon": -0.1163734 },
+    { "lat": 51.5235010, "lon": -0.1163323 },
+    { "lat": 51.5235429, "lon": -0.1161985 },
+    { "lat": 51.5235929, "lon": -0.1162400 },
+    { "lat": 51.5235508, "lon": -0.1163734 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "49",
+    "addr:postcode": "WC1N 2LX",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5071679"
+  }
+},
+{
+  "type": "way",
+  "id": 805137285,
+  "bounds": {
+    "minlat": 51.5235508,
+    "minlon": -0.1164129,
+    "maxlat": 51.5236404,
+    "maxlon": -0.1162400
+  },
+  "nodes": [
+    7530189484,
+    7964074977,
+    12013421102,
+    7530189482,
+    7530189481,
+    7530189483,
+    7530189484
+  ],
+  "geometry": [
+    { "lat": 51.5235986, "lon": -0.1164129 },
+    { "lat": 51.5235671, "lon": -0.1163868 },
+    { "lat": 51.5235589, "lon": -0.1163801 },
+    { "lat": 51.5235508, "lon": -0.1163734 },
+    { "lat": 51.5235929, "lon": -0.1162400 },
+    { "lat": 51.5236404, "lon": -0.1162793 },
+    { "lat": 51.5235986, "lon": -0.1164129 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "48",
+    "addr:postcode": "WC1N 2LX",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "wikidata": "Q2723633",
+    "wikimedia_commons": "Category:Charles Dickens Museum",
+    "wikipedia": "en:Charles Dickens Museum"
+  }
+},
+{
+  "type": "way",
+  "id": 805137286,
+  "bounds": {
+    "minlat": 51.5235986,
+    "minlon": -0.1164533,
+    "maxlat": 51.5236886,
+    "maxlon": -0.1162793
+  },
+  "nodes": [
+    7530189486,
+    7530189484,
+    7530189483,
+    7530189485,
+    7530189486
+  ],
+  "geometry": [
+    { "lat": 51.5236474, "lon": -0.1164533 },
+    { "lat": 51.5235986, "lon": -0.1164129 },
+    { "lat": 51.5236404, "lon": -0.1162793 },
+    { "lat": 51.5236886, "lon": -0.1163193 },
+    { "lat": 51.5236474, "lon": -0.1164533 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "47",
+    "addr:postcode": "WC1N 2LW",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5038730",
+    "wikidata": "Q81419064",
+    "wikipedia": "en:Aggrey House"
+  }
+},
+{
+  "type": "way",
+  "id": 805137287,
+  "bounds": {
+    "minlat": 51.5236474,
+    "minlon": -0.1164926,
+    "maxlat": 51.5237364,
+    "maxlon": -0.1163193
+  },
+  "nodes": [
+    7530189488,
+    7530189486,
+    7530189485,
+    7530189487,
+    7530189488
+  ],
+  "geometry": [
+    { "lat": 51.5236950, "lon": -0.1164926 },
+    { "lat": 51.5236474, "lon": -0.1164533 },
+    { "lat": 51.5236886, "lon": -0.1163193 },
+    { "lat": 51.5237364, "lon": -0.1163588 },
+    { "lat": 51.5236950, "lon": -0.1164926 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "46",
+    "addr:postcode": "WC1N 2LR",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137288,
+  "bounds": {
+    "minlat": 51.5236950,
+    "minlon": -0.1165320,
+    "maxlat": 51.5237850,
+    "maxlon": -0.1163588
+  },
+  "nodes": [
+    7530189490,
+    7530189488,
+    7530189487,
+    7530189489,
+    7530189490
+  ],
+  "geometry": [
+    { "lat": 51.5237426, "lon": -0.1165320 },
+    { "lat": 51.5236950, "lon": -0.1164926 },
+    { "lat": 51.5237364, "lon": -0.1163588 },
+    { "lat": 51.5237850, "lon": -0.1163991 },
+    { "lat": 51.5237426, "lon": -0.1165320 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "45",
+    "addr:postcode": "WC1N 2LR",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5016220"
+  }
+},
+{
+  "type": "way",
+  "id": 805137289,
+  "bounds": {
+    "minlat": 51.5237426,
+    "minlon": -0.1165748,
+    "maxlat": 51.5238369,
+    "maxlon": -0.1163991
+  },
+  "nodes": [
+    7530189492,
+    7530189490,
+    7530189489,
+    7530189491,
+    7530189492
+  ],
+  "geometry": [
+    { "lat": 51.5237944, "lon": -0.1165748 },
+    { "lat": 51.5237426, "lon": -0.1165320 },
+    { "lat": 51.5237850, "lon": -0.1163991 },
+    { "lat": 51.5238369, "lon": -0.1164421 },
+    { "lat": 51.5237944, "lon": -0.1165748 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "44",
+    "addr:postcode": "WC1N 2LJ",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5066776"
+  }
+},
+{
+  "type": "way",
+  "id": 805137290,
+  "bounds": {
+    "minlat": 51.5237944,
+    "minlon": -0.1166149,
+    "maxlat": 51.5238849,
+    "maxlon": -0.1164421
+  },
+  "nodes": [
+    7530189494,
+    7530189492,
+    7530189491,
+    7530189493,
+    7530189494
+  ],
+  "geometry": [
+    { "lat": 51.5238428, "lon": -0.1166149 },
+    { "lat": 51.5237944, "lon": -0.1165748 },
+    { "lat": 51.5238369, "lon": -0.1164421 },
+    { "lat": 51.5238849, "lon": -0.1164818 },
+    { "lat": 51.5238428, "lon": -0.1166149 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "43",
+    "addr:postcode": "WC1N 2LH",
+    "addr:street": "Doughty Street",
+    "building": "house",
+    "ref:GB:uprn": "5053326"
+  }
+},
+{
+  "type": "way",
+  "id": 805137291,
+  "bounds": {
+    "minlat": 51.5238428,
+    "minlon": -0.1166564,
+    "maxlat": 51.5239349,
+    "maxlon": -0.1164818
+  },
+  "nodes": [
+    7530189496,
+    7530189494,
+    7530189493,
+    7530189495,
+    7530189496
+  ],
+  "geometry": [
+    { "lat": 51.5238931, "lon": -0.1166564 },
+    { "lat": 51.5238428, "lon": -0.1166149 },
+    { "lat": 51.5238849, "lon": -0.1164818 },
+    { "lat": 51.5239349, "lon": -0.1165233 },
+    { "lat": 51.5238931, "lon": -0.1166564 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "42",
+    "addr:postcode": "WC1N 2LF",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137292,
+  "bounds": {
+    "minlat": 51.5238931,
+    "minlon": -0.1166969,
+    "maxlat": 51.5239839,
+    "maxlon": -0.1165233
+  },
+  "nodes": [
+    7530189497,
+    7530189496,
+    7530189495,
+    7530189498,
+    7530189497
+  ],
+  "geometry": [
+    { "lat": 51.5239421, "lon": -0.1166969 },
+    { "lat": 51.5238931, "lon": -0.1166564 },
+    { "lat": 51.5239349, "lon": -0.1165233 },
+    { "lat": 51.5239839, "lon": -0.1165638 },
+    { "lat": 51.5239421, "lon": -0.1166969 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "41",
+    "addr:postcode": "WC1N 2LF",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 805137293,
+  "bounds": {
+    "minlat": 51.5239421,
+    "minlon": -0.1167382,
+    "maxlat": 51.5240327,
+    "maxlon": -0.1165638
+  },
+  "nodes": [
+    7530189500,
+    7530189415,
+    7530189499,
+    7530189498,
+    7530189497,
+    7530189500
+  ],
+  "geometry": [
+    { "lat": 51.5239920, "lon": -0.1167382 },
+    { "lat": 51.5240165, "lon": -0.1166573 },
+    { "lat": 51.5240327, "lon": -0.1166042 },
+    { "lat": 51.5239839, "lon": -0.1165638 },
+    { "lat": 51.5239421, "lon": -0.1166969 },
+    { "lat": 51.5239920, "lon": -0.1167382 }
+  ],
+  "tags": {
+    "addr:city": "London",
+    "addr:housenumber": "40",
+    "addr:postcode": "WC1N 2LF",
+    "addr:street": "Doughty Street",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 827537933,
+  "bounds": {
+    "minlat": 51.5235689,
+    "minlon": -0.1154002,
+    "maxlat": 51.5239034,
+    "maxlon": -0.1150262
+  },
+  "nodes": [
+    12726616103,
+    8836172413,
+    2973191206,
+    8836172409
+  ],
+  "geometry": [
+    { "lat": 51.5239034, "lon": -0.1154002 },
+    { "lat": 51.5238163, "lon": -0.1153059 },
+    { "lat": 51.5236276, "lon": -0.1150915 },
+    { "lat": 51.5235689, "lon": -0.1150262 }
+  ],
+  "tags": {
+    "cycleway:both": "separate",
+    "highway": "primary",
+    "lanes": "2",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Gray's Inn Road",
+    "name:etymology:wikidata": "Q7308924",
+    "name:ja": "グレイズ・イン・ロード",
+    "ref": "A5200",
+    "sidewalk": "both",
+    "surface": "asphalt",
+    "wikidata": "Q3115837"
+  }
+},
+{
+  "type": "way",
+  "id": 888009900,
+  "bounds": {
+    "minlat": 51.5241728,
+    "minlon": -0.1167285,
+    "maxlat": 51.5243234,
+    "maxlon": -0.1160689
+  },
+  "nodes": [
+    9808795613,
+    12443172,
+    6335504264,
+    8787730930,
+    3360127822
+  ],
+  "geometry": [
+    { "lat": 51.5241728, "lon": -0.1167285 },
+    { "lat": 51.5242771, "lon": -0.1162323 },
+    { "lat": 51.5242883, "lon": -0.1161870 },
+    { "lat": 51.5243044, "lon": -0.1161323 },
+    { "lat": 51.5243234, "lon": -0.1160689 }
+  ],
+  "tags": {
+    "cycleway:left": "lane",
+    "highway": "secondary",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Guilford Street",
+    "name:etymology:wikidata": "Q312593",
+    "ref": "B502",
+    "sidewalk:both": "separate",
+    "surface": "asphalt",
+    "wikidata": "Q5615940"
+  }
+},
+{
+  "type": "way",
+  "id": 888009901,
+  "bounds": {
+    "minlat": 51.5228629,
+    "minlon": -0.1169697,
+    "maxlat": 51.5241203,
+    "maxlon": -0.1159304
+  },
+  "nodes": [
+    109826,
+    14258015791,
+    948866883,
+    1697813707
+  ],
+  "geometry": [
+    { "lat": 51.5241203, "lon": -0.1169697 },
+    { "lat": 51.5240770, "lon": -0.1169376 },
+    { "lat": 51.5240334, "lon": -0.1169054 },
+    { "lat": 51.5228629, "lon": -0.1159304 }
+  ],
+  "tags": {
+    "highway": "residential",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Doughty Street",
+    "sidewalk": "both",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 949246250,
+  "bounds": {
+    "minlat": 51.5241712,
+    "minlon": -0.1157937,
+    "maxlat": 51.5242648,
+    "maxlon": -0.1156918
+  },
+  "nodes": [
+    6335504263,
+    8837317633
+  ],
+  "geometry": [
+    { "lat": 51.5242648, "lon": -0.1157937 },
+    { "lat": 51.5241712, "lon": -0.1156918 }
+  ],
+  "tags": {
+    "cycleway:both": "separate",
+    "highway": "primary",
+    "lanes": "2",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Gray's Inn Road",
+    "name:etymology:wikidata": "Q7308924",
+    "name:ja": "グレイズ・イン・ロード",
+    "ref": "A5200",
+    "sidewalk": "no",
+    "surface": "asphalt",
+    "wikidata": "Q3115837"
+  }
+},
+{
+  "type": "way",
+  "id": 954648755,
+  "bounds": {
+    "minlat": 51.5235689,
+    "minlon": -0.1158387,
+    "maxlat": 51.5243059,
+    "maxlon": -0.1149696
+  },
+  "nodes": [
+    6335504269,
+    6943758090,
+    12769325162,
+    8836172411,
+    6943750657,
+    8784071420,
+    6943750681,
+    8836172410,
+    8836172409
+  ],
+  "geometry": [
+    { "lat": 51.5243059, "lon": -0.1158387 },
+    { "lat": 51.5242950, "lon": -0.1157409 },
+    { "lat": 51.5242179, "lon": -0.1156588 },
+    { "lat": 51.5238478, "lon": -0.1152350 },
+    { "lat": 51.5238214, "lon": -0.1152002 },
+    { "lat": 51.5237293, "lon": -0.1150825 },
+    { "lat": 51.5236595, "lon": -0.1150025 },
+    { "lat": 51.5236256, "lon": -0.1149696 },
+    { "lat": 51.5235689, "lon": -0.1150262 }
+  ],
+  "tags": {
+    "foot": "yes",
+    "highway": "cycleway",
+    "name": "Gray's Inn Road",
+    "name:etymology:wikidata": "Q7308924",
+    "oneway": "yes",
+    "sidewalk:left": "separate",
+    "sidewalk:right": "no",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 954648757,
+  "bounds": {
+    "minlat": 51.5238163,
+    "minlon": -0.1153059,
+    "maxlat": 51.5238709,
+    "maxlon": -0.1151794
+  },
+  "nodes": [
+    8836172412,
+    13842060026,
+    8836172411,
+    12726616102,
+    8836172413
+  ],
+  "geometry": [
+    { "lat": 51.5238709, "lon": -0.1151794 },
+    { "lat": 51.5238653, "lon": -0.1151924 },
+    { "lat": 51.5238478, "lon": -0.1152350 },
+    { "lat": 51.5238477, "lon": -0.1152351 },
+    { "lat": 51.5238163, "lon": -0.1153059 }
+  ],
+  "tags": {
+    "highway": "service",
+    "service": "driveway"
+  }
+},
+{
+  "type": "way",
+  "id": 954782755,
+  "bounds": {
+    "minlat": 51.5239034,
+    "minlon": -0.1156918,
+    "maxlat": 51.5241712,
+    "maxlon": -0.1154002
+  },
+  "nodes": [
+    8837317633,
+    5619570538,
+    12726616103
+  ],
+  "geometry": [
+    { "lat": 51.5241712, "lon": -0.1156918 },
+    { "lat": 51.5239695, "lon": -0.1154722 },
+    { "lat": 51.5239034, "lon": -0.1154002 }
+  ],
+  "tags": {
+    "cycleway:left": "separate",
+    "cycleway:right": "separate",
+    "highway": "primary",
+    "lanes": "2",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Gray's Inn Road",
+    "name:etymology:wikidata": "Q7308924",
+    "name:ja": "グレイズ・イン・ロード",
+    "ref": "A5200",
+    "sidewalk": "no",
+    "surface": "asphalt",
+    "wikidata": "Q3115837"
+  }
+},
+{
+  "type": "way",
+  "id": 1068540423,
+  "bounds": {
+    "minlat": 51.5241203,
+    "minlon": -0.1169697,
+    "maxlat": 51.5241728,
+    "maxlon": -0.1167285
+  },
+  "nodes": [
+    109826,
+    948866789,
+    9808795613
+  ],
+  "geometry": [
+    { "lat": 51.5241203, "lon": -0.1169697 },
+    { "lat": 51.5241472, "lon": -0.1168501 },
+    { "lat": 51.5241728, "lon": -0.1167285 }
+  ],
+  "tags": {
+    "highway": "secondary",
+    "lit": "yes",
+    "maxspeed": "20 mph",
+    "name": "Guilford Street",
+    "name:etymology:wikidata": "Q312593",
+    "ref": "B502",
+    "sidewalk:both": "separate",
+    "source:ref": "OS OpenData StreetView",
+    "surface": "asphalt",
+    "wikidata": "Q5615940"
+  }
+},
+{
+  "type": "way",
+  "id": 1171284887,
+  "bounds": {
+    "minlat": 51.5242165,
+    "minlon": -0.1161978,
+    "maxlat": 51.5242275,
+    "maxlon": -0.1161908
+  },
+  "nodes": [
+    10884083496,
+    948810056
+  ],
+  "geometry": [
+    { "lat": 51.5242165, "lon": -0.1161908 },
+    { "lat": 51.5242275, "lon": -0.1161978 }
+  ],
+  "tags": {
+    "covered": "yes",
+    "highway": "unclassified",
+    "maxheight": "below_default",
+    "maxspeed": "20 mph",
+    "name": "Brownlow Mews",
+    "surface": "sett"
+  }
+},
+{
+  "type": "way",
+  "id": 1460592834,
+  "bounds": {
+    "minlat": 51.5242877,
+    "minlon": -0.1160894,
+    "maxlat": 51.5243582,
+    "maxlon": -0.1160471
+  },
+  "nodes": [
+    13395998124,
+    3360127822,
+    13395998123
+  ],
+  "geometry": [
+    { "lat": 51.5242877, "lon": -0.1160471 },
+    { "lat": 51.5243234, "lon": -0.1160689 },
+    { "lat": 51.5243582, "lon": -0.1160894 }
+  ],
+  "tags": {
+    "crossing": "traffic_signals",
+    "crossing:markings": "dots",
+    "crossing:signals": "yes",
+    "footway": "crossing",
+    "highway": "footway",
+    "lit": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 1460592840,
+  "bounds": {
+    "minlat": 51.5242698,
+    "minlon": -0.1160471,
+    "maxlat": 51.5242877,
+    "maxlon": -0.1160364
+  },
+  "nodes": [
+    13395998125,
+    13395998124
+  ],
+  "geometry": [
+    { "lat": 51.5242698, "lon": -0.1160364 },
+    { "lat": 51.5242877, "lon": -0.1160471 }
+  ],
+  "tags": {
+    "highway": "footway",
+    "lit": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1460595037,
+  "bounds": {
+    "minlat": 51.5241901,
+    "minlon": -0.1169537,
+    "maxlat": 51.5243892,
+    "maxlon": -0.1160865
+  },
+  "nodes": [
+    13396011556,
+    13396011555,
+    13396011554,
+    13842944922,
+    13395998122,
+    14258015794
+  ],
+  "geometry": [
+    { "lat": 51.5241959, "lon": -0.1169537 },
+    { "lat": 51.5242013, "lon": -0.1169309 },
+    { "lat": 51.5241901, "lon": -0.1169061 },
+    { "lat": 51.5241944, "lon": -0.1168878 },
+    { "lat": 51.5243737, "lon": -0.1160974 },
+    { "lat": 51.5243892, "lon": -0.1160865 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway",
+    "lit": "yes",
+    "name": "Guilford Street",
+    "street:name": "Guilford Street",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1460595039,
+  "bounds": {
+    "minlat": 51.5242288,
+    "minlon": -0.1162095,
+    "maxlat": 51.5242331,
+    "maxlon": -0.1161913
+  },
+  "nodes": [
+    13396011558,
+    13396011559,
+    13396011557
+  ],
+  "geometry": [
+    { "lat": 51.5242331, "lon": -0.1161913 },
+    { "lat": 51.5242310, "lon": -0.1162002 },
+    { "lat": 51.5242288, "lon": -0.1162095 }
+  ],
+  "tags": {
+    "crossing": "unmarked",
+    "crossing:markings": "no",
+    "footway": "crossing",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1460595040,
+  "bounds": {
+    "minlat": 51.5242331,
+    "minlon": -0.1161913,
+    "maxlat": 51.5242885,
+    "maxlon": -0.1159546
+  },
+  "nodes": [
+    13395998126,
+    13395998125,
+    13396011558
+  ],
+  "geometry": [
+    { "lat": 51.5242885, "lon": -0.1159546 },
+    { "lat": 51.5242698, "lon": -0.1160364 },
+    { "lat": 51.5242331, "lon": -0.1161913 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway",
+    "lit": "yes",
+    "name": "Guilford Street",
+    "street:name": "Guilford Street",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1460595041,
+  "bounds": {
+    "minlat": 51.5240812,
+    "minlon": -0.1168330,
+    "maxlat": 51.5242288,
+    "maxlon": -0.1162095
+  },
+  "nodes": [
+    13396011557,
+    13842448678,
+    13396011560
+  ],
+  "geometry": [
+    { "lat": 51.5242288, "lon": -0.1162095 },
+    { "lat": 51.5240846, "lon": -0.1168184 },
+    { "lat": 51.5240812, "lon": -0.1168330 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway",
+    "lit": "yes",
+    "name": "Guilford Street",
+    "street:name": "Guilford Street",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1515820774,
+  "bounds": {
+    "minlat": 51.5241057,
+    "minlon": -0.1168501,
+    "maxlat": 51.5241472,
+    "maxlon": -0.1168285
+  },
+  "nodes": [
+    13842448679,
+    948866789
+  ],
+  "geometry": [
+    { "lat": 51.5241057, "lon": -0.1168285 },
+    { "lat": 51.5241472, "lon": -0.1168501 }
+  ],
+  "tags": {
+    "crossing": "unmarked",
+    "crossing:markings": "no",
+    "footway": "crossing",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1515820775,
+  "bounds": {
+    "minlat": 51.5240846,
+    "minlon": -0.1168285,
+    "maxlat": 51.5241057,
+    "maxlon": -0.1168184
+  },
+  "nodes": [
+    13842448678,
+    13842448679
+  ],
+  "geometry": [
+    { "lat": 51.5240846, "lon": -0.1168184 },
+    { "lat": 51.5241057, "lon": -0.1168285 }
+  ],
+  "tags": {
+    "highway": "footway",
+    "lit": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911228,
+  "bounds": {
+    "minlat": 51.5238909,
+    "minlon": -0.1177312,
+    "maxlat": 51.5240337,
+    "maxlon": -0.1170233
+  },
+  "nodes": [
+    13842559846,
+    13842559899,
+    13842559898,
+    13842559847,
+    13838114080
+  ],
+  "geometry": [
+    { "lat": 51.5240274, "lon": -0.1170233 },
+    { "lat": 51.5240337, "lon": -0.1170287 },
+    { "lat": 51.5240328, "lon": -0.1170399 },
+    { "lat": 51.5240254, "lon": -0.1170740 },
+    { "lat": 51.5238909, "lon": -0.1177312 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway",
+    "lit": "yes",
+    "name": "Guilford Street",
+    "street:name": "Guilford Street",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911229,
+  "bounds": {
+    "minlat": 51.5240056,
+    "minlon": -0.1170233,
+    "maxlat": 51.5240274,
+    "maxlon": -0.1170071
+  },
+  "nodes": [
+    13842559846,
+    13842559897
+  ],
+  "geometry": [
+    { "lat": 51.5240274, "lon": -0.1170233 },
+    { "lat": 51.5240056, "lon": -0.1170071 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911254,
+  "bounds": {
+    "minlat": 51.5240418,
+    "minlon": -0.1171285,
+    "maxlat": 51.5241264,
+    "maxlon": -0.1170766
+  },
+  "nodes": [
+    13842559881,
+    948866702,
+    13842559882
+  ],
+  "geometry": [
+    { "lat": 51.5240418, "lon": -0.1170766 },
+    { "lat": 51.5240841, "lon": -0.1171025 },
+    { "lat": 51.5241264, "lon": -0.1171285 }
+  ],
+  "tags": {
+    "crossing": "uncontrolled",
+    "crossing:island": "no",
+    "crossing:markings": "zebra",
+    "crossing_ref": "zebra",
+    "footway": "crossing",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911257,
+  "bounds": {
+    "minlat": 51.5240104,
+    "minlon": -0.1169929,
+    "maxlat": 51.5240524,
+    "maxlon": -0.1168330
+  },
+  "nodes": [
+    13396011562,
+    948866883,
+    13842559885
+  ],
+  "geometry": [
+    { "lat": 51.5240524, "lon": -0.1168330 },
+    { "lat": 51.5240334, "lon": -0.1169054 },
+    { "lat": 51.5240104, "lon": -0.1169929 }
+  ],
+  "tags": {
+    "crossing": "unmarked",
+    "crossing:island": "yes",
+    "crossing:markings": "no",
+    "footway": "crossing",
+    "highway": "footway",
+    "lit": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911259,
+  "bounds": {
+    "minlat": 51.5240254,
+    "minlon": -0.1170766,
+    "maxlat": 51.5240418,
+    "maxlon": -0.1170740
+  },
+  "nodes": [
+    13842559847,
+    13842559881
+  ],
+  "geometry": [
+    { "lat": 51.5240254, "lon": -0.1170740 },
+    { "lat": 51.5240418, "lon": -0.1170766 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911260,
+  "bounds": {
+    "minlat": 51.5241604,
+    "minlon": -0.1171154,
+    "maxlat": 51.5241959,
+    "maxlon": -0.1169537
+  },
+  "nodes": [
+    13842559888,
+    948866854,
+    13396011556
+  ],
+  "geometry": [
+    { "lat": 51.5241604, "lon": -0.1171154 },
+    { "lat": 51.5241819, "lon": -0.1170176 },
+    { "lat": 51.5241959, "lon": -0.1169537 }
+  ],
+  "tags": {
+    "crossing": "unmarked",
+    "crossing:island": "yes",
+    "crossing:markings": "no",
+    "footway": "crossing",
+    "highway": "footway",
+    "lit": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911264,
+  "bounds": {
+    "minlat": 51.5240056,
+    "minlon": -0.1170071,
+    "maxlat": 51.5240104,
+    "maxlon": -0.1169929
+  },
+  "nodes": [
+    13842559885,
+    13842559897
+  ],
+  "geometry": [
+    { "lat": 51.5240104, "lon": -0.1169929 },
+    { "lat": 51.5240056, "lon": -0.1170071 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911276,
+  "bounds": {
+    "minlat": 51.5241472,
+    "minlon": -0.1168798,
+    "maxlat": 51.5241842,
+    "maxlon": -0.1168501
+  },
+  "nodes": [
+    13842944923,
+    948866789
+  ],
+  "geometry": [
+    { "lat": 51.5241842, "lon": -0.1168798 },
+    { "lat": 51.5241472, "lon": -0.1168501 }
+  ],
+  "tags": {
+    "crossing": "unmarked",
+    "crossing:markings": "no",
+    "footway": "crossing",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1515911277,
+  "bounds": {
+    "minlat": 51.5241842,
+    "minlon": -0.1168878,
+    "maxlat": 51.5241944,
+    "maxlon": -0.1168798
+  },
+  "nodes": [
+    13842944922,
+    13842944923
+  ],
+  "geometry": [
+    { "lat": 51.5241944, "lon": -0.1168878 },
+    { "lat": 51.5241842, "lon": -0.1168798 }
+  ],
+  "tags": {
+    "highway": "footway",
+    "lit": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1565789824,
+  "bounds": {
+    "minlat": 51.5242535,
+    "minlon": -0.1159197,
+    "maxlat": 51.5242714,
+    "maxlon": -0.1158785
+  },
+  "nodes": [
+    13395998127,
+    6943750665
+  ],
+  "geometry": [
+    { "lat": 51.5242714, "lon": -0.1159197 },
+    { "lat": 51.5242535, "lon": -0.1158785 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway",
+    "lit": "yes",
+    "name": "Gray's Inn Road",
+    "street:name": "Gray's Inn Road",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1565789827,
+  "bounds": {
+    "minlat": 51.5240524,
+    "minlon": -0.1168330,
+    "maxlat": 51.5240566,
+    "maxlon": -0.1168203
+  },
+  "nodes": [
+    13396011561,
+    13396011562
+  ],
+  "geometry": [
+    { "lat": 51.5240566, "lon": -0.1168203 },
+    { "lat": 51.5240524, "lon": -0.1168330 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway"
+  }
+},
+{
+  "type": "way",
+  "id": 1565789828,
+  "bounds": {
+    "minlat": 51.5240566,
+    "minlon": -0.1168330,
+    "maxlat": 51.5240812,
+    "maxlon": -0.1168203
+  },
+  "nodes": [
+    13396011560,
+    13396011561
+  ],
+  "geometry": [
+    { "lat": 51.5240812, "lon": -0.1168330 },
+    { "lat": 51.5240566, "lon": -0.1168203 }
+  ],
+  "tags": {
+    "footway": "sidewalk",
+    "highway": "footway"
+  }
+}
+
+  ]
+}

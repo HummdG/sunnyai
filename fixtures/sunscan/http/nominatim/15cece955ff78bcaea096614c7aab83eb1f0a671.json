@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "nominatim",
+ "request": {
+  "method": "GET",
+  "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=Down+House%2C+Downe"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "accept-ranges": "bytes"
+ },
+ "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=Down+House%2C+Downe",
+ "fetchedAt": "2026-10-08T22:47:59.720Z",
+ "bytes": 2047
+}

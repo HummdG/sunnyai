@@ -1,0 +1,22 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "wales-cog",
+ "request": {
+  "method": "GET",
+  "url": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dtm_32bit_cog.tif#etag=0x8DCE488A5BF1B2C",
+  "range": [
+   7798784,
+   7864319
+  ]
+ },
+ "status": 206,
+ "headers": {
+  "content-type": "image/tiff",
+  "content-range": "bytes 7798784-7864319/48611310928",
+  "etag": "0x8DCE488A5BF1B2C",
+  "last-modified": "Fri, 04 Oct 2024 15:24:32 GMT"
+ },
+ "url": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dtm_32bit_cog.tif",
+ "fetchedAt": "2026-10-08T19:18:08.064Z",
+ "bytes": 65536
+}

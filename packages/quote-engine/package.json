@@ -1,0 +1,11 @@
+{
+  "name": "@sunny/quote-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SunScan v1's solar quote engine: line-item pricing, sizing tiers, generation and savings, three-option recommendation",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

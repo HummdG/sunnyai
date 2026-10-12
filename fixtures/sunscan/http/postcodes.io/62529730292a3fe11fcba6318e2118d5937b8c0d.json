@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "postcodes.io",
+ "request": {
+  "method": "GET",
+  "url": "https://api.postcodes.io/postcodes/GU34%201SD"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "etag": "W/\"780-Yp0qYlv2hGt5YrxGd/pcSDAgocA\""
+ },
+ "url": "https://api.postcodes.io/postcodes/GU34%201SD",
+ "fetchedAt": "2026-10-08T19:17:38.293Z",
+ "bytes": 1920
+}

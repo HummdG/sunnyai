@@ -1,0 +1,22 @@
+{
+  "name": "@sunny/sunscan-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Framework-free three.js viewer for SunScan house models (vendored from SunScanV2 apps/web/src/three)",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "sunny-facade": "./src/public.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "suncalc": "^2.1.1",
+    "three": "^0.186.1",
+    "@sunny/sunscan-core": "*"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0"
+  }
+}

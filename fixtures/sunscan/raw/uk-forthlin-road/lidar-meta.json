@@ -1,0 +1,143 @@
+{
+  "schema": "sunscanv2/lidar-meta@0.1",
+  "slug": "uk-forthlin-road",
+  "country": "England",
+  "retrievedAt": "2026-10-08T17:39:34.559Z",
+  "coverage": true,
+  "source": "Environment Agency LIDAR Composite 2022 (WCS 2.0.1)",
+  "dataset": null,
+  "licence": "Open Government Licence v3.0",
+  "attribution": "© Environment Agency copyright and/or database right 2022. All rights reserved.",
+  "verticalDatum": "ODN (Ordnance Datum Newlyn) via OSTN15/OSGM15; ±15 cm RMSE (EA metadata)",
+  "crs": "EPSG:27700",
+  "point": {
+    "lat": 53.3697111,
+    "lon": -2.8978967,
+    "source": "nominatim",
+    "E_ostn15": 340354.119,
+    "N_ostn15": 386245.976
+  },
+  "footprintTarget": "way/516125064",
+  "bounds": {
+    "minE": 340307,
+    "maxN": 386294,
+    "maxE": 340403,
+    "minN": 386198
+  },
+  "resolution_m": 1,
+  "pixelIsArea": true,
+  "dsmType": "first return (FZ_DSM); last-return in dsm-last-return.tif",
+  "files": {
+    "dsm.tif": {
+      "layer": "dsmFirst",
+      "bytes": 37283,
+      "width": 96,
+      "height": 96,
+      "resolution_m": 1,
+      "originTopLeft": [
+        340307,
+        386294
+      ],
+      "nodata": -3.4028234663852886e+38,
+      "validFraction": 1,
+      "retrievalUrl": "https://environment.data.gov.uk/geoservices/datasets/df4e3ec3-315e-48aa-aaaf-b5ae74d7b2bb/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=df4e3ec3-315e-48aa-aaaf-b5ae74d7b2bb__Lidar_Composite_Elevation_FZ_DSM_1m&format=image/tiff&subset=E(340307,340403)&subset=N(386198,386294)"
+    },
+    "dtm.tif": {
+      "layer": "dtm",
+      "bytes": 37283,
+      "width": 96,
+      "height": 96,
+      "resolution_m": 1,
+      "originTopLeft": [
+        340307,
+        386294
+      ],
+      "nodata": -3.4028234663852886e+38,
+      "validFraction": 1,
+      "retrievalUrl": "https://environment.data.gov.uk/geoservices/datasets/13787b9a-26a4-4775-8523-806d13af58fc/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m&format=image/tiff&subset=E(340307,340403)&subset=N(386198,386294)"
+    },
+    "dsm-last-return.tif": {
+      "layer": "dsmLast",
+      "bytes": 37283,
+      "width": 96,
+      "height": 96,
+      "resolution_m": 1,
+      "originTopLeft": [
+        340307,
+        386294
+      ],
+      "nodata": -3.4028234663852886e+38,
+      "validFraction": 1,
+      "retrievalUrl": "https://environment.data.gov.uk/geoservices/datasets/9ba4d5ac-d596-445a-9056-dae3ddec0178/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=9ba4d5ac-d596-445a-9056-dae3ddec0178__Lidar_Composite_Elevation_LZ_DSM_1m&format=image/tiff&subset=E(340307,340403)&subset=N(386198,386294)"
+    }
+  },
+  "vintage": {
+    "dsmFirst": {
+      "url": "https://environment.data.gov.uk/spatialdata/survey-index-files/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=LIDAR_Composite_1m_First_Return_DSM_2022_extents&outputFormat=application/json&propertyName=filename,polygon_id,resolution,year,sd_flown,ed_flown&bbox=340353.6191327029,386245.47649411764,340354.6191327029,386246.47649411764,urn:ogc:def:crs:EPSG::27700&count=5",
+      "ms": 289,
+      "surveys": [
+        {
+          "filename": "FZ_DSM_P_10621",
+          "polygon_id": "P_10621",
+          "resolution": 1,
+          "year": "2019",
+          "sd_flown": "2019-02-11T00:00:00Z",
+          "ed_flown": "2019-02-11T00:00:00Z"
+        }
+      ]
+    },
+    "dtm": {
+      "url": "https://environment.data.gov.uk/spatialdata/survey-index-files/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=LIDAR_Composite_1m_DTM_2022_extents&outputFormat=application/json&propertyName=filename,polygon_id,resolution,year,sd_flown,ed_flown&bbox=340353.6191327029,386245.47649411764,340354.6191327029,386246.47649411764,urn:ogc:def:crs:EPSG::27700&count=5",
+      "ms": 149,
+      "surveys": [
+        {
+          "filename": "F_DTM_P_10621",
+          "polygon_id": "P_10621",
+          "resolution": 1,
+          "year": "2019",
+          "sd_flown": "2019-02-11T00:00:00Z",
+          "ed_flown": "2019-02-11T00:00:00Z"
+        }
+      ]
+    }
+  },
+  "requests": [
+    {
+      "layer": "dsmFirst",
+      "url": "https://environment.data.gov.uk/geoservices/datasets/df4e3ec3-315e-48aa-aaaf-b5ae74d7b2bb/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=df4e3ec3-315e-48aa-aaaf-b5ae74d7b2bb__Lidar_Composite_Elevation_FZ_DSM_1m&format=image/tiff&subset=E(340307,340403)&subset=N(386198,386294)",
+      "status": 200,
+      "contentType": "image/tiff",
+      "bytes": 37283,
+      "ms": 408,
+      "attempts": 1,
+      "cors": "*",
+      "nodataTag": -3.4028234663852886e+38,
+      "coverage": 1
+    },
+    {
+      "layer": "dtm",
+      "url": "https://environment.data.gov.uk/geoservices/datasets/13787b9a-26a4-4775-8523-806d13af58fc/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m&format=image/tiff&subset=E(340307,340403)&subset=N(386198,386294)",
+      "status": 200,
+      "contentType": "image/tiff",
+      "bytes": 37283,
+      "ms": 573,
+      "attempts": 1,
+      "cors": "*",
+      "nodataTag": -3.4028234663852886e+38,
+      "coverage": 1
+    },
+    {
+      "layer": "dsmLast",
+      "url": "https://environment.data.gov.uk/geoservices/datasets/9ba4d5ac-d596-445a-9056-dae3ddec0178/wcs?service=WCS&version=2.0.1&request=GetCoverage&CoverageId=9ba4d5ac-d596-445a-9056-dae3ddec0178__Lidar_Composite_Elevation_LZ_DSM_1m&format=image/tiff&subset=E(340307,340403)&subset=N(386198,386294)",
+      "status": 200,
+      "contentType": "image/tiff",
+      "bytes": 37283,
+      "ms": 745,
+      "attempts": 1,
+      "cors": "*",
+      "nodataTag": -3.4028234663852886e+38,
+      "coverage": 1
+    }
+  ],
+  "totalMs": 3396
+}

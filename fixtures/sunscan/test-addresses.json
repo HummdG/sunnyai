@@ -1,0 +1,176 @@
+[
+  {
+    "slug": "uk-mendips",
+    "query": "251 Menlove Avenue, Liverpool L25 7SA",
+    "postcode": "L25 7SA",
+    "nominatim": {
+      "lat": 53.3772527,
+      "lon": -2.8813616,
+      "osm": "way/516128867",
+      "category": "tourism/attraction",
+      "display": "John Lennon's Childhood Home, 251, Menlove Avenue, Woolton, Liverpool, Liverpool City Region, England, L25 7SA, United Kingdom"
+    },
+    "nominatimCount": 1,
+    "postcodeCentroid": {
+      "lat": 53.376735,
+      "lon": -2.880519,
+      "country": "England",
+      "eastings": 341520,
+      "northings": 387013
+    }
+  },
+  {
+    "slug": "uk-forthlin-road",
+    "query": "20 Forthlin Road, Liverpool L18 9TN",
+    "postcode": "L18 9TN",
+    "nominatim": {
+      "lat": 53.3697111,
+      "lon": -2.8978967,
+      "osm": "way/516125064",
+      "category": "tourism/attraction",
+      "display": "Paul McCartney's Childhood Home, 20, Forthlin Road, Allerton, Liverpool, Liverpool City Region, England, L18 9TL, United Kingdom"
+    },
+    "nominatimCount": 1,
+    "postcodeCentroid": {
+      "lat": 53.369683,
+      "lon": -2.898018,
+      "country": "England",
+      "eastings": 340346,
+      "northings": 386243
+    }
+  },
+  {
+    "slug": "uk-dickens-museum",
+    "query": "48 Doughty Street, London WC1N 2LX",
+    "postcode": "WC1N 2LX",
+    "nominatim": {
+      "lat": 51.5235958,
+      "lon": -0.1163264,
+      "osm": "way/805137285",
+      "category": "building/house",
+      "display": "48, Doughty Street, Holborn, London Borough of Camden, Greater London, England, WC1N 2LX, United Kingdom"
+    },
+    "nominatimCount": 2,
+    "postcodeCentroid": {
+      "lat": 51.523601,
+      "lon": -0.116237,
+      "country": "England",
+      "eastings": 530783,
+      "northings": 182202
+    }
+  },
+  {
+    "slug": "uk-jane-austen-house",
+    "query": "Jane Austen's House, Winchester Road, Chawton, Alton GU34 1SD",
+    "postcode": "GU34 1SD",
+    "nominatim": null,
+    "nominatimCount": 0,
+    "postcodeCentroid": {
+      "lat": 51.133531,
+      "lon": -0.988648,
+      "country": "England",
+      "eastings": 470859,
+      "northings": 137626
+    }
+  },
+  {
+    "slug": "uk-shakespeare-birthplace",
+    "query": "Shakespeare's Birthplace, Henley Street, Stratford-upon-Avon CV37 6QW",
+    "postcode": "CV37 6QW",
+    "nominatim": {
+      "lat": 52.1938833,
+      "lon": -1.7080084,
+      "osm": "way/150342334",
+      "category": "tourism/attraction",
+      "display": "Shakespeare's Birthplace, Henley Street, Stratford-upon-Avon, Tiddington, Stratford-on-Avon, Warwickshire, England, CV37 6QW, United Kingdom"
+    },
+    "nominatimCount": 1,
+    "postcodeCentroid": {
+      "lat": 52.194027,
+      "lon": -1.708746,
+      "country": "England",
+      "eastings": 420005,
+      "northings": 255126
+    }
+  },
+  {
+    "slug": "uk-down-house",
+    "query": "Down House, Luxted Road, Downe, Orpington BR6 7JT",
+    "postcode": "BR6 7JT",
+    "nominatim": {
+      "lat": 51.3314488,
+      "lon": 0.0533873,
+      "osm": "way/120876216",
+      "category": "tourism/attraction",
+      "display": "Down House, Luxted Road, Luxted, London Borough of Bromley, Greater London, England, BR6 7JT, United Kingdom"
+    },
+    "nominatimCount": 2,
+    "postcodeCentroid": {
+      "lat": 51.324537,
+      "lon": 0.054407,
+      "country": "England",
+      "eastings": 543241,
+      "northings": 160385
+    }
+  },
+  {
+    "slug": "uk-hill-top",
+    "query": "Hill Top, Near Sawrey, Ambleside LA22 0LF",
+    "postcode": "LA22 0LF",
+    "nominatim": {
+      "lat": 54.3517494,
+      "lon": -2.9705577,
+      "osm": "way/164730604",
+      "category": "building/house",
+      "display": "Hill Top, B5285, Claife, Ambleside, Westmorland and Furness, England, LA22 0LF, United Kingdom"
+    },
+    "nominatimCount": 1,
+    "postcodeCentroid": {
+      "lat": 54.352534,
+      "lon": -2.97013,
+      "country": "England",
+      "eastings": 337044,
+      "northings": 495655
+    }
+  },
+  {
+    "slug": "wales-dylan-thomas-birthplace",
+    "query": "5 Cwmdonkin Drive, Swansea SA2 0RA",
+    "postcode": "SA2 0RA",
+    "nominatim": {
+      "lat": 51.6210127,
+      "lon": -3.9647993,
+      "osm": "way/518358901",
+      "category": "tourism/attraction",
+      "display": "Dylan Thomas House, 5, Cwmdonkin Drive, Brynmill, Uplands, Swansea, Cymru / Wales, SA2 0RA, United Kingdom"
+    },
+    "nominatimCount": 1,
+    "postcodeCentroid": {
+      "lat": 51.621074,
+      "lon": -3.964866,
+      "country": "Wales",
+      "eastings": 264075,
+      "northings": 193190
+    }
+  },
+  {
+    "slug": "scot-carnegie-birthplace",
+    "query": "Andrew Carnegie Birthplace Museum, Moodie Street, Dunfermline KY12 7PL",
+    "postcode": "KY12 7PL",
+    "nominatim": {
+      "lat": 56.0679358,
+      "lon": -3.461231,
+      "osm": "way/429457399",
+      "category": "tourism/museum",
+      "display": "Andrew Carnegie Birthplace Museum, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Alba / Scotland, KY12 7PL, United Kingdom"
+    },
+    "nominatimCount": 1,
+    "postcodeCentroid": {
+      "lat": 56.067189,
+      "lon": -3.460663,
+      "country": "Scotland",
+      "eastings": 309159,
+      "northings": 687002
+    }
+  }
+]

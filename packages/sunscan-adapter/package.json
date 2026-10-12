@@ -2,13 +2,18 @@
   "name": "@sunny/sunscan-adapter",
   "version": "0.1.0",
   "private": true,
-  "description": "Typed SunScan integration contract with a development fake only",
+  "description": "Typed adapter between Sunny and the vendored SunScan engine (address -> roof summary + 3D model)",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "sunny-facade": "./src/public.d.ts",
+      "default": "./src/index.ts"
+    }
   },
   "dependencies": {
-    "@sunny/contracts": "*"
+    "@sunny/contracts": "*",
+    "@sunny/sunscan-engine": "*",
+    "@sunny/sunscan-core": "*"
   }
 }

@@ -1,0 +1,585 @@
+{
+  "slug": "uk-mendips",
+  "input": "251 Menlove Avenue, Liverpool L25 7SA",
+  "generatedAt": "2026-10-08T18:20:45.083Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "schema": "sunscanv2/footprint-summary@0.1",
+  "sources": {
+    "osm_base": "2026-10-08T17:27:21Z",
+    "overpassEndpoint": "https://overpass-api.de/api/interpreter",
+    "attribution": "© OpenStreetMap contributors (ODbL 1.0)"
+  },
+  "geocode": {
+    "confidence": "high",
+    "source": "nominatim free-form + nominatim bounded (postcode viewbox) + nominatim structured + photon",
+    "level": "building",
+    "lat": 53.3772527,
+    "lon": -2.8813616,
+    "osm": "way/516128867",
+    "score": 100,
+    "reasons": [
+      "house number matches",
+      "street matches",
+      "result is the building polygon itself",
+      "postcode equal",
+      "≤150 m from postcode centroid (80 m)",
+      "found by 4 strategies"
+    ],
+    "decision": [
+      "best=nominatim free-form + nominatim bounded (postcode viewbox) + nominatim structured + photon (score 100)"
+    ],
+    "parsed": {
+      "input": "251 Menlove Avenue, Liverpool L25 7SA",
+      "postcode": {
+        "raw": "L25 7SA",
+        "postcode": "L25 7SA",
+        "outward": "L25",
+        "inward": "7SA",
+        "sector": "L25 7",
+        "district": "L25",
+        "area": "L",
+        "country": "england"
+      },
+      "localities": [
+        "Liverpool"
+      ],
+      "kind": "number-street",
+      "houseNumber": "251",
+      "street": "Menlove Avenue"
+    },
+    "postcode": {
+      "postcode": "L25 7SA",
+      "lat": 53.376735,
+      "lon": -2.880519,
+      "country": "England",
+      "eastings": 341520,
+      "northings": 387013,
+      "quality": 1
+    },
+    "strategies": [
+      {
+        "purpose": "postcodes.io lookup",
+        "status": 200,
+        "count": 1,
+        "ms": 172
+      },
+      {
+        "purpose": "nominatim free-form",
+        "status": 200,
+        "count": 1,
+        "ms": 525
+      },
+      {
+        "purpose": "nominatim bounded (postcode viewbox)",
+        "status": 200,
+        "count": 1,
+        "ms": 168
+      },
+      {
+        "purpose": "nominatim structured",
+        "status": 200,
+        "count": 1,
+        "ms": 141
+      },
+      {
+        "purpose": "photon",
+        "status": 200,
+        "count": 1,
+        "ms": 1206
+      },
+      {
+        "purpose": "postcodes.io reverse @ nominatim free-form",
+        "status": 200,
+        "count": 10,
+        "ms": 265
+      },
+      {
+        "purpose": "postcodes.io reverse @ nominatim bounded (postcode viewbox)",
+        "status": 200,
+        "count": 10,
+        "ms": 265
+      }
+    ],
+    "candidates": [
+      {
+        "source": "nominatim free-form + nominatim bounded (postcode viewbox) + nominatim structured + photon",
+        "osm": "way/516128867",
+        "level": "building",
+        "label": "John Lennon's Childhood Home, 251, Menlove Avenue, Woolton, Liverpool, Liverpool City Region, England, L25 7SA, United Kingdom",
+        "score": 100,
+        "distanceToPostcodeCentroidM": 80,
+        "inputPostcodeRankNearby": 4,
+        "reasons": [
+          "house number matches",
+          "street matches",
+          "result is the building polygon itself",
+          "postcode equal",
+          "≤150 m from postcode centroid (80 m)",
+          "found by 4 strategies"
+        ]
+      }
+    ]
+  },
+  "selection": {
+    "target": "way/516128867",
+    "ambiguous": false,
+    "strongEvidence": true,
+    "candidates": [
+      {
+        "osm": "way/516128867",
+        "score": 205,
+        "reasons": [
+          "geocoder returned this building",
+          "contains geocoded point",
+          "addr:housenumber 251 matches",
+          "addr:street matches",
+          "addr:postcode matches"
+        ],
+        "distance_m": 0,
+        "area_m2": 73.8,
+        "tags": {
+          "addr:city": "Liverpool",
+          "addr:housenumber": "251",
+          "addr:postcode": "L25 7SA",
+          "addr:street": "Menlove Avenue",
+          "alt_name": "Mendips",
+          "building": "semidetached_house",
+          "building:levels": "2",
+          "name": "John Lennon's Childhood Home",
+          "operator": "National Trust",
+          "ref:GB:uprn": "38102543",
+          "source:addr:postcode": "ONSUD;OS Open UPRN",
+          "tourism": "attraction",
+          "wikidata": "Q2702874",
+          "wikipedia": "en:251 Menlove Avenue"
+        }
+      },
+      {
+        "osm": "way/1321879203",
+        "score": -28.4,
+        "reasons": [
+          "same street but different number(s): 253",
+          "addr:postcode matches",
+          "3.4 m from geocoded point"
+        ],
+        "distance_m": 3.44,
+        "area_m2": 102.3,
+        "tags": {
+          "addr:city": "Liverpool",
+          "addr:housenumber": "253",
+          "addr:postcode": "L25 7SA",
+          "addr:street": "Menlove Avenue",
+          "building": "semidetached_house",
+          "building:levels": "2",
+          "ref:GB:uprn": "38102544",
+          "source:addr:postcode": "ONSUD;OS Open UPRN"
+        }
+      }
+    ]
+  },
+  "frame": {
+    "origin": {
+      "lat": 53.37725729,
+      "lon": -2.8813576
+    },
+    "M_m": 6376639.8,
+    "N_m": 6391933.2,
+    "formula": "x = N·cosφ0·(λ−λ0), y = M·(φ−φ0) [radians]; M,N = WGS84 meridional / prime-vertical radii at φ0"
+  },
+  "target": {
+    "osm": "way/516128867",
+    "tags": {
+      "addr:city": "Liverpool",
+      "addr:housenumber": "251",
+      "addr:postcode": "L25 7SA",
+      "addr:street": "Menlove Avenue",
+      "alt_name": "Mendips",
+      "building": "semidetached_house",
+      "building:levels": "2",
+      "name": "John Lennon's Childhood Home",
+      "operator": "National Trust",
+      "ref:GB:uprn": "38102543",
+      "source:addr:postcode": "ONSUD;OS Open UPRN",
+      "tourism": "attraction",
+      "wikidata": "Q2702874",
+      "wikipedia": "en:251 Menlove Avenue"
+    },
+    "warnings": [],
+    "area_m2": 73.85,
+    "perimeter_m": 37.34,
+    "vertexCount": 8,
+    "vertexCountSimplified": 8,
+    "holes": 0,
+    "ringWgs84": [
+      [
+        -2.8814507,
+        53.3772466
+      ],
+      [
+        -2.8813805,
+        53.3772015
+      ],
+      [
+        -2.8812717,
+        53.3772588
+      ],
+      [
+        -2.8813098,
+        53.3772843
+      ],
+      [
+        -2.8812881,
+        53.3772965
+      ],
+      [
+        -2.8813187,
+        53.3773159
+      ],
+      [
+        -2.8813412,
+        53.3773032
+      ],
+      [
+        -2.8813453,
+        53.3773058
+      ],
+      [
+        -2.8814507,
+        53.3772466
+      ]
+    ],
+    "ringLocal": [
+      [
+        -6.196,
+        -1.189
+      ],
+      [
+        -1.524,
+        -6.209
+      ],
+      [
+        5.717,
+        0.169
+      ],
+      [
+        3.181,
+        3.007
+      ],
+      [
+        4.625,
+        4.364
+      ],
+      [
+        2.589,
+        6.523
+      ],
+      [
+        1.091,
+        5.11
+      ],
+      [
+        0.819,
+        5.399
+      ],
+      [
+        -6.196,
+        -1.189
+      ]
+    ],
+    "holesLocal": [],
+    "ringLocalSimplified": [
+      [
+        -6.196,
+        -1.189
+      ],
+      [
+        -1.524,
+        -6.209
+      ],
+      [
+        5.717,
+        0.169
+      ],
+      [
+        3.181,
+        3.007
+      ],
+      [
+        4.625,
+        4.364
+      ],
+      [
+        2.589,
+        6.523
+      ],
+      [
+        1.091,
+        5.11
+      ],
+      [
+        0.819,
+        5.399
+      ],
+      [
+        -6.196,
+        -1.189
+      ]
+    ],
+    "minAreaRect": {
+      "length_m": 11.7,
+      "width_m": 7.17,
+      "longAxisBearing_deg": 47.1,
+      "rectangularity": 0.88,
+      "corners": [
+        [
+          -6.226,
+          -1.157
+        ],
+        [
+          -1.343,
+          -6.403
+        ],
+        [
+          7.224,
+          1.572
+        ],
+        [
+          2.342,
+          6.817
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "i": 0,
+        "from": [
+          -6.196,
+          -1.189
+        ],
+        "to": [
+          -1.524,
+          -6.209
+        ],
+        "length_m": 6.857,
+        "bearing_deg": 137.1,
+        "facing_deg": 227.1,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 1,
+        "from": [
+          -1.524,
+          -6.209
+        ],
+        "to": [
+          5.717,
+          0.169
+        ],
+        "length_m": 9.649,
+        "bearing_deg": 48.6,
+        "facing_deg": 138.6,
+        "partyWall": true,
+        "sharedLength_m": 9.649,
+        "sharedFraction": 1,
+        "sharedIntervals_m": [
+          [
+            0,
+            9.649
+          ]
+        ],
+        "sharedWith": [
+          {
+            "osm": "way/1321879203",
+            "length_m": 9.649,
+            "maxOffset_m": 0,
+            "orientation": "opposite"
+          }
+        ]
+      },
+      {
+        "i": 2,
+        "from": [
+          5.717,
+          0.169
+        ],
+        "to": [
+          3.181,
+          3.007
+        ],
+        "length_m": 3.806,
+        "bearing_deg": 318.2,
+        "facing_deg": 48.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 3,
+        "from": [
+          3.181,
+          3.007
+        ],
+        "to": [
+          4.625,
+          4.364
+        ],
+        "length_m": 1.982,
+        "bearing_deg": 46.8,
+        "facing_deg": 136.8,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 4,
+        "from": [
+          4.625,
+          4.364
+        ],
+        "to": [
+          2.589,
+          6.523
+        ],
+        "length_m": 2.968,
+        "bearing_deg": 316.7,
+        "facing_deg": 46.7,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 5,
+        "from": [
+          2.589,
+          6.523
+        ],
+        "to": [
+          1.091,
+          5.11
+        ],
+        "length_m": 2.059,
+        "bearing_deg": 226.7,
+        "facing_deg": 316.7,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 6,
+        "from": [
+          1.091,
+          5.11
+        ],
+        "to": [
+          0.819,
+          5.399
+        ],
+        "length_m": 0.398,
+        "bearing_deg": 316.7,
+        "facing_deg": 46.7,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 7,
+        "from": [
+          0.819,
+          5.399
+        ],
+        "to": [
+          -6.196,
+          -1.189
+        ],
+        "length_m": 9.623,
+        "bearing_deg": 226.8,
+        "facing_deg": 316.8,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      }
+    ],
+    "partyWallLength_m": 9.65,
+    "houseForm": "semi-detached",
+    "houseFormReasons": [
+      "attached only to way/1321879203, which has no other attached dwelling"
+    ],
+    "parts": []
+  },
+  "neighbours": [
+    {
+      "osm": "way/1321879203",
+      "building": "semidetached_house",
+      "tags": {
+        "building": "semidetached_house",
+        "building:levels": "2"
+      },
+      "area_m2": 102.3,
+      "gap_m": 0,
+      "sharedWithTarget_m": 9.65,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          5.72,
+          0.17
+        ],
+        [
+          -1.52,
+          -6.21
+        ],
+        [
+          3.16,
+          -11.15
+        ],
+        [
+          3.77,
+          -10.59
+        ],
+        [
+          5.68,
+          -12.66
+        ],
+        [
+          11.72,
+          -7.09
+        ],
+        [
+          9.52,
+          -4.75
+        ],
+        [
+          13.14,
+          -1.4
+        ],
+        [
+          10.83,
+          1.08
+        ],
+        [
+          7.75,
+          -1.78
+        ],
+        [
+          5.72,
+          0.17
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1919 @@
+{
+  "slug": "scot-carnegie-birthplace",
+  "input": "Andrew Carnegie Birthplace Museum, Moodie Street, Dunfermline KY12 7PL",
+  "generatedAt": "2026-10-08T18:20:45.383Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "schema": "sunscanv2/footprint-summary@0.1",
+  "sources": {
+    "osm_base": "2026-10-08T17:32:21Z",
+    "overpassEndpoint": "https://overpass-api.de/api/interpreter",
+    "attribution": "© OpenStreetMap contributors (ODbL 1.0)"
+  },
+  "geocode": {
+    "confidence": "high",
+    "source": "nominatim free-form + nominatim bounded (postcode viewbox) + nominatim name-only bounded + nominatim structured + photon",
+    "level": "building",
+    "lat": 56.0679358,
+    "lon": -3.461231,
+    "osm": "way/429457399",
+    "score": 105,
+    "reasons": [
+      "house/POI name matches",
+      "street matches",
+      "result is the building polygon itself",
+      "postcode equal",
+      "≤150 m from postcode centroid (90 m)",
+      "input postcode is #3 nearest to this point",
+      "found by 5 strategies"
+    ],
+    "decision": [
+      "best=nominatim free-form + nominatim bounded (postcode viewbox) + nominatim name-only bounded + nominatim structured + photon (score 105)"
+    ],
+    "parsed": {
+      "input": "Andrew Carnegie Birthplace Museum, Moodie Street, Dunfermline KY12 7PL",
+      "postcode": {
+        "raw": "KY12 7PL",
+        "postcode": "KY12 7PL",
+        "outward": "KY12",
+        "inward": "7PL",
+        "sector": "KY12 7",
+        "district": "KY12",
+        "area": "KY",
+        "country": "scotland"
+      },
+      "localities": [
+        "Dunfermline"
+      ],
+      "kind": "name-street",
+      "houseName": "Andrew Carnegie Birthplace Museum",
+      "street": "Moodie Street"
+    },
+    "postcode": {
+      "postcode": "KY12 7PL",
+      "lat": 56.067189,
+      "lon": -3.460663,
+      "country": "Scotland",
+      "eastings": 309159,
+      "northings": 687002,
+      "quality": 1
+    },
+    "strategies": [
+      {
+        "purpose": "postcodes.io lookup",
+        "status": 200,
+        "count": 1,
+        "ms": 127
+      },
+      {
+        "purpose": "nominatim free-form",
+        "status": 200,
+        "count": 1,
+        "ms": 198
+      },
+      {
+        "purpose": "nominatim bounded (postcode viewbox)",
+        "status": 200,
+        "count": 1,
+        "ms": 537
+      },
+      {
+        "purpose": "nominatim name-only bounded",
+        "status": 200,
+        "count": 1,
+        "ms": 540
+      },
+      {
+        "purpose": "nominatim structured",
+        "status": 200,
+        "count": 1,
+        "ms": 558
+      },
+      {
+        "purpose": "photon",
+        "status": 200,
+        "count": 1,
+        "ms": 1468
+      },
+      {
+        "purpose": "postcodes.io reverse @ nominatim free-form",
+        "status": 200,
+        "count": 10,
+        "ms": 132
+      },
+      {
+        "purpose": "postcodes.io reverse @ nominatim bounded (postcode viewbox)",
+        "status": 200,
+        "count": 10,
+        "ms": 132
+      }
+    ],
+    "candidates": [
+      {
+        "source": "nominatim free-form + nominatim bounded (postcode viewbox) + nominatim name-only bounded + nominatim structured + photon",
+        "osm": "way/429457399",
+        "level": "building",
+        "label": "Andrew Carnegie Birthplace Museum, Moodie Street, Abbey Parks, Central Dunfermline, Wellwood, Dunfermline, Fife, Scotland, KY12 7PL, United Kingdom",
+        "score": 105,
+        "distanceToPostcodeCentroidM": 90,
+        "inputPostcodeRankNearby": 3,
+        "reasons": [
+          "house/POI name matches",
+          "street matches",
+          "result is the building polygon itself",
+          "postcode equal",
+          "≤150 m from postcode centroid (90 m)",
+          "input postcode is #3 nearest to this point",
+          "found by 5 strategies"
+        ]
+      }
+    ]
+  },
+  "selection": {
+    "target": "way/429457399",
+    "ambiguous": false,
+    "strongEvidence": true,
+    "candidates": [
+      {
+        "osm": "way/429457399",
+        "score": 195,
+        "reasons": [
+          "geocoder returned this building",
+          "contains geocoded point",
+          "name/housename matches",
+          "addr:postcode matches"
+        ],
+        "distance_m": 0,
+        "area_m2": 527.3,
+        "tags": {
+          "addr:city": "Dunfermline",
+          "addr:postcode": "KY12 7PL",
+          "addr:street": "Moodie Street",
+          "building": "yes",
+          "check_date:opening_hours": "2023-09-01",
+          "fee": "no",
+          "historic": "memorial",
+          "image": "https://www.geograph.org.uk/photo/4404339",
+          "memorial": "museum_building",
+          "name": "Andrew Carnegie Birthplace Museum",
+          "opening_hours": "11:00-16:00",
+          "ref:GB:uprn": "320188639",
+          "ref:canmore": "79630",
+          "tourism": "museum",
+          "website": "https://www.carnegiebirthplace.com/",
+          "wheelchair": "yes",
+          "wikidata": "Q101004116"
+        }
+      },
+      {
+        "osm": "way/723234792",
+        "score": -25,
+        "reasons": [
+          "addr:postcode matches",
+          "46.2 m from geocoded point"
+        ],
+        "distance_m": 46.17,
+        "area_m2": 186.5,
+        "tags": {
+          "addr:city": "Dunfermline",
+          "addr:postcode": "KY12 7PL",
+          "building": "yes",
+          "ref:GB:uprn": "320308345;320101034;320199617"
+        }
+      },
+      {
+        "osm": "way/640507406",
+        "score": -30,
+        "reasons": [
+          "78.4 m from geocoded point"
+        ],
+        "distance_m": 78.43,
+        "area_m2": 586.5,
+        "tags": {
+          "addr:city": "Dunfermline",
+          "addr:postcode": "KY12 7PE",
+          "building": "yes",
+          "name": "W & AS Bruce",
+          "office": "estate_agent",
+          "ref:GB:uprn": "320190611;320190612"
+        }
+      },
+      {
+        "osm": "way/671344866",
+        "score": -30,
+        "reasons": [
+          "71.6 m from geocoded point"
+        ],
+        "distance_m": 71.59,
+        "area_m2": 120.6,
+        "tags": {
+          "addr:city": "Dunfermline",
+          "addr:postcode": "KY12 7DU",
+          "addr:street": "Priory Lane",
+          "building": "house",
+          "ref:GB:uprn": "320100919"
+        }
+      },
+      {
+        "osm": "way/723234784",
+        "score": -30,
+        "reasons": [
+          "46.4 m from geocoded point"
+        ],
+        "distance_m": 46.41,
+        "area_m2": 110.8,
+        "tags": {
+          "addr:city": "Dunfermline",
+          "addr:housenumber": "35",
+          "addr:postcode": "KY12 7DT",
+          "addr:street": "Priory Lane",
+          "building": "yes",
+          "ref:GB:uprn": "320100880;320100881;320100882;320100883;320100878;320100879"
+        }
+      },
+      {
+        "osm": "way/723234785",
+        "score": -30,
+        "reasons": [
+          "54.7 m from geocoded point"
+        ],
+        "distance_m": 54.65,
+        "area_m2": 110.8,
+        "tags": {
+          "addr:city": "Dunfermline",
+          "addr:housenumber": "36B",
+          "addr:postcode": "KY12 7DT",
+          "addr:street": "Priory Lane",
+          "building": "apartments",
+          "building:flats": "6",
+          "building:levels": "3",
+          "name": "36 priory lane",
+          "ref:GB:uprn": "320284198"
+        }
+      }
+    ]
+  },
+  "frame": {
+    "origin": {
+      "lat": 56.06794644,
+      "lon": -3.46121628
+    },
+    "M_m": 6379487.6,
+    "N_m": 6392884.6,
+    "formula": "x = N·cosφ0·(λ−λ0), y = M·(φ−φ0) [radians]; M,N = WGS84 meridional / prime-vertical radii at φ0"
+  },
+  "target": {
+    "osm": "way/429457399",
+    "tags": {
+      "addr:city": "Dunfermline",
+      "addr:postcode": "KY12 7PL",
+      "addr:street": "Moodie Street",
+      "building": "yes",
+      "check_date:opening_hours": "2023-09-01",
+      "fee": "no",
+      "historic": "memorial",
+      "image": "https://www.geograph.org.uk/photo/4404339",
+      "memorial": "museum_building",
+      "name": "Andrew Carnegie Birthplace Museum",
+      "opening_hours": "11:00-16:00",
+      "ref:GB:uprn": "320188639",
+      "ref:canmore": "79630",
+      "tourism": "museum",
+      "website": "https://www.carnegiebirthplace.com/",
+      "wheelchair": "yes",
+      "wikidata": "Q101004116"
+    },
+    "warnings": [],
+    "area_m2": 527.27,
+    "perimeter_m": 129.4,
+    "vertexCount": 29,
+    "vertexCountSimplified": 27,
+    "holes": 0,
+    "ringWgs84": [
+      [
+        -3.4612635,
+        56.0678257
+      ],
+      [
+        -3.4611545,
+        56.0678537
+      ],
+      [
+        -3.4611483,
+        56.0678465
+      ],
+      [
+        -3.4610703,
+        56.0678676
+      ],
+      [
+        -3.4610755,
+        56.0678736
+      ],
+      [
+        -3.4609991,
+        56.0678942
+      ],
+      [
+        -3.4610261,
+        56.0679255
+      ],
+      [
+        -3.4609176,
+        56.0679548
+      ],
+      [
+        -3.4609206,
+        56.0679582
+      ],
+      [
+        -3.4609628,
+        56.068007
+      ],
+      [
+        -3.4609585,
+        56.0680448
+      ],
+      [
+        -3.4611133,
+        56.0680503
+      ],
+      [
+        -3.4611183,
+        56.0680055
+      ],
+      [
+        -3.4611868,
+        56.0679871
+      ],
+      [
+        -3.4611915,
+        56.0679926
+      ],
+      [
+        -3.4612615,
+        56.0679737
+      ],
+      [
+        -3.4612566,
+        56.0679681
+      ],
+      [
+        -3.4613385,
+        56.067946
+      ],
+      [
+        -3.4613474,
+        56.0679564
+      ],
+      [
+        -3.4613265,
+        56.067962
+      ],
+      [
+        -3.461406,
+        56.068054
+      ],
+      [
+        -3.461544,
+        56.0680168
+      ],
+      [
+        -3.4614565,
+        56.0679157
+      ],
+      [
+        -3.4614237,
+        56.0679242
+      ],
+      [
+        -3.4613989,
+        56.0678968
+      ],
+      [
+        -3.4613841,
+        56.0679015
+      ],
+      [
+        -3.4613226,
+        56.0678394
+      ],
+      [
+        -3.4613045,
+        56.0678447
+      ],
+      [
+        -3.4612878,
+        56.0678496
+      ],
+      [
+        -3.4612635,
+        56.0678257
+      ]
+    ],
+    "ringLocal": [
+      [
+        -2.941,
+        -13.444
+      ],
+      [
+        3.848,
+        -10.326
+      ],
+      [
+        4.234,
+        -11.128
+      ],
+      [
+        9.092,
+        -8.778
+      ],
+      [
+        8.768,
+        -8.11
+      ],
+      [
+        13.527,
+        -5.817
+      ],
+      [
+        11.845,
+        -2.332
+      ],
+      [
+        18.603,
+        0.931
+      ],
+      [
+        18.416,
+        1.309
+      ],
+      [
+        15.788,
+        6.743
+      ],
+      [
+        16.055,
+        10.952
+      ],
+      [
+        6.414,
+        11.564
+      ],
+      [
+        6.103,
+        6.576
+      ],
+      [
+        1.836,
+        4.527
+      ],
+      [
+        1.543,
+        5.14
+      ],
+      [
+        -2.816,
+        3.035
+      ],
+      [
+        -2.511,
+        2.412
+      ],
+      [
+        -7.612,
+        -0.049
+      ],
+      [
+        -8.167,
+        1.109
+      ],
+      [
+        -6.865,
+        1.732
+      ],
+      [
+        -11.816,
+        11.976
+      ],
+      [
+        -20.411,
+        7.834
+      ],
+      [
+        -14.962,
+        -3.423
+      ],
+      [
+        -12.919,
+        -2.476
+      ],
+      [
+        -11.374,
+        -5.527
+      ],
+      [
+        -10.452,
+        -5.004
+      ],
+      [
+        -6.622,
+        -11.918
+      ],
+      [
+        -5.495,
+        -11.328
+      ],
+      [
+        -4.454,
+        -10.783
+      ],
+      [
+        -2.941,
+        -13.444
+      ]
+    ],
+    "holesLocal": [],
+    "ringLocalSimplified": [
+      [
+        -2.941,
+        -13.444
+      ],
+      [
+        3.848,
+        -10.326
+      ],
+      [
+        4.234,
+        -11.128
+      ],
+      [
+        9.092,
+        -8.778
+      ],
+      [
+        8.768,
+        -8.11
+      ],
+      [
+        13.527,
+        -5.817
+      ],
+      [
+        11.845,
+        -2.332
+      ],
+      [
+        18.603,
+        0.931
+      ],
+      [
+        15.788,
+        6.743
+      ],
+      [
+        16.055,
+        10.952
+      ],
+      [
+        6.414,
+        11.564
+      ],
+      [
+        6.103,
+        6.576
+      ],
+      [
+        1.836,
+        4.527
+      ],
+      [
+        1.543,
+        5.14
+      ],
+      [
+        -2.816,
+        3.035
+      ],
+      [
+        -2.511,
+        2.412
+      ],
+      [
+        -7.612,
+        -0.049
+      ],
+      [
+        -8.167,
+        1.109
+      ],
+      [
+        -6.865,
+        1.732
+      ],
+      [
+        -11.816,
+        11.976
+      ],
+      [
+        -20.411,
+        7.834
+      ],
+      [
+        -14.962,
+        -3.423
+      ],
+      [
+        -12.919,
+        -2.476
+      ],
+      [
+        -11.374,
+        -5.527
+      ],
+      [
+        -10.452,
+        -5.004
+      ],
+      [
+        -6.622,
+        -11.918
+      ],
+      [
+        -4.454,
+        -10.783
+      ],
+      [
+        -2.941,
+        -13.444
+      ]
+    ],
+    "minAreaRect": {
+      "length_m": 34.2,
+      "width_m": 27.78,
+      "longAxisBearing_deg": 64.3,
+      "rectangularity": 0.555,
+      "corners": [
+        [
+          10.402,
+          22.683
+        ],
+        [
+          -20.411,
+          7.834
+        ],
+        [
+          -8.351,
+          -17.192
+        ],
+        [
+          22.462,
+          -2.343
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "i": 0,
+        "from": [
+          -2.941,
+          -13.444
+        ],
+        "to": [
+          3.848,
+          -10.326
+        ],
+        "length_m": 7.47,
+        "bearing_deg": 65.3,
+        "facing_deg": 155.3,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 1,
+        "from": [
+          3.848,
+          -10.326
+        ],
+        "to": [
+          4.234,
+          -11.128
+        ],
+        "length_m": 0.89,
+        "bearing_deg": 154.3,
+        "facing_deg": 244.3,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 2,
+        "from": [
+          4.234,
+          -11.128
+        ],
+        "to": [
+          9.092,
+          -8.778
+        ],
+        "length_m": 5.396,
+        "bearing_deg": 64.2,
+        "facing_deg": 154.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 3,
+        "from": [
+          9.092,
+          -8.778
+        ],
+        "to": [
+          8.768,
+          -8.11
+        ],
+        "length_m": 0.742,
+        "bearing_deg": 334.1,
+        "facing_deg": 64.1,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 4,
+        "from": [
+          8.768,
+          -8.11
+        ],
+        "to": [
+          13.527,
+          -5.817
+        ],
+        "length_m": 5.282,
+        "bearing_deg": 64.3,
+        "facing_deg": 154.3,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 5,
+        "from": [
+          13.527,
+          -5.817
+        ],
+        "to": [
+          11.845,
+          -2.332
+        ],
+        "length_m": 3.87,
+        "bearing_deg": 334.2,
+        "facing_deg": 64.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 6,
+        "from": [
+          11.845,
+          -2.332
+        ],
+        "to": [
+          18.603,
+          0.931
+        ],
+        "length_m": 7.504,
+        "bearing_deg": 64.2,
+        "facing_deg": 154.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 7,
+        "from": [
+          18.603,
+          0.931
+        ],
+        "to": [
+          18.416,
+          1.309
+        ],
+        "length_m": 0.422,
+        "bearing_deg": 333.7,
+        "facing_deg": 63.7,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 8,
+        "from": [
+          18.416,
+          1.309
+        ],
+        "to": [
+          15.788,
+          6.743
+        ],
+        "length_m": 6.036,
+        "bearing_deg": 334.2,
+        "facing_deg": 64.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 9,
+        "from": [
+          15.788,
+          6.743
+        ],
+        "to": [
+          16.055,
+          10.952
+        ],
+        "length_m": 4.217,
+        "bearing_deg": 3.6,
+        "facing_deg": 93.6,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 10,
+        "from": [
+          16.055,
+          10.952
+        ],
+        "to": [
+          6.414,
+          11.564
+        ],
+        "length_m": 9.661,
+        "bearing_deg": 273.6,
+        "facing_deg": 3.6,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 11,
+        "from": [
+          6.414,
+          11.564
+        ],
+        "to": [
+          6.103,
+          6.576
+        ],
+        "length_m": 4.998,
+        "bearing_deg": 183.6,
+        "facing_deg": 273.6,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 12,
+        "from": [
+          6.103,
+          6.576
+        ],
+        "to": [
+          1.836,
+          4.527
+        ],
+        "length_m": 4.733,
+        "bearing_deg": 244.3,
+        "facing_deg": 334.3,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 13,
+        "from": [
+          1.836,
+          4.527
+        ],
+        "to": [
+          1.543,
+          5.14
+        ],
+        "length_m": 0.679,
+        "bearing_deg": 334.5,
+        "facing_deg": 64.5,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 14,
+        "from": [
+          1.543,
+          5.14
+        ],
+        "to": [
+          -2.816,
+          3.035
+        ],
+        "length_m": 4.841,
+        "bearing_deg": 244.2,
+        "facing_deg": 334.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 15,
+        "from": [
+          -2.816,
+          3.035
+        ],
+        "to": [
+          -2.511,
+          2.412
+        ],
+        "length_m": 0.694,
+        "bearing_deg": 153.9,
+        "facing_deg": 243.9,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 16,
+        "from": [
+          -2.511,
+          2.412
+        ],
+        "to": [
+          -7.612,
+          -0.049
+        ],
+        "length_m": 5.663,
+        "bearing_deg": 244.2,
+        "facing_deg": 334.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 17,
+        "from": [
+          -7.612,
+          -0.049
+        ],
+        "to": [
+          -8.167,
+          1.109
+        ],
+        "length_m": 1.284,
+        "bearing_deg": 334.4,
+        "facing_deg": 64.4,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 18,
+        "from": [
+          -8.167,
+          1.109
+        ],
+        "to": [
+          -6.865,
+          1.732
+        ],
+        "length_m": 1.443,
+        "bearing_deg": 64.4,
+        "facing_deg": 154.4,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 19,
+        "from": [
+          -6.865,
+          1.732
+        ],
+        "to": [
+          -11.816,
+          11.976
+        ],
+        "length_m": 11.378,
+        "bearing_deg": 334.2,
+        "facing_deg": 64.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 20,
+        "from": [
+          -11.816,
+          11.976
+        ],
+        "to": [
+          -20.411,
+          7.834
+        ],
+        "length_m": 9.541,
+        "bearing_deg": 244.3,
+        "facing_deg": 334.3,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 21,
+        "from": [
+          -20.411,
+          7.834
+        ],
+        "to": [
+          -14.962,
+          -3.423
+        ],
+        "length_m": 12.507,
+        "bearing_deg": 154.2,
+        "facing_deg": 244.2,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 22,
+        "from": [
+          -14.962,
+          -3.423
+        ],
+        "to": [
+          -12.919,
+          -2.476
+        ],
+        "length_m": 2.251,
+        "bearing_deg": 65.1,
+        "facing_deg": 155.1,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 23,
+        "from": [
+          -12.919,
+          -2.476
+        ],
+        "to": [
+          -11.374,
+          -5.527
+        ],
+        "length_m": 3.42,
+        "bearing_deg": 153.1,
+        "facing_deg": 243.1,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 24,
+        "from": [
+          -11.374,
+          -5.527
+        ],
+        "to": [
+          -10.452,
+          -5.004
+        ],
+        "length_m": 1.06,
+        "bearing_deg": 60.4,
+        "facing_deg": 150.4,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 25,
+        "from": [
+          -10.452,
+          -5.004
+        ],
+        "to": [
+          -6.622,
+          -11.918
+        ],
+        "length_m": 7.904,
+        "bearing_deg": 151,
+        "facing_deg": 241,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 26,
+        "from": [
+          -6.622,
+          -11.918
+        ],
+        "to": [
+          -5.495,
+          -11.328
+        ],
+        "length_m": 1.272,
+        "bearing_deg": 62.4,
+        "facing_deg": 152.4,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 27,
+        "from": [
+          -5.495,
+          -11.328
+        ],
+        "to": [
+          -4.454,
+          -10.783
+        ],
+        "length_m": 1.175,
+        "bearing_deg": 62.3,
+        "facing_deg": 152.3,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 28,
+        "from": [
+          -4.454,
+          -10.783
+        ],
+        "to": [
+          -2.941,
+          -13.444
+        ],
+        "length_m": 3.061,
+        "bearing_deg": 150.4,
+        "facing_deg": 240.4,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      }
+    ],
+    "partyWallLength_m": 0,
+    "houseForm": "detached",
+    "houseFormReasons": [
+      "no wall shared (>= 2 m, <= 0.3 m offset) with another dwelling-sized building"
+    ],
+    "parts": []
+  },
+  "neighbours": [
+    {
+      "osm": "way/723234826",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 616.9,
+      "gap_m": 21.01,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -32.03,
+          35.55
+        ],
+        [
+          -10.89,
+          32.96
+        ],
+        [
+          -9.67,
+          42.86
+        ],
+        [
+          -8.66,
+          43.17
+        ],
+        [
+          -7.79,
+          50.19
+        ],
+        [
+          -22.84,
+          52.04
+        ],
+        [
+          -20.67,
+          69.71
+        ],
+        [
+          -6.22,
+          67.94
+        ],
+        [
+          -5.59,
+          73.01
+        ],
+        [
+          -27.11,
+          75.64
+        ],
+        [
+          -32.03,
+          35.55
+        ]
+      ]
+    },
+    {
+      "osm": "way/723234793",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 122.6,
+      "gap_m": 23.83,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -64.41,
+          7.29
+        ],
+        [
+          -44.24,
+          7.4
+        ],
+        [
+          -44.27,
+          13.48
+        ],
+        [
+          -64.45,
+          13.37
+        ],
+        [
+          -64.41,
+          7.29
+        ]
+      ]
+    },
+    {
+      "osm": "way/723234784",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 110.8,
+      "gap_m": 25.66,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          34.53,
+          28.77
+        ],
+        [
+          44.69,
+          28.93
+        ],
+        [
+          44.52,
+          39.83
+        ],
+        [
+          34.34,
+          39.66
+        ],
+        [
+          34.53,
+          28.77
+        ]
+      ]
+    },
+    {
+      "osm": "way/723234792",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 186.5,
+      "gap_m": 26.93,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -60.12,
+          0.94
+        ],
+        [
+          -59.97,
+          -11.65
+        ],
+        [
+          -46.98,
+          -11.51
+        ],
+        [
+          -47.16,
+          4.71
+        ],
+        [
+          -53.47,
+          4.63
+        ],
+        [
+          -53.42,
+          1.02
+        ],
+        [
+          -60.12,
+          0.94
+        ]
+      ]
+    },
+    {
+      "osm": "way/1304824192",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 153.4,
+      "gap_m": 28.14,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -47.1,
+          46.08
+        ],
+        [
+          -48.13,
+          29.72
+        ],
+        [
+          -38.78,
+          29.15
+        ],
+        [
+          -37.76,
+          45.49
+        ],
+        [
+          -47.1,
+          46.08
+        ]
+      ]
+    },
+    {
+      "osm": "way/723234785",
+      "building": "apartments",
+      "tags": {
+        "building": "apartments",
+        "building:levels": "3"
+      },
+      "area_m2": 110.8,
+      "gap_m": 33.81,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          44.69,
+          28.93
+        ],
+        [
+          54.85,
+          29.09
+        ],
+        [
+          54.68,
+          39.99
+        ],
+        [
+          44.52,
+          39.83
+        ],
+        [
+          44.69,
+          28.93
+        ]
+      ]
+    },
+    {
+      "osm": "way/1304824191",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 149.3,
+      "gap_m": 42.98,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -45.36,
+          64.6
+        ],
+        [
+          -46.69,
+          47.86
+        ],
+        [
+          -37.84,
+          47.15
+        ],
+        [
+          -36.5,
+          63.9
+        ],
+        [
+          -45.36,
+          64.6
+        ]
+      ]
+    },
+    {
+      "osm": "way/723234786",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 118.9,
+      "gap_m": 44.72,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          58.94,
+          23.64
+        ],
+        [
+          71.28,
+          23.33
+        ],
+        [
+          71.52,
+          32.96
+        ],
+        [
+          59.19,
+          33.29
+        ],
+        [
+          58.94,
+          23.64
+        ]
+      ]
+    },
+    {
+      "osm": "way/1097001118",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 76.5,
+      "gap_m": 45.12,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          35.06,
+          -45.68
+        ],
+        [
+          35.6,
+          -54.14
+        ],
+        [
+          44.6,
+          -53.57
+        ],
+        [
+          44.06,
+          -45.1
+        ],
+        [
+          35.06,
+          -45.68
+        ]
+      ]
+    },
+    {
+      "osm": "way/1097001119",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 116.9,
+      "gap_m": 49.75,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          44.6,
+          -53.57
+        ],
+        [
+          58.35,
+          -52.6
+        ],
+        [
+          57.7,
+          -44.1
+        ],
+        [
+          44.06,
+          -45.1
+        ],
+        [
+          44.6,
+          -53.57
+        ]
+      ]
+    },
+    {
+      "osm": "way/671344866",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 120.6,
+      "gap_m": 52.06,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          82.64,
+          9.36
+        ],
+        [
+          71.16,
+          9.53
+        ],
+        [
+          70.66,
+          -0.02
+        ],
+        [
+          84.16,
+          -0.43
+        ],
+        [
+          82.64,
+          9.36
+        ]
+      ]
+    },
+    {
+      "osm": "way/1304824190",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 179.8,
+      "gap_m": 54.17,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -67.41,
+          65.98
+        ],
+        [
+          -70,
+          56.59
+        ],
+        [
+          -52.18,
+          51.71
+        ],
+        [
+          -49.6,
+          61.1
+        ],
+        [
+          -67.41,
+          65.98
+        ]
+      ]
+    },
+    {
+      "osm": "way/1097001132",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 82,
+      "gap_m": 57.23,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          56.4,
+          61.48
+        ],
+        [
+          55.64,
+          52.28
+        ],
+        [
+          65.23,
+          51.49
+        ],
+        [
+          65.81,
+          58.45
+        ],
+        [
+          62.73,
+          58.71
+        ],
+        [
+          62.92,
+          60.94
+        ],
+        [
+          56.4,
+          61.48
+        ]
+      ]
+    },
+    {
+      "osm": "way/1497534725",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 126.3,
+      "gap_m": 57.49,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -46.08,
+          72.52
+        ],
+        [
+          -44.58,
+          71.61
+        ],
+        [
+          -45.36,
+          64.6
+        ],
+        [
+          -36.5,
+          63.9
+        ],
+        [
+          -35.72,
+          72.69
+        ],
+        [
+          -36.61,
+          76.35
+        ],
+        [
+          -38.26,
+          77.94
+        ],
+        [
+          -42.87,
+          80.33
+        ],
+        [
+          -46.08,
+          72.52
+        ]
+      ]
+    },
+    {
+      "osm": "way/1097001122",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 94,
+      "gap_m": 58.35,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          73.54,
+          28.98
+        ],
+        [
+          73.29,
+          22.28
+        ],
+        [
+          83.45,
+          21.91
+        ],
+        [
+          83.86,
+          33.09
+        ],
+        [
+          78.1,
+          33.3
+        ],
+        [
+          77.93,
+          28.82
+        ],
+        [
+          73.54,
+          28.98
+        ]
+      ]
+    },
+    {
+      "osm": "way/1429835674",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 139.7,
+      "gap_m": 58.48,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          35.92,
+          -80.74
+        ],
+        [
+          34.57,
+          -65.23
+        ],
+        [
+          24.11,
+          -66.13
+        ],
+        [
+          24.5,
+          -70.69
+        ],
+        [
+          26.66,
+          -70.5
+        ],
+        [
+          27.61,
+          -81.46
+        ],
+        [
+          30.49,
+          -81.21
+        ],
+        [
+          35.92,
+          -80.74
+        ]
+      ]
+    },
+    {
+      "osm": "way/1097001120",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 95.6,
+      "gap_m": 59.1,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          58.71,
+          -43.92
+        ],
+        [
+          59.39,
+          -51.44
+        ],
+        [
+          71.99,
+          -50.3
+        ],
+        [
+          71.3,
+          -42.77
+        ],
+        [
+          58.71,
+          -43.92
+        ]
+      ]
+    },
+    {
+      "osm": "way/640507406",
+      "building": "yes",
+      "tags": {
+        "building": "yes"
+      },
+      "area_m2": 586.5,
+      "gap_m": 65.75,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -23.39,
+          80.27
+        ],
+        [
+          -3.5,
+          77.2
+        ],
+        [
+          -0.62,
+          102.74
+        ],
+        [
+          -3.12,
+          102.99
+        ],
+        [
+          -21.57,
+          104.79
+        ],
+        [
+          -24.47,
+          105.06
+        ],
+        [
+          -26.25,
+          83.74
+        ],
+        [
+          -23.39,
+          80.27
+        ]
+      ]
+    }
+  ]
+}

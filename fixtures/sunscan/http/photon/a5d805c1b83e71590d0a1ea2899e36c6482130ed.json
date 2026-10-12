@@ -1,0 +1,17 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "photon",
+ "request": {
+  "method": "GET",
+  "url": "https://photon.komoot.io/api?q=48+Doughty+Stret%2C+London%2C+WC1N+2LX&limit=5&lang=en&lat=51.523601&lon=-0.116237&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json",
+  "cache-control": "max-age=3600",
+  "expires": "Thu, 08 Oct 2026 23:48:19 GMT"
+ },
+ "url": "https://photon.komoot.io/api?q=48+Doughty+Stret%2C+London%2C+WC1N+2LX&limit=5&lang=en&lat=51.523601&lon=-0.116237&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95",
+ "fetchedAt": "2026-10-08T22:48:08.188Z",
+ "bytes": 1242
+}

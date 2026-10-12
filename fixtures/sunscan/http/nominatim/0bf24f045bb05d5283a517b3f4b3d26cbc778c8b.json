@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "nominatim",
+ "request": {
+  "method": "GET",
+  "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=Jane+Austen%27s+House&viewbox=-1.01012%2C51.14701%2C-0.96717%2C51.12006&bounded=1"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "accept-ranges": "bytes"
+ },
+ "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=Jane+Austen%27s+House&viewbox=-1.01012%2C51.14701%2C-0.96717%2C51.12006&bounded=1",
+ "fetchedAt": "2026-10-08T19:17:41.299Z",
+ "bytes": 1515
+}

@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "postcodes.io",
+ "request": {
+  "method": "GET",
+  "url": "https://api.postcodes.io/postcodes/WC1N%202LX"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "etag": "W/\"759-BQyU2RhYnrNLY6kk2qTWCRjuykw\""
+ },
+ "url": "https://api.postcodes.io/postcodes/WC1N%202LX",
+ "fetchedAt": "2026-10-08T19:17:10.688Z",
+ "bytes": 1881
+}

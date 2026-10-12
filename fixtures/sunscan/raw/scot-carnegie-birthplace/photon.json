@@ -1,0 +1,121 @@
+{
+  "slug": "scot-carnegie-birthplace",
+  "input": "Andrew Carnegie Birthplace Museum, Moodie Street, Dunfermline KY12 7PL",
+  "generatedAt": "2026-10-08T18:20:45.383Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "attribution": "Data © OpenStreetMap contributors (ODbL); geocoder: Photon by komoot",
+  "requests": [
+    {
+      "purpose": "photon",
+      "url": "https://photon.komoot.io/api?q=Andrew+Carnegie+Birthplace+Museum%2C+Moodie+Street%2C+Dunfermline%2C+KY12+7PL&limit=5&lang=en&lat=56.067189&lon=-3.460663&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95",
+      "status": 200,
+      "ms": 1468,
+      "fromCache": true,
+      "count": 1,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 429457399,
+              "osm_key": "tourism",
+              "osm_value": "museum",
+              "type": "house",
+              "name": "Andrew Carnegie Birthplace Museum",
+              "street": "Moodie Street",
+              "locality": "Abbey Parks",
+              "district": "Central Dunfermline",
+              "city": "Dunfermline",
+              "county": "Fife",
+              "state": "Scotland",
+              "country": "United Kingdom",
+              "postcode": "KY12 7PL",
+              "countrycode": "GB",
+              "extent": [
+                -3.461544,
+                56.068054,
+                -3.4609176,
+                56.0678257
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -3.461231,
+                56.0679358
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "purpose": "photon reverse @ postcode centroid",
+      "url": "https://photon.komoot.io/reverse?lat=56.067189&lon=-3.460663&lang=en&limit=3",
+      "status": 200,
+      "ms": 1257,
+      "fromCache": true,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_key": "place",
+              "osm_value": "postcode",
+              "type": "other",
+              "name": "KY12 7PL",
+              "district": "Central Dunfermline",
+              "county": "Fife",
+              "state": "Scotland",
+              "country": "United Kingdom",
+              "countrycode": "GB",
+              "extent": [
+                -3.472021953911933,
+                56.07356105683324,
+                -3.449536130405913,
+                56.060982679506715
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -3.4607790571428576,
+                56.067271871428574
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "N",
+              "osm_id": 6216990208,
+              "osm_key": "highway",
+              "osm_value": "bus_stop",
+              "type": "house",
+              "name": "Pittencrieff Park",
+              "street": "Moodie Street",
+              "locality": "Abbey Parks",
+              "district": "Central Dunfermline",
+              "city": "Dunfermline",
+              "county": "Fife",
+              "state": "Scotland",
+              "country": "United Kingdom",
+              "postcode": "KY12 7PL",
+              "countrycode": "GB"
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -3.4606584,
+                56.0670066
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

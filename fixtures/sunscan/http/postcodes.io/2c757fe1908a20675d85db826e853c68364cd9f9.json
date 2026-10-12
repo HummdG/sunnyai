@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "postcodes.io",
+ "request": {
+  "method": "GET",
+  "url": "https://api.postcodes.io/postcodes/L18%209TN"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "etag": "W/\"780-9OijFEEqHKCD03XBjIt+455UkXg\""
+ },
+ "url": "https://api.postcodes.io/postcodes/L18%209TN",
+ "fetchedAt": "2026-10-08T19:16:54.528Z",
+ "bytes": 1920
+}

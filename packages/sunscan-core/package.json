@@ -1,0 +1,22 @@
+{
+  "name": "@sunny/sunscan-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SunScan geometry + reconstruction core (vendored from SunScanV2 packages/core): skeleton, roofs, solids, LiDAR fitting",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./geometry": "./src/geometry/index.ts",
+    "./geo": "./src/geo/index.ts",
+    "./fit": "./src/fit/index.ts",
+    "./model": "./src/model/index.ts",
+    "./interior": "./src/interior/index.ts",
+    "./footprint": "./src/footprint/index.ts"
+  },
+  "devDependencies": {
+    "geotiff": "3.0.5",
+    "manifold-3d": "3.5.4"
+  }
+}

@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "nominatim",
+ "request": {
+  "method": "GET",
+  "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&street=20+Forthlin+Road&city=Liverpool&postalcode=L25+7SA"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "accept-ranges": "bytes"
+ },
+ "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&street=20+Forthlin+Road&city=Liverpool&postalcode=L25+7SA",
+ "fetchedAt": "2026-10-08T22:48:25.100Z",
+ "bytes": 1018
+}

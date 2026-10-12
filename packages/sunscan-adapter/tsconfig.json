@@ -1,0 +1,5 @@
+{
+  // Editors and the lint project service find this file; see ../../tsconfig.sunscan.json.
+  "extends": "../../tsconfig.sunscan.json",
+  "include": ["src", "test"]
+}

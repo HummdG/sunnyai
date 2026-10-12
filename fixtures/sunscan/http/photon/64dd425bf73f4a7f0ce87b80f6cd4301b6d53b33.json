@@ -1,0 +1,17 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "photon",
+ "request": {
+  "method": "GET",
+  "url": "https://photon.komoot.io/api?q=Jane+Austens+House%2C+Chawton%2C+GU34+1SD&limit=5&lang=en&lat=51.133531&lon=-0.988648&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json",
+  "cache-control": "max-age=3600",
+  "expires": "Thu, 08 Oct 2026 23:48:28 GMT"
+ },
+ "url": "https://photon.komoot.io/api?q=Jane+Austens+House%2C+Chawton%2C+GU34+1SD&limit=5&lang=en&lat=51.133531&lon=-0.988648&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95",
+ "fetchedAt": "2026-10-08T22:48:17.719Z",
+ "bytes": 491
+}

@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "postcodes.io",
+ "request": {
+  "method": "GET",
+  "url": "https://api.postcodes.io/postcodes/WC1N%202/autocomplete?limit=8"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "etag": "W/\"71-7Q70Yq1kbFuixc3vLEf2/ToAjJ0\""
+ },
+ "url": "https://api.postcodes.io/postcodes/WC1N%202/autocomplete?limit=8",
+ "fetchedAt": "2026-10-08T19:18:13.061Z",
+ "bytes": 113
+}

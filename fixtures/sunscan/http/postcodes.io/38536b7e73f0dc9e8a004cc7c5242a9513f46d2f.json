@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "postcodes.io",
+ "request": {
+  "method": "GET",
+  "url": "https://api.postcodes.io/postcodes?lon=-3.965000&lat=51.621000&radius=2000&limit=1"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "etag": "W/\"732-CVRvdLe1S7eSIj3uxl7SmhvxQjY\""
+ },
+ "url": "https://api.postcodes.io/postcodes?lon=-3.965000&lat=51.621000&radius=2000&limit=1",
+ "fetchedAt": "2026-10-08T19:18:08.974Z",
+ "bytes": 1842
+}

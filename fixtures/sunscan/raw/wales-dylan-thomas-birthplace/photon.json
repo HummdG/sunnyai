@@ -1,0 +1,163 @@
+{
+  "slug": "wales-dylan-thomas-birthplace",
+  "input": "5 Cwmdonkin Drive, Swansea SA2 0RA",
+  "generatedAt": "2026-10-08T18:20:45.354Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "attribution": "Data © OpenStreetMap contributors (ODbL); geocoder: Photon by komoot",
+  "requests": [
+    {
+      "purpose": "photon",
+      "url": "https://photon.komoot.io/api?q=5+Cwmdonkin+Drive%2C+Swansea%2C+SA2+0RA&limit=5&lang=en&lat=51.621074&lon=-3.964866&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95",
+      "status": 200,
+      "ms": 1396,
+      "fromCache": true,
+      "count": 1,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 518358901,
+              "osm_key": "building",
+              "osm_value": "yes",
+              "type": "house",
+              "housenumber": "5",
+              "name": "Dylan Thomas House",
+              "street": "Cwmdonkin Drive",
+              "locality": "Brynmill",
+              "district": "Uplands",
+              "city": "Swansea",
+              "county": "Swansea",
+              "state": "Wales",
+              "country": "United Kingdom",
+              "postcode": "SA2 0RA",
+              "countrycode": "GB",
+              "extent": [
+                -3.9649321,
+                51.6210428,
+                -3.9646673,
+                51.6209881
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -3.9647993,
+                51.6210127
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "purpose": "photon reverse @ postcode centroid",
+      "url": "https://photon.komoot.io/reverse?lat=51.621074&lon=-3.964866&lang=en&limit=3",
+      "status": 200,
+      "ms": 1276,
+      "fromCache": true,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 518358906,
+              "osm_key": "building",
+              "osm_value": "house",
+              "type": "house",
+              "housenumber": "6",
+              "street": "Cwmdonkin Drive",
+              "locality": "Brynmill",
+              "district": "Uplands",
+              "city": "Swansea",
+              "county": "Swansea",
+              "state": "Wales",
+              "country": "United Kingdom",
+              "postcode": "SA2 0RA",
+              "countrycode": "GB",
+              "extent": [
+                -3.9649368,
+                51.6210984,
+                -3.9646742,
+                51.6210379
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -3.9648055,
+                51.6210757
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_key": "place",
+              "osm_value": "postcode",
+              "type": "other",
+              "name": "SA2 0RA",
+              "district": "Uplands",
+              "city": "Swansea",
+              "county": "Swansea",
+              "state": "Wales",
+              "country": "United Kingdom",
+              "countrycode": "GB",
+              "extent": [
+                -3.9749063633374853,
+                51.62742617300269,
+                -3.954686369946236,
+                51.614839801784555
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -3.9647963909090906,
+                51.621132990909096
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 518358901,
+              "osm_key": "building",
+              "osm_value": "yes",
+              "type": "house",
+              "housenumber": "5",
+              "name": "Dylan Thomas House",
+              "street": "Cwmdonkin Drive",
+              "locality": "Brynmill",
+              "district": "Uplands",
+              "city": "Swansea",
+              "county": "Swansea",
+              "state": "Wales",
+              "country": "United Kingdom",
+              "postcode": "SA2 0RA",
+              "countrycode": "GB",
+              "extent": [
+                -3.9649321,
+                51.6210428,
+                -3.9646673,
+                51.6209881
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -3.9647993,
+                51.6210127
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

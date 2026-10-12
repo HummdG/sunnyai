@@ -1,0 +1,115 @@
+{
+  "schema": "sunscanv2/lidar-meta@0.1",
+  "slug": "wales-dylan-thomas-birthplace",
+  "country": "Wales",
+  "retrievedAt": "2026-10-08T17:39:50.171Z",
+  "coverage": true,
+  "source": "Welsh Government LiDAR 2020-2023 national COG (DataMapWales, Azure blob)",
+  "dataset": null,
+  "licence": "Open Government Licence v3.0",
+  "attribution": "Welsh Government LiDAR 2020-2023 (DataMapWales). Contains public sector information licensed under the OGL v3.0.",
+  "verticalDatum": "ODN: not stated in public metadata; empirically consistent with EA ODN DTM (median +0.01 m on open ground, Chester overlap, research/lidar/scripts/07)",
+  "crs": "EPSG:27700",
+  "point": {
+    "lat": 51.6210127,
+    "lon": -3.9647993,
+    "source": "nominatim",
+    "E_ostn15": 264079.44,
+    "N_ostn15": 193183.048
+  },
+  "footprintTarget": "way/518358901",
+  "bounds": {
+    "minE": 264032,
+    "maxN": 193232,
+    "maxE": 264128,
+    "minN": 193136
+  },
+  "resolution_m": 1,
+  "pixelIsArea": true,
+  "dsmType": "DSM resembles a first-return surface (median diff vs EA first-return DSM over vegetation +0.45 m vs +2.31 m vs EA last-return)",
+  "files": {
+    "dsm.tif": {
+      "layer": "dsmFirst",
+      "bytes": 37864,
+      "width": 96,
+      "height": 96,
+      "resolution_m": 1,
+      "originTopLeft": [
+        264032,
+        193232
+      ],
+      "nodata": -9999,
+      "validFraction": 1,
+      "retrievalUrl": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dsm_32bit_cog.tif"
+    },
+    "dtm.tif": {
+      "layer": "dtm",
+      "bytes": 37864,
+      "width": 96,
+      "height": 96,
+      "resolution_m": 1,
+      "originTopLeft": [
+        264032,
+        193232
+      ],
+      "nodata": -9999,
+      "validFraction": 1,
+      "retrievalUrl": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dtm_32bit_cog.tif"
+    }
+  },
+  "vintage": {
+    "url": "https://datamap.gov.wales/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=geonode:welsh_government_lidar_tile_catalogue_2020_2023&outputFormat=application/json&srsName=EPSG:27700&bbox=264078.93995722645,193182.54793362098,264079.93995722645,193183.54793362098,EPSG:27700&count=5",
+    "ms": 335,
+    "tiles": [
+      {
+        "british_gr": "SS6493",
+        "dtm_link": "dmwproductionblob.blob.core.windows.net/lidar-zips/2020-22/dtm/wg_del_21_264193_20220113dtm.tif",
+        "dsm_link": "dmwproductionblob.blob.core.windows.net/lidar-zips/2020-22/dsm/wg_del_21_264193_20220113dsm.tif",
+        "delivery": "21",
+        "date": "13-01-2022",
+        "start_time": "15:23:43",
+        "end_time": "15:35:33",
+        "year": "2022"
+      }
+    ]
+  },
+  "requests": [
+    {
+      "layer": "dsmFirst",
+      "url": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dsm_32bit_cog.tif",
+      "ms": 965,
+      "http": {
+        "requests": 14,
+        "bytes": 520803
+      },
+      "coverage": 1,
+      "image": {
+        "width": 191007,
+        "height": 233000,
+        "tileWidth": 256,
+        "tileHeight": 256,
+        "compression": 8,
+        "overviews": 6
+      }
+    },
+    {
+      "layer": "dtm",
+      "url": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dtm_32bit_cog.tif",
+      "ms": 467,
+      "http": {
+        "requests": 14,
+        "bytes": 459399
+      },
+      "coverage": 1,
+      "image": {
+        "width": 191007,
+        "height": 233000,
+        "tileWidth": 256,
+        "tileHeight": 256,
+        "compression": 8,
+        "overviews": 6
+      }
+    }
+  ],
+  "totalMs": 2329
+}

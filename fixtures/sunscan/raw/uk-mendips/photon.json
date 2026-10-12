@@ -1,0 +1,157 @@
+{
+  "slug": "uk-mendips",
+  "input": "251 Menlove Avenue, Liverpool L25 7SA",
+  "generatedAt": "2026-10-08T18:20:45.083Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "attribution": "Data © OpenStreetMap contributors (ODbL); geocoder: Photon by komoot",
+  "requests": [
+    {
+      "purpose": "photon",
+      "url": "https://photon.komoot.io/api?q=251+Menlove+Avenue%2C+Liverpool%2C+L25+7SA&limit=5&lang=en&lat=53.376735&lon=-2.880519&zoom=16&bbox=-8.75%2C49.8%2C1.9%2C60.95",
+      "status": 200,
+      "ms": 1206,
+      "fromCache": true,
+      "count": 1,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 516128867,
+              "osm_key": "building",
+              "osm_value": "semidetached_house",
+              "type": "house",
+              "housenumber": "251",
+              "name": "John Lennon's Childhood Home",
+              "street": "Menlove Avenue",
+              "district": "Woolton",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "postcode": "L25 7SA",
+              "countrycode": "GB",
+              "extent": [
+                -2.8814507,
+                53.3773159,
+                -2.8812717,
+                53.3772015
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.8813616,
+                53.3772527
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "purpose": "photon reverse @ postcode centroid",
+      "url": "https://photon.komoot.io/reverse?lat=53.376735&lon=-2.880519&lang=en&limit=3",
+      "status": 200,
+      "ms": 1055,
+      "fromCache": true,
+      "response": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 949675556,
+              "osm_key": "highway",
+              "osm_value": "service",
+              "type": "street",
+              "name": "Menlove Avenue",
+              "district": "Woolton",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "postcode": "L25 6ET",
+              "countrycode": "GB",
+              "extent": [
+                -2.8817567,
+                53.3767788,
+                -2.880836,
+                53.3761478
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.8812963,
+                53.3764633
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_key": "place",
+              "osm_value": "postcode",
+              "type": "other",
+              "name": "L25 7RN",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "countrycode": "GB",
+              "extent": [
+                -2.8908625284804614,
+                53.3836320831441,
+                -2.869817478158616,
+                53.371047710178885
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.88034,
+                53.3773399
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "osm_type": "W",
+              "osm_id": 1321879203,
+              "osm_key": "building",
+              "osm_value": "semidetached_house",
+              "type": "house",
+              "housenumber": "253",
+              "street": "Menlove Avenue",
+              "district": "Woolton",
+              "city": "Liverpool",
+              "county": "Liverpool City Region",
+              "state": "England",
+              "country": "United Kingdom",
+              "postcode": "L25 7SA",
+              "countrycode": "GB",
+              "extent": [
+                -2.8813805,
+                53.377267,
+                -2.8811602,
+                53.3771435
+              ]
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.8812862,
+                53.3772081
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "wales-index",
+ "request": {
+  "method": "GET",
+  "url": "https://datamap.gov.wales/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=geonode:welsh_government_lidar_tile_catalogue_2020_2023&outputFormat=application/json&srsName=EPSG:27700&bbox=264499.5,193499.5,264500.5,193500.5,EPSG:27700&count=5"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json;charset=UTF-8"
+ },
+ "url": "https://datamap.gov.wales/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=geonode:welsh_government_lidar_tile_catalogue_2020_2023&outputFormat=application/json&srsName=EPSG:27700&bbox=264499.5,193499.5,264500.5,193500.5,EPSG:27700&count=5",
+ "fetchedAt": "2026-10-08T19:18:08.905Z",
+ "bytes": 880
+}

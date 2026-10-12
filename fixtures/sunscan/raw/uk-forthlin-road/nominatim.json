@@ -1,0 +1,298 @@
+{
+  "slug": "uk-forthlin-road",
+  "input": "20 Forthlin Road, Liverpool L18 9TN",
+  "generatedAt": "2026-10-08T18:20:45.142Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "policy": "https://operations.osmfoundation.org/policies/nominatim/",
+  "attribution": "Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+  "requests": [
+    {
+      "purpose": "nominatim free-form",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=20+Forthlin+Road%2C+Liverpool%2C+L18+9TN",
+      "status": 200,
+      "ms": 287,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 283757548,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516125064,
+          "lat": "53.3697111",
+          "lon": "-2.8978967",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.4469318768565461,
+          "addresstype": "tourism",
+          "name": "Paul McCartney's Childhood Home",
+          "display_name": "Paul McCartney's Childhood Home, 20, Forthlin Road, Allerton, Liverpool, Liverpool City Region, England, L18 9TL, United Kingdom",
+          "address": {
+            "tourism": "Paul McCartney's Childhood Home",
+            "house_number": "20",
+            "road": "Forthlin Road",
+            "suburb": "Allerton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L18 9TL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "building": "house",
+            "wikidata": "Q2814706",
+            "wikipedia": "en:20 Forthlin Road"
+          },
+          "namedetails": {
+            "name": "Paul McCartney's Childhood Home"
+          },
+          "boundingbox": [
+            "53.3696667",
+            "53.3697553",
+            "-2.8979651",
+            "-2.8978283"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim bounded (postcode viewbox)",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&q=20+Forthlin+Road&viewbox=-2.92060%2C53.38316%2C-2.87543%2C53.35621&bounded=1",
+      "status": 200,
+      "ms": 139,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 283757548,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516125064,
+          "lat": "53.3697111",
+          "lon": "-2.8978967",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.4469318768565461,
+          "addresstype": "tourism",
+          "name": "Paul McCartney's Childhood Home",
+          "display_name": "Paul McCartney's Childhood Home, 20, Forthlin Road, Allerton, Liverpool, Liverpool City Region, England, L18 9TL, United Kingdom",
+          "address": {
+            "tourism": "Paul McCartney's Childhood Home",
+            "house_number": "20",
+            "road": "Forthlin Road",
+            "suburb": "Allerton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L18 9TL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "building": "house",
+            "wikidata": "Q2814706",
+            "wikipedia": "en:20 Forthlin Road"
+          },
+          "namedetails": {
+            "name": "Paul McCartney's Childhood Home"
+          },
+          "boundingbox": [
+            "53.3696667",
+            "53.3697553",
+            "-2.8979651",
+            "-2.8978283"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim structured",
+      "url": "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&countrycodes=gb&accept-language=en-GB&limit=5&street=20+Forthlin+Road&city=Liverpool&postalcode=L18+9TN",
+      "status": 200,
+      "ms": 258,
+      "fromCache": true,
+      "count": 1,
+      "response": [
+        {
+          "place_id": 279736578,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516125064,
+          "lat": "53.3697111",
+          "lon": "-2.8978967",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.4469318768565461,
+          "addresstype": "tourism",
+          "name": "Paul McCartney's Childhood Home",
+          "display_name": "Paul McCartney's Childhood Home, 20, Forthlin Road, Allerton, Liverpool, Liverpool City Region, England, L18 9TL, United Kingdom",
+          "address": {
+            "tourism": "Paul McCartney's Childhood Home",
+            "house_number": "20",
+            "road": "Forthlin Road",
+            "suburb": "Allerton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L18 9TL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "building": "house",
+            "wikidata": "Q2814706",
+            "wikipedia": "en:20 Forthlin Road"
+          },
+          "namedetails": {
+            "name": "Paul McCartney's Childhood Home"
+          },
+          "boundingbox": [
+            "53.3696667",
+            "53.3697553",
+            "-2.8979651",
+            "-2.8978283"
+          ]
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim lookup (osm id, polygon_geojson=1)",
+      "url": "https://nominatim.openstreetmap.org/lookup?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&osm_ids=W516125064&polygon_geojson=1",
+      "status": 200,
+      "ms": 522,
+      "fromCache": true,
+      "response": [
+        {
+          "place_id": 279736578,
+          "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+          "osm_type": "way",
+          "osm_id": 516125064,
+          "lat": "53.3697111",
+          "lon": "-2.8978967",
+          "category": "tourism",
+          "type": "attraction",
+          "place_rank": 30,
+          "importance": 0.4469318768565461,
+          "addresstype": "tourism",
+          "name": "Paul McCartney's Childhood Home",
+          "display_name": "Paul McCartney's Childhood Home, 20, Forthlin Road, Allerton, Liverpool, Liverpool City Region, England, L18 9TL, United Kingdom",
+          "address": {
+            "tourism": "Paul McCartney's Childhood Home",
+            "house_number": "20",
+            "road": "Forthlin Road",
+            "suburb": "Allerton",
+            "city": "Liverpool",
+            "ISO3166-2-lvl8": "GB-LIV",
+            "state_district": "Liverpool City Region",
+            "state": "England",
+            "ISO3166-2-lvl4": "GB-ENG",
+            "postcode": "L18 9TL",
+            "country": "United Kingdom",
+            "country_code": "gb"
+          },
+          "extratags": {
+            "building": "house",
+            "wikidata": "Q2814706",
+            "wikipedia": "en:20 Forthlin Road"
+          },
+          "namedetails": {
+            "name": "Paul McCartney's Childhood Home"
+          },
+          "boundingbox": [
+            "53.3696667",
+            "53.3697553",
+            "-2.8979651",
+            "-2.8978283"
+          ],
+          "geojson": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -2.8979651,
+                  53.3697359
+                ],
+                [
+                  -2.8979268,
+                  53.3696667
+                ],
+                [
+                  -2.8978283,
+                  53.3696862
+                ],
+                [
+                  -2.8978667,
+                  53.3697553
+                ],
+                [
+                  -2.8979651,
+                  53.3697359
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "purpose": "nominatim reverse zoom=18 @ postcode centroid",
+      "url": "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&extratags=1&namedetails=1&accept-language=en-GB&lat=53.3696830&lon=-2.8980180&zoom=18",
+      "status": 200,
+      "ms": 174,
+      "fromCache": true,
+      "response": {
+        "place_id": 278054036,
+        "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "way",
+        "osm_id": 516125064,
+        "lat": "53.3697111",
+        "lon": "-2.8978967",
+        "category": "tourism",
+        "type": "attraction",
+        "place_rank": 30,
+        "importance": 0.4469318768565461,
+        "addresstype": "tourism",
+        "name": "Paul McCartney's Childhood Home",
+        "display_name": "Paul McCartney's Childhood Home, 20, Forthlin Road, Allerton, Liverpool, Liverpool City Region, England, L18 9TL, United Kingdom",
+        "address": {
+          "tourism": "Paul McCartney's Childhood Home",
+          "house_number": "20",
+          "road": "Forthlin Road",
+          "suburb": "Allerton",
+          "city": "Liverpool",
+          "ISO3166-2-lvl8": "GB-LIV",
+          "state_district": "Liverpool City Region",
+          "state": "England",
+          "ISO3166-2-lvl4": "GB-ENG",
+          "postcode": "L18 9TL",
+          "country": "United Kingdom",
+          "country_code": "gb"
+        },
+        "extratags": {
+          "building": "house",
+          "wikidata": "Q2814706",
+          "wikipedia": "en:20 Forthlin Road"
+        },
+        "namedetails": {
+          "name": "Paul McCartney's Childhood Home"
+        },
+        "boundingbox": [
+          "53.3696667",
+          "53.3697553",
+          "-2.8979651",
+          "-2.8978283"
+        ]
+      }
+    }
+  ]
+}

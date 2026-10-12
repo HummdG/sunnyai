@@ -1,0 +1,152 @@
+{
+  "schema": "sunscanv2/lidar-meta@0.1",
+  "slug": "scot-carnegie-birthplace",
+  "country": "Scotland",
+  "retrievedAt": "2026-10-08T17:39:53.357Z",
+  "coverage": true,
+  "source": "Scottish Remote Sensing Portal (S3 srsp-open-data) phase-5",
+  "dataset": {
+    "dataset": "phase-5",
+    "vintage": "2020-2021",
+    "res": 0.5,
+    "dsm": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-5/dsm/27700/gridded/NT08NE_50CM_DSM_PHASE5.tif",
+    "dtm": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-5/dtm/27700/gridded/NT08NE_50CM_DTM_PHASE5.tif"
+  },
+  "licence": "Open Government Licence v3.0 (SRSP; phase-2 LAZ is non-commercial — rasters OGL)",
+  "attribution": "Phase 5: Crown copyright Scottish Government and Fugro (2020) [DSM record] / (2021) [DTM record]. Attribution text varies per phase.",
+  "verticalDatum": "ODN (Newlyn) via OSGM15 geoid + OSTN15 (phase-5 ISO metadata); LAS 4 pts/m2; 50 cm grids",
+  "crs": "EPSG:27700",
+  "point": {
+    "lat": 56.0679358,
+    "lon": -3.461231,
+    "source": "nominatim",
+    "E_ostn15": 309125.414,
+    "N_ostn15": 687085.879
+  },
+  "footprintTarget": "way/429457399",
+  "bounds": {
+    "minE": 309078,
+    "maxN": 687134,
+    "maxE": 309174,
+    "minN": 687038
+  },
+  "resolution_m": 0.5,
+  "pixelIsArea": true,
+  "dsmType": "DSM (first/all returns as published)",
+  "files": {
+    "dsm.tif": {
+      "layer": "dsmFirst",
+      "bytes": 148456,
+      "width": 192,
+      "height": 192,
+      "resolution_m": 0.5,
+      "originTopLeft": [
+        309078,
+        687134
+      ],
+      "nodata": -9999,
+      "validFraction": 1,
+      "retrievalUrl": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-5/dsm/27700/gridded/NT08NE_50CM_DSM_PHASE5.tif"
+    },
+    "dtm.tif": {
+      "layer": "dtm",
+      "bytes": 148456,
+      "width": 192,
+      "height": 192,
+      "resolution_m": 0.5,
+      "originTopLeft": [
+        309078,
+        687134
+      ],
+      "nodata": -9999,
+      "validFraction": 1,
+      "retrievalUrl": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-5/dtm/27700/gridded/NT08NE_50CM_DTM_PHASE5.tif"
+    }
+  },
+  "vintage": null,
+  "requests": [
+    {
+      "layer": "dsmFirst",
+      "url": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-5/dsm/27700/gridded/NT08NE_50CM_DSM_PHASE5.tif",
+      "ms": 1024,
+      "http": {
+        "requests": 19,
+        "bytes": 826485
+      },
+      "coverage": 1,
+      "image": {
+        "width": 10000,
+        "height": 10000,
+        "tileWidth": 256,
+        "tileHeight": 256,
+        "compression": 5,
+        "overviews": 5
+      }
+    },
+    {
+      "layer": "dtm",
+      "url": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-5/dtm/27700/gridded/NT08NE_50CM_DTM_PHASE5.tif",
+      "ms": 854,
+      "http": {
+        "requests": 19,
+        "bytes": 877077
+      },
+      "coverage": 1,
+      "image": {
+        "width": 10000,
+        "height": 10000,
+        "tileWidth": 256,
+        "tileHeight": 256,
+        "compression": 5,
+        "overviews": 5
+      }
+    }
+  ],
+  "tried": [
+    {
+      "dataset": "national-lidar-programme (Scottish Land LiDAR Programme 2025-27)",
+      "url": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/national-lidar-programme/dsm/27700/gridded/NT0987_50cm_DSM_ScotlandNationalLiDAR.tif",
+      "ms": 175,
+      "http": {
+        "requests": 1,
+        "bytes": 0,
+        "ranges": [
+          {
+            "range": "bytes=0-1023",
+            "status": 404,
+            "len": 0
+          }
+        ]
+      },
+      "error": "Error fetching data."
+    },
+    {
+      "dataset": "phase-6",
+      "url": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-6/dsm/27700/gridded/NT08NE_50CM_DSM_PHASE6.tif",
+      "ms": 193,
+      "http": {
+        "requests": 1,
+        "bytes": 0,
+        "ranges": [
+          {
+            "range": "bytes=0-1023",
+            "status": 404,
+            "len": 0
+          }
+        ]
+      },
+      "error": "Error fetching data."
+    },
+    {
+      "dataset": "phase-5",
+      "url": "https://srsp-open-data.s3.eu-west-2.amazonaws.com/lidar/phase-5/dsm/27700/gridded/NT08NE_50CM_DSM_PHASE5.tif",
+      "ms": 1024,
+      "http": {
+        "requests": 19,
+        "bytes": 826485
+      },
+      "coverage": 1
+    }
+  ],
+  "totalMs": 3145
+}

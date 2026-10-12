@@ -1,0 +1,22 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "overture",
+ "request": {
+  "method": "GET",
+  "url": "https://tiles.overturemaps.org/2026-09-23.1/buildings.pmtiles",
+  "range": [
+   180653011996,
+   180653023203
+  ]
+ },
+ "status": 206,
+ "headers": {
+  "content-type": "binary/octet-stream",
+  "content-range": "bytes 180653011996-180653023203/180679746134",
+  "etag": "\"21c7d93cafdd2160035ba2b268e25452-674\"",
+  "last-modified": "Fri, 25 Sep 2026 16:00:33 GMT"
+ },
+ "url": "https://tiles.overturemaps.org/2026-09-23.1/buildings.pmtiles",
+ "fetchedAt": "2026-10-08T19:17:33.011Z",
+ "bytes": 11208
+}

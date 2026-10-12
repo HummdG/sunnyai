@@ -1,0 +1,183 @@
+{
+  "slug": "uk-mendips",
+  "input": "251 Menlove Avenue, Liverpool L25 7SA",
+  "generatedAt": "2026-10-08T18:20:45.083Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "endpoint": "https://overpass-api.de/api/interpreter",
+  "attempts": [
+    {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "status": 200,
+      "ms": 2973,
+      "note": "cache"
+    }
+  ],
+  "elapsedMs": 2973,
+  "fetchedAt": "2026-10-08T17:28:59.568Z",
+  "radius_m": 80,
+  "query": "[out:json][timeout:25];\n(\n  way[\"building\"](around:80,53.3772527,-2.8813616);\n  relation[\"building\"][\"type\"=\"multipolygon\"](around:80,53.3772527,-2.8813616);\n  way[\"building:part\"](around:80,53.3772527,-2.8813616);\n  relation[\"building:part\"][\"type\"=\"multipolygon\"](around:80,53.3772527,-2.8813616);\n  node[\"addr:housenumber\"](around:80,53.3772527,-2.8813616);\n  node[\"addr:housename\"](around:80,53.3772527,-2.8813616);\n  way(516128867);\n);\nout geom;",
+  "response": {
+    "version": 0.6,
+    "generator": "Overpass API 0.7.62.11 87bfad18",
+    "osm3s": {
+      "timestamp_osm_base": "2026-10-08T17:27:21Z",
+      "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+    },
+    "elements": [
+      {
+        "type": "way",
+        "id": 516128867,
+        "bounds": {
+          "minlat": 53.3772015,
+          "minlon": -2.8814507,
+          "maxlat": 53.3773159,
+          "maxlon": -2.8812717
+        },
+        "nodes": [
+          5038936206,
+          12232169529,
+          12232169528,
+          12232169527,
+          12232169530,
+          5038936207,
+          5038936208,
+          5038936209,
+          5038936206
+        ],
+        "geometry": [
+          {
+            "lat": 53.3773058,
+            "lon": -2.8813453
+          },
+          {
+            "lat": 53.3773032,
+            "lon": -2.8813412
+          },
+          {
+            "lat": 53.3773159,
+            "lon": -2.8813187
+          },
+          {
+            "lat": 53.3772965,
+            "lon": -2.8812881
+          },
+          {
+            "lat": 53.3772843,
+            "lon": -2.8813098
+          },
+          {
+            "lat": 53.3772588,
+            "lon": -2.8812717
+          },
+          {
+            "lat": 53.3772015,
+            "lon": -2.8813805
+          },
+          {
+            "lat": 53.3772466,
+            "lon": -2.8814507
+          },
+          {
+            "lat": 53.3773058,
+            "lon": -2.8813453
+          }
+        ],
+        "tags": {
+          "addr:city": "Liverpool",
+          "addr:housenumber": "251",
+          "addr:postcode": "L25 7SA",
+          "addr:street": "Menlove Avenue",
+          "alt_name": "Mendips",
+          "building": "semidetached_house",
+          "building:levels": "2",
+          "name": "John Lennon's Childhood Home",
+          "operator": "National Trust",
+          "ref:GB:uprn": "38102543",
+          "source:addr:postcode": "ONSUD;OS Open UPRN",
+          "tourism": "attraction",
+          "wikidata": "Q2702874",
+          "wikipedia": "en:251 Menlove Avenue"
+        }
+      },
+      {
+        "type": "way",
+        "id": 1321879203,
+        "bounds": {
+          "minlat": 53.3771435,
+          "minlon": -2.8813805,
+          "maxlat": 53.377267,
+          "maxlon": -2.8811602
+        },
+        "nodes": [
+          5038936207,
+          5038936208,
+          12232169526,
+          12232169525,
+          12232169524,
+          12232169523,
+          12232169522,
+          12232169521,
+          12232169520,
+          12232169519,
+          5038936207
+        ],
+        "geometry": [
+          {
+            "lat": 53.3772588,
+            "lon": -2.8812717
+          },
+          {
+            "lat": 53.3772015,
+            "lon": -2.8813805
+          },
+          {
+            "lat": 53.3771571,
+            "lon": -2.8813101
+          },
+          {
+            "lat": 53.3771621,
+            "lon": -2.881301
+          },
+          {
+            "lat": 53.3771435,
+            "lon": -2.8812723
+          },
+          {
+            "lat": 53.3771936,
+            "lon": -2.8811815
+          },
+          {
+            "lat": 53.3772146,
+            "lon": -2.8812146
+          },
+          {
+            "lat": 53.3772447,
+            "lon": -2.8811602
+          },
+          {
+            "lat": 53.377267,
+            "lon": -2.8811949
+          },
+          {
+            "lat": 53.3772413,
+            "lon": -2.8812412
+          },
+          {
+            "lat": 53.3772588,
+            "lon": -2.8812717
+          }
+        ],
+        "tags": {
+          "addr:city": "Liverpool",
+          "addr:housenumber": "253",
+          "addr:postcode": "L25 7SA",
+          "addr:street": "Menlove Avenue",
+          "building": "semidetached_house",
+          "building:levels": "2",
+          "ref:GB:uprn": "38102544",
+          "source:addr:postcode": "ONSUD;OS Open UPRN"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,2624 @@
+{
+  "slug": "wales-dylan-thomas-birthplace",
+  "input": "5 Cwmdonkin Drive, Swansea SA2 0RA",
+  "generatedAt": "2026-10-08T18:20:45.354Z",
+  "userAgent": "SunScanV2-dev/0.1 (local development)",
+  "schema": "sunscanv2/footprint-summary@0.1",
+  "sources": {
+    "osm_base": "2026-10-08T17:31:21Z",
+    "overpassEndpoint": "https://overpass-api.de/api/interpreter",
+    "attribution": "© OpenStreetMap contributors (ODbL 1.0)"
+  },
+  "geocode": {
+    "confidence": "high",
+    "source": "nominatim free-form + nominatim bounded (postcode viewbox) + nominatim structured + photon",
+    "level": "building",
+    "lat": 51.6210127,
+    "lon": -3.9647993,
+    "osm": "way/518358901",
+    "score": 110,
+    "reasons": [
+      "house number matches",
+      "street matches",
+      "result is the building polygon itself",
+      "postcode equal",
+      "≤150 m from postcode centroid (8 m)",
+      "input postcode is #1 nearest to this point",
+      "found by 4 strategies"
+    ],
+    "decision": [
+      "best=nominatim free-form + nominatim bounded (postcode viewbox) + nominatim structured + photon (score 110)"
+    ],
+    "parsed": {
+      "input": "5 Cwmdonkin Drive, Swansea SA2 0RA",
+      "postcode": {
+        "raw": "SA2 0RA",
+        "postcode": "SA2 0RA",
+        "outward": "SA2",
+        "inward": "0RA",
+        "sector": "SA2 0",
+        "district": "SA2",
+        "area": "SA",
+        "country": "wales"
+      },
+      "localities": [
+        "Swansea"
+      ],
+      "kind": "number-street",
+      "houseNumber": "5",
+      "street": "Cwmdonkin Drive"
+    },
+    "postcode": {
+      "postcode": "SA2 0RA",
+      "lat": 51.621074,
+      "lon": -3.964866,
+      "country": "Wales",
+      "eastings": 264075,
+      "northings": 193190,
+      "quality": 1
+    },
+    "strategies": [
+      {
+        "purpose": "postcodes.io lookup",
+        "status": 200,
+        "count": 1,
+        "ms": 136
+      },
+      {
+        "purpose": "nominatim free-form",
+        "status": 200,
+        "count": 1,
+        "ms": 667
+      },
+      {
+        "purpose": "nominatim bounded (postcode viewbox)",
+        "status": 200,
+        "count": 1,
+        "ms": 545
+      },
+      {
+        "purpose": "nominatim structured",
+        "status": 200,
+        "count": 1,
+        "ms": 154
+      },
+      {
+        "purpose": "photon",
+        "status": 200,
+        "count": 1,
+        "ms": 1396
+      },
+      {
+        "purpose": "postcodes.io reverse @ nominatim free-form",
+        "status": 200,
+        "count": 10,
+        "ms": 146
+      },
+      {
+        "purpose": "postcodes.io reverse @ nominatim bounded (postcode viewbox)",
+        "status": 200,
+        "count": 10,
+        "ms": 146
+      }
+    ],
+    "candidates": [
+      {
+        "source": "nominatim free-form + nominatim bounded (postcode viewbox) + nominatim structured + photon",
+        "osm": "way/518358901",
+        "level": "building",
+        "label": "Dylan Thomas House, 5, Cwmdonkin Drive, Brynmill, Uplands, Swansea, Wales, SA2 0RA, United Kingdom",
+        "score": 110,
+        "distanceToPostcodeCentroidM": 8,
+        "inputPostcodeRankNearby": 1,
+        "reasons": [
+          "house number matches",
+          "street matches",
+          "result is the building polygon itself",
+          "postcode equal",
+          "≤150 m from postcode centroid (8 m)",
+          "input postcode is #1 nearest to this point",
+          "found by 4 strategies"
+        ]
+      }
+    ]
+  },
+  "selection": {
+    "target": "way/518358901",
+    "ambiguous": false,
+    "strongEvidence": true,
+    "candidates": [
+      {
+        "osm": "way/518358901",
+        "score": 205,
+        "reasons": [
+          "geocoder returned this building",
+          "contains geocoded point",
+          "addr:housenumber 5 matches",
+          "addr:street matches",
+          "addr:postcode matches"
+        ],
+        "distance_m": 0,
+        "area_m2": 87.2,
+        "tags": {
+          "addr:city": "Swansea",
+          "addr:housename": "Dylan Thomas House",
+          "addr:housenumber": "5",
+          "addr:postcode": "SA2 0RA",
+          "addr:street": "Cwmdonkin Drive",
+          "building": "yes",
+          "email": "info@dylanthomasbirthplace.com",
+          "name": "Dylan Thomas House",
+          "phone": "+44 1792 472555",
+          "subject:wikidata": "Q191023",
+          "subject:wikipedia": "en:Dylan Thomas",
+          "tourism": "attraction",
+          "website": "https://www.dylanthomasbirthplace.com"
+        }
+      },
+      {
+        "osm": "way/1232423837",
+        "score": -16.8,
+        "reasons": [
+          "addr:postcode matches",
+          "21.8 m from geocoded point"
+        ],
+        "distance_m": 21.82,
+        "area_m2": 55.5,
+        "tags": {
+          "addr:postcode": "SA2 0RA",
+          "building": "house",
+          "ref:GB:uprn": "100100351700",
+          "source:addr:postcode": "ONSUD;OS Open UPRN"
+        }
+      },
+      {
+        "osm": "way/1232423868",
+        "score": -19.7,
+        "reasons": [
+          "19.7 m from geocoded point"
+        ],
+        "distance_m": 19.75,
+        "area_m2": 108.3,
+        "tags": {
+          "addr:postcode": "SA2 0RD",
+          "building": "house",
+          "ref:GB:uprn": "100100352836",
+          "source:addr:postcode": "ONSUD;OS Open UPRN"
+        }
+      },
+      {
+        "osm": "way/1232423838",
+        "score": -22.9,
+        "reasons": [
+          "addr:postcode matches",
+          "27.9 m from geocoded point"
+        ],
+        "distance_m": 27.87,
+        "area_m2": 55.3,
+        "tags": {
+          "addr:postcode": "SA2 0RA",
+          "building": "house",
+          "ref:GB:uprn": "100100351701",
+          "source:addr:postcode": "ONSUD;OS Open UPRN"
+        }
+      },
+      {
+        "osm": "way/1232423839",
+        "score": -25,
+        "reasons": [
+          "addr:postcode matches",
+          "45.7 m from geocoded point"
+        ],
+        "distance_m": 45.65,
+        "area_m2": 55.4,
+        "tags": {
+          "addr:postcode": "SA2 0RA",
+          "building": "house",
+          "ref:GB:uprn": "100100351703",
+          "source:addr:postcode": "ONSUD;OS Open UPRN"
+        }
+      },
+      {
+        "osm": "way/1232423840",
+        "score": -25,
+        "reasons": [
+          "addr:postcode matches",
+          "39.6 m from geocoded point"
+        ],
+        "distance_m": 39.63,
+        "area_m2": 55.4,
+        "tags": {
+          "addr:postcode": "SA2 0RA",
+          "building": "house",
+          "ref:GB:uprn": "100100351702",
+          "source:addr:postcode": "ONSUD;OS Open UPRN"
+        }
+      }
+    ]
+  },
+  "frame": {
+    "origin": {
+      "lat": 51.62101439,
+      "lon": -3.96481006
+    },
+    "M_m": 6374736.5,
+    "N_m": 6391297.2,
+    "formula": "x = N·cosφ0·(λ−λ0), y = M·(φ−φ0) [radians]; M,N = WGS84 meridional / prime-vertical radii at φ0"
+  },
+  "target": {
+    "osm": "way/518358901",
+    "tags": {
+      "addr:city": "Swansea",
+      "addr:housename": "Dylan Thomas House",
+      "addr:housenumber": "5",
+      "addr:postcode": "SA2 0RA",
+      "addr:street": "Cwmdonkin Drive",
+      "building": "yes",
+      "email": "info@dylanthomasbirthplace.com",
+      "name": "Dylan Thomas House",
+      "phone": "+44 1792 472555",
+      "subject:wikidata": "Q191023",
+      "subject:wikipedia": "en:Dylan Thomas",
+      "tourism": "attraction",
+      "website": "https://www.dylanthomasbirthplace.com"
+    },
+    "warnings": [],
+    "area_m2": 87.23,
+    "perimeter_m": 47.24,
+    "vertexCount": 6,
+    "vertexCountSimplified": 6,
+    "holes": 0,
+    "ringWgs84": [
+      [
+        -3.9649278,
+        51.6209881
+      ],
+      [
+        -3.9646673,
+        51.6209969
+      ],
+      [
+        -3.9646704,
+        51.6210326
+      ],
+      [
+        -3.9647904,
+        51.6210285
+      ],
+      [
+        -3.9647919,
+        51.6210428
+      ],
+      [
+        -3.9649321,
+        51.6210379
+      ],
+      [
+        -3.9649278,
+        51.6209881
+      ]
+    ],
+    "ringLocal": [
+      [
+        -8.155,
+        -2.925
+      ],
+      [
+        9.887,
+        -1.945
+      ],
+      [
+        9.672,
+        2.027
+      ],
+      [
+        1.361,
+        1.57
+      ],
+      [
+        1.257,
+        3.161
+      ],
+      [
+        -8.452,
+        2.616
+      ],
+      [
+        -8.155,
+        -2.925
+      ]
+    ],
+    "holesLocal": [],
+    "ringLocalSimplified": [
+      [
+        -8.155,
+        -2.925
+      ],
+      [
+        9.887,
+        -1.945
+      ],
+      [
+        9.672,
+        2.027
+      ],
+      [
+        1.361,
+        1.57
+      ],
+      [
+        1.257,
+        3.161
+      ],
+      [
+        -8.452,
+        2.616
+      ],
+      [
+        -8.155,
+        -2.925
+      ]
+    ],
+    "minAreaRect": {
+      "length_m": 18.07,
+      "width_m": 5.57,
+      "longAxisBearing_deg": 86.9,
+      "rectangularity": 0.867,
+      "corners": [
+        [
+          -8.155,
+          -2.925
+        ],
+        [
+          9.888,
+          -1.945
+        ],
+        [
+          9.586,
+          3.613
+        ],
+        [
+          -8.456,
+          2.634
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "i": 0,
+        "from": [
+          -8.155,
+          -2.925
+        ],
+        "to": [
+          9.887,
+          -1.945
+        ],
+        "length_m": 18.068,
+        "bearing_deg": 86.9,
+        "facing_deg": 176.9,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 1,
+        "from": [
+          9.887,
+          -1.945
+        ],
+        "to": [
+          9.672,
+          2.027
+        ],
+        "length_m": 3.978,
+        "bearing_deg": 356.9,
+        "facing_deg": 86.9,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 2,
+        "from": [
+          9.672,
+          2.027
+        ],
+        "to": [
+          1.361,
+          1.57
+        ],
+        "length_m": 8.323,
+        "bearing_deg": 266.9,
+        "facing_deg": 356.9,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 3,
+        "from": [
+          1.361,
+          1.57
+        ],
+        "to": [
+          1.257,
+          3.161
+        ],
+        "length_m": 1.594,
+        "bearing_deg": 356.3,
+        "facing_deg": 86.3,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      },
+      {
+        "i": 4,
+        "from": [
+          1.257,
+          3.161
+        ],
+        "to": [
+          -8.452,
+          2.616
+        ],
+        "length_m": 9.725,
+        "bearing_deg": 266.8,
+        "facing_deg": 356.8,
+        "partyWall": true,
+        "sharedLength_m": 9.725,
+        "sharedFraction": 1,
+        "sharedIntervals_m": [
+          [
+            0,
+            9.725
+          ]
+        ],
+        "sharedWith": [
+          {
+            "osm": "way/518358906",
+            "length_m": 9.725,
+            "maxOffset_m": 0,
+            "orientation": "opposite"
+          }
+        ]
+      },
+      {
+        "i": 5,
+        "from": [
+          -8.452,
+          2.616
+        ],
+        "to": [
+          -8.155,
+          -2.925
+        ],
+        "length_m": 5.549,
+        "bearing_deg": 176.9,
+        "facing_deg": 266.9,
+        "partyWall": false,
+        "sharedLength_m": 0,
+        "sharedFraction": 0,
+        "sharedIntervals_m": [],
+        "sharedWith": []
+      }
+    ],
+    "partyWallLength_m": 9.73,
+    "houseForm": "semi-detached",
+    "houseFormReasons": [
+      "attached only to way/518358906, which has no other attached dwelling"
+    ],
+    "parts": []
+  },
+  "neighbours": [
+    {
+      "osm": "way/518358906",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.2,
+      "gap_m": 0,
+      "sharedWithTarget_m": 9.73,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -8.45,
+          2.62
+        ],
+        [
+          1.26,
+          3.16
+        ],
+        [
+          1.16,
+          4.84
+        ],
+        [
+          9.41,
+          5.31
+        ],
+        [
+          9.19,
+          9.35
+        ],
+        [
+          -8.78,
+          8.33
+        ],
+        [
+          -8.45,
+          2.62
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423843",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.2,
+      "gap_m": 2.35,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -11.34,
+          -11.22
+        ],
+        [
+          -1.63,
+          -10.68
+        ],
+        [
+          -1.73,
+          -9
+        ],
+        [
+          6.52,
+          -8.53
+        ],
+        [
+          6.3,
+          -4.49
+        ],
+        [
+          -11.67,
+          -5.51
+        ],
+        [
+          -11.34,
+          -11.22
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423842",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 87.2,
+      "gap_m": 8.1,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -11.04,
+          -16.77
+        ],
+        [
+          7,
+          -15.79
+        ],
+        [
+          6.78,
+          -11.81
+        ],
+        [
+          -1.53,
+          -12.27
+        ],
+        [
+          -1.63,
+          -10.68
+        ],
+        [
+          -11.34,
+          -11.22
+        ],
+        [
+          -11.04,
+          -16.77
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423868",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 108.3,
+      "gap_m": 10.7,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          27.82,
+          4.55
+        ],
+        [
+          25.12,
+          4.54
+        ],
+        [
+          24.99,
+          7.14
+        ],
+        [
+          20.16,
+          6.9
+        ],
+        [
+          21.06,
+          -11.18
+        ],
+        [
+          26.2,
+          -10.92
+        ],
+        [
+          25.78,
+          -2.31
+        ],
+        [
+          28.08,
+          -2.15
+        ],
+        [
+          27.82,
+          4.55
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423845",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.2,
+      "gap_m": 16.55,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -14.8,
+          -25.63
+        ],
+        [
+          -5.09,
+          -25.09
+        ],
+        [
+          -5.19,
+          -23.41
+        ],
+        [
+          3.06,
+          -22.94
+        ],
+        [
+          2.84,
+          -18.9
+        ],
+        [
+          -15.13,
+          -19.91
+        ],
+        [
+          -14.8,
+          -25.63
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423867",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 83,
+      "gap_m": 18.17,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          28.08,
+          -2.15
+        ],
+        [
+          31.22,
+          -2.02
+        ],
+        [
+          31.31,
+          -4.14
+        ],
+        [
+          36.79,
+          -3.93
+        ],
+        [
+          36.34,
+          7.47
+        ],
+        [
+          31.11,
+          7.27
+        ],
+        [
+          31.21,
+          4.69
+        ],
+        [
+          27.82,
+          4.55
+        ],
+        [
+          28.08,
+          -2.15
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423837",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 55.5,
+      "gap_m": 18.5,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -2.66,
+          27.55
+        ],
+        [
+          -2.38,
+          21.51
+        ],
+        [
+          6.79,
+          21.94
+        ],
+        [
+          6.5,
+          27.98
+        ],
+        [
+          -2.66,
+          27.55
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423844",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 87.2,
+      "gap_m": 22.3,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -14.51,
+          -31.17
+        ],
+        [
+          3.54,
+          -30.19
+        ],
+        [
+          3.32,
+          -26.22
+        ],
+        [
+          -4.99,
+          -26.68
+        ],
+        [
+          -5.09,
+          -25.09
+        ],
+        [
+          -14.8,
+          -25.63
+        ],
+        [
+          -14.51,
+          -31.17
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423838",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 55.3,
+      "gap_m": 24.55,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          6.5,
+          27.98
+        ],
+        [
+          6.25,
+          33.98
+        ],
+        [
+          -2.98,
+          33.56
+        ],
+        [
+          -2.66,
+          27.55
+        ],
+        [
+          6.5,
+          27.98
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423869",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 105.6,
+      "gap_m": 28.6,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          42.8,
+          7.77
+        ],
+        [
+          38.2,
+          7.63
+        ],
+        [
+          38.75,
+          -9.71
+        ],
+        [
+          43.98,
+          -9.54
+        ],
+        [
+          43.74,
+          -1.71
+        ],
+        [
+          45.84,
+          -1.65
+        ],
+        [
+          45.61,
+          5.9
+        ],
+        [
+          42.86,
+          5.81
+        ],
+        [
+          42.8,
+          7.77
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423835",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.7,
+      "gap_m": 30.35,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          28.65,
+          43.03
+        ],
+        [
+          21.34,
+          42.79
+        ],
+        [
+          21.74,
+          29.87
+        ],
+        [
+          26.56,
+          30.02
+        ],
+        [
+          26.51,
+          31.93
+        ],
+        [
+          28.97,
+          31.98
+        ],
+        [
+          28.65,
+          43.03
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423836",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 97.4,
+      "gap_m": 35.59,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          28.65,
+          43.03
+        ],
+        [
+          28.97,
+          31.98
+        ],
+        [
+          31.15,
+          32.04
+        ],
+        [
+          31.2,
+          30.38
+        ],
+        [
+          36.96,
+          30.54
+        ],
+        [
+          36.59,
+          43.26
+        ],
+        [
+          28.65,
+          43.03
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423870",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 112.5,
+      "gap_m": 35.95,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          45.84,
+          -1.65
+        ],
+        [
+          46,
+          -7.81
+        ],
+        [
+          49.65,
+          -7.71
+        ],
+        [
+          49.59,
+          -5.74
+        ],
+        [
+          54.01,
+          -5.61
+        ],
+        [
+          53.6,
+          8.42
+        ],
+        [
+          48.95,
+          8.29
+        ],
+        [
+          49.01,
+          6
+        ],
+        [
+          45.61,
+          5.9
+        ],
+        [
+          45.84,
+          -1.65
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423840",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 55.4,
+      "gap_m": 36.27,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          1.25,
+          45.46
+        ],
+        [
+          1.54,
+          39.43
+        ],
+        [
+          10.7,
+          39.87
+        ],
+        [
+          10.42,
+          45.9
+        ],
+        [
+          1.25,
+          45.46
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423839",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 55.4,
+      "gap_m": 42.3,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          10.42,
+          45.9
+        ],
+        [
+          10.17,
+          51.9
+        ],
+        [
+          0.93,
+          51.47
+        ],
+        [
+          1.25,
+          45.46
+        ],
+        [
+          10.42,
+          45.9
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423834",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 80.4,
+      "gap_m": 42.77,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          46.15,
+          44.09
+        ],
+        [
+          38.84,
+          43.7
+        ],
+        [
+          39.47,
+          32.71
+        ],
+        [
+          46.75,
+          33.12
+        ],
+        [
+          46.15,
+          44.09
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548841",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 90.6,
+      "gap_m": 43.34,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -21.44,
+          46.86
+        ],
+        [
+          -15.11,
+          45.44
+        ],
+        [
+          -11.57,
+          61.01
+        ],
+        [
+          -15.34,
+          61.86
+        ],
+        [
+          -16.43,
+          57.03
+        ],
+        [
+          -19,
+          57.61
+        ],
+        [
+          -21.44,
+          46.86
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423876",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.2,
+      "gap_m": 43.83,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -6.46,
+          -63.62
+        ],
+        [
+          -0.05,
+          -63.21
+        ],
+        [
+          -0.55,
+          -54.48
+        ],
+        [
+          -1.1,
+          -46.44
+        ],
+        [
+          -5.03,
+          -46.67
+        ],
+        [
+          -4.55,
+          -54.56
+        ],
+        [
+          -7.1,
+          -54.72
+        ],
+        [
+          -6.46,
+          -63.62
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423879",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 87.2,
+      "gap_m": 43.95,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          12.6,
+          -62.38
+        ],
+        [
+          19.04,
+          -61.74
+        ],
+        [
+          18.38,
+          -53.28
+        ],
+        [
+          17.9,
+          -45.51
+        ],
+        [
+          13.77,
+          -45.73
+        ],
+        [
+          14.18,
+          -53.58
+        ],
+        [
+          12.14,
+          -53.69
+        ],
+        [
+          12.6,
+          -62.38
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423878",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 87.8,
+      "gap_m": 44.07,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          6.25,
+          -62.75
+        ],
+        [
+          12.6,
+          -62.38
+        ],
+        [
+          12.14,
+          -53.69
+        ],
+        [
+          11.65,
+          -45.98
+        ],
+        [
+          7.49,
+          -46.22
+        ],
+        [
+          7.93,
+          -54
+        ],
+        [
+          5.76,
+          -54.13
+        ],
+        [
+          6.25,
+          -62.75
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423877",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 86,
+      "gap_m": 44.11,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -0.05,
+          -63.21
+        ],
+        [
+          6.25,
+          -62.75
+        ],
+        [
+          5.76,
+          -54.13
+        ],
+        [
+          5.22,
+          -46.37
+        ],
+        [
+          1.26,
+          -46.61
+        ],
+        [
+          1.71,
+          -54.35
+        ],
+        [
+          -0.55,
+          -54.48
+        ],
+        [
+          -0.05,
+          -63.21
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423880",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.3,
+      "gap_m": 44.27,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          19.04,
+          -61.74
+        ],
+        [
+          25.37,
+          -61.3
+        ],
+        [
+          24.87,
+          -52.68
+        ],
+        [
+          24.08,
+          -44.75
+        ],
+        [
+          19.89,
+          -45.07
+        ],
+        [
+          20.52,
+          -53.11
+        ],
+        [
+          18.38,
+          -53.28
+        ],
+        [
+          19.04,
+          -61.74
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423875",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 86.2,
+      "gap_m": 44.32,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -12.91,
+          -64.1
+        ],
+        [
+          -6.46,
+          -63.62
+        ],
+        [
+          -7.1,
+          -54.72
+        ],
+        [
+          -7.64,
+          -47.24
+        ],
+        [
+          -11.49,
+          -47.52
+        ],
+        [
+          -10.95,
+          -55.04
+        ],
+        [
+          -13.48,
+          -55.22
+        ],
+        [
+          -12.91,
+          -64.1
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423874",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 84.5,
+      "gap_m": 45.12,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -19.12,
+          -64.5
+        ],
+        [
+          -12.91,
+          -64.1
+        ],
+        [
+          -13.48,
+          -55.22
+        ],
+        [
+          -13.97,
+          -47.67
+        ],
+        [
+          -17.84,
+          -47.92
+        ],
+        [
+          -17.35,
+          -55.55
+        ],
+        [
+          -19.69,
+          -55.7
+        ],
+        [
+          -19.12,
+          -64.5
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423881",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.6,
+      "gap_m": 45.38,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          25.37,
+          -61.3
+        ],
+        [
+          31.89,
+          -60.33
+        ],
+        [
+          31.13,
+          -51.28
+        ],
+        [
+          30.6,
+          -43.82
+        ],
+        [
+          26.27,
+          -44.27
+        ],
+        [
+          27.1,
+          -52.45
+        ],
+        [
+          24.87,
+          -52.68
+        ],
+        [
+          25.37,
+          -61.3
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548840",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 82.4,
+      "gap_m": 46.11,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -27.18,
+          48.18
+        ],
+        [
+          -21.44,
+          46.86
+        ],
+        [
+          -19,
+          57.61
+        ],
+        [
+          -17.98,
+          62.31
+        ],
+        [
+          -21.57,
+          63.1
+        ],
+        [
+          -22.64,
+          58.24
+        ],
+        [
+          -24.85,
+          58.72
+        ],
+        [
+          -27.18,
+          48.18
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423873",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 90.3,
+      "gap_m": 47.38,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -27.35,
+          -65.24
+        ],
+        [
+          -19.12,
+          -64.5
+        ],
+        [
+          -19.69,
+          -55.7
+        ],
+        [
+          -21.33,
+          -55.83
+        ],
+        [
+          -20.11,
+          -48.77
+        ],
+        [
+          -23.72,
+          -48.41
+        ],
+        [
+          -27.35,
+          -65.24
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423882",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 80.9,
+      "gap_m": 48.02,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          31.89,
+          -60.33
+        ],
+        [
+          38.4,
+          -59.04
+        ],
+        [
+          37.11,
+          -50.62
+        ],
+        [
+          36.07,
+          -43.8
+        ],
+        [
+          32.42,
+          -44.36
+        ],
+        [
+          33.42,
+          -50.92
+        ],
+        [
+          31.13,
+          -51.28
+        ],
+        [
+          31.89,
+          -60.33
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423871",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 60.3,
+      "gap_m": 48.28,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          57.74,
+          8.28
+        ],
+        [
+          58.17,
+          -0.91
+        ],
+        [
+          64.76,
+          -0.61
+        ],
+        [
+          64.42,
+          6.77
+        ],
+        [
+          63.84,
+          8.56
+        ],
+        [
+          57.74,
+          8.28
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423833",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 91.4,
+      "gap_m": 48.39,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          46.75,
+          33.12
+        ],
+        [
+          55.07,
+          33.59
+        ],
+        [
+          54.46,
+          44.55
+        ],
+        [
+          46.15,
+          44.09
+        ],
+        [
+          46.75,
+          33.12
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548839",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 85.5,
+      "gap_m": 49.26,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -33.15,
+          49.53
+        ],
+        [
+          -27.18,
+          48.18
+        ],
+        [
+          -24.85,
+          58.72
+        ],
+        [
+          -23.77,
+          63.72
+        ],
+        [
+          -27.53,
+          64.51
+        ],
+        [
+          -28.63,
+          59.35
+        ],
+        [
+          -30.96,
+          59.84
+        ],
+        [
+          -33.15,
+          49.53
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423883",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 86.1,
+      "gap_m": 49.34,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          38.4,
+          -59.04
+        ],
+        [
+          44.82,
+          -57.31
+        ],
+        [
+          43.4,
+          -48.61
+        ],
+        [
+          41.99,
+          -41.51
+        ],
+        [
+          38.18,
+          -42.37
+        ],
+        [
+          39.57,
+          -49.97
+        ],
+        [
+          37.11,
+          -50.62
+        ],
+        [
+          38.4,
+          -59.04
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423884",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 83.1,
+      "gap_m": 51.43,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          44.82,
+          -57.31
+        ],
+        [
+          51.07,
+          -55.18
+        ],
+        [
+          49.11,
+          -46.44
+        ],
+        [
+          47.74,
+          -39.54
+        ],
+        [
+          43.88,
+          -40.54
+        ],
+        [
+          45.72,
+          -47.94
+        ],
+        [
+          43.4,
+          -48.61
+        ],
+        [
+          44.82,
+          -57.31
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548838",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 84.2,
+      "gap_m": 53.02,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -39.14,
+          50.83
+        ],
+        [
+          -33.15,
+          49.53
+        ],
+        [
+          -30.96,
+          59.84
+        ],
+        [
+          -29.9,
+          64.9
+        ],
+        [
+          -33.65,
+          65.68
+        ],
+        [
+          -34.72,
+          60.54
+        ],
+        [
+          -37.01,
+          61.02
+        ],
+        [
+          -39.14,
+          50.83
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423885",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 82.4,
+      "gap_m": 53.61,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          51.07,
+          -55.18
+        ],
+        [
+          56.97,
+          -52.94
+        ],
+        [
+          54.72,
+          -44.06
+        ],
+        [
+          52.96,
+          -37.09
+        ],
+        [
+          49.25,
+          -38.34
+        ],
+        [
+          51.54,
+          -45.57
+        ],
+        [
+          49.11,
+          -46.44
+        ],
+        [
+          51.07,
+          -55.18
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423872",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 77.3,
+      "gap_m": 54.56,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          64.42,
+          6.77
+        ],
+        [
+          64.76,
+          -0.61
+        ],
+        [
+          73.11,
+          -0.22
+        ],
+        [
+          72.61,
+          9.02
+        ],
+        [
+          63.84,
+          8.56
+        ],
+        [
+          64.42,
+          6.77
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423841",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 104.6,
+      "gap_m": 55.3,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          4.75,
+          67.55
+        ],
+        [
+          3.75,
+          58.52
+        ],
+        [
+          12.93,
+          57.5
+        ],
+        [
+          13.29,
+          60.65
+        ],
+        [
+          17.41,
+          60.19
+        ],
+        [
+          17.96,
+          65.14
+        ],
+        [
+          13.79,
+          65.61
+        ],
+        [
+          13.9,
+          66.54
+        ],
+        [
+          4.75,
+          67.55
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423886",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 82.7,
+      "gap_m": 56.32,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          56.97,
+          -52.94
+        ],
+        [
+          62.83,
+          -49.81
+        ],
+        [
+          60.26,
+          -41.13
+        ],
+        [
+          58.41,
+          -34.58
+        ],
+        [
+          55.03,
+          -35.62
+        ],
+        [
+          57.02,
+          -42.98
+        ],
+        [
+          54.72,
+          -44.06
+        ],
+        [
+          56.97,
+          -52.94
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548837",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 82.5,
+      "gap_m": 57.15,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -44.94,
+          52.04
+        ],
+        [
+          -39.14,
+          50.83
+        ],
+        [
+          -37.01,
+          61.02
+        ],
+        [
+          -35.93,
+          66.26
+        ],
+        [
+          -39.78,
+          67.06
+        ],
+        [
+          -40.91,
+          61.67
+        ],
+        [
+          -42.85,
+          62.08
+        ],
+        [
+          -44.94,
+          52.04
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423832",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 89.6,
+      "gap_m": 57.26,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          64.21,
+          46.95
+        ],
+        [
+          56.91,
+          46.72
+        ],
+        [
+          57.31,
+          33.8
+        ],
+        [
+          62.13,
+          33.96
+        ],
+        [
+          62.07,
+          35.86
+        ],
+        [
+          64.54,
+          35.92
+        ],
+        [
+          64.21,
+          46.95
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423887",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 75.9,
+      "gap_m": 60.24,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          62.83,
+          -49.81
+        ],
+        [
+          68.57,
+          -47.35
+        ],
+        [
+          66.01,
+          -38.97
+        ],
+        [
+          64.13,
+          -32.84
+        ],
+        [
+          60.97,
+          -33.88
+        ],
+        [
+          63.03,
+          -40.13
+        ],
+        [
+          60.26,
+          -41.13
+        ],
+        [
+          62.83,
+          -49.81
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548836",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 86.7,
+      "gap_m": 61.43,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -50.93,
+          53.31
+        ],
+        [
+          -44.94,
+          52.04
+        ],
+        [
+          -42.85,
+          62.08
+        ],
+        [
+          -41.4,
+          68.77
+        ],
+        [
+          -45.18,
+          69.56
+        ],
+        [
+          -46.79,
+          61.91
+        ],
+        [
+          -49.02,
+          62.37
+        ],
+        [
+          -50.93,
+          53.31
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548797",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 132.6,
+      "gap_m": 62.72,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -51.79,
+          -53.89
+        ],
+        [
+          -53.14,
+          -59.9
+        ],
+        [
+          -53.65,
+          -62.14
+        ],
+        [
+          -50.34,
+          -62.88
+        ],
+        [
+          -51.5,
+          -68.07
+        ],
+        [
+          -44.14,
+          -69.71
+        ],
+        [
+          -41.11,
+          -56.28
+        ],
+        [
+          -51.79,
+          -53.89
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423888",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 87.2,
+      "gap_m": 63.73,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          68.57,
+          -47.35
+        ],
+        [
+          74.79,
+          -44.66
+        ],
+        [
+          72.29,
+          -36.22
+        ],
+        [
+          70.35,
+          -29.66
+        ],
+        [
+          66.61,
+          -31
+        ],
+        [
+          68.61,
+          -37.73
+        ],
+        [
+          66.01,
+          -38.97
+        ],
+        [
+          68.57,
+          -47.35
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423831",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 97.4,
+      "gap_m": 64.49,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          64.21,
+          46.95
+        ],
+        [
+          64.54,
+          35.92
+        ],
+        [
+          66.72,
+          35.97
+        ],
+        [
+          66.77,
+          34.3
+        ],
+        [
+          72.53,
+          34.47
+        ],
+        [
+          72.15,
+          47.19
+        ],
+        [
+          64.21,
+          46.95
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548835",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 90,
+      "gap_m": 66.13,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -57.14,
+          54.6
+        ],
+        [
+          -50.93,
+          53.31
+        ],
+        [
+          -49.02,
+          62.37
+        ],
+        [
+          -47.37,
+          70.06
+        ],
+        [
+          -51.2,
+          70.89
+        ],
+        [
+          -52.81,
+          63.38
+        ],
+        [
+          -55.15,
+          63.88
+        ],
+        [
+          -57.14,
+          54.6
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548798",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 90.4,
+      "gap_m": 67.1,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -51.79,
+          -53.89
+        ],
+        [
+          -61.34,
+          -51.73
+        ],
+        [
+          -64.12,
+          -64.01
+        ],
+        [
+          -60.95,
+          -64.73
+        ],
+        [
+          -60.06,
+          -60.79
+        ],
+        [
+          -56.33,
+          -61.64
+        ],
+        [
+          -55.8,
+          -59.3
+        ],
+        [
+          -53.14,
+          -59.9
+        ],
+        [
+          -51.79,
+          -53.89
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232423889",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 79.2,
+      "gap_m": 68.21,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          74.79,
+          -44.66
+        ],
+        [
+          80.48,
+          -42.14
+        ],
+        [
+          77.88,
+          -33.4
+        ],
+        [
+          76.09,
+          -27.35
+        ],
+        [
+          72.55,
+          -28.88
+        ],
+        [
+          74.58,
+          -35.29
+        ],
+        [
+          72.29,
+          -36.22
+        ],
+        [
+          74.79,
+          -44.66
+        ]
+      ]
+    },
+    {
+      "osm": "way/1232548834",
+      "building": "house",
+      "tags": {
+        "building": "house"
+      },
+      "area_m2": 88.6,
+      "gap_m": 71.22,
+      "sharedWithTarget_m": 0,
+      "dwellingLike": true,
+      "ringLocal": [
+        [
+          -63.17,
+          55.85
+        ],
+        [
+          -57.14,
+          54.6
+        ],
+        [
+          -55.15,
+          63.88
+        ],
+        [
+          -53.52,
+          71.51
+        ],
+        [
+          -57.26,
+          72.31
+        ],
+        [
+          -58.89,
+          64.74
+        ],
+        [
+          -61.15,
+          65.23
+        ],
+        [
+          -63.17,
+          55.85
+        ]
+      ]
+    }
+  ]
+}
