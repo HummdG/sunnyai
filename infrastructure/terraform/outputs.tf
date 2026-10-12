@@ -20,3 +20,13 @@ output "gemini_api_key_secret_id" {
   EOT
   value       = google_secret_manager_secret.gemini_api_key.secret_id
 }
+
+output "sunscan_artefact_bucket" {
+  description = "Private bucket holding SunScan 3D models (SUNSCAN_ARTEFACT_BUCKET)."
+  value       = google_storage_bucket.sunscan_artefacts.name
+}
+
+output "sunscan_tasks_queue" {
+  description = "Cloud Tasks queue for SunScan assessments (used once api_base_url is set)."
+  value       = google_cloud_tasks_queue.sunscan.id
+}

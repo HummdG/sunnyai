@@ -223,14 +223,22 @@ export function quoteAnswers(
   const confidence = (answers['roof_confidence'] ?? 'low') as 'high' | 'medium' | 'low';
   const lifestyle = (answers['lifestyle'] ?? '').split(',').filter((tag) => tag && tag !== 'none');
 
+  // An unreliable fit (or one the visitor rejected) is not evidence: the first
+  // live run measured a pitched heritage farmhouse as a 200 m² flat roof with
+  // room for 89 panels. Its geometry must not reach the quote -- not the flat
+  // roof (which adds a flat-roof structural survey), not the pitch (which drives
+  // generation), not the panel count. The visitor's own answers stand in, as
+  // they do when there is no assessment at all; the size answer, when given,
+  // is applied by the engine's low-confidence branch.
+  const trusted = roof && confidence !== 'low' ? roof : null;
   return {
     postcode: view.postcode,
     roof: {
-      pitchDeg: roof?.pitchDeg ?? 35,
-      mcsOrientationDeg: roof?.mcsOrientationDeg ?? 0,
-      // No assessment: v1's siteContext default, refined by the size answer.
-      maxPanelCount: roof ? roof.maxPanelCount : 20,
-      roofType: roof?.roofType ?? 'pitched',
+      pitchDeg: trusted?.pitchDeg ?? 35,
+      mcsOrientationDeg: trusted?.mcsOrientationDeg ?? 0,
+      // No trusted assessment: v1's siteContext default, refined by the size answer.
+      maxPanelCount: trusted ? trusted.maxPanelCount : 20,
+      roofType: trusted?.roofType ?? 'pitched',
       confidence: roof ? confidence : 'low',
     },
     roofFallback: {

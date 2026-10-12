@@ -105,6 +105,26 @@ describe('the vendored engine, in replay mode (recorded open data, no network)',
   });
 });
 
+describe('addresses recorded on the first live run (docs/integration/sunscan-live-run.md)', () => {
+  const engine = createSunScanEngine({ httpMode: 'replay', now: NOW });
+
+  it('models a Welsh semi from the Welsh LiDAR (5 Cwmdonkin Drive, Swansea)', async () => {
+    const { summary: s } = await engine.assess({ address: '5 Cwmdonkin Drive, Swansea SA2 0RA' });
+    expect(s.reliable).toBe(true);
+    expect(s.builtForm).toBe('semi-detached');
+    expect(s.bestFacing).toBe('S');
+    expect(s.estimatedMaxPanels).toBe(20);
+    expect(Math.round(s.usableRoofAreaM2)).toBe(60);
+  }, 120_000);
+
+  it('flags a London terrace it cannot fit reliably instead of claiming it (48 Doughty Street)', async () => {
+    const { summary: s } = await engine.assess({ address: '48 Doughty Street, London WC1N 2LX' });
+    expect(s.reliable).toBe(false);
+    expect(s.flags).toContain('fit-unreliable');
+    expect(s.confidence.roof).toBe('low');
+  }, 120_000);
+});
+
 describe('roof plane classification', () => {
   it('names the facing on the 8-point compass, flat when there is no slope', () => {
     expect(facingOf(180)).toBe('S');

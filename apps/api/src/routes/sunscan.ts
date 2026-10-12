@@ -6,13 +6,17 @@ import {
   createSunScanService,
   FileArtefactStore,
   type ArtefactStore,
+  type AssessmentDispatcher,
   type AssessmentRecord,
   type SunScanService,
 } from '@sunny/sunscan-adapter';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
+import { createOidcVerifier, googleTokens } from '../google/auth.js';
 import { verifySessionToken } from '../sessions.js';
 import type { Store } from '../store.js';
+import { cloudTasksDispatcher, RUN_PATH } from '../sunscan/cloud-tasks.js';
+import { GcsArtefactStore } from '../sunscan/gcs-artefacts.js';
 
 /**
  * SunScan roof assessments (the vendored SunScanV2 engine, see
@@ -36,6 +40,11 @@ export interface SunScanRouteDeps {
   service: SunScanService | null;
   sessionSecret: string;
   now: () => number;
+  /**
+   * Verifies the OIDC token on `POST /internal/sunscan/run`. Null when the
+   * deployment runs assessments in-process: the route then answers 404.
+   */
+  taskVerifier?: ((token: string) => Promise<boolean>) | null;
 }
 
 /** Visitors can start this many assessments per session per window. */
@@ -54,10 +63,10 @@ export function createDefaultSunScan(
 ): SunScanService | null {
   if (env['SUNSCAN_ENABLED'] === '0') return null;
   const mode = env['SUNSCAN_HTTP_MODE'];
-  const artefacts: ArtefactStore = new FileArtefactStore(
-    env['SUNSCAN_ARTEFACT_DIR'] ?? join(dataDir, 'sunscan-artefacts'),
-  );
+  const artefacts = artefactStoreFromEnv(dataDir, env);
+  const dispatch = dispatcherFromEnv(env);
   return createSunScanService({
+    ...(dispatch ? { dispatch } : {}),
     engine: createSunScanEngine({
       ...(mode === 'live' || mode === 'record' || mode === 'replay' ? { httpMode: mode } : {}),
       ...(env['SUNSCAN_USER_AGENT'] ? { userAgent: env['SUNSCAN_USER_AGENT'] } : {}),
@@ -67,6 +76,87 @@ export function createDefaultSunScan(
       get: (tenantId, id) => store.getSunScanAssessment(tenantId, id),
     },
     artefacts,
+  });
+}
+
+const STORAGE_SCOPE = 'https://www.googleapis.com/auth/devstorage.read_write';
+const TASKS_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
+
+/**
+ * Where model files live. `SUNSCAN_ARTEFACT_STORE=gcs` (production -- Cloud
+ * Run's disk does not outlive an instance) uses the private bucket
+ * `SUNSCAN_ARTEFACT_BUCKET`, authenticated as the runtime service account or
+ * `SUNSCAN_GCS_SERVICE_ACCOUNT_JSON`; `STORAGE_EMULATOR_HOST` points it at a
+ * local emulator with no auth. Otherwise, local disk.
+ */
+export function artefactStoreFromEnv(dataDir: string, env: NodeJS.ProcessEnv): ArtefactStore {
+  if (env['SUNSCAN_ARTEFACT_STORE'] === 'gcs') {
+    const bucket = env['SUNSCAN_ARTEFACT_BUCKET'];
+    if (!bucket) throw new Error('SUNSCAN_ARTEFACT_STORE=gcs needs SUNSCAN_ARTEFACT_BUCKET.');
+    const emulator = env['STORAGE_EMULATOR_HOST'];
+    return new GcsArtefactStore({
+      bucket,
+      ...(env['SUNSCAN_ARTEFACT_PREFIX'] ? { prefix: env['SUNSCAN_ARTEFACT_PREFIX'] } : {}),
+      ...(emulator ? { endpoint: emulator } : {}),
+      token: emulator ? null : googleTokens(env, 'SUNSCAN_GCS_SERVICE_ACCOUNT_JSON', STORAGE_SCOPE),
+    });
+  }
+  return new FileArtefactStore(env['SUNSCAN_ARTEFACT_DIR'] ?? join(dataDir, 'sunscan-artefacts'));
+}
+
+interface TasksConfig {
+  project: string;
+  location: string;
+  queue: string;
+  targetUrl: string;
+  serviceAccountEmail: string;
+  audience: string;
+}
+
+function tasksConfig(env: NodeJS.ProcessEnv): TasksConfig | null {
+  if (env['SUNSCAN_QUEUE'] !== 'cloud-tasks') return null;
+  const read = (name: string): string => {
+    const value = env[name];
+    if (!value) throw new Error(`SUNSCAN_QUEUE=cloud-tasks needs ${name}.`);
+    return value;
+  };
+  const targetUrl = read('SUNSCAN_TASKS_TARGET_URL');
+  return {
+    project: read('SUNSCAN_TASKS_PROJECT'),
+    location: read('SUNSCAN_TASKS_LOCATION'),
+    queue: read('SUNSCAN_TASKS_QUEUE'),
+    targetUrl,
+    serviceAccountEmail: read('SUNSCAN_TASKS_SERVICE_ACCOUNT'),
+    audience: env['SUNSCAN_TASKS_AUDIENCE'] ?? targetUrl,
+  };
+}
+
+/** `SUNSCAN_QUEUE=cloud-tasks` runs assessments through Cloud Tasks; otherwise in-process. */
+export function dispatcherFromEnv(env: NodeJS.ProcessEnv): AssessmentDispatcher | null {
+  const tasks = tasksConfig(env);
+  if (!tasks) return null;
+  return cloudTasksDispatcher({
+    ...tasks,
+    ...(env['SUNSCAN_TASKS_ENDPOINT'] ? { endpoint: env['SUNSCAN_TASKS_ENDPOINT'] } : {}),
+    token: googleTokens(env, 'SUNSCAN_TASKS_SERVICE_ACCOUNT_JSON', TASKS_SCOPE),
+  });
+}
+
+/**
+ * The check on `POST /internal/sunscan/run` when Cloud Tasks is in use: a
+ * Google-signed OIDC token for the configured audience, signed as the
+ * configured service account. Null (route answers 404) when assessments run
+ * in-process.
+ */
+export function taskVerifierFromEnv(
+  env: NodeJS.ProcessEnv,
+): ((token: string) => Promise<boolean>) | null {
+  const tasks = tasksConfig(env);
+  if (!tasks) return null;
+  return createOidcVerifier({
+    audience: tasks.audience,
+    email: tasks.serviceAccountEmail,
+    ...(env['SUNSCAN_TASKS_JWKS_URL'] ? { jwksUrl: env['SUNSCAN_TASKS_JWKS_URL'] } : {}),
   });
 }
 
@@ -155,6 +245,28 @@ export function registerSunScanRoutes(app: FastifyInstance, deps: SunScanRouteDe
   app.get('/v1/sunscan/assessments/:id', async (request) => {
     const { id } = request.params as { id: string };
     return toPublicAssessment(await owned(caller(request), id));
+  });
+
+  // The worker side of the Cloud Tasks queue. Not a visitor route: its only
+  // credential is the queue's OIDC token, and when assessments run in-process
+  // it answers 404 like any unknown path.
+  app.post(RUN_PATH, async (request) => {
+    const verify = deps.taskVerifier;
+    if (!verify) throw new ApiError('not_found', `No route for POST ${RUN_PATH}`);
+    const token = bearer(request);
+    if (!token || !(await verify(token))) {
+      throw new ApiError('unauthorized', 'A valid queue token is required.');
+    }
+    const body = request.body as { tenantId?: unknown; assessmentId?: unknown } | null;
+    const tenantId = typeof body?.tenantId === 'string' ? body.tenantId : '';
+    const assessmentId = typeof body?.assessmentId === 'string' ? body.assessmentId : '';
+    if (!tenantId || !assessmentId) {
+      throw new ApiError('bad_request', 'tenantId and assessmentId are required.');
+    }
+    const record = await service().runAssessment(tenantId, assessmentId);
+    // 200 even for a missing record: a retry cannot make it appear, so the
+    // queue should stop trying.
+    return { id: assessmentId, status: record?.status ?? 'missing' };
   });
 
   for (const [name, type] of [

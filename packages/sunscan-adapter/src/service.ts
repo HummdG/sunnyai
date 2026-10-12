@@ -6,6 +6,7 @@ import { SunScanError } from './engine.js';
 import {
   FINAL_STATUSES,
   type ArtefactStore,
+  type AssessmentDispatcher,
   type AssessmentRecord,
   type AssessmentRepository,
   type AssessmentTarget,
@@ -115,6 +116,14 @@ export interface ServiceOptions {
   repository: AssessmentRepository;
   artefacts: ArtefactStore;
   queue?: JobQueue;
+  /**
+   * An external queue (Cloud Tasks). When set, starting an assessment hands
+   * its keys to the dispatcher instead of running it in this process; the
+   * queue later calls back into `runAssessment`.
+   */
+  dispatch?: AssessmentDispatcher;
+  /** How long a 'running' assessment may go without an update before a retry may take it over. */
+  staleAfterMs?: number;
   now?: () => Date;
   newId?: () => string;
 }
@@ -131,6 +140,7 @@ export function createSunScanService(opts: ServiceOptions): SunScanService {
   const now = opts.now ?? (() => new Date());
   const newId = opts.newId ?? (() => `ss_${randomUUID().replace(/-/g, '').slice(0, 20)}`);
   const { engine, repository, artefacts } = opts;
+  const staleAfterMs = opts.staleAfterMs ?? 10 * 60_000;
 
   async function update(
     record: AssessmentRecord,
@@ -185,8 +195,37 @@ export function createSunScanService(opts: ServiceOptions): SunScanService {
         engine: engine.version,
       };
       await repository.save(record);
-      queue.enqueue(() => run(record));
+      if (opts.dispatch) {
+        try {
+          await opts.dispatch({ tenantId, assessmentId: record.id });
+        } catch (e) {
+          // The queue refused the job: record it as failed rather than leave a
+          // 'queued' assessment that nothing will ever run.
+          return update(record, {
+            status: 'failed',
+            error: {
+              code: 'provider-unavailable',
+              message: `The assessment could not be queued (${(e as Error).message}).`,
+            },
+          });
+        }
+      } else {
+        queue.enqueue(() => run(record));
+      }
       return record;
+    },
+
+    async runAssessment(tenantId, id) {
+      const record = await repository.get(tenantId, id);
+      if (!record || FINAL_STATUSES.includes(record.status)) return record;
+      if (
+        record.status === 'running' &&
+        now().getTime() - Date.parse(record.updatedAt) < staleAfterMs
+      ) {
+        return record;
+      }
+      await run(record);
+      return repository.get(tenantId, id);
     },
 
     getAssessment: (tenantId, id) => repository.get(tenantId, id),

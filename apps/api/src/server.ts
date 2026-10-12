@@ -71,7 +71,11 @@ import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailOverrides } from './routes/email.js';
 import type { SunScanService } from '@sunny/sunscan-adapter';
 import { registerVoiceRoutes, type VoiceRouteDeps } from './routes/voice.js';
-import { createDefaultSunScan, registerSunScanRoutes } from './routes/sunscan.js';
+import {
+  createDefaultSunScan,
+  registerSunScanRoutes,
+  taskVerifierFromEnv,
+} from './routes/sunscan.js';
 import { registerQuoteRoutes, sunscanRoofLookup } from './routes/quote.js';
 import { registerProposalRoutes } from './routes/proposal.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
@@ -93,6 +97,11 @@ export interface ServerDeps {
    * default -- the vendored engine, records in `store`; null switches it off.
    */
   sunscan?: SunScanService | null;
+  /**
+   * Checks the Cloud Tasks OIDC token on `POST /internal/sunscan/run`. Absent
+   * reads the environment (SUNSCAN_QUEUE=cloud-tasks); null switches it off.
+   */
+  sunscanTaskVerifier?: ((token: string) => Promise<boolean>) | null;
   /** Defaults to the unconfigured provider when no key is set. */
   provider?: ChatProvider;
   /** Injected so tests can drive the clock and read bucket counts. */
@@ -1807,7 +1816,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   // SunScan roof assessments (routes/sunscan.ts).
-  registerSunScanRoutes(app, { service: sunscan, sessionSecret: config.sessionSecret, now });
+  registerSunScanRoutes(app, {
+    service: sunscan,
+    sessionSecret: config.sessionSecret,
+    now,
+    taskVerifier:
+      deps.sunscanTaskVerifier !== undefined
+        ? deps.sunscanTaskVerifier
+        : taskVerifierFromEnv(process.env),
+  });
 
   // The quote journey: roof → questionnaire → priced options (routes/quote.ts).
   registerQuoteRoutes(app, {

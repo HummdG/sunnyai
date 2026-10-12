@@ -138,7 +138,19 @@ export interface ArtefactStore {
   get(tenantId: string, assessmentId: string, name: string): Promise<Uint8Array | null>;
 }
 
-/** Runs jobs off the request path. In-process today; Cloud Tasks behind the same shape later. */
+/**
+ * A serialisable job for an out-of-process queue (Cloud Tasks): just the keys.
+ * The worker loads the record and runs it with `SunScanService.runAssessment`.
+ */
+export interface AssessmentJob {
+  tenantId: string;
+  assessmentId: string;
+}
+
+/** Hands a job to an external queue. Rejects if the queue refused it. */
+export type AssessmentDispatcher = (job: AssessmentJob) => Promise<void>;
+
+/** Runs jobs off the request path, in this process. */
 export interface JobQueue {
   enqueue(job: () => Promise<void>): void;
   /** Resolves when every queued job has finished (tests, graceful shutdown). */
@@ -174,6 +186,13 @@ export interface SunScanService {
   ): Promise<Uint8Array | null>;
   /** Waits up to `timeoutMs` for the job to reach a final status; returns the latest record. */
   waitFor(tenantId: string, id: string, timeoutMs: number): Promise<AssessmentRecord | null>;
+  /**
+   * Runs a queued assessment now -- the worker side of an external queue.
+   * Idempotent: a final assessment is returned untouched, and one already
+   * running is left alone unless its run went stale (a crashed worker), so a
+   * queue's retries never run the same job twice at once.
+   */
+  runAssessment(tenantId: string, id: string): Promise<AssessmentRecord | null>;
   /** Resolves when the queue is empty. */
   idle(): Promise<void>;
 }

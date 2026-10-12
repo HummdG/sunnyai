@@ -152,6 +152,35 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
 
+      # SunScan model files go to the private bucket (sunscan.tf): Cloud Run's
+      # disk does not outlive an instance. The API reads them back through its
+      # tenant-scoped routes; nothing in the bucket is public.
+      env {
+        name  = "SUNSCAN_ARTEFACT_STORE"
+        value = "gcs"
+      }
+      env {
+        name  = "SUNSCAN_ARTEFACT_BUCKET"
+        value = google_storage_bucket.sunscan_artefacts.name
+      }
+
+      # Assessments through Cloud Tasks once the API's public URL is known
+      # (var.api_base_url); until then they run in-process.
+      dynamic "env" {
+        for_each = var.api_base_url == "" ? {} : {
+          SUNSCAN_QUEUE                 = "cloud-tasks"
+          SUNSCAN_TASKS_PROJECT         = var.project_id
+          SUNSCAN_TASKS_LOCATION        = var.region
+          SUNSCAN_TASKS_QUEUE           = google_cloud_tasks_queue.sunscan.name
+          SUNSCAN_TASKS_TARGET_URL      = var.api_base_url
+          SUNSCAN_TASKS_SERVICE_ACCOUNT = google_service_account.sunscan_tasks.email
+        }
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
       resources {
         limits = {
           cpu    = "1"

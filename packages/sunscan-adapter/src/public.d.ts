@@ -5,6 +5,7 @@
 
 import type {
   ArtefactStore,
+  AssessmentDispatcher,
   AssessmentError,
   AssessmentRecord,
   AssessmentRepository,
@@ -39,6 +40,8 @@ export interface ServiceOptions {
   repository: AssessmentRepository;
   artefacts: ArtefactStore;
   queue?: JobQueue;
+  dispatch?: AssessmentDispatcher;
+  staleAfterMs?: number;
   now?: () => Date;
   newId?: () => string;
 }

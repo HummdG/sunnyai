@@ -74,3 +74,15 @@ variable "cloud_run_invoker_members" {
   type        = list(string)
   default     = []
 }
+
+variable "api_base_url" {
+  description = <<-EOT
+    The API's public base URL (its custom domain, or the Cloud Run URL from a
+    first apply). When set, SunScan assessments run through Cloud Tasks, which
+    calls back to <api_base_url>/internal/sunscan/run; empty keeps them
+    in-process. A variable rather than the service's own `uri` because a
+    service cannot reference its own URL in its definition.
+  EOT
+  type        = string
+  default     = ""
+}

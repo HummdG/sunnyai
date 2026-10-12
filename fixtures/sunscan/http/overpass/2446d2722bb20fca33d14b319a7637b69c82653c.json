@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "overpass",
+ "request": {
+  "method": "POST",
+  "url": "https://overpass-api.de/api/interpreter",
+  "body": "data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3B%0A(%0A%20%20way%5B%22building%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20relation%5B%22building%22%5D%5B%22type%22%3D%22multipolygon%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20way%5B%22building%3Apart%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20relation%5B%22building%3Apart%22%5D%5B%22type%22%3D%22multipolygon%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20node%5B%22addr%3Ahousenumber%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20node%5B%22addr%3Ahousename%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20node%5B%22entrance%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20way%5B%22highway%22~%22%5E(motorway%7Ctrunk%7Cprimary%7Csecondary%7Ctertiary%7Cunclassified%7Cresidential%7Cliving_street%7Cservice%7Cpedestrian%7Croad%7Cfootway%7Cpath%7Ccycleway%7Ctrack%7Csteps%7Cbridleway%7Cbusway%7Cmotorway_link%7Ctrunk_link%7Cprimary_link%7Csecondary_link%7Ctertiary_link)%24%22%5D(around%3A80%2C51.5235958%2C-0.1163264)%3B%0A%20%20way(805137285)%3B%0A)%3B%0Aout%20geom%3B"
+ },
+ "status": 504,
+ "headers": {
+  "content-type": "text/html; charset=utf-8"
+ },
+ "url": "https://overpass-api.de/api/interpreter",
+ "fetchedAt": "2026-10-12T22:50:37.748Z",
+ "bytes": 695
+}

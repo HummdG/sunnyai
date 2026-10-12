@@ -236,6 +236,11 @@ async function harness(provider?: ChatProvider): Promise<FastifyInstance> {
     // "Email me my quote" configured, so its route reaches the session check
     // rather than answering everyone `not_enabled`.
     proposalMailer: { send: () => Promise.resolve({ messageId: 'sweep' }) },
+    // The Cloud Tasks worker route switched on, with a verifier no sweep
+    // credential satisfies: only a Google-signed queue token runs a job, and
+    // none of the credentials below is one (see sunscan-production.test.ts for
+    // the accepting side).
+    sunscanTaskVerifier: () => Promise.resolve(false),
     // Roof assessments on a stand-in engine: the sweep is about who reaches a
     // record, and the real engine would go to the network for every POST.
     sunscan: createSunScanService({
@@ -663,6 +668,18 @@ const ROUTES: RouteSpec[] = [
     url: (ids) => `/v1/sunscan/assessments/${assessmentFor(ids)}/spec.json`,
     kind: 'visitor',
     ownRecord: true,
+  },
+  {
+    // The Cloud Tasks worker: the tenant and assessment come from the task
+    // body, so the queue's OIDC token is the only thing standing between a
+    // caller and running another tenant's job. No session, admin token or
+    // installer credential is that token.
+    method: 'POST',
+    pattern: '/internal/sunscan/run',
+    url: () => '/internal/sunscan/run',
+    kind: 'secret',
+    refuses: 'unauthorized',
+    payload: (ids) => ({ tenantId: ids.tenantId, assessmentId: assessmentFor(ids) }),
   },
   // ─── the installer portal (routes/portal.ts) ──────────────────────────────
   {

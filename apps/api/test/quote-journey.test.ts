@@ -240,6 +240,77 @@ function complete(roof = mapRoof(summary(), PANEL)): Record<string, string> {
   };
 }
 
+describe('an unreliable roof fit (from the first live run)', () => {
+  // Live, Hill Top (a pitched heritage farmhouse) came back as one 200 m² flat
+  // plane with room for 89 panels, flagged fit-unreliable. Nothing of that
+  // geometry may reach the quote.
+  const unreliable = () =>
+    mapRoof(
+      summary({
+        status: 'low-confidence',
+        reliable: false,
+        roofType: 'flat',
+        roofPlanes: [
+          {
+            id: 1,
+            pitchDeg: 0,
+            azimuthDeg: null,
+            facing: 'flat',
+            areaM2: 220,
+            widthM: 20,
+            slopeLengthM: 11,
+            fillRatio: 1,
+            usableAreaM2: 200,
+            maxPanels: 89,
+            suitable: true,
+          },
+        ],
+        usableRoofAreaM2: 200,
+        estimatedMaxPanels: 89,
+        bestFacing: 'flat',
+      }),
+      PANEL,
+    );
+
+  function answersFor(roofSize: string): Record<string, string> {
+    const roof = unreliable();
+    return {
+      ...complete(roof),
+      roof_confirmed: '',
+      ...prefillFromRoof({}, roof),
+      roof_size: roofSize,
+      roof_direction: 'south',
+    };
+  }
+
+  it('uses the visitor’s answers, not the unreliable geometry', () => {
+    const roof = unreliable();
+    const qa = quoteAnswers(answersFor('unsure'), roof, demoPricing())!;
+    expect(qa).not.toBeNull();
+    expect(qa.roof).toMatchObject({ pitchDeg: 35, roofType: 'pitched', confidence: 'low' });
+    expect(qa.roof.maxPanelCount).toBe(20);
+    expect(qa.roof.maxPanelCount).not.toBe(89);
+  });
+
+  it('lets the visitor’s roof size set the panel limit', () => {
+    const roof = unreliable();
+    const quote = buildQuote({
+      id: 'q_unreliable',
+      tenantId: 't',
+      sessionId: 's',
+      createdAt: '2026-10-12T00:00:00Z',
+      answers: quoteAnswers(answersFor('medium'), roof, demoPricing())!,
+      roof,
+      pricing: demoPricing(),
+    });
+    for (const option of quote.options) {
+      expect(option.panelCount).toBeLessThanOrEqual(14);
+      // No flat-roof structural survey on a roof nobody measured as flat.
+      expect(JSON.stringify(option)).not.toContain('STRUCT-FLATROOF-SURVEY');
+    }
+  });
+});
+
 describe('the quote', () => {
   it('is ready once every applicable question is answered', () => {
     const roof = mapRoof(summary(), PANEL);
