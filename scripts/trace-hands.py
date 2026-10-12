@@ -177,75 +177,118 @@ def catmull_rom(pts: list[tuple[float, float]]) -> str:
     return "".join(out)
 
 
-def author_point() -> dict:
-    """The pointing hand, drawn from parts rather than traced.
+class HandCanvas:
+    """A raster in output units for drawing a hand from parts, then running it
+    through the same contour -> spline pipeline as the traced shapes, so the
+    outline weight and crease style match the traced hands."""
 
-    The sheet's pointing hand (top-right cell) is about 50px across and its
-    crop catches a ray, so the trace came out as a fist with a finger stuck up
-    and a wide wrist -- ambiguous at Sunny's sizes. This rebuilds it as a
-    finger-gun with the sheet's proportions: index finger straight along the
-    arm, thumb cocked on the thumb side (-x, the same side as the other hands),
-    the other three fingers curled into knuckles with crease lines between
-    them. It runs through the same contour -> spline pipeline as the traced
-    shapes, so outline weight and crease style match.
-    """
     S = 20  # raster pixels per output unit
-    x0, x1, y0, y1 = -16.0, 12.0, -28.0, 3.0
-    w, h = int((x1 - x0) * S), int((y1 - y0) * S)
-    ys, xs = np.mgrid[0:h, 0:w]
-    ux = xs / S + x0
-    uy = ys / S + y0
+    OUTLINE = 1.75
+    CREASE = 0.36
 
-    def capsule(ax, ay, bx, by, r):
+    def __init__(self) -> None:
+        self.x0, x1, self.y0, y1 = -16.0, 12.0, -28.0, 3.0
+        w, h = int((x1 - self.x0) * self.S), int((y1 - self.y0) * self.S)
+        ys, xs = np.mgrid[0:h, 0:w]
+        self.ux = xs / self.S + self.x0
+        self.uy = ys / self.S + self.y0
+
+    def capsule(self, ax, ay, bx, by, r):
+        ux, uy = self.ux, self.uy
         dx, dy = bx - ax, by - ay
         t = np.clip(((ux - ax) * dx + (uy - ay) * dy) / (dx * dx + dy * dy), 0, 1)
         return np.hypot(ux - (ax + t * dx), uy - (ay + t * dy)) <= r
 
-    def rounded_rect(left, top, right, bottom, r):
-        cx = np.clip(ux, left + r, right - r)
-        cy = np.clip(uy, top + r, bottom - r)
-        return np.hypot(ux - cx, uy - cy) <= r
+    def rounded_rect(self, left, top, right, bottom, r):
+        cx = np.clip(self.ux, left + r, right - r)
+        cy = np.clip(self.uy, top + r, bottom - r)
+        return np.hypot(self.ux - cx, self.uy - cy) <= r
 
-    outline = 1.75
-    palm = rounded_rect(-6.6, -9.4, 6.6, 0.8, 3.6)
-    index = capsule(-3.3, -10.0, -3.3, -21.4, 2.6)
-    thumb = capsule(-5.0, -9.4, -9.6, -13.6, 2.35)
-    knuckles = [capsule(x, -7.6, x, -12.6, 2.05) for x in (1.1, 4.75)]
-    parts = [palm, index, thumb, *knuckles]
-    union = np.logical_or.reduce(parts)
+    def vline(self, x, top, bottom):
+        return (np.abs(self.ux - x) <= self.CREASE) & (self.uy >= top) & (self.uy <= bottom)
 
-    grow = ndi.binary_dilation(union, iterations=int(round(outline * S)))
-    ink = grow & (uy <= 0.3)
+    def shape(self, parts, crease, joint: float) -> dict:
+        union = np.logical_or.reduce(parts)
+        grow = ndi.binary_dilation(union, iterations=int(round(self.OUTLINE * self.S)))
+        ink = grow & (self.uy <= 0.3)
+        fill = ndi.binary_opening(union & ~crease & (self.uy <= -1.1), iterations=2)
+        return {"ink": self._contours(ink, 40), "fill": self._contours(fill, 30), "joint": joint}
 
-    crease = np.zeros_like(union)
-    half = 0.36
-    # Between the index finger and the first knuckle, and between knuckles.
-    for gx in (-1.05, 2.95):
-        crease |= (np.abs(ux - gx) <= half) & (uy <= -10.6) & (uy >= -15.2)
-    # Where the thumb folds against the palm.
-    crease |= capsule(-6.0, -8.6, -4.4, -11.2, half)
-    fill = union & ~crease & (uy <= -1.1)
-    fill = ndi.binary_opening(fill, iterations=2)
-
-    def contours(mask: np.ndarray, min_len: int) -> str:
+    def _contours(self, mask: np.ndarray, min_len: int) -> str:
         padded = ndi.gaussian_filter(np.pad(mask.astype(float), 1), 1.2)
         out = []
         for contour in measure.find_contours(padded, 0.5):
             if len(contour) < min_len:
                 continue
-            simple = measure.approximate_polygon(contour, 0.9)
-            pts = [((c[1] - 1) / S + x0, (c[0] - 1) / S + y0) for c in simple[:-1]]
+            simple = measure.approximate_polygon(contour, 1.6)
+            pts = [((c[1] - 1) / self.S + self.x0, (c[0] - 1) / self.S + self.y0) for c in simple[:-1]]
             if len(pts) >= 3:
                 out.append(catmull_rom(pts))
         return "".join(out)
 
-    return {"ink": contours(ink, 40), "fill": contours(fill, 30), "joint": 8.0}
+
+def author_point() -> dict:
+    """The finger-gun (sheet: top-right cell), drawn from parts.
+
+    The sheet's pointing hand is about 50px across and its crop catches a ray,
+    so its trace read as a fist with a finger stuck up. Drawn instead as an
+    "L", never a single central digit: the index finger runs along the
+    hand's thumb-side edge (-x), flush with the palm; the thumb sticks out
+    sideways ON TOP of the index base, angled back towards the wrist; the
+    other fingers are short curled knuckles stacked on the far side (+x), well
+    behind the index tip. Used side-on (pointing along the arm).
+    """
+    c = HandCanvas()
+    palm = c.rounded_rect(-6.4, -9.0, 6.6, 0.8, 3.4)
+    index = c.capsule(-4.0, -7.0, -4.0, -21.6, 2.45)
+    thumb = c.capsule(-5.2, -6.6, -10.6, -4.2, 2.3)
+    knuckles = [c.capsule(0.2, -6.0, 0.2, -11.4, 1.95), c.capsule(3.9, -5.6, 3.9, -10.6, 1.95)]
+    crease = (
+        c.vline(-1.75, -14.2, -6.8)  # the index stands apart along its length
+        | c.vline(2.05, -13.4, -9.2)  # curled fingers part only at their fronts
+        | c.capsule(-6.3, -5.0, -5.4, -8.4, c.CREASE)  # thumb over the index base
+    )
+    return c.shape([palm, index, thumb, *knuckles], crease, joint=8.0)
+
+
+
+
+
+
+def author_index() -> dict:
+    """A raised index finger (sheet: the "idea" pose, second row), drawn from parts.
+
+    Seen from the back of the hand: the index finger rises from the edge of
+    the fist (-x, the side the hand is mirrored towards the head), the other
+    fingers are a rounded fist beside and below it with knuckle creases, and
+    the thumb is folded ACROSS the front of the fist (the sheet's "J" line) --
+    no digit sticks out on the far side of the index, so it can only read as
+    an index finger.
+    """
+    c = HandCanvas()
+    fist = c.rounded_rect(-6.2, -12.0, 7.0, 0.8, 4.6)
+    index = c.capsule(-3.9, -9.0, -3.9, -21.6, 2.45)
+    curl_top = c.capsule(-0.6, -11.6, 4.8, -11.0, 2.0)
+    crease = (
+        c.vline(-1.55, -15.0, -8.6)  # index finger against the fist
+        | c.capsule(-0.4, -9.0, 5.2, -8.6, c.CREASE)  # between the curled fingers
+        # The folded thumb across the front: the sheet's "J".
+        | c.capsule(-3.6, -4.2, 0.4, -5.6, c.CREASE)
+        | c.capsule(0.4, -5.6, 3.4, -4.6, c.CREASE)
+        | c.capsule(3.4, -4.6, 4.2, -2.6, c.CREASE)
+    )
+    # In the pose the left hand is mirrored, which puts the raised finger on
+    # the side towards the head and the fist outside it, as in the sheet.
+    return c.shape([fist, index, curl_top], crease, joint=8.0)
 
 
 img = np.asarray(Image.open(SRC).convert("RGB"))
-traced = {name: trace_shape(img, spec) for name, spec in SHAPES.items() if name != "point"}
-traced["point"] = author_point()
-traced = {name: traced[name] for name in SHAPES}
+AUTHORED = {"point": author_point, "index": author_index}
+traced = {name: trace_shape(img, spec) for name, spec in SHAPES.items() if name not in AUTHORED}
+for name, author in AUTHORED.items():
+    traced[name] = author()
+order = [*SHAPES, *[name for name in AUTHORED if name not in SHAPES]]
+traced = {name: traced[name] for name in order}
 header = """// GENERATED by scripts/trace-hands.py from reference_poses.png -- do not edit by hand.
 //
 // Sunny's hands and shoes, traced from the pose sheet. Hands: wrist at the

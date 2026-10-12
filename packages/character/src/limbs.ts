@@ -30,7 +30,7 @@ interface Vec2 {
   y: number;
 }
 
-export const HAND_SHAPES = ['relaxed', 'open', 'fist', 'point', 'thumb', 'peace'] as const;
+export const HAND_SHAPES = ['relaxed', 'open', 'fist', 'point', 'index', 'thumb', 'peace'] as const;
 export type HandShape = (typeof HAND_SHAPES)[number];
 
 export interface ArmRig {
@@ -209,7 +209,7 @@ export const LIMB_POSES = {
   idea: {
     visible: true,
     arms: {
-      left: arm({ x: -62, y: -38 }, 0.3, 'point', -35),
+      left: arm({ x: -62, y: -38 }, 0.3, 'index', -35),
       right: ARM_RAY_R,
     },
     legs: STAND,
@@ -491,6 +491,7 @@ const HAND_ART: Record<HandShape, keyof typeof TRACED_HANDS> = {
   open: 'open',
   fist: 'fist',
   point: 'point',
+  index: 'index',
   thumb: 'thumb',
   peace: 'peace',
 };
