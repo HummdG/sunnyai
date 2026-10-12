@@ -17,7 +17,7 @@
     "test:firestore": "node scripts/firestore-emulator.mjs",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.sunscan.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -40,9 +40,12 @@
     "build:tokens": "npm run build:tokens -w @sunny/ui",
     "test:visual:update": "tsx scripts/update-visual-baselines.ts",
     "seed:catalogue": "tsx scripts/seed-catalogue.ts",
+    "seed:hsenergy": "tsx scripts/seed-hsenergy-catalogue.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "verify:isolation": "tsx scripts/verify-isolation.ts",
-    "perf:marketing": "node scripts/lighthouse-marketing.mjs"
+    "perf:marketing": "node scripts/lighthouse-marketing.mjs",
+    "test:auth-emulator": "node scripts/ensure-jre.mjs && node scripts/auth-emulator.mjs",
+    "test:e2e:auth-firebase": "playwright test --config tests/e2e/auth-firebase.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -53,6 +56,7 @@
     "chrome-launcher": "^1.2.2",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
+    "firebase-tools": "^14.27.0",
     "lighthouse": "^13.5.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",

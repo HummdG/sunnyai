@@ -26,6 +26,10 @@ apps/character-lab/public/lab.js
 apps/character-lab/public/lab.js.map
 apps/character-lab/public/arcade.js
 apps/character-lab/public/arcade.js.map
+apps/character-lab/public/gallery.js
+apps/character-lab/public/gallery.js.map
+apps/character-lab/public/perf.js
+apps/character-lab/public/perf.js.map
 # Gitignored, but a developer who has just built the fixture has a copy on disk,
 # and `prettier --check .` would report it and fail the verify step for a file
 # that is not in the repository.
@@ -40,3 +44,24 @@ packages/widget/dist
 apps/marketing/public/widget
 apps/marketing/next-env.d.ts
 apps/marketing/.next
+apps/marketing/.next-*
+
+# Vendored from SunScanV2 (docs/integration/sunscan-contract.md): kept in its
+# original formatting so a diff against the source shows only Sunny's changes.
+# The Sunny-written files in these packages are listed back in below.
+packages/sunscan-core/src
+packages/sunscan-core/test
+packages/sunscan-engine/src
+packages/sunscan-engine/test
+packages/sunscan-viewer/src
+packages/sunscan-viewer/test
+!packages/sunscan-engine/src/index.ts
+!packages/sunscan-viewer/src/index.ts
+!packages/sunscan-viewer/src/public.d.ts
+!packages/sunscan-viewer/src/facade-check.ts
+!packages/sunscan-viewer/test/mount.test.ts
+# Recorded provider responses and research data: their bytes are the fixture.
+fixtures/sunscan
+
+# The owner-supplied plan, kept verbatim
+SUNNY_AI_IMPLEMENTATION_PLAN.md

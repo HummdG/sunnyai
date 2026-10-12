@@ -31,8 +31,14 @@
       "@sunny/ui": ["./packages/ui/src/index.ts"],
       "@sunny/solar-rules": ["./packages/solar-rules/src/index.ts"],
       "@sunny/knowledge": ["./packages/knowledge/src/index.ts"],
-      "@sunny/sunscan-adapter": ["./packages/sunscan-adapter/src/index.ts"]
-    }
+      "@sunny/quote-engine": ["./packages/quote-engine/src/index.ts"]
+      // The SunScan packages are deliberately absent here. They are vendored
+      // from SunScanV2 and compile under its own settings (tsconfig.sunscan.json);
+      // this project sees the adapter and the viewer through their declared
+      // public APIs instead, selected by the `sunny-facade` condition below and
+      // checked against the implementation inside the SunScan project.
+    },
+    "customConditions": ["sunny-facade"]
   },
   "include": [
     "packages/*/src/**/*.ts",
@@ -51,5 +57,16 @@
   // preserve` and generates route types of its own. Without this it is caught
   // twice -- once by `apps/*/*.ts`, which matches its generated `next-env.d.ts`
   // and checks it against settings Next does not use.
-  "exclude": ["node_modules", "apps/widget-demo-next", "apps/marketing"]
+  "exclude": [
+    "node_modules",
+    "apps/widget-demo-next",
+    "apps/marketing",
+    // Removed once the merged app replaces it; excluded while it still exists.
+    "apps/dashboard",
+    // Vendored from SunScanV2 and type-checked by tsconfig.sunscan.json.
+    "packages/sunscan-core",
+    "packages/sunscan-engine",
+    "packages/sunscan-viewer",
+    "packages/sunscan-adapter"
+  ]
 }

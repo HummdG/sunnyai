@@ -52,9 +52,17 @@ apps/widget-demo-react/public/app.js.map
 # fixture either way. Committing it would add a file to every Next upgrade diff.
 apps/widget-demo-next/next-env.d.ts
 apps/marketing/next-env.d.ts
+# Review/test builds of the app in their own output folder (SUNNY_NEXT_DIST).
+apps/marketing/.next-*/
 
 # The widget bundle the marketing site embeds, copied there by
 # `npm run prepare-widget`. Same reasoning as the fixture above: a build
 # artefact, rebuilt before the site is served.
 apps/marketing/public/widget/sunny-widget.js
 apps/marketing/public/widget/sunny-widget.js.map
+
+# Copied from sunny.png by the lab build
+apps/character-lab/public/reference.png
+
+# Firebase emulator logs
+firebase-debug*.log

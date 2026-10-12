@@ -30,6 +30,8 @@ export default tseslint.config(
       // generated files in front of ESLint and every one of them is a
       // parse-or-unsafe-access error that describes the code Next emitted.
       '**/.next/**',
+      // Review/test builds of the app in their own output folder (SUNNY_NEXT_DIST).
+      '**/.next-*/**',
       'apps/character-lab/public/**',
       // The plain-HTML and WordPress fixtures' own browser scripts -- the
       // WordPress page's "plugin", which is an IIFE with `var` and a `window`
@@ -58,6 +60,19 @@ export default tseslint.config(
       // correct fix still fails `npm run lint` -- a hundred errors, none of them
       // about the code under test.
       '**/.cache/**',
+      // Vendored from SunScanV2 and kept as it was written (see
+      // docs/integration/sunscan-contract.md); it is type-checked by
+      // tsconfig.sunscan.json and tested by its own ported suites. The
+      // Sunny-written entry points in these packages are linted as usual.
+      'packages/sunscan-core/**',
+      'packages/sunscan-engine/src/!(index).ts',
+      'packages/sunscan-engine/src/*/**',
+      'packages/sunscan-engine/test/**',
+      'packages/sunscan-viewer/src/*/**',
+      'packages/sunscan-viewer/src/!(index|facade-check).ts',
+      'packages/sunscan-viewer/test/!(mount).test.ts',
+      'packages/sunscan-viewer/test/fixtures.ts',
+      'packages/sunscan-viewer/test/fixtures/**',
     ],
   },
 
