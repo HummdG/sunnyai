@@ -1,0 +1,16 @@
+Category,Key,Name,Manufacturer,Model,Pricing,Amount,Unit,Flat fee,Per unit,Counts,Percent,From,To,Price with solar,Price retrofit,Expansion price,Expansion capacity (kWh),Max units,Additional unit discount,Capacity (kWh),Power (kW),Mandatory,Price status,Exclusive group,Expansion SKU,Band SKU,Prices include VAT,Currency,Notes
+vat,VAT,VAT rate,,,vat,,,,,,0,,,,,,,,,,,,,,,,no,,EXAMPLE ROW - set the VAT rate that applies to your installations
+pv,PV-BASE,Solar PV system by panel count,,,table,"£3,985",,,,,,1,,,,,,,,,,,,,,,,,0.43 kWp
+pv,PV-BASE,Solar PV system by panel count,,,table,"£4,195",,,,,,2,,,,,,,,,,,,,,,,,0.86 kWp
+panel_uplift,PANEL-PREMIUM,Premium panel 455 W,ExampleSolar,EX-455,percent,,,,,,7.5,,,,,,,,,,,,,,,,,,EXAMPLE ROW - replace with your own prices
+mounting,MOUNT-PITCHED-TILE,Pitched tile surcharge (slate / clay),,,per_unit,£30,panel,,,,,,,,,,,,,,,,,,,,,,
+scaffold,SCAFFOLD-EXTRA-SIDE,Additional scaffold side,,,flat,£500,,,,,,,,,,,,,,,,,,,,,,,
+admin,ADMIN-FEE,Administration fee,,,flat,£350,,,,,,,,,,,,,,,,yes,,,,,,,
+electrical,FLATROOF-SURVEY,Flat roof desktop structural survey,,,per_unit,£261,roof,,,,,,,,,,,,,,,,,,,,,,
+battery,BATTERY-EXAMPLE,Example battery 9.6 kWh,ExampleBattery,EB-9.6,with_solar,,,,,,,,,"£3,995","£4,695","£1,395",4.8,7,,9.6,,,,,BATTERY-EXAMPLE-EXT,,,,EXAMPLE ROW - replace with your own prices
+optional,OPT-TIGO-PART,Optimiser (part system),,,per_unit,£60,panel,,,,,,,,,,,,,,,,,tigo,,,,,
+optional,OPT-BIRDMESH,Bird proofing mesh,,,tier,£600,panel,,,,,1,20,,,,,,,,,,,,,,,,
+optional,OPT-BIRDMESH,Bird proofing mesh,,,tier,£600,panel,,£30,above,,21,,,,,,,,,,,,,,,,,
+trenching,TRENCH-SOFT,Trenching - soft ground,,,tier,£250,metre,,£15,,,0,49,,,,,,,,,,,,,TRENCH-SOFT-0-49,,,
+trenching,TRENCH-SOFT,Trenching - soft ground,,,tier,bespoke,metre,,,,,150,,,,,,,,,,,,,,TRENCH-SOFT-150PLUS,,,
+budget_band,under_6k,"Under £6,000",,,,,,,,,,£0,"£6,000",,,,,,,,,,,,,,,,

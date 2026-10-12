@@ -1,0 +1,5 @@
+Category,Manufacturer,Model,Power (W),Capacity (kWh),Price,Currency,Warranty (years),Source URL,Source version,Voc (V),Isc (A),Max DC power (W),Max string voltage (V),MPPT count,Phase,Hybrid,Battery family,Supported batteries,Compatible inverters,Documents,Image URL,Notes
+panel,Aiko,AIKO-A450-MAH54Mw,450,,165.00,GBP,25,https://example.com/your-price-list,2026-10,37.6,14.6,,,,,,,,,,,EXAMPLE ROW - replace with your own products
+inverter,GivEnergy,GIV-HY5.0,5000,,1150.00,GBP,12,https://example.com/your-price-list,2026-10,,,7500,550,2,1,yes,,GivEnergy,,,,EXAMPLE ROW - replace with your own products
+battery,GivEnergy,GIV-BAT-9.5,,9.5,3400.00,GBP,12,https://example.com/your-price-list,2026-10,,,,,,,,GivEnergy,,GIV-HY5.0,,,EXAMPLE ROW - replace with your own products
+EV charger,myenergi,ZAPPI-2H07UW,7000,,875.00,GBP,3,https://example.com/your-price-list,2026-10,,,,,,1,,,,,,,EXAMPLE ROW - replace with your own products

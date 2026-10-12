@@ -24,6 +24,7 @@ record names the conflict and states which one the code follows.
 | [ADR-004](adr-004-retrieval-isolation.md) | Retrieval and tenant isolation | Do not depend on Vertex AI Search's Preview `acl_info` ACLs as the tenant boundary; enforce tenant scoping in our own layer and keep retrieval disabled until isolation is verifiable.                                                 | Proposed            |
 | [ADR-005](adr-005-widget-isolation.md)    | Widget confinement             | Shadow DOM, a closed prop/event vocabulary, text-only rendering of model output, and a landmark allow-list so `suggest_page_action` cannot reach arbitrary DOM or URLs.                                                                | Accepted            |
 | [ADR-006](adr-006-data-and-consent.md)    | Data and consent               | Two append-only JSONL record types behind a `Store` interface; the file boundary is the tenant boundary; consent is a hard gate but is not recorded; retention and deletion are unimplemented.                                         | Proposed            |
+| [ADR-007](adr-007-character-runtime.md)   | Character animation runtime    | Sunny is a Rive file authored by an animator from the reference art; the app keeps the state machine and drives Rive through a fixed input/event contract.                                                                             | Accepted            |
 
 ## Suggested reading order
 

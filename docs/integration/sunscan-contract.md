@@ -1,4 +1,159 @@
-# SunScan integration contract (proposed)
+# SunScan integration contract
+
+**Project:** Sunny.ai — `C:\Work\Arkalith\sunny-ai`
+**Updated:** 12 October 2026 (owner decision: use SunScanV2, vendored, not hosted)
+
+This document has two parts. **Part A** is the current, working integration:
+SunScanV2's address-to-3D-house engine, copied into this repository and called
+in-process. **Part B** is the original discovery-era contract for the separate
+SunScan web application (its questionnaire "journey" and pricing), kept because
+the quote journey still draws on that discovery.
+
+---
+
+# Part A — The vendored SunScanV2 engine (current)
+
+## A.1 Provenance
+
+- **Source:** `C:\Work\Arkalith\SunScanV2` (no git; read-only — nothing there was modified).
+- **Copied:** 12 October 2026. **Content hash** of the 214 copied source files
+  (sha256 over the sorted list of `path NUL bytes NUL`, first 16 hex digits):
+  **`5d6ecd873787aa38`**, over `packages/core/{src,test}`,
+  `apps/server/src/{buildings,elevation,geocode,http,imagery,pipeline,providers}`,
+  `apps/server/src/contracts.ts`, `apps/server/{data,test}`,
+  `apps/web/src/three` and `apps/web/src/lib/{format,time}.ts`.
+
+| Sunny package                                         | From SunScanV2                                                            | What changed                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/sunscan-core` (`@sunny/sunscan-core`)       | `packages/core`                                                           | Import names only. Raw-fixture paths point at `fixtures/sunscan/raw`; one outline-count test narrowed to the vendored addresses.                                                                                                                              |
+| `packages/sunscan-engine` (`@sunny/sunscan-engine`)   | `apps/server/src` minus `app.ts`, `main.ts`, `cli.ts`, `routes/`          | Now a library: the Fastify app, routes and CLI are dropped and `src/index.ts` (Sunny) exports the pipeline. Fixture dir default is `fixtures/sunscan/http`. Tests that went through the dropped HTTP app are removed; the rest run on the vendored addresses. |
+| `packages/sunscan-viewer` (`@sunny/sunscan-viewer`)   | `apps/web/src/three`, `lib/format.ts`, `lib/time.ts`, four DOM-free tests | `Viewer.highlightRoofFaces()` added; `src/index.ts` (Sunny) wraps the viewer as `mountRoofViewer()`. No React, no Leaflet.                                                                                                                                    |
+| `packages/sunscan-adapter` (`@sunny/sunscan-adapter`) | —                                                                         | Sunny's typed adapter.                                                                                                                                                                                                                                        |
+
+- **Fixtures:** `fixtures/sunscan/raw/` (research data for 20 Forthlin Road,
+  Mendips and the Dylan Thomas birthplace, plus Carnegie's birthplace for one
+  COG test) and `fixtures/sunscan/http/` (5.4 MB of recorded provider
+  responses — exactly the entries those suites read, found by tracing a run
+  against SunScanV2's full 17 MB set). The other addresses' coverage stays in
+  SunScanV2's own suite.
+- **Compiler settings:** the vendored packages compile under
+  `tsconfig.sunscan.json` (SunScanV2's strict settings, without
+  `noUncheckedIndexedAccess`, which its geometry was not written against — 3,297
+  errors under the root config). The strict root project sees the adapter and
+  the viewer only through hand-written declarations (`src/public.d.ts`, selected
+  by the `sunny-facade` export condition); `src/facade-check.ts` fails the
+  SunScan typecheck if an implementation stops matching its declaration.
+  `npm run typecheck` runs both projects. Vendored files are excluded from
+  Sunny's lint and Prettier, so a diff against SunScanV2 shows only Sunny's
+  changes; Sunny-written files in those packages are linted.
+
+## A.2 Providers and keys
+
+Every data source is **open UK data and needs no API key**:
+
+| Stage                     | Providers                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| Geocoding                 | Nominatim (OSM; its 1 request/s policy is enforced), Photon, postcodes.io                        |
+| Footprints                | Overpass (OSM), Overture Maps buildings (PMTiles)                                                |
+| Heights (LiDAR)           | Environment Agency composite (England), Welsh Government (Wales), Scottish Remote Sensing Portal |
+| Datum                     | OS OSTN15 grid, shipped in `packages/sunscan-engine/data/ostn15`                                 |
+| Ground texture (optional) | Esri World Imagery tiles                                                                         |
+
+`SUNSCAN_HTTP_MODE` is `live` (default; cached under `.cache/http`), `record`
+(live plus fixture writes) or `replay` (fixtures only, no network — tests and
+demos). `SUNSCAN_USER_AGENT` overrides Sunny's identifying, contact-free
+User-Agent. `SUNSCAN_ENABLED=0` switches assessments off.
+`SUNSCAN_ARTEFACT_DIR` sets where model files go (default
+`<dataDir>/sunscan-artefacts`).
+
+**Live mode has not been run from Sunny.** Replay mode is verified end to end;
+the first live run should be watched (provider rate limits, Overpass failover).
+
+## A.3 API (visitor surface)
+
+All routes take the widget **session token**. An assessment belongs to the
+session that started it; any other session or tenant gets `not_found`, exactly
+as a missing id does. The security sweep (`tests/security`) covers every route
+and credential.
+
+| Route                                                              | Purpose                                                              |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `POST /v1/sunscan/assessments` `{address?, postcode?, lat?, lon?}` | Start one (202, status `queued`). 5 per session per 10 minutes.      |
+| `GET /v1/sunscan/assessments/:id`                                  | Status and summary (`sunscanAssessmentSchema`).                      |
+| `GET /v1/sunscan/assessments/:id/model.glb`                        | Binary glTF of the house and its neighbours.                         |
+| `GET /v1/sunscan/assessments/:id/spec.json`                        | The engine's `HouseModelSpec`; the viewer rebuilds the mesh from it. |
+
+Statuses run `queued → running → succeeded | low-confidence | failed`.
+`low-confidence` means the engine flagged the LiDAR fit as unreliable or had no
+LiDAR: the roof is an estimate and is never presented as measured. Failures
+carry a code: `address-not-found`, `address-ambiguous` (a postcode or a street,
+not one house), `outside-uk`, `no-building`, `provider-unavailable`,
+`engine-error`.
+
+Records are tenant-scoped in the Store (`saveSunScanAssessment` and
+`getSunScanAssessment`, in both FileStore and FirestoreStore); model files go to
+an `ArtefactStore` (disk today). **Production gap:** Cloud Run's disk is
+ephemeral, so a Cloud Storage `ArtefactStore` is needed before deploying (the
+interface is in place). Jobs run on an in-process queue with concurrency 1;
+`JobQueue` is the seam for Cloud Tasks.
+
+## A.4 In chat
+
+- `start_sunscan_assessment {address}` starts an assessment, waits up to 25 s,
+  emits a `sunscan` stream event (id, status, summary) and returns the
+  `RoofAssessmentSummary` to the model. A slow one is reported as running and
+  the widget polls.
+- `get_sunscan_result {assessmentId}` returns the `RoofAssessmentSummary`, for
+  this conversation's assessments only.
+- The widget shows a roof card ("about N m² usable … room for up to K panels
+  (estimate)", with the indicative label) and a **See your roof in 3D** button.
+  That loads `sunny-roof.js` (three.js and the house synthesis, about 198 kB
+  gzipped, fetched only on that press; the main widget stays about 45 kB) and
+  opens the viewer inside the panel: orbit, a sun-time slider with real shadows,
+  the suitable planes highlighted, a plane list that highlights one plane on
+  hover or focus, and a text summary for anyone who cannot use the canvas.
+
+## A.5 `RoofAssessmentSummary` — the stable hand-off to the quote journey
+
+Exported by `@sunny/sunscan-adapter`; `toRoofAssessmentSummary(record)` builds
+it from a finished assessment (null while running, or when it failed). Fields
+are only ever added, never renamed or removed.
+
+- `assessmentId`, `status`, `address`, `postcode`, `builtForm`, `era`,
+  `storeys`, `roofType`, `eaveHeightM`
+- `roofPlanes[]`: `id`, `partId`, `pitchDeg`, `azimuthDeg` (bearing of the
+  downslope, null when flat), `facing`, `areaM2`, `planAreaM2`, `widthM` (along
+  the eave), `slopeLengthM`, `fillRatio`, `usableAreaM2`, `maxPanels`,
+  `suitable`
+- `suitableRoofAreaM2`, `usableRoofAreaM2`, `estimatedMaxPanels`,
+  `mainPlaneId`, `bestFacing`
+- `obstructions.chimneys`; `shadingFlags`, which always includes
+  `shading-not-assessed` because shading is **not** simulated
+- `confidence {geocode, footprint, heights, roof}`, `reliable`, `flags`,
+  `notes`, `sources`, and `label` ("Indicative — subject to an on-site survey")
+
+**Assumptions** (`ROOF_LAYOUT`, exported). A plane is _suitable_ when it faces
+67.5°–292.5° (east through south to west) at 10°–60° pitch with at least 4 m²,
+or is flat. _Usable_ area keeps 0.4 m clear of every edge and is scaled by how
+much of its bounding rectangle the plane fills. _maxPanels_ packs a
+1.722 × 1.134 m module, in the better orientation, into that rectangle, scaled
+the same way. These are geometry estimates — not yield and not structural
+suitability. A quote that uses another module, or the installer's own setback,
+should recompute from `widthM`, `slopeLengthM` and `fillRatio`.
+
+## A.6 What is left
+
+- A Cloud Storage `ArtefactStore` and a Cloud Tasks `JobQueue` for production.
+- A first live-mode run, and fixtures recorded for more addresses.
+- Shading simulation: SunScanV2 has the sun model, but it is not wired into the
+  summary.
+- The installer's view of assessments in the dashboard. The viewer is
+  React-wrappable: call `mountRoofViewer(div, { spec })` in an effect and
+  `dispose()` in its cleanup.
+
+---
+
+# Part B — The SunScan web application (discovery-era, 10 October 2026)
 
 **Project:** Sunny.ai — `C:\Work\Arkalith\sunny-ai`
 **Counterpart:** the SunScan web application, as recorded in `docs/discovery-sunscan.md`
