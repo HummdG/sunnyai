@@ -73,6 +73,14 @@ export interface EmailStateStore {
   finish(tenantId: string, record: ProcessedRecord): Promise<void>;
   autoRepliesToday(tenantId: string, sender: string, day: string): Promise<number>;
   recordAutoReply(tenantId: string, sender: string, day: string): Promise<void>;
+  /**
+   * Take one of today's auto-replies for `sender` if fewer than `cap` are used,
+   * atomically -- two instances answering the same sender at once cannot both
+   * take the last one. Returns false when the cap is reached.
+   */
+  claimAutoReply(tenantId: string, sender: string, day: string, cap: number): Promise<boolean>;
+  /** Give back a claimed auto-reply whose send failed. */
+  releaseAutoReply(tenantId: string, sender: string, day: string): Promise<void>;
   /** Inbound messages from one sender today, auto or not, for the abuse ceiling. */
   messagesToday(tenantId: string, sender: string, day: string): Promise<number>;
   recordMessage(tenantId: string, sender: string, day: string): Promise<void>;
@@ -193,6 +201,30 @@ export class MemoryEmailState implements EmailStateStore {
       const key = senderKey(day, sender);
       state.autoReplies[key] = (state.autoReplies[key] ?? 0) + 1;
       prune(state, day);
+    });
+  }
+
+  async claimAutoReply(
+    tenantId: string,
+    sender: string,
+    day: string,
+    cap: number,
+  ): Promise<boolean> {
+    return this.mutate(tenantId, (state) => {
+      const key = senderKey(day, sender);
+      const used = state.autoReplies[key] ?? 0;
+      if (used >= cap) return false;
+      state.autoReplies[key] = used + 1;
+      prune(state, day);
+      return true;
+    });
+  }
+
+  async releaseAutoReply(tenantId: string, sender: string, day: string): Promise<void> {
+    await this.mutate(tenantId, (state) => {
+      const key = senderKey(day, sender);
+      const used = state.autoReplies[key] ?? 0;
+      if (used > 0) state.autoReplies[key] = used - 1;
     });
   }
 

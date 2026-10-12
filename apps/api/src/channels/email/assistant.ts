@@ -311,10 +311,25 @@ export class EmailAssistant {
     let draftId: string | null = null;
     let webLink: string | null = null;
     let sentMessageId: string | null = null;
-    if (decision.send && mailbox) {
-      sentMessageId = (await mailbox.send(send)).messageId;
+    // The cap is claimed atomically before sending: the read above is only a
+    // fast path, and two instances answering one sender could both pass it.
+    const claimed =
+      decision.send && mailbox !== null
+        ? await state.claimAutoReply(
+            tenant.id,
+            email.from.address,
+            today,
+            config.autoReplyCapPerSender,
+          )
+        : false;
+    if (claimed && mailbox) {
+      try {
+        sentMessageId = (await mailbox.send(send)).messageId;
+      } catch (error) {
+        await state.releaseAutoReply(tenant.id, email.from.address, today);
+        throw error;
+      }
       outcome = 'sent';
-      await state.recordAutoReply(tenant.id, email.from.address, today);
     } else if (mailbox) {
       const draft = await mailbox.createDraft(send);
       draftId = draft.draftId;
@@ -323,7 +338,11 @@ export class EmailAssistant {
     // With no mailbox connected (forwarded mail only), the reply is still drafted
     // -- held in Sunny for the installer to copy from the inbox.
 
-    const reason = decision.send ? null : decision.reason;
+    const reason = decision.send
+      ? claimed
+        ? null
+        : `sender reached ${config.autoReplyCapPerSender} automatic replies today`
+      : decision.reason;
     const link: ThreadLink = {
       sessionId,
       provider: mailbox?.provider ?? 'none',

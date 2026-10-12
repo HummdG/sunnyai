@@ -15,7 +15,6 @@ import { loadVoiceConfig, type VoiceConfig } from '../channels/voice/config.js';
 import { geminiLiveConnector, rawText, type LiveConnector } from '../channels/voice/live.js';
 import {
   VoiceSession,
-  activeCount,
   type EndReason,
   type Timers,
   type VoiceClientEvent,
@@ -33,7 +32,19 @@ import {
   validateTwilioSignature,
   type Fetch,
 } from '../channels/voice/twilio.js';
-import { FileVoiceUsage, type VoiceUsageLedger } from '../channels/voice/usage.js';
+import {
+  FirestoreVoiceSlots,
+  HEARTBEAT_MS,
+  MemoryVoiceSlots,
+  type VoiceLease,
+  type VoiceSlots,
+} from '../channels/voice/slots.js';
+import {
+  FileVoiceUsage,
+  FirestoreVoiceUsage,
+  type VoiceUsageLedger,
+} from '../channels/voice/usage.js';
+import { FirestoreStore } from '../firestore-store.js';
 import { hasEntitlement, type AddonKey } from '../entitlements.js';
 import { verifySessionToken } from '../sessions.js';
 import type { Store } from '../store.js';
@@ -66,6 +77,8 @@ export interface VoiceRouteDeps {
   /** The Live API connector; the real Gemini one when absent and a key is set. */
   connector?: LiveConnector;
   usage?: VoiceUsageLedger;
+  /** Concurrency leases; shared across instances on the Firestore store. */
+  slots?: VoiceSlots;
   fetch?: Fetch;
   now?: () => number;
   timers?: Timers;
@@ -105,11 +118,35 @@ function tokenMatches(presented: string, expected: string): boolean {
 const normaliseNumber = (n: string): string => n.replace(/[^\d+]/g, '');
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+/** Every concurrency slot for the tenant is taken (decided atomically at start). */
+class SlotsFullError extends Error {
+  constructor() {
+    super('All voice slots for this installer are in use.');
+    this.name = 'SlotsFullError';
+  }
+}
+
 export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps): void {
   const voice = deps.voice ?? loadVoiceConfig(process.env);
   const now = deps.now ?? Date.now;
   const fetchImpl = deps.fetch ?? fetch;
-  const usage = deps.usage ?? new FileVoiceUsage(deps.dataDir);
+  // On the Firestore store, minutes and concurrency are shared state across
+  // every API instance; otherwise (development, one instance) they are local.
+  const db = deps.store instanceof FirestoreStore ? deps.store.firestore : null;
+  const usage = deps.usage ?? (db ? new FirestoreVoiceUsage(db) : new FileVoiceUsage(deps.dataDir));
+  const slots = deps.slots ?? (db ? new FirestoreVoiceSlots(db, now) : new MemoryVoiceSlots(now));
+  const leases = new Map<string, { lease: VoiceLease; beat: ReturnType<typeof setInterval> }>();
+
+  /** Release a session's lease; safe to call twice. */
+  function releaseSlot(sessionId: string): void {
+    const held = leases.get(sessionId);
+    if (!held) return;
+    leases.delete(sessionId);
+    clearInterval(held.beat);
+    held.lease.release().catch((error: unknown) => {
+      log('voice lease release failed', { sessionId, error: String(error) });
+    });
+  }
   const connector: LiveConnector | null =
     deps.connector ?? (voice.apiKey ? geminiLiveConnector(voice.liveUrl, voice.apiKey) : null);
   const sessions = new Set<VoiceSession>();
@@ -123,7 +160,7 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
     if (!connector) return 'unavailable';
     if (!hasEntitlement(tenant, addon, now())) return 'not_enabled';
     const cap = tenant.config.voice?.concurrency ?? voice.defaultConcurrency;
-    if (activeCount(tenant.id) >= cap) return 'busy';
+    if ((await slots.count(tenant.id, now())) >= cap) return 'busy';
     const quotaMinutes = tenant.addonConfig?.[addon]?.monthlyQuota;
     if (typeof quotaMinutes === 'number') {
       const used = await usage.secondsThisMonth(tenant.id, now());
@@ -272,12 +309,32 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
     wss.close();
   });
 
-  async function startSession(session: VoiceSession): Promise<void> {
+  /**
+   * Claim the tenant's concurrency slot atomically, then open the session. The
+   * pre-check in `refusal` is only a fast path: two instances can both pass it,
+   * and this claim is where the last slot is decided.
+   */
+  async function startSession(
+    session: VoiceSession,
+    tenant: Tenant,
+    sessionId: string,
+  ): Promise<void> {
+    const cap = tenant.config.voice?.concurrency ?? voice.defaultConcurrency;
+    const lease = await slots.acquire(tenant.id, sessionId, cap, now());
+    if (!lease) throw new SlotsFullError();
+    const beat = setInterval(() => {
+      lease.heartbeat().catch((error: unknown) => {
+        log('voice lease heartbeat failed', { sessionId, error: String(error) });
+      });
+    }, HEARTBEAT_MS);
+    beat.unref?.();
+    leases.set(sessionId, { lease, beat });
     sessions.add(session);
     try {
       await session.start();
     } catch (error) {
       sessions.delete(session);
+      releaseSlot(sessionId);
       throw error;
     }
   }
@@ -363,11 +420,13 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
             now,
             ...(deps.timers ? { timers: deps.timers } : {}),
             log,
+            onEnded: () => releaseSlot(claims.sessionId),
           });
           try {
-            await startSession(session);
+            await startSession(session, tenant, claims.sessionId);
           } catch (error) {
             session = null;
+            if (error instanceof SlotsFullError) return fail('busy', refusalMessage('busy'));
             if (error instanceof NotEntitledError) return fail('not_enabled', error.message);
             return fail('internal', 'Voice could not start.');
           }
@@ -440,6 +499,7 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
             tenant,
             store: deps.store,
             sessionId: `call_${callSid}`,
+            onEnded: () => releaseSlot(`call_${callSid}`),
             knowledge: await deps.loadKnowledgeIndex(tenant.id),
             connector: connector!,
             model: voice.liveModel,
@@ -484,10 +544,13 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
           });
           session = current;
           try {
-            await startSession(current);
-          } catch {
+            await startSession(current, tenant, `call_${callSid}`);
+          } catch (error) {
             session = null;
-            ws.close(1011, 'voice could not start');
+            ws.close(
+              error instanceof SlotsFullError ? 1000 : 1011,
+              error instanceof SlotsFullError ? 'busy' : 'voice could not start',
+            );
           }
         })();
         return;

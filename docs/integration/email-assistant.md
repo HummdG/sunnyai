@@ -74,7 +74,10 @@ that come from a **PDF in the installer's Drive** are attached (max 3, 15 MB).
    matches a cited "Customer question: …" passage of the knowledge base, the
    answer cites it, uses no tool but retrieval, and contains no figure that the
    cited passage does not;
-3. the sender has had fewer than 3 automatic replies today;
+3. the sender has had fewer than 3 automatic replies today -- claimed
+   atomically before sending (`claimAutoReply`, a Firestore transaction in
+   production), so two instances answering one sender at once cannot both take
+   the last one; a failed send gives the claim back;
 4. no safety escalation, no "I don't have that exact information" fallback,
    no injection suspicion, and a connected mailbox that can send.
 

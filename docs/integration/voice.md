@@ -115,15 +115,28 @@ Tenant settings: `config.voice.{twilioNumbers, voiceName, maxCallSeconds,
 concurrency}` (portal) and, read if present, `config.voice.bookingUrl` and
 `config.voice.disclosure`; `supportContact.phone`; `addonConfig.*.monthlyQuota`.
 
+## Shared state across instances
+
+When the API runs on the Firestore store, voice state is shared by every
+instance (chosen automatically in `routes/voice.ts`):
+
+- **Concurrency** (`channels/voice/slots.ts`, `FirestoreVoiceSlots`): one
+  `voiceSlots/{tenant}` document holds the live leases. A session claims a slot
+  in a transaction when it starts (two instances cannot both take the last
+  one), heartbeats every 20 s, and releases it when it ends; a lease not
+  heartbeated for 60 s is ignored, so a crashed instance cannot hold slots.
+  The `refusal` check before start is only a fast path.
+- **Minutes** (`FirestoreVoiceUsage`): each call is kept as a `voiceUsage`
+  document (the audit trail) and added atomically to
+  `voiceUsageMonthly/{tenant}_{YYYY-MM}`, which the quota check reads.
+- Development and single-instance runs use the in-memory slots and the JSONL
+  ledger. Tests: `apps/api/test/voice-shared-counters.test.ts`, run against the
+  emulator by `npm run test:firestore` (and in CI).
+
 ## Known gaps
 
 - **Not run against real providers.** Needs a Gemini API key with Live access,
   and a Twilio account, number and auth token, with the number's voice webhook
   set to `https://<api>/v1/voice/twilio/incoming`.
-- **Metering and concurrency are per instance.** The voice-minute ledger is a
-  JSONL file and the concurrency count is in memory; multi-instance Cloud Run
-  needs a Firestore ledger and a shared counter behind the same interfaces.
 - **Cloud Run WebSockets** are subject to the request timeout (set it above
   5 minutes) and need session affinity for the media stream.
-- `ws` / `@types/ws` are used from the lockfile's transitive install; `apps/api`
-  must declare them as dependencies.

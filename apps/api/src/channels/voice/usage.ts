@@ -1,6 +1,8 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { FieldValue, type Firestore } from '@google-cloud/firestore';
+
 /**
  * Voice minutes, per tenant per calendar month (Blueprint §6: voice is billed
  * and capped by minutes, "300 minutes/month of Web Voice or ~500 minutes/month
@@ -8,8 +10,8 @@ import { join } from 'node:path';
  *
  * A ledger rather than a counter, so a month's total is derivable and auditable
  * from the entries. The file ledger is the development and single-instance
- * implementation; a multi-instance production deployment needs a Firestore
- * ledger behind the same interface (not built yet -- see docs/integration/voice.md).
+ * implementation; a multi-instance deployment uses `FirestoreVoiceUsage`,
+ * chosen automatically when the API runs on the Firestore store.
  */
 export interface VoiceUsageEntry {
   tenantId: string;
@@ -47,6 +49,50 @@ export class MemoryVoiceUsage implements VoiceUsageLedger {
         .filter((e) => e.tenantId === tenantId && sameMonth(e.startedAt, now))
         .reduce((sum, e) => sum + e.seconds, 0),
     );
+  }
+}
+
+/** The calendar month (UTC) of a timestamp, as `YYYY-MM`. */
+function monthKey(at: number): string {
+  const d = new Date(at);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * The multi-instance ledger: every entry is kept as its own document (the
+ * audit trail), and a per-tenant-per-month total is kept with an atomic
+ * increment, so the quota check is one document read whichever instance
+ * recorded the minutes.
+ */
+export class FirestoreVoiceUsage implements VoiceUsageLedger {
+  readonly #db: Firestore;
+  constructor(db: Firestore) {
+    this.#db = db;
+  }
+  #month(tenantId: string, at: number) {
+    return this.#db
+      .collection('voiceUsageMonthly')
+      .doc(`${encodeURIComponent(tenantId)}_${monthKey(at)}`);
+  }
+  async record(entry: VoiceUsageEntry): Promise<void> {
+    const at = Date.parse(entry.startedAt);
+    const batch = this.#db.batch();
+    batch.set(this.#db.collection('voiceUsage').doc(), entry);
+    batch.set(
+      this.#month(entry.tenantId, at),
+      {
+        tenantId: entry.tenantId,
+        month: monthKey(at),
+        seconds: FieldValue.increment(entry.seconds),
+      },
+      { merge: true },
+    );
+    await batch.commit();
+  }
+  async secondsThisMonth(tenantId: string, now: number): Promise<number> {
+    const snap = await this.#month(tenantId, now).get();
+    const seconds = snap.get('seconds') as unknown;
+    return typeof seconds === 'number' ? seconds : 0;
   }
 }
 

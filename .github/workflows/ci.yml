@@ -160,7 +160,9 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Firestore store contract
+      # The store contract plus the cross-instance state suites (voice
+      # concurrency leases and minutes, the email auto-reply cap).
+      - name: Firestore store contract and shared state
         run: npm run test:firestore
 
   # Job permissions are the default (read). The API needs no cloud credentials

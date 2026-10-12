@@ -123,6 +123,8 @@ export interface VoiceSessionOptions {
   now?: () => number;
   timers?: Timers;
   log?: (message: string, detail?: Record<string, unknown>) => void;
+  /** Called once when the session ends, e.g. to release its concurrency lease. */
+  onEnded?: () => void;
 }
 
 /** Said near the cap so the model can wrap up before the line goes quiet. */
@@ -284,6 +286,11 @@ export class VoiceSession {
     if (this.#wrapTimer !== null) this.#timers.clear(this.#wrapTimer);
     this.#flushTurn();
     activeVoiceSessions.delete(this.#o.sessionId);
+    try {
+      this.#o.onEnded?.();
+    } catch {
+      // A failed release must not stop the session ending.
+    }
     try {
       this.#live?.close();
     } catch {

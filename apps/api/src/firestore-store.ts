@@ -188,6 +188,14 @@ export class FirestoreStore implements Store {
   /** Kept because the client does not expose it, and `/healthz` should name it. */
   #project: string;
 
+  /**
+   * The client, for state that must be shared across API instances but is
+   * not a store record (voice concurrency leases, voice minute totals).
+   */
+  get firestore(): Firestore {
+    return this.#db;
+  }
+
   constructor(options: FirestoreStoreOptions) {
     this.#project = options.project;
     this.#db = new Firestore({

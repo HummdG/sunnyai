@@ -45,7 +45,15 @@ const PROJECT = process.env.SUNNY_FIRESTORE_PROJECT ?? 'demo-sunny';
 /** What to run once the emulator is up; overridable, so a new suite needs no edit. */
 const TEST_ARGS = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['run', 'apps/api/test/store-contract.test.ts'];
+  : [
+      'run',
+      // Every suite with a Firestore half: the store contract, and the state
+      // that must be shared across API instances (voice slots and minutes, the
+      // email auto-reply cap).
+      'apps/api/test/store-contract.test.ts',
+      'apps/api/test/voice-shared-counters.test.ts',
+      'apps/api/test/email-shared-state.test.ts',
+    ];
 
 /** Say something, and say it on the error stream where a failure can be read. */
 function log(message) {
