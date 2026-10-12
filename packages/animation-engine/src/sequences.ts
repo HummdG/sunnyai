@@ -1,5 +1,8 @@
+import { withLimbActing } from './limb-acting.js';
 import {
+  blendLimbs,
   cloneRig,
+  limbPose,
   toBodyFrame,
   toViewBox,
   type PropRig,
@@ -65,6 +68,58 @@ const ease = (t: number): number => {
   return c * c * (3 - 2 * c);
 };
 
+// ─── 1930s cartoon timing ────────────────────────────────────────────────────
+//
+// Rubber-hose animation reads as alive because nothing moves linearly: every
+// move is anticipated (a pull back before it goes), overshoots, and settles
+// with a wobble; a bounce squashes on contact and stretches in flight; and
+// loose parts -- the rays -- follow through a beat behind the body.
+
+const clamp01 = (t: number): number => Math.min(1, Math.max(0, t));
+
+/** Ease-out that overshoots its target and comes back (a "back" ease). */
+const overshoot = (t: number, s = 1.9): number => {
+  const c = clamp01(t) - 1;
+  return 1 + c * c * ((s + 1) * c + s);
+};
+
+/** A damped wobble that is exactly zero at t = 0 and t = 1. */
+const settle = (t: number, cycles = 2.5, decay = 4.5): number =>
+  t <= 0 || t >= 1 ? 0 : Math.sin(t * cycles * TAU) * Math.exp(-decay * t) * (1 - t);
+
+/**
+ * One rubber-hose bounce over phase `p` (periodic): `lift` is 0 at contact and
+ * 1 at the top; `squash` spikes at contact; `stretch` is greatest when the
+ * body moves fastest, between the two.
+ */
+function hoseBounce(p: number): { lift: number; squash: number; stretch: number } {
+  const ph = ((p % 1) + 1) % 1;
+  const lift = Math.sin(ph * Math.PI);
+  const edge = Math.min(ph, 1 - ph);
+  const squash = Math.max(0, 1 - edge / 0.14) ** 2;
+  const stretch = Math.abs(Math.cos(ph * Math.PI)) * (1 - squash);
+  return { lift, squash, stretch };
+}
+
+/**
+ * Elastic rays: a wave travels round the ring so the rays flex one after
+ * another, like rubber, instead of moving as a rigid crown. `p` is periodic.
+ */
+function rubberRays(r: SunnyRig, p: number, amount: number): void {
+  for (const [i, ray] of r.rays.entries()) {
+    const phase = i / r.rays.length;
+    ray.rotation += wave(p, -phase) * 7 * amount;
+    ray.lengthScale *= 1 + wave(p, 0.25 - phase) * 0.09 * amount;
+    ray.widthScale *= 1 - wave(p, 0.25 - phase) * 0.05 * amount;
+  }
+}
+
+/** Apply the same change to both eyes. */
+function eyes(r: SunnyRig, f: (eye: SunnyRig['eyes']['left']) => void): void {
+  f(r.eyes.left);
+  f(r.eyes.right);
+}
+
 /** A prop at full strength. */
 function prop(id: PropRig['id'], x: number, y: number, scale: number, rotation = 0): PropRig {
   return { id, x, y, rotation, scale, opacity: 1 };
@@ -93,10 +148,15 @@ const idle: Sequence = {
   states: ['idle', 'relaxing'],
   pose: (base, t) => {
     const r = cloneRig(base);
-    const breath = wave(t) * 0.012;
-    r.squash = breath;
-    r.stretch = -breath * 0.6;
-    r.y = base.y - 0.6 + wave(t) * 0.6;
+    // Six easy bounces per loop, about one a second: the rubber-hose idle.
+    // Small enough to sit on someone's website, big enough to read as alive.
+    const b = hoseBounce(t * 6);
+    r.y = base.y - b.lift * 3.2;
+    r.squash = b.squash * 0.07 - b.stretch * 0.025;
+    r.stretch = b.stretch * 0.035 - b.squash * 0.04;
+    // The head sways on every other beat, a little behind the body.
+    r.faceTilt = wave(t * 3, -0.12) * 2.6;
+    rubberRays(r, t * 6 - 0.15, 0.7);
     // Gaze drifts around a short loop of points, holding on each.
     const phase = (t * 4) % 1;
     const hold = ease(Math.min(1, phase * 3));
@@ -113,6 +173,9 @@ const idle: Sequence = {
       y: from[1] + (to[1] - from[1]) * hold,
     };
     r.eyes.right.gaze = { ...r.eyes.left.gaze };
+    // Brows ride the bounce a touch, which is most of what makes it a face.
+    r.brows.left.y = base.brows.left.y - b.lift * 0.9;
+    r.brows.right.y = base.brows.right.y - b.lift * 0.9;
     return r;
   },
 };
@@ -170,17 +233,24 @@ const listening: Sequence = {
   states: ['listening'],
   pose: (base, t) => {
     const r = cloneRig(base);
-    const a = bump(t);
-    r.eyes.left.scaleY = 1 + a * 0.16;
-    r.eyes.right.scaleY = 1 + a * 0.16;
-    r.eyes.left.scaleX = 1 + a * 0.05;
-    r.eyes.right.scaleX = 1 + a * 0.05;
-    r.y = base.y - a * 2.2;
-    for (const ray of r.rays) {
-      ray.lengthScale = 1 + a * 0.06;
-      ray.widthScale = 1 - a * 0.04;
+    // Anticipate (dip and squash), pop up tall with big eyes, then settle on a
+    // wobble back to rest.
+    const dip = t < 0.18 ? Math.sin((t / 0.18) * Math.PI * 0.5) * (1 - t / 0.18) * 1.6 : 0;
+    const pop = t < 0.18 ? 0 : overshoot((t - 0.18) / 0.35) * (1 - ease((t - 0.5) / 0.5));
+    const wob = settle(t, 2, 3);
+    r.y = base.y + dip * 3 - pop * 5;
+    r.squash = dip * 0.12 - pop * 0.06 + wob * 0.04;
+    r.stretch = pop * 0.08 - dip * 0.06;
+    eyes(r, (eye) => {
+      eye.scaleY = 1 + pop * 0.32 - dip * 0.25;
+      eye.scaleX = 1 + pop * 0.1;
+    });
+    r.brows.left.y = base.brows.left.y - pop * 4;
+    r.brows.right.y = base.brows.right.y - pop * 4;
+    for (const [i, ray] of r.rays.entries()) {
+      ray.lengthScale = 1 + pop * 0.14 - dip * 0.12 + settle(clamp01(t - i * 0.02), 2, 3) * 0.08;
     }
-    r.smile.depth = base.smile.depth + a * 1.2;
+    r.smile.depth = base.smile.depth * (1 + pop * 0.3);
     return r;
   },
 };
@@ -228,22 +298,33 @@ const thinking: Sequence = {
   states: ['thinking'],
   pose: (base, t) => {
     const r = cloneRig(base);
-    const spin = t * 22;
+    // A clockwork tick-tock: the ring of rays rocks on four beats, each one
+    // snapping past its mark and settling, like an escapement working a thought.
+    const beat = t * 4;
+    const k = Math.floor(beat);
+    const f = beat - k;
+    const dir = k % 2 === 0 ? 1 : -1;
+    const tick = dir * (overshoot(f / 0.45) * 2 - 1);
     for (const [i, ray] of r.rays.entries()) {
-      ray.rotation = spin;
-      // A travelling pulse, so the ring reads as turning rather than snapping.
+      ray.rotation = tick * 9;
       ray.lengthScale = 1 + wave(t * 2, -i / r.rays.length) * 0.07;
     }
-    r.faceTilt = wave(t) * 2.4;
-    const up = 0.62 + wave(t * 0.5) * 0.12;
-    r.eyes.left.gaze = { x: -up * 0.6, y: -up };
-    r.eyes.right.gaze = { x: -up * 0.6, y: -up };
-    r.eyes.left.scaleY = 0.9;
-    r.eyes.right.scaleY = 0.9;
-    r.brows.left.y = base.brows.left.y - 1.6;
-    r.brows.right.y = base.brows.right.y - 1.6;
-    r.smile.span = base.smile.span * 0.62;
-    r.smile.depth = base.smile.depth * 0.5;
+    // The body rocks with the clock and the head the other way.
+    r.rotation = tick * 2.2;
+    r.faceTilt = -tick * 3 + wave(t) * 2;
+    r.y = base.y - Math.abs(Math.sin(beat * Math.PI)) * 1.4;
+    const up = 0.68 + wave(t * 0.5) * 0.12;
+    eyes(r, (eye) => {
+      eye.gaze = { x: -up * 0.6, y: -up };
+      eye.scaleY = 0.86;
+    });
+    // One brow up, one down: the thinking face.
+    r.brows.left.y = base.brows.left.y - 3;
+    r.brows.left.rotation = base.brows.left.rotation - 6;
+    r.brows.right.y = base.brows.right.y + 1.2;
+    r.smile.span = base.smile.span * 0.6;
+    r.smile.depth = base.smile.depth * 0.45;
+    r.smile.rotation = base.smile.rotation + 6;
     return r;
   },
 };
@@ -289,7 +370,7 @@ const eureka: Sequence = {
   canInterrupt: true,
   loop: false,
   intensity: 'balanced',
-  assets: ['question-mark', 'sparkle'],
+  assets: ['question-mark', 'sparkle', 'lightbulb'],
   // The eureka has a still of its own. Pointing at the celebration's was a
   // copy-paste that would have shown a reduced-motion visitor a different
   // moment from the one they asked for.
@@ -315,11 +396,21 @@ const eureka: Sequence = {
         opacity: Math.max(0, 1 - flare * 1.6),
       },
       {
+        // The idea arrives as a lightbulb over her head, as in the pose sheet,
+        // popping in on an overshoot.
+        id: 'lightbulb',
+        x: 30,
+        y: -62 - flare * 4,
+        rotation: 12 - flare * 12,
+        scale: flare > 0 ? 0.8 + (1 - Math.cos(Math.min(1, flare * 1.4) * Math.PI)) * 0.55 : 0,
+        opacity: flare > 0 ? Math.min(1, flare * 2) * (t > 0.9 ? (1 - t) / 0.1 : 1) : 0,
+      },
+      {
         id: 'sparkle',
-        x: 36,
-        y: -36,
+        x: 46,
+        y: -64,
         rotation: flare * 90,
-        scale: 0.4 + flare * 0.9,
+        scale: 0.3 + flare * 0.6,
         opacity: flare > 0 ? Math.min(1, flare * 1.4) * (t > 0.9 ? (1 - t) / 0.1 : 1) : 0,
       },
     ];
@@ -391,13 +482,20 @@ const speaking: Sequence = {
   states: ['speaking'],
   pose: (base, t) => {
     const r = cloneRig(base);
-    const beat = wave(t * 2);
-    r.smile.depth = base.smile.depth * (1 + beat * 0.26);
-    r.smile.span = base.smile.span * (1 + beat * 0.05);
-    r.smile.y = base.smile.y + beat * 0.7;
-    r.brows.left.y = base.brows.left.y + beat * 1.5;
-    r.brows.right.y = base.brows.right.y + beat * 1.5;
-    r.y = base.y + wave(t) * 0.8;
+    // Two syllables per loop. The mouth swings wide on each, the body bobs
+    // under it with a squash on the stress, and the rays wag a beat behind.
+    const syl = hoseBounce(t * 2);
+    const open = Math.sin(((t * 2) % 1) * Math.PI);
+    r.smile.depth = base.smile.depth * (1 + open * 0.55);
+    r.smile.span = base.smile.span * (1 - open * 0.08);
+    r.smile.y = base.smile.y + open * 0.9;
+    r.brows.left.y = base.brows.left.y - open * 2.2;
+    r.brows.right.y = base.brows.right.y - open * 2.2;
+    r.y = base.y - syl.lift * 1.8;
+    r.squash = syl.squash * 0.05;
+    r.stretch = syl.stretch * 0.02;
+    r.faceTilt = wave(t, 0.1) * 2;
+    rubberRays(r, t * 2 - 0.2, 0.45);
     return r;
   },
 };
@@ -523,25 +621,51 @@ const celebrateBounce: Sequence = {
   states: ['celebrating', 'speaking', 'idle'],
   pose: (base, t) => {
     const r = cloneRig(base);
-    const a = bump(t);
-    const hop = Math.abs(Math.sin(t * Math.PI * 2)) * (1 - t * 0.4);
-    r.y = base.y - hop * 6;
-    r.squash = (0.06 - hop * 0.09) * (t < 0.5 ? 1 : 0.6);
-    r.stretch = -r.squash * 0.7;
-    r.rotation = wave(t * 2) * 6;
-    r.smile.span = base.smile.span * (1 + a * 0.22);
-    r.smile.depth = base.smile.depth * (1 + a * 0.3);
-    r.eyes.left.scaleY = 1 - a * 0.26;
-    r.eyes.right.scaleY = 1 - a * 0.26;
-    r.brows.left.y = base.brows.left.y - a * 4;
-    r.brows.right.y = base.brows.right.y - a * 4;
-    r.props = [
-      { id: 'sparkle', x: -38, y: -34, rotation: a * 90, scale: 0.4 + a * 0.6, opacity: a },
-      { id: 'sparkle', x: 40, y: -22, rotation: -a * 90, scale: 0.4 + a * 0.6, opacity: a },
-    ];
+    // Two hops, the second smaller: an anticipation squash, a stretched
+    // launch with the rays flung wide, a squash on each landing, a wobble.
+    const hop = (from: number, to: number, height: number): number =>
+      t <= from || t >= to ? 0 : Math.sin(((t - from) / (to - from)) * Math.PI) * height;
+    const speed = (from: number, to: number): number =>
+      t <= from || t >= to ? 0 : Math.abs(Math.cos(((t - from) / (to - from)) * Math.PI));
+    const crouch = swell(t, 0, 0.14) + swell(t, 0.5, 0.6) * 0.8 + swell(t, 0.86, 0.96) * 0.6;
+    const air = hop(0.12, 0.52, 9.5) + hop(0.58, 0.88, 6);
+    const rising = speed(0.12, 0.52) + speed(0.58, 0.88);
+    r.y = base.y - air + crouch * 4;
+    r.squash = crouch * 0.18 - rising * 0.06;
+    r.stretch = rising * 0.12 - crouch * 0.1;
+    r.rotation = wave(clamp01((t - 0.12) / 0.76)) * 8 * (1 - t);
+    const joy = Math.min(1, air / 6);
     for (const [i, ray] of r.rays.entries()) {
-      ray.lengthScale = 1 + a * 0.12 * (i % 2 === 0 ? 1 : -0.4);
+      ray.lengthScale =
+        1 + joy * 0.22 - crouch * 0.15 + settle(clamp01(t - i * 0.015), 3, 4) * 0.06;
+      ray.rotation = wave(t * 2, -i / 8) * 8 * joy;
     }
+    const a = bump(t);
+    r.smile.span = base.smile.span * (1 + a * 0.22);
+    r.smile.depth = base.smile.depth * (1 + a * 0.6);
+    eyes(r, (eye) => {
+      eye.scaleY = 1 - joy * 0.45 + crouch * 0.1;
+    });
+    r.brows.left.y = base.brows.left.y - a * 5;
+    r.brows.right.y = base.brows.right.y - a * 5;
+    r.props = [
+      {
+        id: 'sparkle',
+        x: -40,
+        y: -34 - joy * 6,
+        rotation: a * 180,
+        scale: 0.3 + a * 0.8,
+        opacity: a,
+      },
+      {
+        id: 'sparkle',
+        x: 42,
+        y: -24 - joy * 6,
+        rotation: -a * 180,
+        scale: 0.3 + a * 0.7,
+        opacity: a,
+      },
+    ];
     return r;
   },
 };
@@ -582,24 +706,38 @@ const confused: Sequence = {
   states: ['confused'],
   pose: (base, t) => {
     const r = cloneRig(base);
+    // A double take: a quick shake, then a long puzzled tilt with a shrug of
+    // the side rays, then back on a wobble.
+    const shake = t < 0.22 ? Math.sin((t / 0.22) * TAU * 2) * (1 - t / 0.22) : 0;
+    const tilt = t < 0.2 ? 0 : overshoot((t - 0.2) / 0.3) * (1 - ease((t - 0.75) / 0.25));
+    const shrug = swell(t, 0.3, 0.75);
+    r.faceTilt = -16 * tilt + shake * 8 + settle(t, 2, 3) * 4;
+    r.rotation = -5 * tilt;
+    r.y = base.y - shrug * 3;
+    r.squash = -shrug * 0.03;
+    r.stretch = shrug * 0.04;
+    r.eyes.left.scaleY = 1 - tilt * 0.2;
+    r.eyes.right.scaleY = 1 + tilt * 0.3;
+    r.brows.left.y = base.brows.left.y - tilt * 6;
+    r.brows.left.rotation = base.brows.left.rotation + tilt * 12;
+    r.brows.right.y = base.brows.right.y + tilt * 3;
+    r.smile.depth = base.smile.depth * (1 - tilt * 1.4);
+    r.smile.rotation = base.smile.rotation + tilt * 10;
+    // The side rays lift like shoulders.
+    for (const [i, ray] of r.rays.entries()) {
+      const side = i === 2 || i === 6 ? 1 : i % 2 === 1 ? 0.5 : 0;
+      ray.rotation = (i < 4 ? -1 : 1) * side * shrug * 14;
+      ray.lengthScale = 1 + side * shrug * 0.1;
+    }
     const a = bump(t);
-    r.faceTilt = -14 * a;
-    r.rotation = -4 * a;
-    r.eyes.left.scaleY = 1 - a * 0.12;
-    r.eyes.right.scaleY = 1 + a * 0.22;
-    r.brows.left.y = base.brows.left.y - a * 5;
-    r.brows.left.rotation = base.brows.left.rotation + a * 10;
-    r.brows.right.y = base.brows.right.y + a * 3;
-    r.smile.depth = base.smile.depth * (1 - a * 0.55);
-    r.smile.rotation = base.smile.rotation + a * 8;
     r.props = [
       {
         id: 'question-mark',
         x: 36,
-        y: -34,
-        rotation: 14,
-        scale: 0.55 + a * 0.35,
-        opacity: a * 1.2 > 1 ? 1 : a * 1.2,
+        y: -36 - Math.abs(Math.sin(t * TAU * 1.5)) * 3,
+        rotation: 14 + wave(t * 1.5) * 8,
+        scale: 0.5 + overshoot(clamp01(t / 0.35)) * 0.45 * a,
+        opacity: Math.min(1, a * 1.4),
       },
     ];
     return r;
@@ -649,28 +787,31 @@ const error: Sequence = {
   states: ['error'],
   pose: (base, t) => {
     const r = cloneRig(base);
-    const a = bump(t);
-    for (const ray of r.rays) {
-      ray.lengthScale = 1 - a * 0.22;
-      ray.widthScale = 1 - a * 0.18;
+    // Deflates like a punctured balloon -- squashes flat, the rays droop
+    // towards the ground, a sweat drop slides -- then gulps and pops back into
+    // shape with an overshoot.
+    const sag = t < 0.55 ? ease(t / 0.4) : (1 - overshoot((t - 0.55) / 0.45)) * (1 - t);
+    for (const [i, ray] of r.rays.entries()) {
+      const angle = (ray.angleDeg + 360) % 360;
+      const towardDown = angle < 180 ? 1 : -1;
+      ray.rotation = towardDown * sag * 22 * Math.sin((angle * Math.PI) / 180) ** 2;
+      ray.lengthScale = 1 - sag * 0.28 + settle(clamp01((t - 0.55) / 0.45 - i * 0.01), 2, 4) * 0.1;
+      ray.widthScale = 1 - sag * 0.15;
     }
-    r.squash = a * 0.08;
-    r.stretch = -a * 0.06;
-    r.smile.depth = base.smile.depth * (1 - a * 0.85);
-    r.eyes.left.scaleY = 1 - a * 0.35;
-    r.eyes.right.scaleY = 1 - a * 0.35;
-    r.brows.left.y = base.brows.left.y + a * 4;
-    r.brows.right.y = base.brows.right.y + a * 4;
-    r.props = [
-      {
-        id: 'sweat-drop',
-        x: 26,
-        y: -32 + a * 6,
-        rotation: 0,
-        scale: 0.55,
-        opacity: a,
-      },
-    ];
+    r.squash = sag * 0.16;
+    r.stretch = -sag * 0.1;
+    r.y = base.y + sag * 5;
+    r.smile.depth = base.smile.depth * (1 - sag * 1.5);
+    eyes(r, (eye) => {
+      eye.scaleY = 1 - sag * 0.4;
+      eye.gaze = { x: 0, y: sag * 0.6 };
+    });
+    r.brows.left.y = base.brows.left.y + sag * 4;
+    r.brows.right.y = base.brows.right.y + sag * 4;
+    r.brows.left.rotation = base.brows.left.rotation + sag * 14;
+    r.brows.right.rotation = base.brows.right.rotation - sag * 14;
+    const a = bump(t);
+    r.props = [{ id: 'sweat-drop', x: 28, y: -32 + t * 14, rotation: 0, scale: 0.6, opacity: a }];
     return r;
   },
 };
@@ -725,39 +866,7 @@ const coolShades: Sequence = {
   reducedMotionFallback: 'cool-still',
   states: ['celebrating', 'idle', 'speaking'],
   pose: (base, t) => {
-    const r = cloneRig(base);
-    // Down over the first 30%, then held with a slow settle. After the hold the
-    // lenses lift away again so the sequence can end in the rest pose.
-    const descend = ease(Math.min(1, t / 0.3));
-    const leave = t > 0.82 ? ease((t - 0.82) / 0.18) : 0;
-    const drop = -34 * (1 - descend) - leave * 40;
-    // A small overshoot past the resting height, damped: the confidence is in
-    // the landing, not the speed.
-    const overshoot = t < 0.3 ? 0 : Math.sin(t * Math.PI * 5) * Math.exp(-(t - 0.3) * 9) * 1.6;
-
-    r.faceTilt = 0;
-    // A slight backward lean and a rise as it lands, plus a half-smile that
-    // does most of its work in the first tenth of a second.
-    const lean = bump(Math.min(1, t / 0.6));
-    r.rotation = base.rotation - lean * 2.2;
-    r.y = base.y - lean * 1.2;
-    r.eyes.left.gaze = { x: 0.12, y: -0.1 };
-    r.eyes.right.gaze = { x: 0.12, y: -0.1 };
-    r.smile.depth = base.smile.depth * (1 + descend * 0.18);
-    for (const ray of r.rays) {
-      ray.lengthScale = 1 + lean * 0.06;
-    }
-    r.props = [
-      {
-        id: 'sunglasses',
-        x: -1.4,
-        y: -5.1 + drop + overshoot,
-        rotation: -3,
-        scale: 1.0,
-        opacity: Math.min(1, Math.max(0, 1 - leave)),
-      },
-    ];
-    return r;
+    return shadesPose(base, t, false);
   },
 };
 
@@ -774,43 +883,7 @@ const coolShadesPlay: Sequence = {
   reducedMotionFallback: 'cool-still',
   states: ['celebrating', 'idle', 'speaking'],
   pose: (base, t) => {
-    const r = cloneRig(base);
-    const descend = ease(Math.min(1, t / 0.26));
-    const leave = t > 0.85 ? ease((t - 0.85) / 0.15) : 0;
-    const drop = -40 * (1 - descend) - leave * 44;
-    const overshoot = t < 0.26 ? 0 : Math.sin(t * Math.PI * 6) * Math.exp(-(t - 0.26) * 8) * 2.2;
-    const strut = Math.sin(t * Math.PI * 4) * (t < 0.7 ? bump(t / 0.7) : 0);
-
-    r.faceTilt = 0;
-    r.rotation = base.rotation + strut * 4.5;
-    r.x = base.x + strut * 2.6;
-    r.y = base.y - bump(t) * 2.2;
-    r.squash = strut * 0.02;
-    for (const ray of r.rays) {
-      ray.lengthScale = 1 + Math.max(0, strut) * 0.16;
-      ray.rotation = ray.rotation + strut * 6;
-    }
-    r.smile.depth = base.smile.depth * (1 + descend * 0.3);
-    r.props = [
-      {
-        id: 'sunglasses',
-        x: -1.4,
-        y: -5.1 + drop + overshoot,
-        rotation: -6 + strut * 4,
-        scale: 1.0,
-        opacity: Math.min(1, Math.max(0, 1 - leave)),
-      },
-      // A sparkle flicks off the right lens as they land, then is gone.
-      {
-        id: 'sparkle',
-        x: 15,
-        y: -12 + overshoot,
-        rotation: 24 + t * 140,
-        scale: 0.5 * Math.max(0, 1 - t * 2.6),
-        opacity: Math.max(0, 1 - t * 2.2),
-      },
-    ];
-    return r;
+    return shadesPose(base, t, true);
   },
 };
 
@@ -923,19 +996,27 @@ const bubbleOpen: Sequence = {
   states: ['idle', 'listening'],
   pose: (base, t) => {
     const r = cloneRig(base);
-    // Compress, then overshoot past rest, then settle. The overshoot is what
-    // makes it feel elastic rather than like a resize.
-    const compress = t < 0.35 ? ease(t / 0.35) : 0;
-    const spring =
-      t < 0.35 ? 0 : Math.sin(((t - 0.35) / 0.65) * Math.PI * 2) * Math.exp(-(t - 0.35) * 6);
-    r.squash = compress * 0.16 - spring * 0.05;
-    r.stretch = compress * 0.12 + spring * 0.04;
-    r.y = base.y + compress * 4;
-    for (const ray of r.rays) {
-      ray.lengthScale = 1 - compress * 0.25 + spring * 0.05;
+    // The click lands: Sunny squashes down hard (anticipation), launches up
+    // stretched with the rays flung out, and overshoots into place. Tuned to
+    // the widget's 400-650 ms opening.
+    const crouch =
+      t < 0.3 ? Math.sin((t / 0.3) * Math.PI * 0.5) : Math.max(0, 1 - ease((t - 0.3) / 0.12));
+    const launch = swell(t, 0.3, 0.75);
+    const wob = t < 0.6 ? 0 : settle((t - 0.6) / 0.4, 1.5, 3);
+    r.squash = crouch * 0.22 - launch * 0.08 + wob * 0.06;
+    r.stretch = launch * 0.16 - crouch * 0.12 - wob * 0.04;
+    r.y = base.y + crouch * 6 - launch * 7;
+    for (const [i, ray] of r.rays.entries()) {
+      ray.lengthScale =
+        1 -
+        crouch * 0.3 +
+        launch * 0.25 +
+        settle(clamp01((t - 0.55) / 0.45 - i * 0.02), 2, 4) * 0.08;
     }
-    r.eyes.left.scaleY = 1 - compress * 0.3;
-    r.eyes.right.scaleY = 1 - compress * 0.3;
+    eyes(r, (eye) => {
+      eye.scaleY = 1 - crouch * 0.5 + launch * 0.25;
+    });
+    r.smile.depth = base.smile.depth * (1 + launch * 0.5);
     return r;
   },
 };
@@ -1351,79 +1432,96 @@ const arcadeSpin: Sequence = {
 function relaxPose(base: SunnyRig, t: number, extra: { shades: boolean; doze: boolean }): SunnyRig {
   const r = cloneRig(base);
 
-  // How far she has settled into the seat, and how far the chair has unfolded.
-  // They ramp together on the way in; on the way out the chair lingers, so she
-  // is standing before it has finished folding.
+  // How far she has settled into the chair, and how far the chair has
+  // unfolded. They ramp together on the way in; on the way out the chair
+  // lingers, so she is up before it has finished folding.
   const seated = Math.min(ease(t / 0.2), ease((1 - t) / 0.12));
-  const deployed = Math.min(ease(t / 0.2), ease((1 - t) / 0.1));
-
-  // One slow breath for the length of the hold, and one stretch before she gets
-  // up -- the only part of the moment where she opens her eyes again.
+  const deployed = Math.min(ease(t / 0.16), ease((1 - t) / 0.08));
   const breath = wave(t * 1.25) * seated;
   const stretch = bump((t - 0.7) / 0.18);
 
-  const lean = seated * 7;
-  const sink = seated * 2.5;
-  const dx = seated * 1.2;
-  const dy = sink - breath * 0.8 - stretch * 1.6;
+  // She leans back into the sling (clockwise: the chair's back is on her
+  // right) and sinks a little; the chair is counter-rotated so it stays level.
+  const lean = seated * 16;
+  r.rotation = base.rotation + lean;
+  r.x = base.x - seated * 4;
+  r.y = base.y + seated * 6 - breath * 0.8 - stretch * 1.4;
+  r.faceTilt = base.faceTilt - seated * 4;
 
-  r.rotation = base.rotation - lean;
-  r.x = base.x + dx;
-  r.y = base.y + dy;
-  // Leaning back into the chair's back, and a little wider as she settles.
-  r.faceTilt = base.faceTilt - seated * 3;
-  r.squash = seated * 0.02;
-
-  // A sunlit squint rather than a shut eye. `closed` collapses the eye to 6% of
-  // its height, which is right for a blink and wrong here: at the sizes this
-  // moment is actually seen it draws a black bar across her face, and with the
-  // shades drawn as outlines over the top the two marks fight. A narrow eye
-  // reads as comfortable at every size and lets the lenses stay legible.
-  const squint = seated * (1 - stretch) * 0.62;
-  r.eyes.left.closed = squint;
-  r.eyes.right.closed = squint;
-  r.smile.depth = base.smile.depth * (1 + seated * 0.3);
+  r.smile.depth = base.smile.depth * (1 + seated * 0.35);
   r.smile.span = base.smile.span * (1 + seated * 0.08);
-
-  // Relaxed rays: a little shorter at rest, and breathing with her.
   for (const ray of r.rays) {
-    ray.lengthScale = 1 - seated * 0.05 + breath * 0.05 + stretch * 0.14;
-    ray.widthScale = 1 + breath * 0.03;
+    ray.lengthScale = 1 - seated * 0.04 + breath * 0.04 + stretch * 0.12;
   }
 
-  const angle = (lean * Math.PI) / 180;
+  // Limbs: legs stretched out to the front of the chair and crossed at the
+  // ankle; arms folded behind the head (drawn behind the body, so only the
+  // elbows show). Each grows from its ray as she settles and goes back after.
+  const relaxed = limbPose('rest');
+  relaxed.legs.left = {
+    ...relaxed.legs.left,
+    foot: { x: -66, y: 54 },
+    bend: 0.25,
+    footRotation: -12,
+    morph: 1,
+  };
+  relaxed.legs.right = {
+    ...relaxed.legs.right,
+    foot: { x: -78, y: 47 },
+    bend: 0.35,
+    footRotation: -6,
+    morph: 1,
+  };
+  relaxed.arms.left = {
+    ...relaxed.arms.left,
+    hand: { x: -16, y: -26 },
+    bend: 1.35,
+    shape: 'fist',
+    handRotation: 0,
+    behind: true,
+    morph: 1,
+  };
+  relaxed.arms.right = {
+    ...relaxed.arms.right,
+    hand: { x: 18, y: -28 },
+    bend: -1.35,
+    shape: 'fist',
+    handRotation: 0,
+    behind: true,
+    morph: 1,
+  };
+  r.limbs = blendLimbs(base.limbs, relaxed, seated * (1 - stretch * 0.5));
+
+  // The chair is drawn in the body frame, so it is given back exactly the move
+  // her body made to sit down: its origin lands on her rest centre in the
+  // viewBox and it stays level, however she leans and breathes.
+  const back = (-r.rotation * Math.PI) / 180;
+  const dx = base.x - r.x;
+  const dy = base.y - r.y;
   const props: PropRig[] = [
     {
       id: 'deckchair',
-      // See the note above: this is the inverse of the body's rotation and
-      // translation, so the chair stays on the ground while she settles into it.
-      x: -dx * Math.cos(angle) + dy * Math.sin(angle),
-      y: -dx * Math.sin(angle) - dy * Math.cos(angle),
-      // Plus the unfold: the chair swings open from a lean as it deploys.
-      rotation: lean + (1 - deployed) * -14,
-      scale: 0.35 + 0.65 * deployed,
+      x: dx * Math.cos(back) - dy * Math.sin(back),
+      y: dx * Math.sin(back) + dy * Math.cos(back),
+      rotation: -r.rotation + (1 - deployed) * 18,
+      scale: 0.55 + 0.45 * deployed,
       opacity: deployed,
     },
   ];
 
-  // The shades come down onto narrowed eyes and lift again before the stretch.
   if (extra.shades) {
-    const on = Math.min(ease((t - 0.16) / 0.1), ease((0.84 - t) / 0.1));
-    props.push({
-      id: 'sunglasses',
-      x: -1.4,
-      y: -5.1 - 34 * (1 - on),
-      rotation: -3,
-      scale: 1,
-      opacity: on,
-    });
+    // Shades drop onto the eyes as she settles and lift off before she rises.
+    const on = Math.min(ease((t - 0.18) / 0.1), ease((0.84 - t) / 0.1));
+    props.push({ ...SHADES_REST, y: SHADES_REST.y - 40 * (1 - on), opacity: on });
+    const squint = on * 0.35;
+    r.eyes.left.closed = squint;
+    r.eyes.right.closed = squint;
+  } else {
+    const squint = seated * (1 - stretch) * 0.6;
+    r.eyes.left.closed = squint;
+    r.eyes.right.closed = squint;
   }
 
-  // The doze: two sparkles drifting up out of the notch above her head, the way
-  // a sleeping thought is drawn. There rather than over her face because ink on
-  // orange is legible at every size while the same mark on the chair's pale
-  // surface is not, and because a sparkle crossing her face would read as
-  // something happening to her rather than as something leaving her.
   if (extra.doze) {
     for (const [i, phase] of [0, 0.35].entries()) {
       const p = (t - 0.26 - phase) / 0.42;
@@ -1440,6 +1538,115 @@ function relaxPose(base: SunnyRig, t: number, extra: { shades: boolean; doze: bo
   }
 
   r.props = props;
+  return r;
+}
+
+/**
+ * The shades' resting place on the face, in the face frame: centred between
+ * the traced eyes and tilted with the line through them (the reference's right
+ * eye sits higher, so the eye line falls about 11° to the left).
+ */
+const SHADES_REST = {
+  id: 'sunglasses' as const,
+  x: 1.8,
+  y: -5.4,
+  rotation: -11.4,
+  scale: 1,
+  opacity: 1,
+};
+
+/** A body-frame point in the face frame (the face group rotates by faceTilt). */
+function toFaceFrame(rig: SunnyRig, p: Vec2): Vec2 {
+  const a = (-rig.faceTilt * Math.PI) / 180;
+  return { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) };
+}
+
+/**
+ * Sunglasses, the 1930s way: a ray pops into an arm, reaches up off the top of
+ * the frame, swings a pair of wayfarers down onto the eyes, gives them a cheeky
+ * nudge with a raised brow, and retracts into a ray again; the shades are worn
+ * for a beat and then flip up and away so the sequence ends at rest.
+ */
+function shadesPose(base: SunnyRig, t: number, playful: boolean): SunnyRig {
+  const r = cloneRig(base);
+  const clamp = (v: number): number => Math.min(1, Math.max(0, v));
+
+  const reach = ease(clamp(t / 0.12)); // the ray pops into an arm
+  const bring = ease(clamp((t - 0.12) / 0.24)); // hand swings the shades down
+  const landed = t >= 0.36;
+  const land = landed
+    ? Math.sin(clamp((t - 0.36) / 0.18) * Math.PI * 2.5) *
+      Math.exp(-clamp((t - 0.36) / 0.18) * 4) *
+      (1 - clamp((t - 0.36) / 0.18))
+    : 0;
+  const nudge = swell(t, 0.44, 0.54);
+  const retract = ease(clamp((t - 0.56) / 0.14)); // the arm goes back to a ray
+  const off = ease(clamp((t - 0.86) / 0.14)); // shades flip up and away
+
+  // A little anticipation squash as the arm pops, a confident lean when worn.
+  const pop = swell(t, 0, 0.12);
+  const wearing = landed ? Math.min(1, (t - 0.36) / 0.1) * (1 - off) : 0;
+  r.squash = pop * 0.06;
+  r.stretch = -pop * 0.03;
+  r.rotation = base.rotation - wearing * 3;
+  r.y = base.y - wearing * 1.5 - (playful ? Math.abs(wave(t * 4)) * 2 * wearing : 0);
+  r.faceTilt = base.faceTilt + wearing * wave(t * 2) * 2.5;
+
+  // The hand: from off the top-right of the frame, along an arc to the temple.
+  const start = { x: 70, y: -96 };
+  const temple = { x: 50, y: -14 };
+  const hand = {
+    x: start.x + (temple.x - start.x) * bring + Math.sin(bring * Math.PI) * 10,
+    y: start.y + (temple.y - start.y) * bring,
+  };
+  // Pushing the shades up the nose, then letting go.
+  hand.y -= nudge * 3;
+  const armPose = limbPose('rest');
+  armPose.arms.right = {
+    ...armPose.arms.right,
+    hand,
+    bend: -0.55,
+    shape: 'fist',
+    handRotation: -100,
+    front: true,
+    morph: 1,
+  };
+  r.limbs = blendLimbs(base.limbs, armPose, reach * (1 - retract));
+
+  // The shades: carried by the hand until they land, then worn.
+  const carried = toFaceFrame(r, { x: hand.x - 48, y: hand.y + 8.6 });
+  const worn = { x: SHADES_REST.x, y: SHADES_REST.y + land * 1.8 - nudge * 2.4 };
+  const at = landed ? worn : carried;
+  r.props = [
+    {
+      ...SHADES_REST,
+      x: at.x,
+      y: at.y - off * 46,
+      rotation:
+        (landed ? SHADES_REST.rotation : -38 + (SHADES_REST.rotation + 38) * bring) - off * 28,
+      opacity: Math.min(clamp(t / 0.06), 1 - off),
+    },
+  ];
+  if (playful && landed) {
+    const glint = swell(t, 0.36, 0.56);
+    r.props.push({
+      id: 'sparkle',
+      x: -20,
+      y: -18,
+      rotation: glint * 120,
+      scale: 0.4 + glint * 0.6,
+      opacity: glint,
+    });
+  }
+
+  // Behind the lenses: a squint, a raised brow, a cheeky grin.
+  const squint = wearing * 0.45;
+  r.eyes.left.closed = squint;
+  r.eyes.right.closed = squint;
+  r.brows.left.y = base.brows.left.y - (nudge + wearing * 0.6) * 4;
+  r.brows.left.rotation = base.brows.left.rotation - wearing * 8;
+  r.smile.depth = base.smile.depth * (1 + wearing * 0.35);
+  r.smile.rotation = base.smile.rotation - wearing * 4;
   return r;
 }
 
@@ -2256,7 +2463,7 @@ const bloomShowcase: Sequence = {
  * only pick from this list, so a typo in a state name is a typecheck failure
  * rather than a silently dead animation.
  */
-export const SEQUENCES: readonly Sequence[] = [
+const AUTHORED: readonly Sequence[] = [
   idleStill,
   idle,
   blink,
@@ -2308,6 +2515,9 @@ export const SEQUENCES: readonly Sequence[] = [
   bloomGrow,
   bloomShowcase,
 ];
+
+/** Every sequence, with the body acting from `limb-acting.ts` layered on. */
+export const SEQUENCES: readonly Sequence[] = AUTHORED.map(withLimbActing);
 
 export const SEQUENCE_BY_ID: ReadonlyMap<string, Sequence> = new Map(
   SEQUENCES.map((s) => [s.id, s]),

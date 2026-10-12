@@ -10,5 +10,6 @@
   },
   "dependencies": {
     "@sunny/character": "*"
-  }
+  },
+  "sideEffects": false
 }

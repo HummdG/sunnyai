@@ -4,9 +4,19 @@
 // produces byte-identical SVG. That property is what the animation replay and
 // screenshot tests rely on.
 
-import { BODY, BROW, EYE, EYE_HIGHLIGHT, RAY, SMILE_PROFILE, VIEWBOX } from './geometry.js';
+import { EYE, EYE_HIGHLIGHT, RAY, SMILE_PROFILE, VIEWBOX } from './geometry.js';
 import type { BrowRig, EyeRig, PropId, PropRig, RayRig, SmileRig, SunnyRig, Vec2 } from './rig.js';
 import { SUNNY_THEME } from './tokens.js';
+import { armParts, legMarkup, limbRayIndices } from './limbs.js';
+import { toViewBox } from './rig.js';
+import {
+  tracedBody,
+  tracedBrowPart,
+  tracedEyePart,
+  tracedMouthPart,
+  tracedRayPart,
+  type PartDrawing,
+} from './traced-render.js';
 
 // ─── small vector helpers ────────────────────────────────────────────────────
 
@@ -201,6 +211,16 @@ const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?
   'question-mark': {
     d: 'M-3.1-4.4a3.3 3.3 0 1 1 5.1 2.8q-2 1.3-2 3.1M0 5.6v0.1',
     filled: false,
+  },
+  // The eureka lightbulb from the pose sheet: a round glass bulb, a waisted
+  // neck and a ribbed screw base. Surface-painted so it reads as an object.
+  lightbulb: {
+    d:
+      'M0-11C5.6-11 9-7 9-2.6 9 1 7 3 5.4 4.8 4.4 6 4 7.2 4 8.4H-4C-4 7.2-4.4 6-5.4 4.8-7 3-9 1-9-2.6-9-7-5.6-11 0-11Z' +
+      'M-4 9.4H4V11H-4Z' +
+      'M-3.4 12H3.4L2.4 14.4H-2.4Z',
+    filled: true,
+    surface: true,
   },
   // A four-pointed sparkle.
   sparkle: {
@@ -428,11 +448,74 @@ function renderProp(prop: PropRig, paint: Paint): string {
   // rather than something a test has to infer by diffing two SVG strings. The
   // animation contract is entirely about which sequence put which asset in the
   // scene, so that is worth naming in the output.
+  const art =
+    prop.id === 'sunglasses'
+      ? SUNGLASSES_ART(paint)
+      : prop.id === 'deckchair'
+        ? DECKCHAIR_ART(paint)
+        : `<path d="${path.d}" ${draw}/>`;
   return (
     `<g data-prop="${prop.id}" transform="${transform}" opacity="${n(Math.min(1, prop.opacity))}">` +
-    `<path d="${path.d}" ${draw}/></g>`
+    art +
+    `</g>`
   );
 }
+
+/** Props drawn behind Sunny (furniture Sunny sits in). */
+export const BEHIND_PROPS: readonly PropId[] = ['deckchair'];
+/** Props worn on the face, drawn in the face frame so they follow its tilt. */
+export const FACE_PROPS: readonly PropId[] = ['sunglasses'];
+
+/**
+ * Classic 1930s/wayfarer shades, authored in the face frame: the two lenses sit
+ * over the traced eyes when the prop is placed at the eyes' midpoint with the
+ * eye line's tilt (see the cool-shades sequence). Black lenses with a thick
+ * frame, a bridge, short temples and a cheeky glint on each lens.
+ */
+const SUNGLASSES_ART = (paint: Paint): string => {
+  const lens = (cx: number): string =>
+    `M${cx - 13.5} -8.5C${cx - 4} -10 ${cx + 4} -10 ${cx + 13} -8.5` +
+    `C${cx + 13.5} -2 ${cx + 12} 6 ${cx + 7.5} 9C${cx + 3} 11 ${cx - 5} 11 ${cx - 9} 8.5` +
+    `C${cx - 12.5} 6 ${cx - 14} -2 ${cx - 13.5} -8.5Z`;
+  const glint = (cx: number): string => `M${cx - 8} -4.5L${cx - 4} -7M${cx - 8.5} 0L${cx - 7} -1.4`;
+  return (
+    `<path d="${lens(-15.5)}${lens(15.5)}" fill="#1B1B1F" stroke="${paint.ink}" stroke-width="3" stroke-linejoin="round"/>` +
+    `<path d="M-2.4 -6.5C-1 -8.6 1 -8.6 2.4 -6.5" fill="none" stroke="${paint.ink}" stroke-width="3.2" stroke-linecap="round"/>` +
+    `<path d="M-28.6 -8L-34 -7M28.6 -8L34 -7" fill="none" stroke="${paint.ink}" stroke-width="3" stroke-linecap="round"/>` +
+    `<path d="${glint(-15.5)}${glint(15.5)}" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>`
+  );
+};
+
+/**
+ * A striped seaside deckchair from the pose sheet, side on, facing left:
+ * a wooden frame (a long back rail, a front leg and the seat strut) and a
+ * blue-and-white canvas sling running from the top of the back rail, sagging
+ * under the seat, to the front bar. Authored so a reclining Sunny's body
+ * centre sits at the origin, in the sling. Fixed colours: a deckchair is a
+ * deckchair whatever the installer's theme.
+ */
+const DECKCHAIR_ART = (paint: Paint): string => {
+  const wood = '#C98B4A';
+  const rail = (d: string, w: number): string =>
+    `<path d="${d}" fill="none" stroke="${paint.ink}" stroke-width="${w + 4.6}" stroke-linecap="round"/>` +
+    `<path d="${d}" fill="none" stroke="${wood}" stroke-width="${w}" stroke-linecap="round"/>`;
+  // Canvas centreline: from the top crossbar, down behind the back, under the
+  // seat and up to the front bar.
+  const sling = 'M44 -62C52 -20 52 30 24 50C2 64 -30 52 -50 34';
+  return (
+    // Back leg / rail and the front leg, behind the canvas.
+    rail('M46 -64L78 76', 5) +
+    rail('M-50 34L-70 78', 5) +
+    rail('M-40 36L32 78', 4.2) +
+    // The canvas: an inked band, white, then blue stripes as dashes along it.
+    `<path d="${sling}" fill="none" stroke="${paint.ink}" stroke-width="24" stroke-linecap="butt"/>` +
+    `<path d="${sling}" fill="none" stroke="#FFFFFF" stroke-width="19.4" stroke-linecap="butt"/>` +
+    `<path d="${sling}" fill="none" stroke="#2F6FD6" stroke-width="19.4" stroke-dasharray="9 9" stroke-linecap="butt"/>` +
+    // The crossbars at each end of the canvas.
+    rail('M38 -64L52 -60', 3.6) +
+    rail('M-54 30L-44 40', 3.6)
+  );
+};
 
 /** The brow: an arc bowing upward from its chord. */
 export function browPath(brow: BrowRig): string {
@@ -480,6 +563,23 @@ export interface RenderOptions {
    * one document. Off by default so output stays deterministic for tests.
    */
   uniqueIds?: boolean;
+  /**
+   * A fixed id prefix, for a long-lived view that patches one SVG in place
+   * frame after frame. `uniqueIds` mints a new prefix per call, which would
+   * rewrite every clip-path reference on every frame.
+   */
+  idPrefix?: string;
+  /**
+   * The line "boil" of a hand-inked cartoon: pass a small integer that changes
+   * a few times a second (see `cartoonClock`) and the ink shimmers between that
+   * many drawings. Omit for a perfectly still line, e.g. in tests.
+   */
+  boil?: number;
+  /**
+   * Draw the arms, hands and legs. Defaults to true; turn off for a head-only
+   * badge or to compare against the limbless reference (`sunny.png`).
+   */
+  limbs?: boolean;
 }
 
 interface Paint {
@@ -544,61 +644,43 @@ function painters(rig: SunnyRig, cssVariables: boolean): Paint {
 
 let instanceCounter = 0;
 
-function renderEye(side: 'left' | 'right', eye: EyeRig, paint: Paint, uid: string): string {
-  const closed = Math.max(0, Math.min(1, eye.closed));
-  const outline = eyeOutlinePath(eye);
-  const clipId = `sunny-eye-${uid}-${side}`;
-  // A blink collapses the eye about its own centre line.
-  const scaleY = eye.scaleY * (1 - closed * 0.94);
-  const transform = [
-    `translate(${n(eye.x)} ${n(eye.y)})`,
-    `rotate(${n(eye.rotation)})`,
-    `scale(${n(eye.scaleX)} ${n(scaleY)})`,
-  ].join(' ');
-  // Gaze nudges the highlight, which is what reads as the eye looking around.
-  const gazeX = eye.gaze.x * eye.width * 0.1;
-  const gazeY = eye.gaze.y * eye.height * 0.06;
-  return [
-    `<g transform="${transform}">`,
-    `<clipPath id="${clipId}"><path d="${outline}"/></clipPath>`,
-    // Base: the whole opening reads dark, so the crescent is simply whatever
-    // the highlight does not cover.
-    `<path d="${outline}" fill="${paint.ink}"/>`,
-    `<g clip-path="url(#${clipId})">`,
-    `<path d="${eyeHighlightPath(eye)}" transform="translate(${n(gazeX)} ${n(gazeY)})" fill="${paint.highlight}"/>`,
-    `</g>`,
-    // The outline is re-stroked on top, so the highlight can never eat into it.
-    `<path d="${outline}" fill="none" stroke="${paint.ink}" stroke-width="${n(EYE.strokeWidth * 2)}"/>`,
-    `</g>`,
-  ].join('');
-}
-
-function renderBrow(brow: BrowRig, paint: Paint): string {
-  return [
-    `<g transform="translate(${n(brow.x)} ${n(brow.y)}) rotate(${n(brow.rotation)})">`,
-    `<path d="${browPath(brow)}" fill="none" stroke="${paint.ink}" stroke-width="${n(BROW.strokeWidth)}" stroke-linecap="round"/>`,
-    `</g>`,
-  ].join('');
-}
-
-function renderSmile(smile: SmileRig, paint: Paint): string {
-  return [
-    `<g transform="translate(${n(smile.x)} ${n(smile.y)}) rotate(${n(smile.rotation)})">`,
-    `<path d="${smilePath(smile)}" fill="none" stroke="${paint.ink}" stroke-width="${n(smile.strokeWidth)}" stroke-linecap="round"/>`,
-    `</g>`,
-  ].join('');
-}
-
 /**
- * Render a rig to an SVG string.
+ * The character as named parts: what `renderSunny` joins into one string, and
+ * what a live view (`createSunnyView`) patches part by part so a frame only
+ * touches the DOM that actually changed.
  */
-export function renderSunny(rig: SunnyRig, options: RenderOptions = {}): string {
+export interface SunnyParts {
+  /** Attributes of the root <svg>. */
+  svgAttributes: string;
+  /** An optional <title>. */
+  label: string;
+  /** The body transform (position, rotation, squash/stretch). */
+  root: string;
+  /** The face group's transform. */
+  faceTransform: string;
+  /** Parts drawn in the viewBox frame, behind the body (the legs). */
+  under: Array<[string, PartDrawing]>;
+  /** Parts in the body frame, behind the face (rays, arms behind, the body). */
+  behind: Array<[string, PartDrawing]>;
+  /** Face parts, in the face frame. */
+  face: Array<[string, PartDrawing]>;
+  /** Parts over the face (arms in front, props). */
+  over: Array<[string, PartDrawing]>;
+}
+
+export function renderSunnyParts(rig: SunnyRig, options: RenderOptions = {}): SunnyParts {
   const viewBox = options.crop
     ? `${n(options.crop.x)} ${n(options.crop.y)} ${n(options.crop.width)} ${n(options.crop.height)}`
     : `0 0 ${VIEWBOX} ${VIEWBOX}`;
   const size = options.size ?? VIEWBOX;
   const paint = painters(rig, options.cssVariables ?? false);
-  const uid = options.uniqueIds ? `u${instanceCounter++}-` : '';
+  const uid =
+    options.idPrefix !== undefined
+      ? options.idPrefix
+      : options.uniqueIds
+        ? `u${instanceCounter++}-`
+        : '';
+  const boil = options.boil;
   const squash = 1 - rig.squash;
   const stretch = 1 + rig.stretch;
 
@@ -610,65 +692,134 @@ export function renderSunny(rig: SunnyRig, options: RenderOptions = {}): string 
     `scale(${n(rig.scale * stretch)} ${n(rig.scale * squash)})`,
   ].join(' ');
 
-  // Each ray is painted twice: the outlined shape first, then the orange fill on
-  // top. That leaves the outline entirely outside the fill, which is what the
-  // reference artwork does (its ray outline sits outside the orange, unlike the
-  // body outline, which is centred on its path).
-  const rays = rig.rays
-    .filter((r) => r.visible && r.lengthScale > 0.01)
-    .map((r) => {
-      const d = roundedPolygonPath(rayPoints(r), [
-        RAY.apexRadius,
-        RAY.cornerRadius,
-        RAY.cornerRadius,
-      ]);
-      return (
-        `<path d="${d}" fill="none" stroke="${paint.ink}" stroke-width="${n(RAY.strokeWidth)}" stroke-linejoin="round"/>` +
-        `<path d="${d}" fill="${paint.ray}"/>`
-      );
-    })
-    .join('');
+  // Limbs grow out of rays (limbs.ts): a ray a limb has taken over is not
+  // drawn as a triangle. Legs live in the viewBox frame so the feet stay
+  // planted while the body bobs; arms live in the body frame.
+  const showLimbs = (options.limbs ?? true) && rig.limbs.visible;
+  const hidden = showLimbs ? limbRayIndices(rig.limbs) : [];
+  const limbPaint = { limb: paint.ray, ink: paint.ink };
+  const toVB = (p: { x: number; y: number }) => toViewBox(rig, p);
+  const leg = (side: 'left' | 'right'): string =>
+    showLimbs
+      ? legMarkup(rig.limbs.legs[side], side, rig.rays, toVB, rig.scale, limbPaint, boil)
+      : '';
+  // An arm's tube grows from its ray, behind the body; its hand is drawn in
+  // front of the body when the pose says so (a fist on the hip, a hand under
+  // the chin), otherwise with the tube.
+  const arms = {
+    left: showLimbs ? armParts(rig.limbs.arms.left, 'left', rig.rays, limbPaint, boil) : null,
+    right: showLimbs ? armParts(rig.limbs.arms.right, 'right', rig.rays, limbPaint, boil) : null,
+  };
+  const armIn = (side: 'left' | 'right', front: boolean): string => {
+    const parts = arms[side];
+    if (!parts) return '';
+    // armParts puts the hand in `hand` only when it belongs in front of the
+    // body (and in `tube` otherwise), so the layering follows its morph.
+    if (front) return parts.hand;
+    return parts.tube;
+  };
 
-  const face = [
-    renderEye('left', rig.eyes.left, paint, uid),
-    renderEye('right', rig.eyes.right, paint, uid),
-    renderBrow(rig.brows.left, paint),
-    renderBrow(rig.brows.right, paint),
-    renderSmile(rig.smile, paint),
-  ].join('');
-
-  // Props sit in the body frame rather than the face frame: a question mark or a
-  // held prop should not tilt with the head.
-  const props = rig.props.map((prop) => renderProp(prop, paint)).join('');
-
-  // Accessibility is derived, not asserted twice.
-  //
-  // This used to default to `aria-hidden` unconditionally, which meant
-  // `renderSunny(rig, { title: 'Sunny' })` produced an SVG that was hidden from
-  // assistive technology *and* carried a title -- markup whose label nothing
-  // could ever read. Naming the character is a statement that it is content, so
-  // a title now implies a labelled image; `aria-hidden` is what you get when
-  // neither a title nor `decorative: false` says otherwise. An explicit
-  // `decorative: true` alongside a title wins, and the title is dropped rather
-  // than left as unreachable markup.
   const named = options.title !== undefined && options.title !== '';
   const decorative = options.decorative ?? !named;
   const label = named && !decorative ? `<title>${escapeXml(options.title ?? '')}</title>` : '';
+  // Accessibility is derived, not asserted twice: a title implies a labelled
+  // image; otherwise the drawing is decorative and hidden from assistive tech.
   const aria = decorative
     ? 'aria-hidden="true" focusable="false"'
     : `role="img" aria-label="${escapeXml(options.title ?? 'Sunny')}"`;
 
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${n(size)}" height="${n(size)}" ${aria}${options.className ? ` class="${escapeXml(options.className)}"` : ''}>`,
+  return {
+    svgAttributes: `xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${n(size)}" height="${n(size)}" ${aria}${options.className ? ` class="${escapeXml(options.className)}"` : ''}`,
     label,
-    `<g transform="${root}">`,
-    `<g>${rays}</g>`,
-    `<circle cx="0" cy="0" r="${n(BODY.radius)}" fill="${paint.body}" stroke="${paint.ink}" stroke-width="${n(BODY.strokeWidth)}"/>`,
-    `<g transform="rotate(${n(rig.faceTilt)})">${face}</g>`,
-    props,
+    root,
+    faceTransform: `rotate(${n(rig.faceTilt)})`,
+    under: [
+      ['leg-left', plain(leg('left'))],
+      ['leg-right', plain(leg('right'))],
+    ],
+    behind: [
+      [
+        'props-behind',
+        plain(
+          rig.props
+            .filter((prop) => BEHIND_PROPS.includes(prop.id))
+            .map((prop) => renderProp(prop, paint))
+            .join(''),
+        ),
+      ],
+      ...rig.rays.map((_, index): [string, PartDrawing] => [
+        `ray-${index}`,
+        hidden.includes(index) ? EMPTY : tracedRayPart(rig, index, paint, boil),
+      ]),
+      ['arm-left', plain(armIn('left', false))],
+      ['arm-right', plain(armIn('right', false))],
+      ['body', plain(tracedBody(paint, boil))],
+    ],
+    face: [
+      ['eye-left', tracedEyePart('left', rig.eyes.left, paint, uid, boil)],
+      ['eye-right', tracedEyePart('right', rig.eyes.right, paint, uid, boil)],
+      ['brow-left', tracedBrowPart('left', rig.brows.left, paint, boil)],
+      ['brow-right', tracedBrowPart('right', rig.brows.right, paint, boil)],
+      ['mouth', tracedMouthPart(rig, paint, boil)],
+      [
+        'face-props',
+        plain(
+          rig.props
+            .filter((prop) => FACE_PROPS.includes(prop.id))
+            .map((prop) => renderProp(prop, paint))
+            .join(''),
+        ),
+      ],
+    ],
+    over: [
+      ['arm-front-left', plain(armIn('left', true))],
+      ['arm-front-right', plain(armIn('right', true))],
+      // Props sit in the body frame rather than the face frame: a question mark
+      // or a held prop should not tilt with the head.
+      [
+        'props',
+        plain(
+          rig.props
+            .filter((prop) => !BEHIND_PROPS.includes(prop.id) && !FACE_PROPS.includes(prop.id))
+            .map((prop) => renderProp(prop, paint))
+            .join(''),
+        ),
+      ],
+    ],
+  };
+}
+
+const EMPTY: PartDrawing = { transform: '', inner: '' };
+const plain = (inner: string): PartDrawing => ({ transform: '', inner });
+
+const wrap = (parts: Array<[string, PartDrawing]>): string =>
+  parts
+    .map(
+      ([key, p]) =>
+        `<g data-part="${key}"${p.transform ? ` transform="${p.transform}"` : ''}>${p.inner}</g>`,
+    )
+    .join('');
+
+/** Join a rig's parts into one SVG string. */
+export function joinSunnyParts(p: SunnyParts): string {
+  return [
+    `<svg ${p.svgAttributes}>`,
+    p.label,
+    `<g data-layer="under">${wrap(p.under)}</g>`,
+    `<g data-layer="root" transform="${p.root}">`,
+    wrap(p.behind),
+    `<g data-layer="face" transform="${p.faceTransform}">${wrap(p.face)}</g>`,
+    wrap(p.over),
     `</g>`,
     `</svg>`,
   ].join('');
+}
+
+/**
+ * Render a rig to an SVG string.
+ */
+export function renderSunny(rig: SunnyRig, options: RenderOptions = {}): string {
+  return joinSunnyParts(renderSunnyParts(rig, options));
 }
 
 function escapeXml(s: string): string {

@@ -10,3 +10,7 @@ export * from './tokens.js';
 export * from './geometry.js';
 export * from './rig.js';
 export * from './render.js';
+export * from './view.js';
+export * from './limbs.js';
+export * from './boil.js';
+export { TRACED_HANDS } from './traced-hands.js';

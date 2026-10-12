@@ -16,14 +16,24 @@
  * different, weaker claim than one that is not fetched at all.
  */
 import { build, context } from 'esbuild';
+import { copyFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 const watch = process.argv.includes('--watch');
 
+// The gallery shows the reference artwork beside, and optionally under, the
+// character, so it ships next to the page.
+copyFileSync(here('../../../sunny.png'), here('../public/reference.png'));
+
 /** @type {import('esbuild').BuildOptions} */
 const options = {
-  entryPoints: { lab: here('../src/lab.ts'), arcade: here('../src/arcade.ts') },
+  entryPoints: {
+    lab: here('../src/lab.ts'),
+    arcade: here('../src/arcade.ts'),
+    gallery: here('../src/gallery.ts'),
+    perf: here('../src/perf.ts'),
+  },
   outdir: here('../public'),
   entryNames: '[name]',
   bundle: true,

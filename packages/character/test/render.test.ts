@@ -135,7 +135,7 @@ describe('renderer', () => {
     // Falling back is not a silent drop: the character is still drawn, in the
     // canonical colour, rather than left as a hole in the artwork.
     expect(svg).toContain(`fill="${SUNNY_THEME.body}"`);
-    expect(svg).toContain(`stroke="${SUNNY_THEME.ink}"`);
+    expect(svg).toContain(`fill="${SUNNY_THEME.ink}"`);
   });
 
   it('accepts the colour forms a theme legitimately uses', () => {

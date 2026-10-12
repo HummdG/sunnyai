@@ -10,6 +10,7 @@
 // are measurements of the reference artwork, so that pose reproduces it exactly.
 
 import { RAY } from './geometry.js';
+import { blendLimbs, cloneLimbs, limbPose, type LimbsRig } from './limbs.js';
 import { SUNNY_THEME, type SunnyTheme } from './tokens.js';
 
 export interface Vec2 {
@@ -91,6 +92,7 @@ export const PROP_IDS = [
   'seed',
   'sprout',
   'flower',
+  'lightbulb',
 ] as const;
 export type PropId = (typeof PROP_IDS)[number];
 
@@ -137,6 +139,8 @@ export interface SunnyRig {
    * rather than by remembering to write a cleanup callback.
    */
   props: PropRig[];
+  /** Rubber-hose arms, hands and legs (see `limbs.ts` and `reference_poses.png`). */
+  limbs: LimbsRig;
   theme: SunnyTheme;
 }
 
@@ -225,6 +229,8 @@ export function defaultRig(): SunnyRig {
     },
     rays: createRays(),
     props: [],
+    // At rest every limb is still its ray: the pose IS the logo (sunny.png).
+    limbs: limbPose('rest'),
     theme: { ...SUNNY_THEME },
   };
 }
@@ -241,6 +247,7 @@ export function cloneRig(rig: SunnyRig): SunnyRig {
     smile: { ...rig.smile },
     rays: rig.rays.map((r) => ({ ...r, offset: { ...r.offset } })),
     props: rig.props.map((p) => ({ ...p })),
+    limbs: cloneLimbs(rig.limbs),
     theme: { ...rig.theme },
   };
 }
@@ -413,6 +420,7 @@ export function lerpRig(a: SunnyRig, b: SunnyRig, t: number): SunnyRig {
     // treated as fully transparent at the other end, so it fades instead of
     // appearing or vanishing mid-blend.
     props: blendProps(a.props, b.props, k, n),
+    limbs: blendLimbs(a.limbs, b.limbs, k),
     theme: k < 1 ? { ...a.theme } : { ...b.theme },
   };
 }

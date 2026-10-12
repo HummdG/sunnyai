@@ -309,12 +309,14 @@ describe('SunnyAnimator', () => {
   it('wears the sunglasses when it lands a recommendation', () => {
     const animator = new SunnyAnimator(defaultRig(), { intensity: 'balanced', seed: 3 });
     animator.dispatch({ type: 'impress' }, 0);
-    const frame = animator.frame(700);
+    // An arm carries the shades in and puts them on (they land at 36% of the
+    // 2.4 s sequence), so look once they are being worn.
+    const frame = animator.frame(1200);
     expect(frame.sequenceId).toBe('cool-shades');
     expect(frame.rig.props.map((p) => p.id)).toContain('sunglasses');
     // Lenses actually over the face, not off the top of the head.
     const glasses = frame.rig.props.find((p) => p.id === 'sunglasses')!;
-    expect(Math.abs(glasses.y - -5.1)).toBeLessThan(12);
+    expect(Math.abs(glasses.y - -5.4)).toBeLessThan(6);
     expect(glasses.opacity).toBeGreaterThan(0.5);
   });
 

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sunny — animation gallery</title>
+    <style>
+      :root {
+        --orange: #ff7900;
+        --ink: #171717;
+        --muted: #727272;
+        --pale: #fff1e5;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.45 system-ui,
+          sans-serif;
+        color: var(--ink);
+        background: #fffcf8;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #fffcf8ee;
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid #0001;
+        padding: 14px 28px;
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      header h1 {
+        font-size: 18px;
+        margin: 0 12px 0 0;
+      }
+      header label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        color: var(--muted);
+      }
+      button,
+      select {
+        font: inherit;
+        border: 1px solid #0002;
+        border-radius: 999px;
+        padding: 6px 14px;
+        background: #fff;
+        cursor: pointer;
+      }
+      main {
+        padding: 24px 28px 80px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      .note {
+        color: var(--muted);
+        max-width: 75ch;
+      }
+      .compare {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        margin-bottom: 28px;
+      }
+      .compare figure {
+        margin: 0;
+        background: #fff;
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 4px 18px #0000000d;
+      }
+      .compare img,
+      .compare #rest {
+        width: 300px;
+        height: 300px;
+        display: block;
+        object-fit: contain;
+      }
+      .compare #rest svg {
+        width: 100%;
+        height: 100%;
+      }
+      figcaption {
+        text-align: center;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+      .group h2 {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 26px 0 10px;
+      }
+      .row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .card {
+        width: 250px;
+        background: #fff;
+        border-radius: 18px;
+        padding: 12px;
+        box-shadow: 0 4px 18px #0000000d;
+      }
+      .stage {
+        position: relative;
+        width: 226px;
+        height: 226px;
+        border-radius: 12px;
+        background: var(--pale);
+        overflow: hidden;
+      }
+      .art,
+      .art svg {
+        position: relative;
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      body.with-reference .stage::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: url(reference.png) center / 78.6% no-repeat;
+        opacity: 0.35;
+      }
+      .track {
+        height: 4px;
+        background: #0000000f;
+        border-radius: 4px;
+        margin: 10px 0 4px;
+        overflow: hidden;
+      }
+      .bar {
+        height: 100%;
+        background: var(--orange);
+      }
+      .bar.holding {
+        background: #9ca3af;
+      }
+      .clock {
+        font:
+          11px ui-monospace,
+          monospace;
+        color: var(--muted);
+      }
+      .meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-top: 6px;
+      }
+      .facts {
+        font-size: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Sunny — animation gallery</h1>
+      <button id="pause" type="button">Pause</button>
+      <label>Scrub <input id="scrub" type="range" min="0" max="1000" value="0" disabled /></label>
+      <label
+        >Speed
+        <select id="speed">
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+        </select>
+      </label>
+      <button id="restart" type="button">Restart all</button>
+      <label><input id="overlay" type="checkbox" /> Overlay reference artwork</label>
+    </header>
+    <main>
+      <p class="note">
+        Every sequence in the animation engine, each looping at its natural length with a half-second hold at rest
+        between loops (grey bar), so you can see whether it returns to the default pose. Pause to scrub every sequence
+        to the same point. This is the current code-drawn character; the production character will be the Rive file
+        described in
+        <code>docs/design/rive-animator-brief.md</code>.
+      </p>
+      <section class="compare">
+        <figure>
+          <img src="reference.png" alt="Reference artwork" />
+          <figcaption>Reference (sunny.png)</figcaption>
+        </figure>
+        <figure>
+          <div id="rest"></div>
+          <figcaption>Current rest pose</figcaption>
+        </figure>
+      </section>
+      <div id="grid"></div>
+    </main>
+    <script src="gallery.js"></script>
+  </body>
+</html>
