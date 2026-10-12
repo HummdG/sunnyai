@@ -102,7 +102,9 @@ describe.skipIf(!available)('fit: real LiDAR fixtures (plausibility, research 05
     expect(out.flags).toContain('partitioned');
   });
 
-  it('fits each real house in < 1.5 s', () => {
+  // Wall-clock budget (Sunny): only meaningful on an unloaded CPU, so it runs
+  // in `npm run test:perf` (isolated, also in CI), not inside the parallel suite.
+  it.skipIf(!process.env['SUNSCAN_PERF'])('fits each real house in < 1.5 s', () => {
     for (const { ms } of results.values()) expect(ms).toBeLessThan(1500);
   });
 });

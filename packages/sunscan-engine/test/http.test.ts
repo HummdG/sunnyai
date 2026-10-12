@@ -135,8 +135,11 @@ describe('live mode', () => {
     expect(hits('/status?code=500&ea')).toBe(1);
   });
   it('turns timeouts and connection failures into HttpError after retries', async () => {
-    await expect(fetchCached({ url: `${server.url}/slow?ms=400`, provider: 'test', timeoutMs: 50, retries: 1 })).rejects.toThrow(/timeout/);
-    expect(hits('/slow')).toBe(2);
+    // Headroom for a loaded machine (Sunny): with a 50 ms timeout the client could
+    // give up before a retry's connection reached the server, so the server saw
+    // one request instead of two. The server-side count is awaited, not sampled.
+    await expect(fetchCached({ url: `${server.url}/slow?ms=3000`, provider: 'test', timeoutMs: 400, retries: 1 })).rejects.toThrow(/timeout/);
+    await expect.poll(() => hits('/slow'), { timeout: 2000 }).toBe(2);
     await expect(fetchCached({ url: 'http://127.0.0.1:9/nothing', provider: 'test', retries: 0 })).rejects.toBeInstanceOf(HttpError);
   });
   it('supports byte ranges (206), slices bodies when the server ignores Range, refuses huge ignored ranges', async () => {

@@ -122,7 +122,9 @@ describe('fit: synthetic recovery (sigma 0.15 m, 5 % outliers, chimneys, 0.5 m m
     }
   });
 
-  it('runs in < 1.5 s per house including co-registration and partitions', () => {
+  // Wall-clock budget (Sunny): only meaningful on an unloaded CPU, so it runs
+  // in `npm run test:perf` (isolated, also in CI), not inside the parallel suite.
+  it.skipIf(!process.env['SUNSCAN_PERF'])('runs in < 1.5 s per house including co-registration and partitions', () => {
     // a house over budget is timed once more (min of two runs) so parallel test load / GC pauses do not flake
     for (const t of trials.filter((x) => x.ms >= 1500)) {
       const { input } = generateCase(t.name, SEED + 1000 * [...SINGLE_CASES, 'outrigger'].indexOf(t.name) + trials.filter((x) => x.name === t.name).indexOf(t));

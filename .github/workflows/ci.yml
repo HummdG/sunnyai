@@ -47,6 +47,9 @@ jobs:
       - name: Unit, contract and integration tests
         run: npm run test
 
+      - name: Performance budgets (isolated)
+        run: npm run test:perf
+
       - name: Build the widget bundle
         run: npm run build
 

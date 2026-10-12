@@ -2,7 +2,7 @@
   "name": "sunny-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Sunny.ai â€” multi-tenant AI assistant platform for solar installers",
+  "description": "Sunny.ai \u00e2\u20ac\u201d multi-tenant AI assistant platform for solar installers",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -45,7 +45,8 @@
     "verify:isolation": "tsx scripts/verify-isolation.ts",
     "perf:marketing": "node scripts/lighthouse-marketing.mjs",
     "test:auth-emulator": "node scripts/ensure-jre.mjs && node scripts/auth-emulator.mjs",
-    "test:e2e:auth-firebase": "playwright test --config tests/e2e/auth-firebase.config.ts"
+    "test:e2e:auth-firebase": "playwright test --config tests/e2e/auth-firebase.config.ts",
+    "test:perf": "node scripts/test-perf.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

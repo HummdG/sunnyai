@@ -67,8 +67,9 @@ describe('character rendering', () => {
     ]);
     expect(byDigest.size).toBe(SCENES.length - 2);
     // Every scene is rasterised here rather than one, and each walks the frame
-    // loop up to its capture time. Slower than the default budget, on purpose.
-  }, 60_000);
+    // loop up to its capture time. Slower than the default budget, on purpose,
+    // and generous enough for a full parallel run on a loaded machine.
+  }, 180_000);
 
   it('draws a moving scene differently from the resting one', () => {
     // The specific failure this suite was written against: a harness that jumped
