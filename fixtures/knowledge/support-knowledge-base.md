@@ -378,12 +378,12 @@ If your battery is not showing lights or charging and discharging as you expect,
 
 Solar generation varies throughout the year because daylight hours, sun angle, cloud cover and weather change. In the UK, generation is generally highest in late spring and summer and lowest in winter. A large drop from August to September is common and does not automatically indicate a fault.
 
-| Period               | Approximate seasonal pattern                                                                       |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| April to May         | Generation often increases rapidly.                                                                |
-| August to September  | Generation may fall by around 40%.                                                                 |
-| September to October | A further decline of around 33% may occur.                                                         |
-| December             | Monthly generation may be around 20% of June or July levels, depending on location and conditions. |
+| Period | Approximate seasonal pattern |
+| --- | --- |
+| April to May | Generation often increases rapidly. |
+| August to September | Generation may fall by around 40%. |
+| September to October | A further decline of around 33% may occur. |
+| December | Monthly generation may be around 20% of June or July levels, depending on location and conditions. |
 
 These figures are approximate reference points, not guaranteed thresholds. Actual results vary with location, orientation, roof pitch, shading, weather and system size.
 
@@ -401,30 +401,30 @@ A reduction in solar generation between August and September is normal in the UK
 
 ### Recommended routing
 
-| Issue                              | Initial bot action                                                                                       | Where to direct the customer                                                                                    |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Wi-Fi or monitoring offline        | Identify the monitoring equipment and manufacturer.                                                      | Inverter or data logger manufacturer.                                                                           |
-| App login or password              | Direct the customer to the app's account recovery process or relevant support team.                      | App or manufacturer support.                                                                                    |
-| Tariff or charging schedule        | Explain that charging settings may be adjustable, depending on the equipment.                            | Inverter or battery manufacturer for system settings; energy supplier for tariff questions.                     |
-| Battery or inverter fault          | Direct the customer to the relevant manufacturer for guidance.                                           | Battery or inverter manufacturer; installer where appropriate.                                                  |
-| Low or changed generation          | Explain that the manufacturer is best placed to advise on the customer's specific system.                | Inverter or solar panel manufacturer.                                                                           |
-| SEG and export payments            | Direct the customer to their energy supplier for export tariff information and application requirements. | Energy supplier for SEG eligibility, rates and payments; installer for installation documentation where needed. |
-| Cleaning and maintenance           | Direct the customer to the equipment documentation for manufacturer-approved guidance.                   | Manufacturer or installer, as appropriate.                                                                      |
-| System shutdown or restart         | Refer the customer to the relevant equipment user manuals and manufacturer instructions.                 | Inverter or battery manufacturer; installer for assistance where needed.                                        |
-| Battery not charging or responding | Direct the customer to the battery or inverter manufacturer before taking action.                        | Battery or inverter manufacturer.                                                                               |
-| Power diverter issues              | Identify the manufacturer, if known, and direct the customer to its support resources.                   | Power diverter manufacturer or installer.                                                                       |
-| Grid alarms or error codes         | Ask the customer to consult the relevant manufacturer for guidance on the displayed error.               | Inverter manufacturer or installer, as appropriate.                                                             |
+| Issue | Initial bot action | Where to direct the customer |
+| --- | --- | --- |
+| Wi-Fi or monitoring offline | Identify the monitoring equipment and manufacturer. | Inverter or data logger manufacturer. |
+| App login or password | Direct the customer to the app's account recovery process or relevant support team. | App or manufacturer support. |
+| Tariff or charging schedule | Explain that charging settings may be adjustable, depending on the equipment. | Inverter or battery manufacturer for system settings; energy supplier for tariff questions. |
+| Battery or inverter fault | Direct the customer to the relevant manufacturer for guidance. | Battery or inverter manufacturer; installer where appropriate. |
+| Low or changed generation | Explain that the manufacturer is best placed to advise on the customer's specific system. | Inverter or solar panel manufacturer. |
+| SEG and export payments | Direct the customer to their energy supplier for export tariff information and application requirements. | Energy supplier for SEG eligibility, rates and payments; installer for installation documentation where needed. |
+| Cleaning and maintenance | Direct the customer to the equipment documentation for manufacturer-approved guidance. | Manufacturer or installer, as appropriate. |
+| System shutdown or restart | Refer the customer to the relevant equipment user manuals and manufacturer instructions. | Inverter or battery manufacturer; installer for assistance where needed. |
+| Battery not charging or responding | Direct the customer to the battery or inverter manufacturer before taking action. | Battery or inverter manufacturer. |
+| Power diverter issues | Identify the manufacturer, if known, and direct the customer to its support resources. | Power diverter manufacturer or installer. |
+| Grid alarms or error codes | Ask the customer to consult the relevant manufacturer for guidance on the displayed error. | Inverter manufacturer or installer, as appropriate. |
 
 ### Standard information to collect
 
 Collect only the information needed to direct the customer to the appropriate support channel.
 
-| Information                                | Purpose                                                         |
-| ------------------------------------------ | --------------------------------------------------------------- |
-| Equipment manufacturer and model, if known | Helps identify the relevant manufacturer and documentation.     |
-| Monitoring app, if relevant                | Helps direct app-related questions to the correct support team. |
-| Error message or code, if displayed        | Helps the manufacturer identify the issue.                      |
-| Brief description of the customer's query  | Helps determine the appropriate support contact.                |
+| Information | Purpose |
+| --- | --- |
+| Equipment manufacturer and model, if known | Helps identify the relevant manufacturer and documentation. |
+| Monitoring app, if relevant | Helps direct app-related questions to the correct support team. |
+| Error message or code, if displayed | Helps the manufacturer identify the issue. |
+| Brief description of the customer's query | Helps determine the appropriate support contact. |
 
 Do not require customers to complete troubleshooting steps or provide extensive system information before directing them to the relevant support channel.
 
@@ -452,22 +452,22 @@ Provide straightforward general information where appropriate, but do not invest
 
 ## 14. Knowledge base completion checklist
 
-| Status | Task                      | Details                                                                 |
-| ------ | ------------------------- | ----------------------------------------------------------------------- |
-| To do  | Data logger configuration | Add verified official support links for supported manufacturers.        |
-| To do  | Charging periods          | Link to manufacturer support for charging settings and operating modes. |
-| To do  | System shutdown           | Link to relevant user manuals and manufacturer documentation.           |
-| To do  | Battery wake-up           | Direct customers to manufacturer guidance before taking action.         |
+| Status | Task | Details |
+| --- | --- | --- |
+| To do | Data logger configuration | Add verified official support links for supported manufacturers. |
+| To do | Charging periods | Link to manufacturer support for charging settings and operating modes. |
+| To do | System shutdown | Link to relevant user manuals and manufacturer documentation. |
+| To do | Battery wake-up | Direct customers to manufacturer guidance before taking action. |
 
-| To do | Power diverters          | Add official manufacturer support links and relevant documentation.     |
-| ----- | ------------------------ | ----------------------------------------------------------------------- |
-| To do | Grid alarms              | Add official manufacturer error-code references and support links.      |
-| To do | Manufacturer contacts    | Verify official support URLs, contact details and support hours.        |
-| To do | SEG requirements         | Link to reliable, current guidance and energy supplier information.     |
-| To do | Cleaning and maintenance | Link to manufacturer-approved instructions and warranty guidance.       |
-| To do | Generation changes       | Add official manufacturer support links for generation-related queries. |
-| To do | App login and passwords  | Add official account recovery and support links for relevant apps.      |
-| To do | Tariff questions         | Add links to energy supplier guidance and relevant tariff information.  |
+| To do | Power diverters | Add official manufacturer support links and relevant documentation. |
+| --- | --- | --- |
+| To do | Grid alarms | Add official manufacturer error-code references and support links. |
+| To do | Manufacturer contacts | Verify official support URLs, contact details and support hours. |
+| To do | SEG requirements | Link to reliable, current guidance and energy supplier information. |
+| To do | Cleaning and maintenance | Link to manufacturer-approved instructions and warranty guidance. |
+| To do | Generation changes | Add official manufacturer support links for generation-related queries. |
+| To do | App login and passwords | Add official account recovery and support links for relevant apps. |
+| To do | Tariff questions | Add links to energy supplier guidance and relevant tariff information. |
 
 ### Publishing and maintenance rules
 

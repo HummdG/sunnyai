@@ -61,8 +61,6 @@
     "node_modules",
     "apps/widget-demo-next",
     "apps/marketing",
-    // Removed once the merged app replaces it; excluded while it still exists.
-    "apps/dashboard",
     // Vendored from SunScanV2 and type-checked by tsconfig.sunscan.json.
     "packages/sunscan-core",
     "packages/sunscan-engine",

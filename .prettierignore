@@ -65,3 +65,6 @@ fixtures/sunscan
 
 # The owner-supplied plan, kept verbatim
 SUNNY_AI_IMPLEMENTATION_PLAN.md
+
+# Generated from Knowledge Base.pdf (scripts/pdf-to-markdown.py + fix-support-kb.py)
+fixtures/knowledge/support-knowledge-base.md
