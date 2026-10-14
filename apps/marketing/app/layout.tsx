@@ -50,6 +50,20 @@ const brandFont = localFont({
   fallback: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
 });
 
+/**
+ * The website's display face: Fraunces, for headlines only (see
+ * `fonts/display/PROVENANCE.md`). Exposed as `--font-display-face`, which the
+ * site's print stylesheet puts first in its display stack.
+ */
+const displayFont = localFont({
+  src: '../fonts/display/fraunces-latin.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  variable: '--font-display-face',
+  fallback: ['Georgia', 'serif'],
+});
+
 export default function RootLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <html
@@ -62,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
       // wins that contest by construction, and it keeps the token file's own
       // value (the family, then the system stack) as what any page without a
       // loaded font still resolves to.
-      className={brandFont.className}
+      className={`${brandFont.className} ${displayFont.variable}`}
       style={{ ...brandFont.style, '--font-sans': brandFont.style.fontFamily }}
     >
       {/*

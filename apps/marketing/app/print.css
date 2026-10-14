@@ -21,14 +21,10 @@
   --print: 4px 4px 0 var(--ink);
   --print-lift: 6px 6px 0 var(--ink);
   /*
-   * The display face. Fraunces (OFL, SOFT 100) is the intended cut and is
-   * used when its file is present (see packages/ui/fonts/PROVENANCE.md);
-   * Cooper and Recoleta are the same idea on systems that have them, and the
-   * old-style serifs keep the print voice everywhere else.
+   * The display face: self-hosted Fraunces at SOFT 100 (fonts/display), with
+   * Georgia standing in until it has loaded.
    */
-  --font-display:
-    'Fraunces', 'Cooper Black', 'Cooper Std', 'Recoleta', 'Iowan Old Style', 'Palatino Linotype',
-    Georgia, serif;
+  --font-display: var(--font-display-face), Georgia, serif;
 
   background-color: var(--paper);
   /* A barely-there paper grain, behind everything. */
