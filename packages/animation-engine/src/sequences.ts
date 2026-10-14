@@ -237,7 +237,8 @@ const listening: Sequence = {
   id: 'listening-perk',
   group: 'listen',
   priority: PRIORITY.interaction,
-  duration: 700,
+  // Long enough to read as a wave hello (three flaps), not a twitch.
+  duration: 1400,
   canInterrupt: true,
   loop: false,
   intensity: 'balanced',

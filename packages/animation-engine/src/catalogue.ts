@@ -96,11 +96,8 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     name: 'Listening',
     description: 'A small perk of attention when the visitor arrives or starts typing.',
     category: 'conversation',
-    asked: 'nobody',
-    note:
-      '`attention` requests `open`, and the listening state’s ambient layer is the idle ' +
-      'group, so nothing ever asks for the perk. Either the listening state’s ambient ' +
-      'should be this group, or `attention` should request both.',
+    asked: 'engine',
+    askedBy: '`attention`, alongside `open`',
   },
   {
     group: 'think',

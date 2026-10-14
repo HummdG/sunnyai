@@ -134,7 +134,7 @@ export class SunnyWidget {
   constructor(host: HTMLElement, options: MountOptions) {
     this.#host = host;
     this.#options = options;
-    this.#animator = new SunnyAnimator(defaultRig(), { intensity: 'balanced' });
+    this.#animator = this.#reportingAnimator({ intensity: 'balanced' });
 
     // `mode: 'open'` so the host page can drive the widget (and so an
     // accessibility audit can see into it). The isolation comes from the shadow
@@ -349,7 +349,7 @@ export class SunnyWidget {
     if (name) name.textContent = config.companyName;
     if (tagline) tagline.textContent = config.tagline;
 
-    this.#animator = new SunnyAnimator(defaultRig(), {
+    this.#animator = this.#reportingAnimator({
       intensity: config.intensity,
       reducedMotion: prefersReducedMotion(),
     });
@@ -545,11 +545,36 @@ export class SunnyWidget {
     // nodes under the pointer survive from frame to frame.
     const boil = prefersReducedMotion() ? undefined : clock.boil;
     if (!this.#launcher.hidden) this.#launcherView.draw(result.rig, { boil });
+
+    // States can also change on the clock (a celebration settling to idle).
+    this.#reportState();
     if (this.#open) this.#avatarView.draw(result.rig, { boil });
 
     if (this.#launcher.querySelector('.svg-host svg')) {
       this.#launcher.classList.add('ready');
     }
+  }
+
+  /**
+   * An animator that reports its state on the host element as `data-sunny-state`
+   * the moment it changes: lets a host page style around what Sunny is doing,
+   * and lets a test see the acting without reading pixels. Reported on every
+   * dispatch, not only per frame, because one network read can carry a whole
+   * turn -- thinking, speaking and done -- between two frames.
+   */
+  #reportingAnimator(options: ConstructorParameters<typeof SunnyAnimator>[1]): SunnyAnimator {
+    const animator = new SunnyAnimator(defaultRig(), options);
+    const dispatch = animator.dispatch.bind(animator);
+    animator.dispatch = (event, now) => {
+      dispatch(event, now);
+      this.#reportState();
+    };
+    return animator;
+  }
+
+  #reportState(): void {
+    const state = this.#animator.state;
+    if (this.#host.dataset.sunnyState !== state) this.#host.dataset.sunnyState = state;
   }
 
   // ── opening and closing ──────────────────────────────────────────────────

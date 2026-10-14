@@ -21,7 +21,7 @@ const LAUNCHER = 'button[aria-label="Open the solar assistant"]';
 const PANEL = '[role="dialog"][aria-label="Solar assistant"]';
 
 /** The API the demo page points the widget at. */
-const API = (url: URL): boolean => url.port === '8787';
+const API = (url: URL): boolean => url.port === String(process.env.API_PORT ?? 8787);
 
 /** The widget's own box, in viewport coordinates, freshly laid out. */
 async function hostRect(

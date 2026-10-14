@@ -239,6 +239,62 @@ test('exposes the documented handle on window', async ({ page }) => {
   expect(shape.widgets).toBe(1);
 });
 
+test('acts out a text answer: thinks, looks it up, then speaks', async ({ page }) => {
+  // Text chat used to leave Sunny on the hand-on-chin loop for the whole
+  // answer: nothing mapped the streamed text to speaking. The stream here is
+  // canned so the order of events is the test's, not a model's.
+  const frame = (event: Record<string, unknown>): string =>
+    `data: ${JSON.stringify({ messageId: 'm_e2e', ...event })}\n\n`;
+  await page.route('**/v1/chat/stream', async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body:
+        frame({ type: 'message_started' }) +
+        frame({ type: 'tool_started', tool: 'retrieve_knowledge' }) +
+        frame({ type: 'tool_finished', tool: 'retrieve_knowledge', ok: true }) +
+        frame({ type: 'text_delta', text: 'Most homes ' }) +
+        frame({ type: 'text_delta', text: 'save on their bills.' }) +
+        frame({ type: 'message_finished' }),
+    });
+  });
+
+  // Every state the character passes through, recorded as it happens. The
+  // whole canned turn can land in one task, so each mutation's old value is
+  // kept, not just the attribute's value when the observer runs.
+  await page.locator(HOST).evaluate((host) => {
+    const seen: string[] = [];
+    (window as unknown as { __sunnyStates: string[] }).__sunnyStates = seen;
+    const note = (state: string | null | undefined): void => {
+      if (state && seen.at(-1) !== state) seen.push(state);
+    };
+    new MutationObserver((records) => {
+      for (const record of records) note(record.oldValue);
+      note((host as HTMLElement).dataset['sunnyState']);
+    }).observe(host, {
+      attributes: true,
+      attributeOldValue: true,
+      attributeFilter: ['data-sunny-state'],
+    });
+  });
+
+  await page.locator(HOST).locator(LAUNCHER).click();
+  const panel = page.locator(HOST).locator(PANEL);
+  await panel.locator('.composer-input').fill('Will solar save me money?');
+  await panel.locator('.composer-send').click();
+  await expect(panel).toContainText('save on their bills.');
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __sunnyStates: string[] }).__sunnyStates),
+    )
+    .toEqual(expect.arrayContaining(['listening', 'thinking', 'speaking', 'idle']));
+  const states = await page.evaluate(
+    () => (window as unknown as { __sunnyStates: string[] }).__sunnyStates,
+  );
+  expect(states.indexOf('speaking')).toBeGreaterThan(states.indexOf('thinking'));
+});
+
 test('loads without console errors', async ({ page }) => {
   const errors = collectConsoleErrors(page);
   await page.goto('/');

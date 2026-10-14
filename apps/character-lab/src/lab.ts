@@ -122,10 +122,16 @@ function frame(): void {
   renderBigStage();
 
   // After the stage has run a frame, so `lastFrame` is this instant's result.
-  const drawn = animator.lastFrame?.sequenceId;
-  const liveGroup = drawn ? groupOfSequence.get(drawn) : undefined;
+  // The winning sequence and any overlay drawn over it (a blink lands on top
+  // of whatever is playing rather than winning the frame).
+  const frame = animator.lastFrame;
+  const liveGroups = new Set(
+    [frame?.sequenceId ?? null, ...(frame?.overlays ?? [])]
+      .map((id) => (id ? groupOfSequence.get(id) : undefined))
+      .filter((group) => group !== undefined),
+  );
   for (const moment of moments) {
-    const live = moment.group === liveGroup;
+    const live = liveGroups.has(moment.group);
     moment.node.classList.toggle('live', live);
     // Sticky until the next Play click, so a short moment is recorded rather
     // than only visible at the instant it happens.

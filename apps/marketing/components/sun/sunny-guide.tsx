@@ -112,8 +112,11 @@ export function SunnyGuide(): React.JSX.Element {
       const elevation = reduced ? 1 : 1 - clamp01(window.scrollY / scrollable);
 
       const transform = `translate3d(${(place.x - BOX / 2).toFixed(1)}px, ${(place.y - BOX / 2).toFixed(1)}px, 0) scale(${(place.size / BOX).toFixed(4)})`;
-      if (transform !== written) {
-        written = transform;
+      // The light depends on how far down the page the visitor is as well as
+      // on where Sunny is, so a Sunny sitting still in the corner still sets.
+      const key = `${transform}|${elevation.toFixed(3)}`;
+      if (key !== written) {
+        written = key;
         node.style.transform = transform;
         node.dataset.docked = p >= 1 ? 'corner' : p <= 0 ? 'hero' : 'travelling';
         node.classList.add('is-placed');
@@ -140,6 +143,8 @@ export function SunnyGuide(): React.JSX.Element {
       if (!sunny) return;
       const now = filmNow();
       sunny.noteActivity(now);
+      // The act in progress, for anyone styling around it (and the e2e suite).
+      if (shell.current) shell.current.dataset.act = act;
       for (const group of Object.values(LOOKUP_GROUP)) sunny.scheduler.cancel(group);
       // Each section starts from rest: a wave in the hero leaves Sunny
       // listening, and the props and gestures only come out from idle.

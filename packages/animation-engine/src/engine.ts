@@ -189,7 +189,10 @@ export class SunnyAnimator {
         this.scheduler.request('guide', result.state, now);
         break;
       case 'attention':
+        // The pop, and then the wave hello it leads into: the wave outlasts
+        // the pop, so it carries on once the pop is over.
         this.scheduler.request('open', result.state, now);
+        this.scheduler.request('listen', result.state, now);
         break;
       case 'play_started':
         // Nothing used to happen here. `play_started` moved the machine into

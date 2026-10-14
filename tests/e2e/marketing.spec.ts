@@ -91,23 +91,85 @@ test('mounts the real widget, opened by the site’s own Sunny', async ({ page }
   await expect(page.locator('.sunny-guide')).toHaveClass(/is-away/);
 });
 
-test('shows one Sunny at a time, wherever the visitor scrolls', async ({ page }) => {
+/** How many live drawings of the character are on screen, the guide included. */
+function sunnysInView(): number {
+  // A guide that has stepped aside is not on screen; brand logos are images,
+  // not the live rig, so they are not counted.
+  return [...document.querySelectorAll('svg [data-part="body"]')]
+    .filter((node) => !node.closest('.sunny-guide.is-away'))
+    .map((node) => node.closest('svg')!.getBoundingClientRect())
+    .filter((r) => r.bottom > 0 && r.top < window.innerHeight && r.width > 0).length;
+}
+
+for (const path of [
+  '/',
+  '/product',
+  '/meet-sunny',
+  '/how-it-works',
+  '/integrations',
+  '/pricing',
+  '/resources',
+  '/privacy',
+  '/terms',
+]) {
+  test(`shows one Sunny at a time on ${path}, wherever the visitor scrolls`, async ({ page }) => {
+    await page.goto(path);
+    const height = await page.evaluate(() => document.body.scrollHeight);
+    for (let y = 0; y < height; y += 400) {
+      await page.evaluate((top) => window.scrollTo(0, top), y);
+      // Polled: stepping aside follows an intersection observer, one frame on.
+      await expect
+        .poll(() => page.evaluate(sunnysInView), { message: `at scroll ${y}` })
+        .toBeLessThanOrEqual(1);
+    }
+  });
+}
+
+test('the guide acts out the section in view', async ({ page }) => {
   await page.goto('/');
-  const height = await page.evaluate(() => document.body.scrollHeight);
-  for (let y = 0; y < height; y += 600) {
-    await page.evaluate((top) => window.scrollTo(0, top), y);
-    // Every drawing of the character on the page, the guide included, that is
-    // actually in the viewport (a guide that has stepped aside is not). Brand
-    // logos are images, not the live rig.
-    const visible = await page.evaluate(
-      () =>
-        [...document.querySelectorAll('svg [data-part="body"]')]
-          .filter((node) => !node.closest('.sunny-guide.is-away'))
-          .map((node) => node.closest('svg')!.getBoundingClientRect())
-          .filter((r) => r.bottom > 0 && r.top < window.innerHeight && r.width > 0).length,
+  const guide = page.locator('.sunny-guide');
+  const centre = async (id: string): Promise<void> => {
+    await page.evaluate((id) => {
+      const section = document.getElementById(id)!;
+      window.scrollTo(0, section.offsetTop + section.offsetHeight / 2 - window.innerHeight / 2);
+    }, id);
+  };
+
+  await centre('features');
+  await expect(guide).toHaveAttribute('data-act', 'magnifier');
+  await expect(guide).toHaveAttribute('data-docked', 'corner');
+  await centre('how');
+  await expect(guide).toHaveAttribute('data-act', 'laptop');
+  await centre('pricing');
+  await expect(guide).toHaveAttribute('data-act', 'point');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(guide).toHaveAttribute('data-act', 'deckchair');
+
+  // Back to the top, Sunny is back on its hill in the hero.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(guide).toHaveAttribute('data-docked', 'hero');
+});
+
+test('the header dial lights a ray for each section reached', async ({ page }) => {
+  await page.goto('/');
+  const lit = page.locator('.progress-dial .dial-ray.is-lit');
+  const rays = page.locator('.progress-dial .dial-ray');
+  await expect(rays).toHaveCount(6);
+  const atTop = await lit.count();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(lit).toHaveCount(6);
+  expect(atTop).toBeLessThan(6);
+});
+
+test('the light follows the sun and sets towards the footer', async ({ page }) => {
+  await page.goto('/');
+  const elevation = (): Promise<number> =>
+    page.evaluate(() =>
+      Number(getComputedStyle(document.documentElement).getPropertyValue('--sun-elev')),
     );
-    expect(visible, `at scroll ${y}`).toBeLessThanOrEqual(1);
-  }
+  await expect.poll(elevation).toBeGreaterThan(0.95);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect.poll(elevation).toBeLessThan(0.05);
 });
 
 test('shows the configured plans, with the headline the plan requires', async ({ page }) => {
