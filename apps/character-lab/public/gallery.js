@@ -382,13 +382,20 @@
     left: leg({ x: -23, y: 82 }, -0.1, -4),
     right: leg({ x: 23, y: 82 }, 0.1, 4)
   };
-  var SIT_DROP = 20;
   var SIT = {
     left: leg({ x: -44, y: 76 }, 0.35, -28),
     right: leg({ x: 44, y: 76 }, -0.35, 28)
   };
-  var HIP_L = arm({ x: -51, y: 22 }, 2.8, "fist", 35, true);
-  var HIP_R = arm({ x: 51, y: 22 }, -2.8, "fist", -35, true);
+  var HIP_L = {
+    ...arm({ x: -50, y: 32 }, 0, "fist", -100, true),
+    handScale: 1.25,
+    elbow: { x: -68, y: 8 }
+  };
+  var HIP_R = {
+    ...arm({ x: 50, y: 32 }, 0, "fist", -100, true),
+    handScale: 1.25,
+    elbow: { x: 68, y: 8 }
+  };
   var DOWN_L = arm({ x: -52, y: 44 }, -0.35, "relaxed", 10);
   var DOWN_R = arm({ x: 52, y: 44 }, 0.35, "relaxed", -10);
   var LIMB_POSES = {
@@ -420,7 +427,7 @@
     wave: {
       visible: true,
       arms: {
-        left: arm({ x: -66, y: -26 }, 0.5, "open", -12),
+        left: { ...arm({ x: -62, y: -34 }, 0, "open", -6), elbow: { x: -72, y: 0 } },
         right: HIP_R
       },
       legs: STAND
@@ -430,7 +437,7 @@
       visible: true,
       arms: {
         left: HIP_L,
-        right: arm({ x: 66, y: -6 }, -0.5, "thumb", -70)
+        right: { ...arm({ x: 76, y: -4 }, 0, "thumb", 10), elbow: { x: 74, y: 28 } }
       },
       legs: STAND
     },
@@ -438,8 +445,8 @@
     point: {
       visible: true,
       arms: {
-        left: arm({ x: -64, y: 6 }, -0.25, "point", 0),
-        right: arm({ x: 66, y: 4 }, 0.25, "point", 0)
+        left: { ...arm({ x: -66, y: 4 }, 0, "point", 75), elbow: { x: -58, y: 30 } },
+        right: { ...arm({ x: 68, y: -4 }, 0, "point", 75), elbow: { x: 62, y: 24 } }
       },
       legs: {
         left: leg({ x: -20, y: 82 }, -0.1, -4),
@@ -450,8 +457,8 @@
     cheer: {
       visible: true,
       arms: {
-        left: arm({ x: -62, y: -44 }, 0.45, "fist", 0),
-        right: arm({ x: 62, y: -44 }, -0.45, "fist", 0)
+        left: { ...arm({ x: -58, y: -48 }, 0, "fist", 0), elbow: { x: -74, y: -10 } },
+        right: { ...arm({ x: 58, y: -48 }, 0, "fist", 0), elbow: { x: 74, y: -10 } }
       },
       legs: {
         left: leg({ x: -30, y: 82 }, -0.15, -8),
@@ -471,7 +478,7 @@
     idea: {
       visible: true,
       arms: {
-        left: arm({ x: -62, y: -30 }, 0.45, "index", -20),
+        left: { ...arm({ x: -60, y: -32 }, 0, "index", 28), elbow: { x: -70, y: 2 } },
         right: HIP_R
       },
       legs: STAND
@@ -480,7 +487,7 @@
     peace: {
       visible: true,
       arms: {
-        left: arm({ x: -62, y: -30 }, 0.45, "peace", -20),
+        left: { ...arm({ x: -60, y: -32 }, 0, "peace", 28), elbow: { x: -70, y: 2 } },
         right: HIP_R
       },
       legs: STAND
@@ -546,7 +553,7 @@
     magnify: {
       visible: true,
       arms: {
-        left: arm({ x: -44, y: 4 }, -1, "grip", 20, true),
+        left: { ...arm({ x: -54, y: 26 }, 0, "grip", 20, true), elbow: { x: -72, y: 40 } },
         right: arm({ x: 54, y: 26 }, -0.4, "relaxed", -20)
       },
       legs: STAND
@@ -581,7 +588,7 @@
       visible: true,
       arms: {
         left: HIP_L,
-        right: arm({ x: 52, y: 20 }, -0.9, "grip", -30, true)
+        right: { ...arm({ x: 74, y: 10 }, 0, "grip", 0, true), elbow: { x: 76, y: 38 } }
       },
       legs: STAND
     },
@@ -589,7 +596,7 @@
     present: {
       visible: true,
       arms: {
-        left: arm({ x: -64, y: -6 }, 0.55, "open", -70),
+        left: { ...arm({ x: -72, y: -8 }, 0, "open", 40), elbow: { x: -66, y: 20 } },
         right: HIP_R
       },
       legs: STAND
@@ -608,7 +615,11 @@
     }
   };
   function cloneLimbs(l) {
-    const a = (x) => ({ ...x, hand: { ...x.hand } });
+    const a = (x) => ({
+      ...x,
+      hand: { ...x.hand },
+      ...x.elbow ? { elbow: { ...x.elbow } } : {}
+    });
     const g = (x) => ({ ...x, hip: { ...x.hip }, foot: { ...x.foot } });
     return {
       visible: l.visible,
@@ -626,9 +637,10 @@
     const k = Math.min(1, Math.max(0, t));
     if (k <= 0) return cloneLimbs(a);
     if (k >= 1) return cloneLimbs(b);
-    const blendArm = (p, q) => {
+    const blendArm = (p, q, side) => {
       const pm = morphOf(p.morph);
       const qm = morphOf(q.morph);
+      const elbow = p.elbow || q.elbow ? pm < 0.01 ? q.elbow ?? impliedElbow(side, q) : qm < 0.01 ? p.elbow ?? impliedElbow(side, p) : mixV(p.elbow ?? impliedElbow(side, p), q.elbow ?? impliedElbow(side, q), k) : void 0;
       const shapeFrom = pm < 0.01 ? q : qm < 0.01 ? p : k < 0.5 ? p : q;
       const changing = pm >= 0.01 && qm >= 0.01 && p.shape !== q.shape;
       const smear = changing && k > 0.3 && k < 0.7;
@@ -645,6 +657,7 @@
         front: shapeFrom.front,
         tubeFront: shapeFrom.tubeFront,
         ...shapeFrom.behind !== void 0 ? { behind: shapeFrom.behind } : {},
+        ...elbow ? { elbow: { ...elbow } } : {},
         morph: mix(pm, qm, k)
       };
     };
@@ -662,8 +675,8 @@
     return {
       visible: k < 1 ? a.visible : b.visible,
       arms: {
-        left: blendArm(a.arms.left, b.arms.left),
-        right: blendArm(a.arms.right, b.arms.right)
+        left: blendArm(a.arms.left, b.arms.left, "left"),
+        right: blendArm(a.arms.right, b.arms.right, "right")
       },
       legs: { left: blendLeg(a.legs.left, b.legs.left), right: blendLeg(a.legs.right, b.legs.right) }
     };
@@ -697,7 +710,9 @@
       x: (t.base.x + end.x) / 2 + perp.x * t.bend * Math.max(len, 24) * 0.5,
       y: (t.base.y + end.y) / 2 + perp.y * t.bend * Math.max(len, 24) * 0.5
     };
-    const c = mixV(straight, bowed, m);
+    const mid = { x: (t.base.x + end.x) / 2, y: (t.base.y + end.y) / 2 };
+    const elbowAt = t.elbow ? mixV(mid, t.elbow, reach) : null;
+    const c = elbowAt ? { x: 2 * elbowAt.x - mid.x, y: 2 * elbowAt.y - mid.y } : mixV(straight, bowed, m);
     const endHalf = mix(0.35, t.endHalf, smooth(m * 1.4));
     const power = t.power ?? mix(1, 3.2, m);
     const N = 16;
@@ -787,6 +802,20 @@
   function joined(tubeD, endArt, endArtFill, paint) {
     return tubeInk(tubeD, paint) + endArt + endArtFill + tubeFill(tubeD, paint);
   }
+  function impliedElbow(side, arm2) {
+    if (arm2.elbow) return { ...arm2.elbow };
+    const { base: base2 } = socket(LIMB_SOCKETS.arms[side]);
+    const end = arm2.hand;
+    const dx = end.x - base2.x;
+    const dy = end.y - base2.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = arm2.bend * Math.max(len, 24) * 0.5;
+    const c = {
+      x: (base2.x + end.x) / 2 - dy / len * bow,
+      y: (base2.y + end.y) / 2 + dx / len * bow
+    };
+    return { x: (base2.x + 2 * c.x + end.x) / 4, y: (base2.y + 2 * c.y + end.y) / 4 };
+  }
   function socket(deg) {
     const dir = rayDirection(deg);
     return { base: { x: dir.x * LIMB.socketRadius, y: dir.y * LIMB.socketRadius }, dir };
@@ -809,6 +838,7 @@
       // Flare to just inside the hand's own wrist, so the hand stays a touch wider.
       flareHalf: Math.min(art.joint * armRig.handScale * 0.5, LIMB.wristHalf * 1.4),
       bend: armRig.bend,
+      ...armRig.elbow ? { elbow: armRig.elbow } : {},
       morph: m,
       boil: boil2,
       power: 1
@@ -1499,7 +1529,7 @@
       `rotate(${n3(rig.rotation)})`,
       `scale(${n3(rig.scale * stretch)} ${n3(rig.scale * squash)})`
     ].join(" ");
-    const showLimbs = (options.limbs ?? true) && rig.limbs.visible;
+    const showLimbs = (options.limbs ?? false) && rig.limbs.visible;
     const hidden = showLimbs ? limbRayIndices(rig.limbs) : [];
     const limbPaint = { limb: paint.ray, ink: paint.ink };
     const toVB = (p) => toViewBox(rig, p);
@@ -1733,7 +1763,7 @@
   });
   function readPose(base2, t, still) {
     const r = cloneRig(base2);
-    r.y = base2.y + SIT_DROP;
+    r.y = base2.y + 3;
     r.squash = 0.04;
     r.stretch = 0.03;
     act(r, base2, "read", 1);
@@ -1747,13 +1777,14 @@
     r.faceTilt = still ? -3 : -3 + wave(t) * 2;
     if (!still) breathe(r, base2, t, 0.6);
     const turn = still ? 0 : Math.max(0, Math.sin(clamp01((t - 0.55) / 0.2) * Math.PI));
-    r.props = [held("book", 0, 30, 0, 1)];
-    if (turn > 0.01) r.props.push({ ...held("book", 0, 30, 0, 1), id: "book-page", opacity: turn });
+    r.props = [held("book", 0, 40, 0, 1.05)];
+    if (turn > 0.01)
+      r.props.push({ ...held("book", 0, 40, 0, 1.05), id: "book-page", opacity: turn });
     return r;
   }
   function typePose(base2, t, still) {
     const r = cloneRig(base2);
-    r.y = base2.y + SIT_DROP;
+    r.y = base2.y + 3;
     r.squash = 0.04;
     r.stretch = 0.03;
     act(r, base2, "type", 1);
@@ -1767,7 +1798,7 @@
     r.eyes.left.gaze = gaze;
     r.eyes.right.gaze = { ...gaze };
     r.smile.depth = base2.smile.depth * (1 + up * 0.2);
-    r.props = [held("laptop", 4, 34, 0, 1)];
+    r.props = [held("laptop", 4, 44, 0, 1.05)];
     return r;
   }
   function magnifyPose(base2, t, still) {
@@ -2425,7 +2456,9 @@
   var listening = {
     id: "listening-perk",
     group: "listen",
-    priority: PRIORITY.interaction,
+    // Just above the bubble pop the same `attention` asks for: the visitor
+    // opened the chat, and the wave hello is the answer they should see first.
+    priority: PRIORITY.interaction + 5,
     // Long enough to read as a wave hello (three flaps), not a twitch.
     duration: 1400,
     canInterrupt: true,
