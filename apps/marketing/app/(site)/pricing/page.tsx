@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { PricingScene } from '../../../components/scenes/pages.js';
 import { CtaBand, PageIntro, PricingCards } from '../../../components/blocks.js';
 
 export const metadata: Metadata = {
@@ -33,13 +34,14 @@ export default function PricingPage(): React.JSX.Element {
         eyebrow="Pricing"
         title="Plans that grow with your business"
         lede="Every plan includes the full Sunny assistant and character. Pick the one that matches the size of your team."
+        scene={<PricingScene />}
       />
-      <section className="section" id="pricing" data-sunny-act="point">
+      <section className="section" id="pricing">
         <div className="wrap">
           <PricingCards />
         </div>
       </section>
-      <section className="section tinted" data-sunny-act="magnifier">
+      <section className="section tinted">
         <div className="wrap">
           <h2>Questions about pricing</h2>
           <dl className="faq">

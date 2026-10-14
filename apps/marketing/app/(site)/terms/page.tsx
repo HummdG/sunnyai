@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { TermsScene } from '../../../components/scenes/pages.js';
 import { PageIntro } from '../../../components/blocks.js';
 
 export const metadata: Metadata = {
@@ -14,8 +15,9 @@ export default function TermsPage(): React.JSX.Element {
         eyebrow="Terms"
         title="Terms of service"
         lede="The key principles of using Sunny. Full terms of service are published here before Sunny opens to customers."
+        scene={<TermsScene />}
       />
-      <section className="section" data-sunny-act="book">
+      <section className="section">
         <div className="wrap prose">
           <h2>Using Sunny</h2>
           <p>

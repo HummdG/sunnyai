@@ -1,9 +1,10 @@
+import { renderSunny } from '@sunny/character';
 import Link from 'next/link';
 
 import { NAV } from '../app/site.js';
 import { HeaderAccount } from './account-links.js';
 import { MobileMenu } from './mobile-menu.js';
-import { ProgressDial } from './sun/progress-dial.js';
+import { stillRig } from './scenes/still.js';
 
 /** The logo is the reference artwork itself (sunny.png); the product is Sunny.ai. */
 function Brand(): React.JSX.Element {
@@ -20,7 +21,6 @@ export function SiteHeader(): React.JSX.Element {
     <header className="site-header">
       <div className="wrap">
         <Brand />
-        <ProgressDial />
         <nav className="site-nav" aria-label="Main">
           {NAV.map((item) => (
             <Link key={item.href} href={item.href}>
@@ -63,13 +63,23 @@ const FOOTER_COLUMNS = [
   },
 ] as const;
 
+/** Sunny off duty in the deckchair: a still ink drawing, drawn once. */
+const FOOTER_ART = renderSunny(stillRig({ pose: 'hips', act: 'relax-sunbathe', at: 0.5 }), {
+  decorative: true,
+});
+
 export function SiteFooter(): React.JSX.Element {
   return (
-    <footer className="site-footer" data-sunny-act="deckchair">
+    <footer className="site-footer">
       <div className="wrap footer-grid">
         <div className="footer-brand">
           <Brand />
           <p>The friendly assistant that turns your website visitors into solar leads.</p>
+          <div
+            className="footer-art"
+            aria-hidden="true"
+            dangerouslySetInnerHTML={{ __html: FOOTER_ART }}
+          />
         </div>
         {FOOTER_COLUMNS.map((column) => (
           <nav key={column.title} aria-label={column.title}>

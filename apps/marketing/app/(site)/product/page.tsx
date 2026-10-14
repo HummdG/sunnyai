@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { ProductScene } from '../../../components/scenes/pages.js';
 import { CtaBand, FeatureGrid, PageIntro } from '../../../components/blocks.js';
 
 export const metadata: Metadata = {
@@ -61,14 +62,15 @@ export default function ProductPage(): React.JSX.Element {
         eyebrow="Product"
         title="A sales assistant that never misses an enquiry"
         lede="Sunny greets your visitors, answers their questions, suggests the right system and turns interest into a lead your team can call."
+        scene={<ProductScene />}
       />
-      <section className="section" data-sunny-act="book">
+      <section className="section">
         <div className="wrap">
           <h2>In every conversation</h2>
           <FeatureGrid features={CONVERSATION} />
         </div>
       </section>
-      <section className="section tinted" data-sunny-act="magnifier">
+      <section className="section tinted">
         <div className="wrap">
           <h2>Built to earn your visitors’ trust</h2>
           <FeatureGrid features={TRUST} />

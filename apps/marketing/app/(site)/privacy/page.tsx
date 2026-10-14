@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { PrivacyScene } from '../../../components/scenes/pages.js';
 import { PageIntro } from '../../../components/blocks.js';
 
 export const metadata: Metadata = {
@@ -14,8 +15,9 @@ export default function PrivacyPage(): React.JSX.Element {
         eyebrow="Privacy"
         title="Your visitors’ trust comes first"
         lede="A plain-English summary of how Sunny handles personal information. Our full privacy policy is published here before Sunny opens to customers."
+        scene={<PrivacyScene />}
       />
-      <section className="section" data-sunny-act="book">
+      <section className="section">
         <div className="wrap prose">
           <h2>What Sunny collects</h2>
           <p>

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
-import { CtaBand, PageIntro, Steps } from '../../../components/blocks.js';
+import { CtaBand, PageIntro } from '../../../components/blocks.js';
+import { HowItWorksScene, SETUP_PANELS, VISIT_PANELS } from '../../../components/scenes/pages.js';
+import { Storyboard } from '../../../components/scenes/storyboard.js';
 import { PUBLIC_ID } from '../../config.js';
 
 export const metadata: Metadata = {
@@ -59,21 +61,24 @@ export default function HowItWorksPage(): React.JSX.Element {
         eyebrow="How it works"
         title="From one line of code to your next customer"
         lede="Setting Sunny up takes four steps. After that, every visitor gets a helpful conversation and every serious one becomes a lead."
+        scene={<HowItWorksScene />}
       />
-      <section className="section" data-sunny-act="laptop">
+      <section className="section">
         <div className="wrap">
-          <h2>Setting up</h2>
-          <Steps steps={SETUP} />
+          <span className="eyebrow">Setting up</span>
+          <h2>Four steps, about an afternoon</h2>
+          <Storyboard steps={SETUP} panels={SETUP_PANELS} />
           <h3 className="snippet-title">The only code you add</h3>
           <pre className="snippet standalone">
             <code>{SNIPPET}</code>
           </pre>
         </div>
       </section>
-      <section className="section tinted" data-sunny-act="point">
+      <section className="section tinted">
         <div className="wrap">
+          <span className="eyebrow">For your visitors</span>
           <h2>What your visitors experience</h2>
-          <Steps steps={VISIT} />
+          <Storyboard steps={VISIT} panels={VISIT_PANELS} />
         </div>
       </section>
       <CtaBand />

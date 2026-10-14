@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { CtaBand, PageIntro } from '../../../components/blocks.js';
 import { ColourSwitcher } from '../../../components/colour-switcher.js';
 import { LazyGallery } from '../../../components/lazy-gallery.js';
+import { ModelSheet, SpotlightScene } from '../../../components/scenes/pages.js';
 
 export const metadata: Metadata = {
   title: 'Meet Sunny',
@@ -32,8 +33,20 @@ export default function MeetSunnyPage(): React.JSX.Element {
         eyebrow="Meet Sunny"
         title="The friendliest face on your website"
         lede="Sunny is an orange sun with a big smile and plenty of personality. Visitors remember Sunny, and they finish their conversations."
+        scene={<SpotlightScene />}
       />
-      <section className="section" data-sunny-act="away">
+      <section className="section">
+        <div className="wrap">
+          <span className="eyebrow">The character</span>
+          <h2>Drawn like a 1930s cartoon star</h2>
+          <p className="intro">
+            Rubber-hose arms, a crown of rays and a grin you can see from across the room. Every
+            pose Sunny strikes in the chat comes from this sheet.
+          </p>
+          <ModelSheet />
+        </div>
+      </section>
+      <section className="section">
         <div className="wrap split">
           <div>
             <h2>Play with Sunny</h2>
@@ -55,7 +68,7 @@ export default function MeetSunnyPage(): React.JSX.Element {
           </div>
         </div>
       </section>
-      <section className="section tinted" data-sunny-act="peace">
+      <section className="section tinted">
         <div className="wrap">
           <h2>In your colours</h2>
           <p className="intro">

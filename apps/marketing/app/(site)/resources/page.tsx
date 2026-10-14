@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ResourcesScene } from '../../../components/scenes/pages.js';
 import { CtaBand, PageIntro } from '../../../components/blocks.js';
 
 export const metadata: Metadata = {
@@ -52,8 +53,9 @@ export default function ResourcesPage(): React.JSX.Element {
         eyebrow="Resources"
         title="Everything you need to get started"
         lede="Practical guides for setting Sunny up, and answers to the questions installers ask most."
+        scene={<ResourcesScene />}
       />
-      <section className="section" data-sunny-act="book">
+      <section className="section">
         <div className="wrap">
           <h2>Guides</h2>
           <ul className="feature-grid three">
@@ -69,7 +71,7 @@ export default function ResourcesPage(): React.JSX.Element {
           </ul>
         </div>
       </section>
-      <section className="section tinted" data-sunny-act="magnifier">
+      <section className="section tinted">
         <div className="wrap">
           <h2>Frequently asked questions</h2>
           <dl className="faq">

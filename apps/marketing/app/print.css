@@ -1,0 +1,602 @@
+/*
+ * Paper & ink: the website's print design system.
+ *
+ * A 1930s print, not a SaaS template: warm cream paper, black ink type and
+ * lines, orange as the one accent. Headlines in a chunky display serif; body
+ * in Plus Jakarta Sans. Cards, buttons and scenes carry an ink outline and a
+ * hard offset shadow, the way a misregistered print plate would, instead of a
+ * soft blur. Loaded after site.css, which keeps the layout rules.
+ */
+
+.site {
+  --paper: #fbf4e8;
+  --paper-deep: #f3e7d2;
+  --sheet: #fffdf7;
+  --ink: #171717;
+  --ink-soft: #4a433b;
+  --accent: #ff7900;
+  --accent-ink: #b04e00;
+  --line: 2px solid var(--ink);
+  --rule: 1.5px solid var(--ink);
+  --print: 4px 4px 0 var(--ink);
+  --print-lift: 6px 6px 0 var(--ink);
+  /*
+   * The display face. Fraunces (OFL, SOFT 100) is the intended cut and is
+   * used when its file is present (see packages/ui/fonts/PROVENANCE.md);
+   * Cooper and Recoleta are the same idea on systems that have them, and the
+   * old-style serifs keep the print voice everywhere else.
+   */
+  --font-display:
+    'Fraunces', 'Cooper Black', 'Cooper Std', 'Recoleta', 'Iowan Old Style', 'Palatino Linotype',
+    Georgia, serif;
+
+  background-color: var(--paper);
+  /* A barely-there paper grain, behind everything. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  color: var(--ink);
+}
+
+/* ── type ───────────────────────────────────────────────────────────────── */
+
+.site h1,
+.site h2,
+.site .display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-variation-settings:
+    'SOFT' 100,
+    'WONK' 1;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  color: var(--ink);
+}
+
+.site h1 {
+  font-size: clamp(2.8rem, 6.2vw, 5.4rem);
+}
+
+.site h2,
+.site .section h2 {
+  font-size: clamp(2rem, 3.8vw, 3.2rem);
+  margin-bottom: var(--space-4);
+}
+
+.site h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.site p,
+.site .lede,
+.site .section .intro {
+  color: var(--ink-soft);
+}
+
+.site .lede {
+  font-size: clamp(1.1rem, 1.5vw, 1.28rem);
+  line-height: 1.6;
+  max-width: 34ch;
+}
+
+/* A word marked as if with an orange highlighter, the one accent in a headline. */
+.site .mark {
+  background: linear-gradient(transparent 60%, var(--accent) 60% 90%, transparent 90%);
+  padding: 0 0.08em;
+  margin: 0 -0.04em;
+}
+
+.site .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.site .eyebrow::before {
+  content: '';
+  width: 26px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.site a {
+  color: var(--ink);
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* ── buttons ────────────────────────────────────────────────────────────── */
+
+.site .button {
+  background: var(--accent);
+  color: var(--ink);
+  border: var(--line);
+  border-radius: 999px;
+  box-shadow: var(--print);
+  font-weight: 800;
+  transition:
+    transform 120ms var(--ease-out),
+    box-shadow 120ms var(--ease-out);
+}
+
+.site .button:hover {
+  background: var(--accent);
+  transform: translate(-2px, -2px);
+  box-shadow: var(--print-lift);
+}
+
+.site .button:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 var(--ink);
+  animation: none;
+}
+
+.site .button.secondary,
+.site .button.ghost {
+  background: var(--sheet);
+  color: var(--ink);
+  border: var(--line);
+}
+
+.site .button.inverse {
+  background: var(--ink);
+  color: var(--sheet);
+  border: var(--line);
+  box-shadow: 4px 4px 0 var(--sheet);
+}
+
+.site .button.inverse:hover {
+  background: var(--ink);
+  box-shadow: 6px 6px 0 var(--sheet);
+}
+
+.site .chip {
+  background: var(--sheet);
+  border: var(--line);
+  box-shadow: 2px 2px 0 var(--ink);
+  color: var(--ink);
+}
+
+/* ── sections and rules ─────────────────────────────────────────────────── */
+
+.site .section {
+  background: transparent;
+  border-top: var(--rule);
+  padding: clamp(64px, 9vw, 120px) 0;
+}
+
+.site .section.tinted {
+  background: var(--paper-deep);
+}
+
+/* ── cards ──────────────────────────────────────────────────────────────── */
+
+.site .card {
+  background: var(--sheet);
+  border: var(--line);
+  border-radius: 20px;
+  box-shadow: var(--print);
+}
+
+.site .feature:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--print-lift);
+}
+
+.site .feature-icon {
+  background: var(--paper);
+  border: var(--line);
+  color: var(--ink);
+}
+
+.site .step-number {
+  background: var(--accent);
+  border: var(--line);
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+
+/* ── scenes ─────────────────────────────────────────────────────────────── */
+
+.site .scene {
+  position: relative;
+  margin: 0;
+  width: 100%;
+  background: var(--sheet);
+  border: var(--line);
+  border-radius: 28px;
+  box-shadow: 6px 6px 0 var(--ink);
+  overflow: hidden;
+}
+
+.site .scene.is-bare {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.site .scene-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.site .scene-sunny {
+  position: absolute;
+  aspect-ratio: 1;
+}
+
+.site .scene-sunny.is-flipped {
+  transform: scaleX(-1);
+}
+
+.site .scene-sunny-art,
+.site .scene-sunny-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ── the hero ───────────────────────────────────────────────────────────── */
+
+.site .hero {
+  background: transparent;
+  padding: clamp(48px, 7vw, 96px) 0 clamp(64px, 8vw, 112px);
+}
+
+.site .hero-grid {
+  display: grid;
+  gap: clamp(40px, 6vw, 72px);
+  align-items: center;
+}
+
+@media (min-width: 960px) {
+  .site .hero-grid {
+    grid-template-columns: 1.05fr 1fr;
+  }
+}
+
+.site .hero h1 {
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+.site .hero-note {
+  margin-top: var(--space-5);
+  font-size: 0.92rem;
+}
+
+/* ── story sections: copy beside a scene, alternating sides ─────────────── */
+
+.site .story {
+  display: grid;
+  gap: clamp(32px, 6vw, 80px);
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .site .story {
+    grid-template-columns: 1fr 1.1fr;
+  }
+  .site .story.is-flipped .story-art {
+    order: -1;
+  }
+}
+
+.site .story-number {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  /* Ink, not orange-brown: on the tinted paper the brown falls just short of
+     4.5:1, and a section number is text, not decoration. */
+  color: var(--ink);
+  margin-bottom: var(--space-3);
+}
+
+.site .story-points {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-5) 0 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.site .story-points li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.site .story-points li::before {
+  content: '';
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: var(--line);
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateY(1px);
+}
+
+/* ── the storyboard: steps as numbered comic panels ─────────────────────── */
+
+.site .storyboard {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-7) 0 0;
+  display: grid;
+  gap: clamp(28px, 4vw, 40px);
+  counter-reset: panel;
+}
+
+@media (min-width: 760px) {
+  .site .storyboard {
+    grid-template-columns: repeat(var(--panels, 3), 1fr);
+  }
+  .site .storyboard.is-long {
+    --panels: 4;
+  }
+}
+
+.site .storyboard li {
+  counter-increment: panel;
+  position: relative;
+}
+
+.site .storyboard .scene {
+  border-radius: 18px;
+  box-shadow: var(--print);
+}
+
+.site .storyboard li::before {
+  content: counter(panel);
+  position: absolute;
+  z-index: 1;
+  top: -14px;
+  left: -10px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: var(--line);
+  border-radius: 50%;
+  background: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.site .storyboard h3 {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+/* ── the call to action: the one orange band ────────────────────────────── */
+
+.site .cta-band {
+  background: var(--accent);
+  border-top: var(--rule);
+  border-bottom: var(--rule);
+  color: var(--ink);
+  padding: clamp(56px, 8vw, 96px) 0;
+  overflow: hidden;
+}
+
+.site .cta-band::before,
+.site .cta-band::after,
+.site .cta-bubbles {
+  display: none;
+}
+
+.site .cta-band .wrap {
+  display: grid;
+  gap: var(--space-6);
+  align-items: center;
+  text-align: left;
+}
+
+@media (min-width: 900px) {
+  .site .cta-band .wrap {
+    grid-template-columns: 1.1fr 1fr;
+  }
+}
+
+.site .cta-band h2,
+.site .cta-band p {
+  color: var(--ink);
+  margin-inline: 0;
+}
+
+.site .cta-band .actions {
+  justify-content: flex-start;
+}
+
+/* ── header and footer ──────────────────────────────────────────────────── */
+
+.site .site-header {
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  border-bottom: var(--rule);
+  box-shadow: none;
+}
+
+.site .brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.site .site-nav a {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.site .site-nav a:hover {
+  text-decoration: underline;
+}
+
+.site .site-footer {
+  background: var(--paper-deep);
+  border-top: var(--rule);
+}
+
+.site .footer-art {
+  width: 132px;
+  margin-top: var(--space-4);
+}
+
+.site .footer-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The footer's column headings are labels, not display headlines. */
+.site .site-footer h2 {
+  font-family: var(--font-sans, inherit);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-3);
+}
+
+/* ── inner pages ────────────────────────────────────────────────────────── */
+
+.site .page-intro {
+  background: transparent;
+  padding: clamp(48px, 7vw, 96px) 0 clamp(56px, 7vw, 96px);
+}
+
+.site .page-intro .wrap {
+  display: grid;
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .site .page-intro .wrap.has-scene {
+    grid-template-columns: 1.1fr 1fr;
+  }
+}
+
+.site .plans .plan.highlighted {
+  background: var(--sheet);
+  box-shadow:
+    6px 6px 0 var(--accent),
+    6px 6px 0 2px var(--ink);
+}
+
+.site .plan-badge {
+  background: var(--accent);
+  border: var(--line);
+  color: var(--ink);
+}
+
+.site .demo {
+  background: var(--ink);
+  border-top: var(--rule);
+}
+
+.site .demo h2 {
+  color: var(--sheet);
+}
+
+.site .demo .intro,
+.site .demo p {
+  color: color-mix(in srgb, var(--sheet) 82%, transparent);
+}
+
+.site .demo .eyebrow {
+  color: var(--sheet);
+}
+
+/* Four plans side by side where they fit, two by two where they do not. */
+.site .plans {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.site .browser {
+  border: var(--line);
+  box-shadow: 6px 6px 0 var(--accent);
+}
+
+.site .prose {
+  max-width: 68ch;
+}
+
+/* The model sheet on Meet Sunny: the pose library as an animator's sheet. */
+.site .model-sheet {
+  background: var(--sheet);
+  border: var(--line);
+  border-radius: 8px;
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: clamp(20px, 3vw, 36px);
+  background-image:
+    linear-gradient(color-mix(in srgb, #4a90d9 14%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, #4a90d9 14%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.site .model-sheet header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: var(--rule);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+
+.site .model-sheet ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+.site .model-sheet li {
+  text-align: center;
+}
+
+.site .model-sheet .model-art svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.site .model-sheet .model-note {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site .button,
+  .site .feature {
+    transition: none;
+  }
+}

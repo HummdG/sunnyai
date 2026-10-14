@@ -357,6 +357,24 @@ export const LIMB_POSES = {
       right: leg({ x: -30, y: 58 }, -0.2, -4),
     },
   },
+  /** Holding something out in one hand, the other on the hip. */
+  hold: {
+    visible: true,
+    arms: {
+      left: HIP_L,
+      right: arm({ x: 52, y: 20 }, -0.9, 'grip', -30, true),
+    },
+    legs: STAND,
+  },
+  /** Presenting: one palm out to the side, as if to say "here it is". */
+  present: {
+    visible: true,
+    arms: {
+      left: arm({ x: -64, y: -6 }, 0.55, 'open', -70),
+      right: HIP_R,
+    },
+    legs: STAND,
+  },
   /** Walking: one stride (sheet: top row, second). Sequences swing it. */
   walk: {
     visible: true,

@@ -376,21 +376,22 @@ appear in anything a customer might read when worried or out of pocket.
 
 ## Part I — Surface guidance
 
-- **Website:** one Sunny, used cleverly rather than often (owner direction,
-  2026-10-14). **At most one Sunny in view, ever.** The guide
-  (`components/sun/sunny-guide.tsx`) rises over a little hill in the hero,
-  hops down to the corner as the visitor scrolls, and acts out each section
-  it passes (`data-sunny-act`: magnifier, laptop, book, finger-gun, cheer,
-  deckchair at the footer). It _is_ the chat launcher (the widget is loaded
-  with `data-launcher="none"`) and steps aside while the panel is open or
-  while another Sunny (the Meet Sunny gallery) is on screen. Everything else
-  reacts to it instead of drawing more of it: cards cast shadows away from
-  it, the page warms round it and towards dusk at the footer, section
-  dividers are rows of rays leaning towards it, the header's progress dial
-  is a little sun whose rays fill as you read, and the main call to action
-  gets the sheet's action lines. No cameos with joke bubbles on content.
-  Sections alternate warm-white and white; one dark (ink) section max per
-  page for contrast.
+- **Website:** an illustrated premium brand, printed in paper & ink (owner
+  direction, 2026-10-14). Warm cream paper, black ink type and lines, orange
+  as the one accent: a highlighter mark on one word of a headline, the
+  primary button, and the single orange CTA band. Headlines in a chunky
+  display serif (Fraunces SOFT when its file is present; Cooper/Recoleta,
+  then old-style serifs as fallbacks), body in Plus Jakarta Sans. Cards,
+  buttons and scenes have an ink outline and a hard offset print shadow,
+  never a soft blur. **Every section has a crafted scene** (components in
+  `apps/marketing/components/scenes/`): a set drawn from the kit (houses and
+  panels, a browser window, a desk under the moon, shelves, the van) with the
+  real Sunny acting in it -- reading, typing, presenting, holding a lead's
+  envelope. Scenes are stills that play their moment once when they come into
+  view (and on hover), one at a time; reduced motion keeps them still. Steps
+  are told as numbered storyboard panels; Meet Sunny has the model sheet. No
+  cameos with joke bubbles. The widget's own launcher is the live Sunny in the
+  corner.
 - **Dashboard:** the workshop. Fast, calm, information-dense; personality in
   greetings ("Morning, Brightside Solar"), empty states, toasts, the onboarding
   wizard and the Studio preview. Safety and money are always serious.

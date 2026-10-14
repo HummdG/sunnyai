@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { IntegrationsScene } from '../../../components/scenes/pages.js';
 import { CtaBand, PageIntro } from '../../../components/blocks.js';
 import { Icon } from '../../../components/icons.js';
 
@@ -61,8 +62,9 @@ export default function IntegrationsPage(): React.JSX.Element {
         eyebrow="Integrations"
         title="Fits the way you already work"
         lede="Sunny drops into your existing website and learns from the catalogue and documents you already have."
+        scene={<IntegrationsScene />}
       />
-      <section className="section" data-sunny-act="laptop">
+      <section className="section">
         <div className="wrap">
           <ul className="integration-grid">
             {INTEGRATIONS.map((item) => (

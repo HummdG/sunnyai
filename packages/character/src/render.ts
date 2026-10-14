@@ -335,6 +335,13 @@ const PROP_PATHS: Readonly<
   'book-page': { d: '', filled: true },
   laptop: { d: '', filled: true },
   magnifier: { d: '', filled: true },
+  clipboard: { d: '', filled: true },
+  envelope: { d: '', filled: true },
+  paintbrush: { d: '', filled: true },
+  padlock: { d: '', filled: true },
+  'price-tag': { d: '', filled: true },
+  plug: { d: '', filled: true },
+  phone: { d: '', filled: true },
   // A ping-pong bat, held upright: the blade, then a short handle. Authored tall
   // rather than wide -- the second prop that is, after the deckchair's scenery --
   // because the ball has to meet the blade's *face*, and A09's rules decide
@@ -470,7 +477,19 @@ function renderProp(prop: PropRig, paint: Paint): string {
 /** Props drawn behind Sunny (furniture Sunny sits in). */
 export const BEHIND_PROPS: readonly PropId[] = ['deckchair'];
 /** Props held in front of the body, under the hands that hold them. */
-export const HELD_PROPS: readonly PropId[] = ['book', 'book-page', 'laptop', 'magnifier'];
+export const HELD_PROPS: readonly PropId[] = [
+  'book',
+  'book-page',
+  'laptop',
+  'magnifier',
+  'clipboard',
+  'envelope',
+  'paintbrush',
+  'padlock',
+  'price-tag',
+  'plug',
+  'phone',
+];
 /** Props worn on the face, drawn in the face frame so they follow its tilt. */
 export const FACE_PROPS: readonly PropId[] = ['sunglasses'];
 
@@ -576,6 +595,78 @@ const MAGNIFIER_ART = (paint: Paint): string => {
   );
 };
 
+/** An inked shape: a path filled `fill` with the character's ink line. */
+const inked = (paint: Paint, d: string, fill: string, width = 2.4): string =>
+  `<path d="${d}" fill="${fill}" stroke="${paint.ink}" stroke-width="${width}" stroke-linejoin="round" stroke-linecap="round"/>`;
+const stroked = (paint: Paint, d: string, width = 2): string =>
+  `<path d="${d}" fill="none" stroke="${paint.ink}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+/** A clipboard with a ticked list: qualifying an enquiry. About 30 by 40. */
+const CLIPBOARD_ART = (paint: Paint): string =>
+  inked(
+    paint,
+    'M-15 -18Q-15 -21 -12 -21H12Q15 -21 15 -18V19Q15 22 12 22H-12Q-15 22 -15 19Z',
+    '#C98B4A',
+  ) +
+  inked(paint, 'M-11 -15H11V18H-11Z', '#FFFFFF', 1.8) +
+  inked(paint, 'M-6 -24H6V-17H-6Z', '#B7BCC4', 2) +
+  stroked(paint, 'M-8 -8L-6 -6L-3 -10M-8 0L-6 2L-3 -2M-8 8L-6 10L-3 6', 1.8).replace(
+    paint.ink,
+    '#FF7900',
+  ) +
+  stroked(paint, 'M0 -8H8M0 0H8M0 8H6', 1.4).replace(paint.ink, '#9AA3AF');
+
+/** A sealed envelope: a lead, handed over. About 40 by 26. */
+const ENVELOPE_ART = (paint: Paint): string =>
+  inked(paint, 'M-20 -13H20V13H-20Z', '#FFFDF7') +
+  stroked(paint, 'M-20 -13L0 3L20 -13M-20 13L-6 0M20 13L6 0', 1.8) +
+  `<circle cx="0" cy="3" r="4.6" fill="#FF7900" stroke="${paint.ink}" stroke-width="1.8"/>`;
+
+/** A paintbrush, loaded with orange: Sunny wearing your colours. */
+const PAINTBRUSH_ART = (paint: Paint): string =>
+  inked(paint, 'M-2.4 4L2.4 4L1.6 24Q0 26 -1.6 24Z', '#C98B4A', 2) +
+  inked(paint, 'M-3 -4H3V4H-3Z', '#B7BCC4', 2) +
+  inked(paint, 'M-3 -4Q-5 -14 0 -22Q5 -14 3 -4Z', '#FF7900', 2);
+
+/** A padlock: privacy and trust. About 26 by 30. */
+const PADLOCK_ART = (paint: Paint): string =>
+  stroked(paint, 'M-8 -2V-9Q-8 -17 0 -17Q8 -17 8 -9V-2', 6.4) +
+  `<path d="M-8 -2V-9Q-8 -17 0 -17Q8 -17 8 -9V-2" fill="none" stroke="#B7BCC4" stroke-width="2.6" stroke-linecap="round"/>` +
+  inked(
+    paint,
+    'M-13 -3Q-13 -5 -11 -5H11Q13 -5 13 -3V13Q13 15 11 15H-11Q-13 15 -13 13Z',
+    '#FFC94A',
+  ) +
+  inked(paint, 'M0 2.5A2.6 2.6 0 1 0 0.01 2.5ZM-1.2 3.5H1.2L1.8 9H-1.8Z', paint.ink, 1);
+
+/** A swing tag on a string: a price. About 34 by 22. */
+const PRICE_TAG_ART = (paint: Paint): string =>
+  inked(paint, 'M-17 -9H9L17 0L9 9H-17Z', '#FFFDF7') +
+  `<circle cx="9" cy="0" r="2.4" fill="#FBF4E8" stroke="${paint.ink}" stroke-width="1.6"/>` +
+  stroked(paint, 'M-12 -3H2M-12 3H-2', 1.6).replace(paint.ink, '#FF7900');
+
+/** A plug on its cable: integrations. The cable trails down and away. */
+const PLUG_ART = (paint: Paint): string =>
+  stroked(paint, 'M0 10C0 24 -16 22 -18 34', 4.8) +
+  `<path d="M0 10C0 24 -16 22 -18 34" fill="none" stroke="#FF7900" stroke-width="2.2" stroke-linecap="round"/>` +
+  inked(paint, 'M-4 -18V-11M4 -18V-11', '#B7BCC4', 2.4) +
+  inked(paint, 'M-8 -11H8V5Q8 10 3 10H-3Q-8 10 -8 5Z', '#B7BCC4');
+
+/** A phone with a notification: the lead arriving. About 22 by 40. */
+const PHONE_ART = (paint: Paint): string =>
+  inked(
+    paint,
+    'M-11 -20Q-11 -23 -8 -23H8Q11 -23 11 -20V20Q11 23 8 23H-8Q-11 23 -11 20Z',
+    paint.ink,
+  ) +
+  inked(paint, 'M-8 -18H8V17H-8Z', '#FFFDF7', 1) +
+  inked(
+    paint,
+    'M-6 -12H6Q7 -12 7 -11V-5Q7 -4 6 -4H-2L-5 -1V-4H-6Q-7 -4 -7 -5V-11Q-7 -12 -6 -12Z',
+    '#FF7900',
+    1.4,
+  );
+
 /** Props with art of their own rather than a single painted path. */
 const PROP_ART: Readonly<Partial<Record<PropId, (paint: Paint) => string>>> = {
   sunglasses: (paint) => SUNGLASSES_ART(paint),
@@ -584,6 +675,13 @@ const PROP_ART: Readonly<Partial<Record<PropId, (paint: Paint) => string>>> = {
   'book-page': BOOK_PAGE_ART,
   laptop: LAPTOP_ART,
   magnifier: MAGNIFIER_ART,
+  clipboard: CLIPBOARD_ART,
+  envelope: ENVELOPE_ART,
+  paintbrush: PAINTBRUSH_ART,
+  padlock: PADLOCK_ART,
+  'price-tag': PRICE_TAG_ART,
+  plug: PLUG_ART,
+  phone: PHONE_ART,
 };
 
 /** The brow: an arc bowing upward from its chord. */

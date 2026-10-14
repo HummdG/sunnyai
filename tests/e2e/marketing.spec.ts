@@ -58,118 +58,57 @@ test('animates: the hero redraws as the visitor watches', async ({ page }) => {
     .not.toBe(before);
 });
 
-test('the visitor can make the character react', async ({ page }) => {
+test('the hero replays its moment when the visitor points at it', async ({ page }) => {
   await page.goto('/');
 
   const stage = page.locator('[data-testid="hero-stage"]');
+  // Let the arrival wave play out and settle on the still.
+  await page.waitForTimeout(2_500);
   const before = await stage.innerHTML();
 
-  await page.getByRole('button', { name: 'Celebrate' }).click();
+  await page.locator('.hero .scene').hover();
 
-  // `celebrate` is a distinctly larger sequence than idle blinking, so the
-  // markup changes for a reason the visitor chose.
   await expect
-    .poll(async () => stage.innerHTML(), { timeout: 15_000, intervals: [200] })
+    .poll(async () => stage.innerHTML(), { timeout: 15_000, intervals: [100] })
     .not.toBe(before);
 });
 
-test('mounts the real widget, opened by the site’s own Sunny', async ({ page }) => {
+test('mounts the real widget, not a picture of one', async ({ page }) => {
   await page.goto('/');
 
-  // The site's guide is the launcher: the widget is loaded with
-  // `data-launcher="none"`, so its own corner button stays hidden and the
-  // page never shows two Sunnys at once.
+  // The launcher is inside the widget's shadow root, so finding it by role
+  // proves the bundle executed rather than that a script tag was written out.
+  const launcher = page.getByRole('button', { name: /open the solar assistant/i });
+  await expect(launcher).toBeVisible();
   await expect(page.locator(HOST)).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /open the solar assistant/i })).toBeHidden();
 
-  const guide = page.getByRole('button', { name: 'Chat with Sunny', exact: true });
-  await guide.click();
-  // The dialog lives in the widget's shadow root, so finding it by role proves
-  // the bundle executed rather than that a script tag was written out.
+  await launcher.click();
   await expect(page.getByRole('dialog', { name: /solar assistant/i })).toBeVisible();
-  // And the guide steps aside while the panel's own Sunny is on screen.
-  await expect(page.locator('.sunny-guide')).toHaveClass(/is-away/);
 });
 
-/** How many live drawings of the character are on screen, the guide included. */
-function sunnysInView(): number {
-  // A guide that has stepped aside is not on screen; brand logos are images,
-  // not the live rig, so they are not counted.
-  return [...document.querySelectorAll('svg [data-part="body"]')]
-    .filter((node) => !node.closest('.sunny-guide.is-away'))
-    .map((node) => node.closest('svg')!.getBoundingClientRect())
-    .filter((r) => r.bottom > 0 && r.top < window.innerHeight && r.width > 0).length;
-}
-
-for (const path of [
-  '/',
-  '/product',
-  '/meet-sunny',
-  '/how-it-works',
-  '/integrations',
-  '/pricing',
-  '/resources',
-  '/privacy',
-  '/terms',
-]) {
-  test(`shows one Sunny at a time on ${path}, wherever the visitor scrolls`, async ({ page }) => {
+test('illustrates every section of every page with a scene of its own', async ({ page }) => {
+  // The site's art direction: a crafted scene per section, each described in
+  // words for anyone who cannot see it, rather than cameos with jokes.
+  for (const path of [
+    '/',
+    '/product',
+    '/meet-sunny',
+    '/how-it-works',
+    '/integrations',
+    '/pricing',
+    '/resources',
+    '/privacy',
+    '/terms',
+  ]) {
     await page.goto(path);
-    const height = await page.evaluate(() => document.body.scrollHeight);
-    for (let y = 0; y < height; y += 400) {
-      await page.evaluate((top) => window.scrollTo(0, top), y);
-      // Polled: stepping aside follows an intersection observer, one frame on.
-      await expect
-        .poll(() => page.evaluate(sunnysInView), { message: `at scroll ${y}` })
-        .toBeLessThanOrEqual(1);
+    const scenes = page.locator('figure.scene');
+    expect(await scenes.count(), path).toBeGreaterThan(0);
+    for (const label of await scenes.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('aria-label') ?? ''),
+    )) {
+      expect(label.length, `${path}: a scene without a description`).toBeGreaterThan(10);
     }
-  });
-}
-
-test('the guide acts out the section in view', async ({ page }) => {
-  await page.goto('/');
-  const guide = page.locator('.sunny-guide');
-  const centre = async (id: string): Promise<void> => {
-    await page.evaluate((id) => {
-      const section = document.getElementById(id)!;
-      window.scrollTo(0, section.offsetTop + section.offsetHeight / 2 - window.innerHeight / 2);
-    }, id);
-  };
-
-  await centre('features');
-  await expect(guide).toHaveAttribute('data-act', 'magnifier');
-  await expect(guide).toHaveAttribute('data-docked', 'corner');
-  await centre('how');
-  await expect(guide).toHaveAttribute('data-act', 'laptop');
-  await centre('pricing');
-  await expect(guide).toHaveAttribute('data-act', 'point');
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect(guide).toHaveAttribute('data-act', 'deckchair');
-
-  // Back to the top, Sunny is back on its hill in the hero.
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(guide).toHaveAttribute('data-docked', 'hero');
-});
-
-test('the header dial lights a ray for each section reached', async ({ page }) => {
-  await page.goto('/');
-  const lit = page.locator('.progress-dial .dial-ray.is-lit');
-  const rays = page.locator('.progress-dial .dial-ray');
-  await expect(rays).toHaveCount(6);
-  const atTop = await lit.count();
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect(lit).toHaveCount(6);
-  expect(atTop).toBeLessThan(6);
-});
-
-test('the light follows the sun and sets towards the footer', async ({ page }) => {
-  await page.goto('/');
-  const elevation = (): Promise<number> =>
-    page.evaluate(() =>
-      Number(getComputedStyle(document.documentElement).getPropertyValue('--sun-elev')),
-    );
-  await expect.poll(elevation).toBeGreaterThan(0.95);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect.poll(elevation).toBeLessThan(0.05);
+  }
 });
 
 test('shows the configured plans, with the headline the plan requires', async ({ page }) => {
@@ -270,9 +209,12 @@ test('is reachable and readable without a mouse', async ({ page }) => {
   await skip.press('Enter');
   await expect(page.locator('#main')).toBeInViewport();
 
-  // The hero controls are reachable in order, which is what makes the character
-  // an offer rather than a decoration only mouse users can poke.
-  await expect(page.getByRole('button', { name: 'Say hello' })).toBeVisible();
+  // The hero's two actions are next in reading order: getting started, and the
+  // live chat with Sunny itself.
+  await page.keyboard.press('Tab');
+  const hero = page.locator('.hero');
+  await expect(hero.getByRole('link', { name: /get started/i })).toBeVisible();
+  await expect(hero.getByRole('button', { name: 'Chat with Sunny' })).toBeVisible();
 });
 
 test('serves one page-level widget even though the hero also runs the engine', async ({ page }) => {

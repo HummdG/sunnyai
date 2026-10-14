@@ -2,37 +2,39 @@ import Link from 'next/link';
 
 import { formatPrice, PLANS } from '../app/site.js';
 
-import { Hills } from './hills.js';
 import { Icon } from './icons.js';
-import { CtaRays } from './sun/cta-rays.js';
+import { RooftopScene } from './scenes/home.js';
 
 /**
- * The top of an inner page: eyebrow, headline, lede, and the hills beneath.
- * No Sunny of its own -- the site's one Sunny, the guide, is already on screen.
+ * The top of an inner page: eyebrow, headline and lede, beside the page's own
+ * illustrated scene when it has one.
  */
 export function PageIntro({
   eyebrow,
   title,
   lede,
+  scene,
   children,
 }: {
   eyebrow: string;
   title: string;
   lede: string;
+  /** The page's illustration: a `Scene` that shows what the page is about. */
+  scene?: React.ReactNode;
   children?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <>
-      <section className="page-intro">
-        <div className="wrap">
+    <section className="page-intro">
+      <div className={`wrap${scene ? ' has-scene' : ''}`}>
+        <div>
           <span className="eyebrow">{eyebrow}</span>
           <h1>{title}</h1>
           <p className="lede">{lede}</p>
           {children}
         </div>
-      </section>
-      <Hills />
-    </>
+        {scene}
+      </div>
+    </section>
   );
 }
 
@@ -55,26 +57,6 @@ export function FeatureGrid({ features }: { features: readonly Feature[] }): Rea
         </li>
       ))}
     </ul>
-  );
-}
-
-export function Steps({
-  steps,
-}: {
-  steps: readonly { title: string; body: string }[];
-}): React.JSX.Element {
-  return (
-    <ol className="steps">
-      {steps.map((step, i) => (
-        <li className="card" key={step.title}>
-          <span className="step-number" aria-hidden="true">
-            {i + 1}
-          </span>
-          <h3>{step.title}</h3>
-          <p>{step.body}</p>
-        </li>
-      ))}
-    </ol>
   );
 }
 
@@ -112,25 +94,21 @@ export function CtaBand({
   body?: string;
 }): React.JSX.Element {
   return (
-    <section className="cta-band" data-sunny-act="cheer">
+    <section className="cta-band">
       <div className="wrap">
-        <div className="cta-bubbles" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <h2>{title}</h2>
-        <p>{body}</p>
-        <div className="actions">
-          <CtaRays>
+        <div>
+          <h2>{title}</h2>
+          <p>{body}</p>
+          <div className="actions">
             <Link className="button inverse" href="/sign-up">
               Get started
             </Link>
-          </CtaRays>
-          <Link className="button ghost" href="/how-it-works">
-            See how it works
-          </Link>
+            <Link className="button ghost" href="/how-it-works">
+              See how it works
+            </Link>
+          </div>
         </div>
+        <RooftopScene />
       </div>
     </section>
   );

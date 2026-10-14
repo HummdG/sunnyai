@@ -97,6 +97,13 @@ export const PROP_IDS = [
   'book-page',
   'laptop',
   'magnifier',
+  'clipboard',
+  'envelope',
+  'paintbrush',
+  'padlock',
+  'price-tag',
+  'plug',
+  'phone',
 ] as const;
 export type PropId = (typeof PROP_IDS)[number];
 
