@@ -73,17 +73,41 @@ test('the visitor can make the character react', async ({ page }) => {
     .not.toBe(before);
 });
 
-test('mounts the real widget, not a picture of one', async ({ page }) => {
+test('mounts the real widget, opened by the site’s own Sunny', async ({ page }) => {
   await page.goto('/');
 
-  // The launcher is inside the widget's shadow root, so finding it by role
-  // proves the bundle executed rather than that a script tag was written out.
-  const launcher = page.getByRole('button', { name: /open the solar assistant/i });
-  await expect(launcher).toBeVisible();
+  // The site's guide is the launcher: the widget is loaded with
+  // `data-launcher="none"`, so its own corner button stays hidden and the
+  // page never shows two Sunnys at once.
   await expect(page.locator(HOST)).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /open the solar assistant/i })).toBeHidden();
 
-  await launcher.click();
+  const guide = page.getByRole('button', { name: 'Chat with Sunny', exact: true });
+  await guide.click();
+  // The dialog lives in the widget's shadow root, so finding it by role proves
+  // the bundle executed rather than that a script tag was written out.
   await expect(page.getByRole('dialog', { name: /solar assistant/i })).toBeVisible();
+  // And the guide steps aside while the panel's own Sunny is on screen.
+  await expect(page.locator('.sunny-guide')).toHaveClass(/is-away/);
+});
+
+test('shows one Sunny at a time, wherever the visitor scrolls', async ({ page }) => {
+  await page.goto('/');
+  const height = await page.evaluate(() => document.body.scrollHeight);
+  for (let y = 0; y < height; y += 600) {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    // Every drawing of the character on the page, the guide included, that is
+    // actually in the viewport (a guide that has stepped aside is not). Brand
+    // logos are images, not the live rig.
+    const visible = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('svg [data-part="body"]')]
+          .filter((node) => !node.closest('.sunny-guide.is-away'))
+          .map((node) => node.closest('svg')!.getBoundingClientRect())
+          .filter((r) => r.bottom > 0 && r.top < window.innerHeight && r.width > 0).length,
+    );
+    expect(visible, `at scroll ${y}`).toBeLessThanOrEqual(1);
+  }
 });
 
 test('shows the configured plans, with the headline the plan requires', async ({ page }) => {

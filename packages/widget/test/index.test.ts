@@ -24,6 +24,19 @@ function fakeScript(attributes: Record<string, string>, src: string): HTMLScript
 }
 
 describe('optionsFromScript', () => {
+  it('hides the launcher only when the host page asks for none', () => {
+    const own = fakeScript(
+      { 'data-widget-id': 'w_demo000001', 'data-launcher': 'none' },
+      'https://cdn.example.test/sunny-widget.js',
+    );
+    const plain = fakeScript(
+      { 'data-widget-id': 'w_demo000001' },
+      'https://cdn.example.test/sunny-widget.js',
+    );
+    expect(optionsFromScript(own)?.launcher).toBe(false);
+    expect(optionsFromScript(plain)?.launcher).toBe(true);
+  });
+
   it('prefers data-api-url over the origin serving the script', () => {
     // The CDN case: the script is on one host, the API on another.
     const script = fakeScript(
@@ -35,6 +48,7 @@ describe('optionsFromScript', () => {
       apiUrl: 'https://api.example.test',
       publicId: 'w_demo000001',
       fontDirectoryUrl: 'https://cdn.example.test/',
+      launcher: true,
     });
   });
 

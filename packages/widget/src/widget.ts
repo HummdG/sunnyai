@@ -72,6 +72,12 @@ export interface MountOptions {
   landmarks?: Readonly<Record<string, string>>;
   /** Set false to skip the network entirely, for a screenshot harness. */
   interactive?: boolean;
+  /**
+   * Show the corner launcher. False for a host page that brings its own Sunny
+   * and opens the panel through `window.sunny.open()` (`data-launcher="none"`),
+   * so a page never shows two characters at once.
+   */
+  launcher?: boolean;
 }
 
 export class SunnyWidget {
@@ -179,6 +185,7 @@ export class SunnyWidget {
       [this.#launcherArt],
     );
     this.#launcher.addEventListener('click', () => this.toggle());
+    if (this.#options.launcher === false) this.#launcher.hidden = true;
 
     this.#log = el('div', {
       class: 'log',
@@ -537,7 +544,7 @@ export class SunnyWidget {
     // Each view patches its SVG in place and skips identical frames, so the
     // nodes under the pointer survive from frame to frame.
     const boil = prefersReducedMotion() ? undefined : clock.boil;
-    this.#launcherView.draw(result.rig, { boil });
+    if (!this.#launcher.hidden) this.#launcherView.draw(result.rig, { boil });
     if (this.#open) this.#avatarView.draw(result.rig, { boil });
 
     if (this.#launcher.querySelector('.svg-host svg')) {
@@ -583,6 +590,15 @@ export class SunnyWidget {
     this.#composer.focus();
 
     if (this.#log.childElementCount === 0) this.#greet();
+    this.#announce('sunny:open');
+  }
+
+  /**
+   * Tell the host page the panel opened or closed, so a page with its own
+   * Sunny can step aside while the panel's Sunny is on screen.
+   */
+  #announce(type: 'sunny:open' | 'sunny:close'): void {
+    window.dispatchEvent(new CustomEvent(type, { detail: { publicId: this.#options.publicId } }));
   }
 
   close(): void {
@@ -594,6 +610,7 @@ export class SunnyWidget {
     this.#animator.dispatch({ type: 'dismissed' }, performance.now());
     this.#panel.classList.add('closing');
     this.#launcher.setAttribute('aria-expanded', 'false');
+    this.#announce('sunny:close');
     // Let the closing animation finish before removing the panel, so the exit is
     // animated rather than a pop. `prefers-reduced-motion` zeroes the duration
     // in CSS, so this is not a delay for those visitors.

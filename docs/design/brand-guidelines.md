@@ -376,10 +376,21 @@ appear in anything a customer might read when worried or out of pocket.
 
 ## Part I — Surface guidance
 
-- **Website:** the stage. Big hero character emerging from a bubble, rolling
-  hills, the live widget, the interactive gallery, playful headlines with one
-  squiggle. Sections alternate warm-white and white; one dark (ink) section
-  max per page for contrast.
+- **Website:** one Sunny, used cleverly rather than often (owner direction,
+  2026-10-14). **At most one Sunny in view, ever.** The guide
+  (`components/sun/sunny-guide.tsx`) rises over a little hill in the hero,
+  hops down to the corner as the visitor scrolls, and acts out each section
+  it passes (`data-sunny-act`: magnifier, laptop, book, finger-gun, cheer,
+  deckchair at the footer). It _is_ the chat launcher (the widget is loaded
+  with `data-launcher="none"`) and steps aside while the panel is open or
+  while another Sunny (the Meet Sunny gallery) is on screen. Everything else
+  reacts to it instead of drawing more of it: cards cast shadows away from
+  it, the page warms round it and towards dusk at the footer, section
+  dividers are rows of rays leaning towards it, the header's progress dial
+  is a little sun whose rays fill as you read, and the main call to action
+  gets the sheet's action lines. No cameos with joke bubbles on content.
+  Sections alternate warm-white and white; one dark (ink) section max per
+  page for contrast.
 - **Dashboard:** the workshop. Fast, calm, information-dense; personality in
   greetings ("Morning, Brightside Solar"), empty states, toasts, the onboarding
   wizard and the Studio preview. Safety and money are always serious.

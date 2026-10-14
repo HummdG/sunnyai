@@ -61,20 +61,14 @@ export default function ProductPage(): React.JSX.Element {
         eyebrow="Product"
         title="A sales assistant that never misses an enquiry"
         lede="Sunny greets your visitors, answers their questions, suggests the right system and turns interest into a lead your team can call."
-
-        cameo={{
-          pose: 'idea',
-          sequence: 'thinking-eureka',
-          say: 'Ask me anything about solar. Go on, try me.',
-        }}
       />
-      <section className="section">
+      <section className="section" data-sunny-act="book">
         <div className="wrap">
           <h2>In every conversation</h2>
           <FeatureGrid features={CONVERSATION} />
         </div>
       </section>
-      <section className="section tinted">
+      <section className="section tinted" data-sunny-act="magnifier">
         <div className="wrap">
           <h2>Built to earn your visitors’ trust</h2>
           <FeatureGrid features={TRUST} />

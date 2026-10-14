@@ -15,7 +15,7 @@ export default function PrivacyPage(): React.JSX.Element {
         title="Your visitors’ trust comes first"
         lede="A plain-English summary of how Sunny handles personal information. Our full privacy policy is published here before Sunny opens to customers."
       />
-      <section className="section">
+      <section className="section" data-sunny-act="book">
         <div className="wrap prose">
           <h2>What Sunny collects</h2>
           <p>

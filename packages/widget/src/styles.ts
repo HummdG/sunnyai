@@ -171,6 +171,7 @@ export function styles(): string {
   visibility: hidden;
 }
 .launcher.ready { visibility: visible; }
+.launcher[hidden] { display: none; }
 .launcher:hover { transform: scale(1.06); }
 .launcher:focus-visible { outline: 3px solid var(--sunny-accent); outline-offset: 4px; }
 .launcher svg { width: 100%; height: 100%; display: block; }

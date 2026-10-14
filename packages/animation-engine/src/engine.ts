@@ -228,6 +228,15 @@ export class SunnyAnimator {
     }
   }
 
+  /**
+   * Note that the visitor did something the engine was not told about as an
+   * event -- scrolled, moved the pointer -- so the idle director holds off its
+   * fidgets and the deckchair.
+   */
+  noteActivity(now: number): void {
+    this.#quietSince = now;
+  }
+
   /** Play a named moment now, e.g. the charging sequence a tool call triggers. */
   play(group: string, now: number): boolean {
     return this.scheduler.request(group, this.machine.state, now);

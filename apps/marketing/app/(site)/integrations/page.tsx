@@ -61,14 +61,8 @@ export default function IntegrationsPage(): React.JSX.Element {
         eyebrow="Integrations"
         title="Fits the way you already work"
         lede="Sunny drops into your existing website and learns from the catalogue and documents you already have."
-
-        cameo={{
-          pose: 'chin',
-          sequence: 'thinking-whirr',
-          say: 'WordPress, React, plain HTML — I’ll plug in anywhere.',
-        }}
       />
-      <section className="section">
+      <section className="section" data-sunny-act="laptop">
         <div className="wrap">
           <ul className="integration-grid">
             {INTEGRATIONS.map((item) => (

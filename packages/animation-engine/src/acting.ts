@@ -153,7 +153,9 @@ const lookup = (
     intensity: 'minimal',
     assets: asset,
     reducedMotionFallback: `${id}-still`,
-    states: ['thinking'],
+    // Idle too: a host page can stage a prop outside a conversation (the
+    // website's guide reads up on the knowledge-base section).
+    states: ['thinking', 'idle'],
     blendInMs: 420,
     pose: (base, t) => pose(base, t, false),
   };
@@ -199,7 +201,8 @@ const gesture = (
   intensity,
   assets: [],
   reducedMotionFallback: null,
-  states: ['speaking'],
+  // Idle as well, so a host page can ask for one by name.
+  states: ['speaking', 'idle'],
   pose: (base, t) => {
     const r = cloneRig(base);
     pose(r, base, t);

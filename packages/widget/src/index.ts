@@ -87,6 +87,9 @@ export function optionsFromScript(script: HTMLScriptElement): MountOptions | nul
     apiUrl: base.replace(/\/+$/, ''),
     publicId,
     fontDirectoryUrl: scriptDirectory(script),
+    // `data-launcher="none"`: the host page has its own Sunny and opens the
+    // panel itself, so the corner launcher stays hidden.
+    launcher: script.getAttribute('data-launcher') !== 'none',
   };
 }
 

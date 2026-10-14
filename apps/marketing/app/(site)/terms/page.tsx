@@ -15,7 +15,7 @@ export default function TermsPage(): React.JSX.Element {
         title="Terms of service"
         lede="The key principles of using Sunny. Full terms of service are published here before Sunny opens to customers."
       />
-      <section className="section">
+      <section className="section" data-sunny-act="book">
         <div className="wrap prose">
           <h2>Using Sunny</h2>
           <p>

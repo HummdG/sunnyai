@@ -5,6 +5,8 @@ import {
   cartoonClock,
   createSunnyView,
   defaultRig,
+  limbPose,
+  type LimbPoseName,
   type SunnyRig,
   type SunnyTheme,
 } from '@sunny/character';
@@ -27,6 +29,11 @@ export interface UseSunnyOptions {
   greet?: boolean;
   /** Start the loop only when this is true (lets a parent stage an entrance). */
   active?: boolean;
+  /**
+   * The stance Sunny rests in. Defaults to the logo pose (no limbs out); a
+   * Sunny that stands about on the page reads better with its legs out.
+   */
+  pose?: LimbPoseName;
 }
 
 /**
@@ -37,7 +44,7 @@ export interface UseSunnyOptions {
  */
 export function useSunny(
   stage: RefObject<HTMLElement | null>,
-  { gaze = true, greet = true, active = true }: UseSunnyOptions = {},
+  { gaze = true, greet = true, active = true, pose }: UseSunnyOptions = {},
 ): RefObject<SunnyAnimator | null> {
   const animator = useRef<SunnyAnimator | null>(null);
 
@@ -46,7 +53,11 @@ export function useSunny(
     if (!node || !active) return;
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const base = (theme: SunnyTheme): SunnyRig => ({ ...defaultRig(), theme });
+    const base = (theme: SunnyTheme): SunnyRig => ({
+      ...defaultRig(),
+      ...(pose ? { limbs: limbPose(pose) } : {}),
+      theme,
+    });
     const sunny = new SunnyAnimator(base(currentTheme()), {
       intensity: 'playful',
       reducedMotion: reduced,
@@ -114,7 +125,7 @@ export function useSunny(
       window.removeEventListener('pointermove', onPointer);
       animator.current = null;
     };
-  }, [stage, gaze, greet, active]);
+  }, [stage, gaze, greet, active, pose]);
 
   return animator;
 }

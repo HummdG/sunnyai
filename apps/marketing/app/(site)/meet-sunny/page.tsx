@@ -32,14 +32,8 @@ export default function MeetSunnyPage(): React.JSX.Element {
         eyebrow="Meet Sunny"
         title="The friendliest face on your website"
         lede="Sunny is an orange sun with a big smile and plenty of personality. Visitors remember Sunny, and they finish their conversations."
-
-        cameo={{
-          pose: 'wave',
-          sequence: 'listening-perk',
-          say: 'Hello! Yes, I’m the sun. No, I won’t burn out.',
-        }}
       />
-      <section className="section">
+      <section className="section" data-sunny-act="away">
         <div className="wrap split">
           <div>
             <h2>Play with Sunny</h2>
@@ -61,7 +55,7 @@ export default function MeetSunnyPage(): React.JSX.Element {
           </div>
         </div>
       </section>
-      <section className="section tinted">
+      <section className="section tinted" data-sunny-act="peace">
         <div className="wrap">
           <h2>In your colours</h2>
           <p className="intro">

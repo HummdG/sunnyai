@@ -33,19 +33,13 @@ export default function PricingPage(): React.JSX.Element {
         eyebrow="Pricing"
         title="Plans that grow with your business"
         lede="Every plan includes the full Sunny assistant and character. Pick the one that matches the size of your team."
-
-        cameo={{
-          pose: 'thumbsUp',
-          sequence: 'cool-shades',
-          say: 'Works nights and weekends. Never asks for a pay rise.',
-        }}
       />
-      <section className="section" id="pricing">
+      <section className="section" id="pricing" data-sunny-act="point">
         <div className="wrap">
           <PricingCards />
         </div>
       </section>
-      <section className="section tinted">
+      <section className="section tinted" data-sunny-act="magnifier">
         <div className="wrap">
           <h2>Questions about pricing</h2>
           <dl className="faq">

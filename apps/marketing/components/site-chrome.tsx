@@ -2,8 +2,8 @@ import Link from 'next/link';
 
 import { NAV } from '../app/site.js';
 import { HeaderAccount } from './account-links.js';
-import { SunnyCameo } from './cameo/sunny-cameo.js';
 import { MobileMenu } from './mobile-menu.js';
+import { ProgressDial } from './sun/progress-dial.js';
 
 /** The logo is the reference artwork itself (sunny.png); the product is Sunny.ai. */
 function Brand(): React.JSX.Element {
@@ -20,6 +20,7 @@ export function SiteHeader(): React.JSX.Element {
     <header className="site-header">
       <div className="wrap">
         <Brand />
+        <ProgressDial />
         <nav className="site-nav" aria-label="Main">
           {NAV.map((item) => (
             <Link key={item.href} href={item.href}>
@@ -64,22 +65,11 @@ const FOOTER_COLUMNS = [
 
 export function SiteFooter(): React.JSX.Element {
   return (
-    <footer className="site-footer">
+    <footer className="site-footer" data-sunny-act="deckchair">
       <div className="wrap footer-grid">
         <div className="footer-brand">
           <Brand />
           <p>The friendly assistant that turns your website visitors into solar leads.</p>
-          <span className="footer-cameo">
-            <SunnyCameo
-              pose="hips"
-              sequence="relax-sunbathe"
-              at={0.5}
-              still
-              size={120}
-              bubble="Don’t let the deckchair fool you — I answer at 2am too."
-              bubbleSide="right"
-            />
-          </span>
         </div>
         {FOOTER_COLUMNS.map((column) => (
           <nav key={column.title} aria-label={column.title}>

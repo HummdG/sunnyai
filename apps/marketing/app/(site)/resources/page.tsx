@@ -52,10 +52,8 @@ export default function ResourcesPage(): React.JSX.Element {
         eyebrow="Resources"
         title="Everything you need to get started"
         lede="Practical guides for setting Sunny up, and answers to the questions installers ask most."
-
-        cameo={{ pose: 'idea', sequence: 'thinking-eureka', say: 'Swot up here. I already did.' }}
       />
-      <section className="section">
+      <section className="section" data-sunny-act="book">
         <div className="wrap">
           <h2>Guides</h2>
           <ul className="feature-grid three">
@@ -71,7 +69,7 @@ export default function ResourcesPage(): React.JSX.Element {
           </ul>
         </div>
       </section>
-      <section className="section tinted">
+      <section className="section tinted" data-sunny-act="magnifier">
         <div className="wrap">
           <h2>Frequently asked questions</h2>
           <dl className="faq">

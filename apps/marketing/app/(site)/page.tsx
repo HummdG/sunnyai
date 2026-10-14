@@ -3,10 +3,9 @@ import type { JSX } from 'react';
 
 import { CtaBand, FeatureGrid, PricingCards, Steps } from '../../components/blocks.js';
 import { ColourSwitcher } from '../../components/colour-switcher.js';
-import { SkiHills } from '../../components/cameo/ski-hills.js';
-import { LazyGallery } from '../../components/lazy-gallery.js';
 import { OpenChatButton } from '../../components/open-chat.js';
-import { SunnyHero } from '../../components/sunny-hero.js';
+import { HeroDock } from '../../components/sun/hero-dock.js';
+import { RayDivider } from '../../components/sun/ray-divider.js';
 import { PUBLIC_ID } from '../config.js';
 
 const SNIPPET = `<script
@@ -56,7 +55,7 @@ const STEPS = [
 export default function Home(): JSX.Element {
   return (
     <main id="main">
-      <section className="hero">
+      <section className="hero" id="top" data-sunny-act="wave">
         <div className="wrap hero-grid">
           <div className="hero-copy">
             <span className="eyebrow">The AI assistant for solar installers</span>
@@ -81,13 +80,13 @@ export default function Home(): JSX.Element {
             </div>
           </div>
 
-          <SunnyHero />
+          <HeroDock />
         </div>
       </section>
 
-      <SkiHills />
+      <RayDivider />
 
-      <section className="section" id="features">
+      <section className="section" id="features" data-sunny-act="magnifier">
         <div className="wrap">
           <h2>Everything a great first conversation needs</h2>
           <p className="intro">
@@ -98,7 +97,7 @@ export default function Home(): JSX.Element {
         </div>
       </section>
 
-      <section className="section tinted" id="how">
+      <section className="section tinted" id="how" data-sunny-act="laptop">
         <div className="wrap">
           <h2>Live on your website, without a rebuild</h2>
           <p className="intro">
@@ -108,7 +107,7 @@ export default function Home(): JSX.Element {
         </div>
       </section>
 
-      <section className="section demo" id="demo">
+      <section className="section demo" id="demo" data-sunny-act="point">
         <div className="wrap demo-grid">
           <div>
             <span className="eyebrow on-dark">Try it now</span>
@@ -138,24 +137,21 @@ export default function Home(): JSX.Element {
         </div>
       </section>
 
-      <section className="section" id="character">
-        <div className="wrap split">
-          <div>
-            <span className="eyebrow">Your colours</span>
-            <h2>Sunny wears your brand</h2>
-            <p className="intro">
-              Choose a colour and watch Sunny change in real time, here and in the chat in the
-              corner. Your visitors meet a character that feels like part of your company.
-            </p>
-            <ColourSwitcher />
-          </div>
-          <div className="split-art">
-            <LazyGallery />
-          </div>
+      <RayDivider />
+
+      <section className="section" id="character" data-sunny-act="peace">
+        <div className="wrap">
+          <span className="eyebrow">Your colours</span>
+          <h2>Sunny wears your brand</h2>
+          <p className="intro">
+            Choose a colour and watch Sunny change in real time &mdash; down in the corner, and in
+            the chat. Your visitors meet a character that feels like part of your company.
+          </p>
+          <ColourSwitcher />
         </div>
       </section>
 
-      <section className="section tinted" id="pricing">
+      <section className="section tinted" id="pricing" data-sunny-act="point">
         <div className="wrap">
           <h2>Simple monthly plans</h2>
           <p className="intro">

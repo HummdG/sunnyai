@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { CtaBand, PageIntro, Steps, type StepCameo } from '../../../components/blocks.js';
+import { CtaBand, PageIntro, Steps } from '../../../components/blocks.js';
 import { PUBLIC_ID } from '../../config.js';
 
 export const metadata: Metadata = {
@@ -52,24 +52,6 @@ const SNIPPET = `<script
   async
 ></script>`;
 
-const SETUP_CAMEOS: readonly StepCameo[] = [
-  { pose: 'wave', sequence: 'listening-perk', say: 'Hello, new colleague!' },
-  { pose: 'chin', sequence: 'thinking-whirr', say: 'Spec sheets? Warranties? Feed me.' },
-  { pose: 'thumbsUp', sequence: 'cool-shades', say: 'Your colours. My good looks.' },
-  { pose: 'point', sequence: 'guiding-point', say: 'One line. That’s genuinely it.' },
-];
-
-const VISIT_CAMEOS: readonly StepCameo[] = [
-  { pose: 'wave', sequence: 'listening-perk', say: 'I always say hello first.' },
-  {
-    pose: 'idea',
-    sequence: 'thinking-eureka',
-    say: 'Answers from your documents, not my imagination.',
-  },
-  { pose: 'point', sequence: 'guiding-point', say: 'Three options, all from your price list.' },
-  { pose: 'cheer', sequence: 'celebrate-bounce', say: 'A lead! With the whole chat attached.' },
-];
-
 export default function HowItWorksPage(): React.JSX.Element {
   return (
     <main id="main">
@@ -77,27 +59,21 @@ export default function HowItWorksPage(): React.JSX.Element {
         eyebrow="How it works"
         title="From one line of code to your next customer"
         lede="Setting Sunny up takes four steps. After that, every visitor gets a helpful conversation and every serious one becomes a lead."
-
-        cameo={{
-          pose: 'point',
-          sequence: 'guiding-point',
-          say: 'Four steps. I counted them myself.',
-        }}
       />
-      <section className="section">
+      <section className="section" data-sunny-act="laptop">
         <div className="wrap">
           <h2>Setting up</h2>
-          <Steps steps={SETUP} cameos={SETUP_CAMEOS} />
+          <Steps steps={SETUP} />
           <h3 className="snippet-title">The only code you add</h3>
           <pre className="snippet standalone">
             <code>{SNIPPET}</code>
           </pre>
         </div>
       </section>
-      <section className="section tinted">
+      <section className="section tinted" data-sunny-act="point">
         <div className="wrap">
           <h2>What your visitors experience</h2>
-          <Steps steps={VISIT} cameos={VISIT_CAMEOS} />
+          <Steps steps={VISIT} />
         </div>
       </section>
       <CtaBand />
