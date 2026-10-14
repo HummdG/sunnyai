@@ -1,6 +1,7 @@
 import '../site.css';
 import '../print.css';
 
+import { SceneDefs } from '../../components/scenes/kit.js';
 import { SiteFooter, SiteHeader } from '../../components/site-chrome.js';
 import { API_URL, PUBLIC_ID } from '../config.js';
 
@@ -11,6 +12,9 @@ export default function SiteLayout({ children }: { children: React.ReactNode }):
       <a className="skip" href="#main">
         Skip to content
       </a>
+
+      {/* The print patterns (halftone, hatching) every scene shades with. */}
+      <SceneDefs />
 
       <SiteHeader />
 

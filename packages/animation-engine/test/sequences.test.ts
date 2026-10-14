@@ -15,7 +15,7 @@ import {
   sequencesForState,
 } from '@sunny/animation-engine';
 import type { Intensity, Sequence } from '@sunny/animation-engine';
-import { defaultRig, PROP_IDS, RAY, SIT_DROP, toViewBox } from '@sunny/character';
+import { defaultRig, PROP_IDS, RAY, toViewBox } from '@sunny/character';
 import type { PropRig, SunnyRig } from '@sunny/character';
 
 /**
@@ -119,15 +119,11 @@ describe('sequences', () => {
     // A pose that flies off the viewBox renders as a clipped character. The
     // viewBox is 160 units wide with the body radius declared as 46; allowing
     // the root to move 8 units and rays to grow 40% keeps everything on canvas.
-    // Sitting down to read or type lowers the body onto the ground by
-    // `SIT_DROP`; the bound is measured from there for those.
-    const SITTING = ['lookup-book', 'lookup-book-still', 'lookup-laptop', 'lookup-laptop-still'];
     for (const s of SEQUENCES) {
-      const drop = SITTING.includes(s.id) ? SIT_DROP : 0;
       for (let t = 0; t <= 1; t += 0.05) {
         const rig = s.pose(base, t);
         expect(Math.abs(rig.x - base.x), `${s.id} at t=${t} x`).toBeLessThan(10);
-        expect(Math.abs(rig.y - base.y - drop), `${s.id} at t=${t} y`).toBeLessThan(10);
+        expect(Math.abs(rig.y - base.y), `${s.id} at t=${t} y`).toBeLessThan(10);
         for (const ray of rig.rays) {
           expect(ray.lengthScale, `${s.id} at t=${t} ray`).toBeLessThan(1.6);
           expect(ray.lengthScale).toBeGreaterThan(0.5);

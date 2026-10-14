@@ -70,6 +70,12 @@ export interface ArmRig {
   tubeFront?: boolean;
   /** Mid-change between two hand shapes: draw the smear instead (`blendLimbs`). */
   smear?: boolean;
+  /**
+   * Where the elbow is, in the body frame: the point the hose passes through
+   * halfway along. Overrides `bend` when given. A short arm -- a fist on the
+   * hip -- needs its elbow placed, not bowed: the sheet throws it out wide.
+   */
+  elbow?: Vec2;
 }
 
 export interface LegRig {
@@ -161,8 +167,16 @@ const SIT = {
 };
 
 /** A fist on the hip, elbow out: the sheet's spare hand in most poses. */
-const HIP_L = arm({ x: -51, y: 22 }, 2.8, 'fist', 35, true);
-const HIP_R = arm({ x: 51, y: 22 }, -2.8, 'fist', -35, true);
+const HIP_L = {
+  ...arm({ x: -50, y: 32 }, 0, 'fist', -100, true),
+  handScale: 1.25,
+  elbow: { x: -68, y: 8 },
+};
+const HIP_R = {
+  ...arm({ x: 50, y: 32 }, 0, 'fist', -100, true),
+  handScale: 1.25,
+  elbow: { x: 68, y: 8 },
+};
 /** An arm hanging loose at the side. */
 const DOWN_L = arm({ x: -52, y: 44 }, -0.35, 'relaxed', 10);
 const DOWN_R = arm({ x: 52, y: 44 }, 0.35, 'relaxed', -10);
@@ -201,7 +215,7 @@ export const LIMB_POSES = {
   wave: {
     visible: true,
     arms: {
-      left: arm({ x: -66, y: -26 }, 0.5, 'open', -12),
+      left: { ...arm({ x: -62, y: -34 }, 0, 'open', -6), elbow: { x: -72, y: 0 } },
       right: HIP_R,
     },
     legs: STAND,
@@ -211,7 +225,7 @@ export const LIMB_POSES = {
     visible: true,
     arms: {
       left: HIP_L,
-      right: arm({ x: 66, y: -6 }, -0.5, 'thumb', -70),
+      right: { ...arm({ x: 76, y: -4 }, 0, 'thumb', 10), elbow: { x: 74, y: 28 } },
     },
     legs: STAND,
   },
@@ -219,8 +233,8 @@ export const LIMB_POSES = {
   point: {
     visible: true,
     arms: {
-      left: arm({ x: -64, y: 6 }, -0.25, 'point', 0),
-      right: arm({ x: 66, y: 4 }, 0.25, 'point', 0),
+      left: { ...arm({ x: -66, y: 4 }, 0, 'point', 75), elbow: { x: -58, y: 30 } },
+      right: { ...arm({ x: 68, y: -4 }, 0, 'point', 75), elbow: { x: 62, y: 24 } },
     },
     legs: {
       left: leg({ x: -20, y: 82 }, -0.1, -4),
@@ -231,8 +245,8 @@ export const LIMB_POSES = {
   cheer: {
     visible: true,
     arms: {
-      left: arm({ x: -62, y: -44 }, 0.45, 'fist', 0),
-      right: arm({ x: 62, y: -44 }, -0.45, 'fist', 0),
+      left: { ...arm({ x: -58, y: -48 }, 0, 'fist', 0), elbow: { x: -74, y: -10 } },
+      right: { ...arm({ x: 58, y: -48 }, 0, 'fist', 0), elbow: { x: 74, y: -10 } },
     },
     legs: {
       left: leg({ x: -30, y: 82 }, -0.15, -8),
@@ -252,7 +266,7 @@ export const LIMB_POSES = {
   idea: {
     visible: true,
     arms: {
-      left: arm({ x: -62, y: -30 }, 0.45, 'index', -20),
+      left: { ...arm({ x: -60, y: -32 }, 0, 'index', 28), elbow: { x: -70, y: 2 } },
       right: HIP_R,
     },
     legs: STAND,
@@ -261,7 +275,7 @@ export const LIMB_POSES = {
   peace: {
     visible: true,
     arms: {
-      left: arm({ x: -62, y: -30 }, 0.45, 'peace', -20),
+      left: { ...arm({ x: -60, y: -32 }, 0, 'peace', 28), elbow: { x: -70, y: 2 } },
       right: HIP_R,
     },
     legs: STAND,
@@ -327,7 +341,7 @@ export const LIMB_POSES = {
   magnify: {
     visible: true,
     arms: {
-      left: arm({ x: -44, y: 4 }, -1, 'grip', 20, true),
+      left: { ...arm({ x: -54, y: 26 }, 0, 'grip', 20, true), elbow: { x: -72, y: 40 } },
       right: arm({ x: 54, y: 26 }, -0.4, 'relaxed', -20),
     },
     legs: STAND,
@@ -362,7 +376,7 @@ export const LIMB_POSES = {
     visible: true,
     arms: {
       left: HIP_L,
-      right: arm({ x: 52, y: 20 }, -0.9, 'grip', -30, true),
+      right: { ...arm({ x: 74, y: 10 }, 0, 'grip', 0, true), elbow: { x: 76, y: 38 } },
     },
     legs: STAND,
   },
@@ -370,7 +384,7 @@ export const LIMB_POSES = {
   present: {
     visible: true,
     arms: {
-      left: arm({ x: -64, y: -6 }, 0.55, 'open', -70),
+      left: { ...arm({ x: -72, y: -8 }, 0, 'open', 40), elbow: { x: -66, y: 20 } },
       right: HIP_R,
     },
     legs: STAND,
@@ -392,7 +406,11 @@ export const LIMB_POSES = {
 export type LimbPoseName = keyof typeof LIMB_POSES;
 
 export function cloneLimbs(l: LimbsRig): LimbsRig {
-  const a = (x: ArmRig): ArmRig => ({ ...x, hand: { ...x.hand } });
+  const a = (x: ArmRig): ArmRig => ({
+    ...x,
+    hand: { ...x.hand },
+    ...(x.elbow ? { elbow: { ...x.elbow } } : {}),
+  });
   const g = (x: LegRig): LegRig => ({ ...x, hip: { ...x.hip }, foot: { ...x.foot } });
   return {
     visible: l.visible,
@@ -421,9 +439,19 @@ export function blendLimbs(a: LimbsRig, b: LimbsRig, t: number): LimbsRig {
   // base pose itself, not to a pose that merely draws the same.
   if (k <= 0) return cloneLimbs(a);
   if (k >= 1) return cloneLimbs(b);
-  const blendArm = (p: ArmRig, q: ArmRig): ArmRig => {
+  const blendArm = (p: ArmRig, q: ArmRig, side: 'left' | 'right'): ArmRig => {
     const pm = morphOf(p.morph);
     const qm = morphOf(q.morph);
+    // An elbow placed on either side is blended against the elbow the other
+    // side's bend implies, so the arm swings rather than snapping its joint.
+    const elbow =
+      p.elbow || q.elbow
+        ? pm < 0.01
+          ? (q.elbow ?? impliedElbow(side, q))
+          : qm < 0.01
+            ? (p.elbow ?? impliedElbow(side, p))
+            : mixV(p.elbow ?? impliedElbow(side, p), q.elbow ?? impliedElbow(side, q), k)
+        : undefined;
     const shapeFrom = pm < 0.01 ? q : qm < 0.01 ? p : k < 0.5 ? p : q;
     // A change of hand shape passes through a smear: the hand pinches for the
     // middle of the blend, so the swap reads as a quick motion, not a cut.
@@ -448,6 +476,7 @@ export function blendLimbs(a: LimbsRig, b: LimbsRig, t: number): LimbsRig {
       front: shapeFrom.front,
       tubeFront: shapeFrom.tubeFront,
       ...(shapeFrom.behind !== undefined ? { behind: shapeFrom.behind } : {}),
+      ...(elbow ? { elbow: { ...elbow } } : {}),
       morph: mix(pm, qm, k),
     };
   };
@@ -465,8 +494,8 @@ export function blendLimbs(a: LimbsRig, b: LimbsRig, t: number): LimbsRig {
   return {
     visible: k < 1 ? a.visible : b.visible,
     arms: {
-      left: blendArm(a.arms.left, b.arms.left),
-      right: blendArm(a.arms.right, b.arms.right),
+      left: blendArm(a.arms.left, b.arms.left, 'left'),
+      right: blendArm(a.arms.right, b.arms.right, 'right'),
     },
     legs: { left: blendLeg(a.legs.left, b.legs.left), right: blendLeg(a.legs.right, b.legs.right) },
   };
@@ -523,6 +552,8 @@ interface TubeInput {
   flareHalf?: number;
   /** Taper exponent; defaults to the ray-to-hose taper. 1 is an even hose. */
   power?: number;
+  /** A point the hose must pass through halfway along; overrides `bend`. */
+  elbow?: Vec2;
 }
 
 /**
@@ -546,7 +577,13 @@ export function tubePath(t: TubeInput): { d: string; end: Vec2; endDir: Vec2 } {
     x: (t.base.x + end.x) / 2 + perp.x * t.bend * Math.max(len, 24) * 0.5,
     y: (t.base.y + end.y) / 2 + perp.y * t.bend * Math.max(len, 24) * 0.5,
   };
-  const c = mixV(straight, bowed, m);
+  // With an elbow, the control point is the one that puts the curve's middle
+  // exactly on it; the elbow grows out with the arm like everything else.
+  const mid = { x: (t.base.x + end.x) / 2, y: (t.base.y + end.y) / 2 };
+  const elbowAt = t.elbow ? mixV(mid, t.elbow, reach) : null;
+  const c = elbowAt
+    ? { x: 2 * elbowAt.x - mid.x, y: 2 * elbowAt.y - mid.y }
+    : mixV(straight, bowed, m);
   const endHalf = mix(0.35, t.endHalf, smooth(m * 1.4));
   // The taper: linear (a triangle) at rest, then wide at the base and quickly
   // tube-like as it grows -- a ray that has become an arm.
@@ -671,6 +708,25 @@ export interface RayLike {
   visible: boolean;
 }
 
+/**
+ * The elbow an arm's `bend` puts it at: the middle of its hose, for blending a
+ * bent arm with one whose elbow is placed. Uses the same bow as `tubePath`.
+ */
+export function impliedElbow(side: 'left' | 'right', arm: ArmRig): Vec2 {
+  if (arm.elbow) return { ...arm.elbow };
+  const { base } = socket(LIMB_SOCKETS.arms[side]);
+  const end = arm.hand;
+  const dx = end.x - base.x;
+  const dy = end.y - base.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const bow = arm.bend * Math.max(len, 24) * 0.5;
+  const c = {
+    x: (base.x + end.x) / 2 - (dy / len) * bow,
+    y: (base.y + end.y) / 2 + (dx / len) * bow,
+  };
+  return { x: (base.x + 2 * c.x + end.x) / 4, y: (base.y + 2 * c.y + end.y) / 4 };
+}
+
 /** A socket on the body: the root point and the direction a limb leaves it. */
 function socket(deg: number): { base: Vec2; dir: Vec2 } {
   const dir = rayDirection(deg);
@@ -728,6 +784,7 @@ function armMarkupSplit(
     // Flare to just inside the hand's own wrist, so the hand stays a touch wider.
     flareHalf: Math.min(art.joint * armRig.handScale * 0.5, LIMB.wristHalf * 1.4),
     bend: armRig.bend,
+    ...(armRig.elbow ? { elbow: armRig.elbow } : {}),
     morph: m,
     boil,
     power: 1,

@@ -4,19 +4,21 @@ import {
   BrowserFrame,
   Cloud,
   CopyLines,
+  Desk,
   Easel,
   GREY,
   Ground,
   House,
   INK,
+  Laptop,
   LINE,
   ORANGE,
   PALE,
+  PackageCard,
   Plant,
+  Rosette,
   Shelf,
   SocketBoard,
-  SolarPanel,
-  Stand,
   Sunburst,
 } from './kit.js';
 import { Scene } from './scene.js';
@@ -242,15 +244,26 @@ function Panel({
   sunny,
   at,
   size = 160,
+  shadow = true,
 }: {
   label: string;
   back: React.ReactNode;
   sunny: SunnyDirection;
   at: { x: number; y: number };
   size?: number;
+  shadow?: boolean;
 }): React.JSX.Element {
   return (
-    <Scene width={300} height={240} label={label} back={back} sunny={sunny} at={at} size={size} />
+    <Scene
+      width={300}
+      height={240}
+      label={label}
+      back={back}
+      sunny={sunny}
+      at={at}
+      size={size}
+      shadow={shadow}
+    />
   );
 }
 
@@ -346,28 +359,33 @@ export const VISIT_PANELS = [
   />,
   <Panel
     key="answers"
-    label="Sunny types an answer on a laptop at a desk."
-    back={<>{ground}</>}
-    sunny={{ pose: 'hips', act: 'lookup-laptop', at: 0.2, play: 'lookup-laptop' }}
-    at={{ x: 70, y: 40 }}
+    shadow={false}
+    label="A visitor's question on a laptop screen, and Sunny glowing beside it with the answer."
+    back={
+      <>
+        <Sunburst x={210} y={96} r={120} count={16} fill="#FFE7A6" />
+        <Desk x={10} y={190} w={280} />
+        <Laptop x={40} y={190} w={120} />
+      </>
+    }
+    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.5 }, grin: 1.15 }}
+    at={{ x: 160, y: 30 }}
+    size={130}
   />,
   <Panel
     key="options"
-    label="Sunny presents solar packages on stands."
+    shadow={false}
+    label="Two solar packages as product cards, the better fit wearing a rosette, with Sunny hovering above."
     back={
       <>
-        {ground}
-        <Stand x={70} y={160} label="A" tall={44}>
-          <SolarPanel x={-26} y={-30} w={52} h={26} skew={-12} />
-        </Stand>
-        <Stand x={150} y={146} label="B" tall={58}>
-          <SolarPanel x={-28} y={-32} w={56} h={28} skew={-12} />
-        </Stand>
+        <PackageCard x={30} y={96} w={104} h={130} name="Starter" level={1} />
+        <PackageCard x={150} y={80} w={112} h={146} name="Plus" level={2} chosen />
+        <Rosette x={252} y={92} label="BEST" />
       </>
     }
-    sunny={{ pose: 'present', play: 'gesture-palm' }}
-    at={{ x: 160, y: 66 }}
-    size={150}
+    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: 0.3, y: 0.8 }, grin: 1.2 }}
+    at={{ x: 150, y: -10 }}
+    size={110}
   />,
   <Panel
     key="lead"

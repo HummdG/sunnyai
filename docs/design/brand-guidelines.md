@@ -145,20 +145,13 @@ appear in anything a customer might read when worried or out of pocket.
 - Sizes: 24–40px **badge** (head only, `limbs: false`); 64–120px **spot**
   (full body, used in empty states/toasts); 240px+ **hero** (website,
   onboarding, 404).
-- **Limbs follow the pose sheet** (changed 2026-10-14, owner direction: the
-  earlier ray-morph hands and feet were rejected). All eight rays are always
-  drawn. Arms are short, even rubber hoses that come out of the body's sides
-  just below the side rays; legs come out of the bottom either side of the
-  lowest ray. At rest the limbs are tucked away, so the resting Sunny is
-  exactly the logo; a gesture brings out only what it needs.
-  Hands are chunky four-finger cartoon hands with a thick ink line and inked
-  creases between the fingers: open, relaxed, fist, grip, finger-gun, raised
-  index, thumbs-up, peace. Shoes are big, flat-soled beans. They are built from
-  shapes in `hands.ts`, not traced, so every hand has the same line weight and
-  swaps cleanly. A change of hand shape passes through a one-frame smear.
-  In code: `morph` on each `ArmRig`/`LegRig` (0 = tucked), `LIMB_SOCKETS`,
-  `limbPose('rest' | 'stand' | 'hips' | 'read' | 'recline' | …)`,
-  `scripts/render-pose-sheet.ts` to review them all against the sheet.
+- **No limbs** (owner direction, 2026-10-14, after two passes at rubber-hose
+  arms and legs). Sunny is drawn as the logo: a sun and its eight rays. It
+  acts with its face (eyes, brows, grin, tilt), its rays, its bounce and
+  squash, and with props that float beside it -- a book, a laptop, a
+  magnifying glass, an envelope -- rather than held in hands. The limb rig
+  still exists in code and is still posed by the sequences, but the renderer
+  draws it only when asked (`limbs: true`), which nothing does.
 
 ### C2. Pose and moment map (use these — meaning must be consistent)
 
@@ -386,12 +379,13 @@ appear in anything a customer might read when worried or out of pocket.
   never a soft blur. **Every section has a crafted scene** (components in
   `apps/marketing/components/scenes/`): a set drawn from the kit (houses and
   panels, a browser window, a desk under the moon, shelves, the van) with the
-  real Sunny acting in it -- reading, typing, presenting, holding a lead's
-  envelope. Scenes are stills that play their moment once when they come into
+  real Sunny acting in it -- glowing beside a laptop at 2am, hovering over the
+  best-fit package, rising over a street of rooftops. Scenes are stills that play their moment once when they come into
   view (and on hover), one at a time; reduced motion keeps them still. Steps
   are told as numbered storyboard panels; Meet Sunny has the model sheet. No
-  cameos with joke bubbles. The widget's own launcher is the live Sunny in the
-  corner.
+  cameos with joke bubbles. The sunglasses and the deckchair are the chat
+  Sunny's moments, not the website's. The widget's own launcher is the live
+  Sunny in the corner.
 - **Dashboard:** the workshop. Fast, calm, information-dense; personality in
   greetings ("Morning, Brightside Solar"), empty states, toasts, the onboarding
   wizard and the Studio preview. Safety and money are always serious.

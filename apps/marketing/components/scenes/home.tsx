@@ -1,7 +1,10 @@
 import {
   BrowserFrame,
+  Birds,
+  Clock,
   Cloud,
   CopyLines,
+  DOTS_FINE,
   Desk,
   Door,
   Easel,
@@ -9,18 +12,19 @@ import {
   House,
   INK,
   Lamp,
+  Laptop,
   LINE,
-  Moon,
+  Mug,
+  NightWindow,
   ORANGE,
   PAINT_COLOURS,
   PaintPots,
+  PackageCard,
   PALE,
-  PAPER,
+  Rosette,
   ScriptTag,
   Shelf,
   SolarPanel,
-  Stand,
-  Stars,
   Sunburst,
   Van,
 } from './kit.js';
@@ -46,7 +50,7 @@ export function HeroScene(): React.JSX.Element {
           <Sunburst x={410} y={300} r={260} count={28} />
           <Cloud x={420} y={58} s={0.9} />
           <Ground y={420} width={560} />
-          <House x={30} y={360} w={110} h={64} panels={2} door={false} />
+          <House x={34} y={346} w={104} h={60} panels={2} door={false} />
           <BrowserFrame x={40} y={50} w={400} h={290}>
             <rect
               x={20}
@@ -81,45 +85,48 @@ export function HeroScene(): React.JSX.Element {
   );
 }
 
-/** Day and night: Sunny at the desk under the lamp, answering at 2am. */
+/**
+ * Day and night: a desk at two in the morning, a visitor's question on the
+ * laptop and Sunny glowing beside it with the answer -- the light that is on
+ * when the office is closed.
+ */
 export function NightShiftScene(): React.JSX.Element {
   return (
     <Scene
       width={560}
       height={420}
-      label="Night time: Sunny sits at a desk under a lamp, typing on a laptop, while the clock on the wall reads two o'clock."
+      shadow={false}
+      label="A desk at night under a lamp: on the laptop, a visitor's question is being answered, and Sunny glows beside it while the clock reads two o'clock."
       back={
         <>
-          <rect x={0} y={0} width={560} height={420} fill={INK} />
-          <Moon x={470} y={78} r={30} />
-          <Stars
-            points={[
-              [60, 60],
-              [140, 110],
-              [250, 50],
-              [380, 120],
-              [520, 170],
-              [330, 80],
-              [90, 170],
-            ]}
-          />
-          <House x={360} y={300} w={150} h={90} lit panels={2} door={false} />
-          <g transform="translate(110 120)">
-            <circle r={34} fill={PAPER} {...LINE} />
-            <path d="M0 0V-22M0 0L16 9" {...LINE} strokeWidth={3.4} />
-            <circle r={3} fill={INK} />
-          </g>
+          <rect x={0} y={0} width={560} height={420} fill="#F3E4C8" />
+          <rect x={0} y={0} width={560} height={420} fill={DOTS_FINE} opacity={0.5} />
+          <NightWindow x={330} y={44} w={180} h={150} />
+          <Clock x={100} y={92} r={32} />
+          <Sunburst x={268} y={190} r={150} count={20} fill="#FFE7A6" />
         </>
       }
       front={
         <>
-          <Lamp x={70} y={296} />
-          <Desk x={40} y={296} w={300} />
+          <Lamp x={40} y={316} />
+          <Desk x={20} y={316} w={520} />
+          <Laptop x={70} y={316} w={170} />
+          <Mug x={470} y={316} />
+          <g transform="translate(250 196)">
+            <path
+              d="M0 0Q14 -16 34 -12"
+              fill="none"
+              stroke={INK}
+              strokeWidth={2}
+              strokeDasharray="2 5"
+              strokeLinecap="round"
+            />
+          </g>
         </>
       }
-      sunny={{ pose: 'hips', act: 'lookup-laptop', at: 0.2, play: 'lookup-laptop' }}
-      at={{ x: 92, y: 120 }}
-      size={210}
+      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.5 }, tilt: -6, grin: 1.15 }}
+      at={{ x: 250, y: 100 }}
+      size={190}
     />
   );
 }
@@ -151,40 +158,36 @@ export function QualifyScene(): React.JSX.Element {
   );
 }
 
-/** Recommending: three packages on stands, Sunny presenting the middle one. */
+/**
+ * Recommending: three packages laid out as printed product cards, and Sunny
+ * hovering over the middle one -- the one with the rosette, the best fit.
+ */
 export function RecommendScene(): React.JSX.Element {
   return (
     <Scene
       width={560}
-      height={420}
-      label="Sunny presents three solar packages on stands labelled Good, Better and Best."
+      height={440}
+      shadow={false}
+      label="Three solar packages laid out as product cards, Starter, Plus and Complete; Sunny hovers over the Plus card, which wears a Best fit rosette."
       back={
         <>
-          <Ground y={380} width={560} bulge={8} />
-          <Stand x={110} y={290} label="Good" tall={60}>
-            <SolarPanel x={-30} y={-34} w={60} h={30} skew={-12} />
-          </Stand>
-          <Stand x={220} y={260} label="Better" tall={90}>
-            <SolarPanel x={-34} y={-38} w={68} h={34} skew={-12} />
-          </Stand>
-          <Stand x={330} y={300} label="Best" tall={50}>
-            <SolarPanel x={-38} y={-44} w={76} h={38} skew={-12} />
-            <rect
-              x={-12}
-              y={-80}
-              width={24}
-              height={30}
-              rx={4}
-              fill={PALE}
-              {...LINE}
-              strokeWidth={1.8}
-            />
-          </Stand>
+          <Sunburst x={280} y={130} r={200} count={24} />
+          <Birds
+            points={[
+              [70, 70],
+              [96, 54],
+              [470, 80],
+            ]}
+          />
+          <PackageCard x={24} y={190} w={160} h={218} name="Starter" level={1} />
+          <PackageCard x={376} y={190} w={160} h={218} name="Complete" level={3} />
+          <PackageCard x={194} y={160} w={172} h={248} name="Plus" level={2} chosen />
+          <Rosette x={362} y={250} label="BEST FIT" />
         </>
       }
-      sunny={{ pose: 'present', play: 'gesture-palm' }}
-      at={{ x: 330, y: 150 }}
-      size={240}
+      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: 0.1, y: 0.8 }, tilt: 4, grin: 1.2 }}
+      at={{ x: 214, y: 6 }}
+      size={140}
     />
   );
 }
@@ -293,26 +296,44 @@ export function ColoursScene(): React.JSX.Element {
   );
 }
 
-/** The call to action: Sunny on a rooftop among the panels. Bare, on orange. */
-export function RooftopScene(): React.JSX.Element {
+/**
+ * The call to action: sunrise over a street of houses with panels on their
+ * roofs, and Sunny coming up behind them. Framed like every other scene, so it
+ * reads as a picture on the orange band rather than a cut-out on it.
+ */
+export function SunriseScene(): React.JSX.Element {
   return (
     <Scene
       width={520}
-      height={360}
-      bare
-      label="Sunny cheers on a rooftop covered in solar panels."
+      height={380}
+      shadow={false}
+      label="Sunrise over a street of houses with solar panels on their roofs, with Sunny rising behind them."
       back={
         <>
-          <Cloud x={30} y={40} s={0.8} />
-          <Cloud x={380} y={70} s={0.6} />
-          <House x={70} y={262} w={380} h={78} panels={0} door={false} roof={PAPER} />
-          <SolarPanel x={156} y={214} w={64} h={30} skew={-30} />
-          <SolarPanel x={300} y={214} w={64} h={30} skew={30} />
+          <rect x={0} y={0} width={520} height={380} fill="#FFF1DC" />
+          <Sunburst x={260} y={250} r={320} count={32} />
+          <Cloud x={40} y={70} s={0.8} />
+          <Cloud x={390} y={50} s={0.7} />
+          <Birds
+            points={[
+              [150, 60],
+              [176, 44],
+              [380, 120],
+            ]}
+          />
         </>
       }
-      sunny={{ pose: 'cheer', play: 'celebrate-bounce' }}
-      at={{ x: 180, y: 34 }}
-      size={160}
+      front={
+        <>
+          <Ground y={330} width={520} bulge={6} />
+          <House x={18} y={250} w={130} h={84} panels={2} door={false} />
+          <House x={196} y={262} w={130} h={74} panels={2} roof="#FFD0A6" />
+          <House x={372} y={246} w={130} h={88} panels={3} door={false} />
+        </>
+      }
+      sunny={{ pose: 'rest', play: 'celebrate-bounce', look: { x: 0, y: -0.2 }, grin: 1.25 }}
+      at={{ x: 160, y: 50 }}
+      size={200}
     />
   );
 }

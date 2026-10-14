@@ -64,9 +64,7 @@ describe('character rendering', () => {
     }
 
     const coincident = [...byDigest.values()].filter((names) => names.length > 1);
-    expect(coincident).toEqual([
-      ['celebrating-reduced-motion', 'relaxing-reduced-motion'],
-    ]);
+    expect(coincident).toEqual([['celebrating-reduced-motion', 'relaxing-reduced-motion']]);
     expect(byDigest.size).toBe(SCENES.length - 1);
     // Every scene is rasterised here rather than one, and each walks the frame
     // loop up to its capture time. Slower than the default budget, on purpose,

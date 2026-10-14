@@ -18,7 +18,7 @@ export interface SunnyDirection {
   props?: PropRig[];
   /**
    * A sequence whose frame at `at` is the still: for a pose with acting in it
-   * (reading, typing, the deckchair) rather than a bare stance.
+   * (reading, typing) rather than a bare stance.
    */
   act?: string;
   at?: number;
@@ -28,6 +28,15 @@ export interface SunnyDirection {
   flip?: boolean;
   /** Lean the whole body, in degrees. */
   lean?: number;
+  /**
+   * Where Sunny is looking, each axis -1..1 (+x right, +y down): at the thing
+   * the scene is about, so the picture has a point of attention.
+   */
+  look?: { x: number; y: number };
+  /** Tilt the head, in degrees. */
+  tilt?: number;
+  /** A bigger grin (1 is the resting smile). */
+  grin?: number;
 }
 
 /** The still Sunny of a scene direction. Pure: the server and client agree. */
@@ -39,6 +48,15 @@ export function stillRig(direction: SunnyDirection): SunnyRig {
   const act = direction.act ? SEQUENCE_BY_ID.get(direction.act) : undefined;
   const rig = act ? act.pose(base, direction.at ?? 0.3) : base;
   if (act && direction.props) rig.props = [...rig.props, ...direction.props];
+  if (direction.look) {
+    rig.eyes.left.gaze = { ...direction.look };
+    rig.eyes.right.gaze = { ...direction.look };
+  }
+  if (direction.tilt) rig.faceTilt += direction.tilt;
+  if (direction.grin) {
+    rig.smile.depth *= direction.grin;
+    rig.smile.span *= 1 + (direction.grin - 1) * 0.4;
+  }
   return rig;
 }
 

@@ -216,6 +216,20 @@
   overflow: hidden;
 }
 
+.site .scene::after {
+  /* The inner rule of a printed plate: a hairline just inside the border. */
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: 21px;
+  pointer-events: none;
+}
+
+.site .scene.is-bare::after {
+  display: none;
+}
+
 .site .scene.is-bare {
   background: none;
   border: 0;

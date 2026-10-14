@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { formatPrice, PLANS } from '../app/site.js';
 
 import { Icon } from './icons.js';
-import { RooftopScene } from './scenes/home.js';
+import { SunriseScene } from './scenes/home.js';
 
 /**
  * The top of an inner page: eyebrow, headline and lede, beside the page's own
@@ -108,7 +108,7 @@ export function CtaBand({
             </Link>
           </div>
         </div>
-        <RooftopScene />
+        <SunriseScene />
       </div>
     </section>
   );

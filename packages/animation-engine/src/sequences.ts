@@ -236,7 +236,9 @@ const blink: Sequence = {
 const listening: Sequence = {
   id: 'listening-perk',
   group: 'listen',
-  priority: PRIORITY.interaction,
+  // Just above the bubble pop the same `attention` asks for: the visitor
+  // opened the chat, and the wave hello is the answer they should see first.
+  priority: PRIORITY.interaction + 5,
   // Long enough to read as a wave hello (three flaps), not a twitch.
   duration: 1400,
   canInterrupt: true,

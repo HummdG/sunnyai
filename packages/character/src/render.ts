@@ -743,8 +743,11 @@ export interface RenderOptions {
    */
   boil?: number;
   /**
-   * Draw the arms, hands and legs. Defaults to true; turn off for a head-only
-   * badge or to compare against the limbless reference (`sunny.png`).
+   * Draw the rubber-hose arms, hands and legs. Off by default: on 2026-10-14
+   * the owner asked for the limbs to go entirely, so Sunny is drawn as the
+   * logo -- a sun and its rays -- and acts with its face, its rays, its bounce
+   * and its props. The limb rig is still computed (sequences pose it), so
+   * turning this on again is the whole of bringing them back.
    */
   limbs?: boolean;
 }
@@ -862,7 +865,7 @@ export function renderSunnyParts(rig: SunnyRig, options: RenderOptions = {}): Su
   // Limbs grow out of rays (limbs.ts): a ray a limb has taken over is not
   // drawn as a triangle. Legs live in the viewBox frame so the feet stay
   // planted while the body bobs; arms live in the body frame.
-  const showLimbs = (options.limbs ?? true) && rig.limbs.visible;
+  const showLimbs = (options.limbs ?? false) && rig.limbs.visible;
   const hidden = showLimbs ? limbRayIndices(rig.limbs) : [];
   const limbPaint = { limb: paint.ray, ink: paint.ink };
   const toVB = (p: { x: number; y: number }) => toViewBox(rig, p);

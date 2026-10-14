@@ -24,6 +24,7 @@ export function Scene({
   size,
   label,
   bare = false,
+  shadow = true,
   className,
   testId,
 }: {
@@ -39,6 +40,8 @@ export function Scene({
   /** What the picture shows, for anyone who cannot see it. */
   label: string;
   bare?: boolean;
+  /** Sunny's shadow on the ground; off when Sunny is floating in the air. */
+  shadow?: boolean;
   className?: string;
   testId?: string;
 }): React.JSX.Element {
@@ -54,6 +57,18 @@ export function Scene({
       {back && (
         <svg className="scene-layer" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
           {back}
+        </svg>
+      )}
+      {box && sunny && shadow && (
+        <svg className="scene-layer" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+          {/* Sunny's shadow on the ground, under the feet. */}
+          <ellipse
+            cx={at.x + size * 0.5}
+            cy={at.y + size * 0.95}
+            rx={size * 0.3}
+            ry={size * 0.045}
+            fill="url(#sk-dots)"
+          />
         </svg>
       )}
       {box && sunny && (

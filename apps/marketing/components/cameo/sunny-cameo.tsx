@@ -104,7 +104,7 @@ export function SunnyCameo({
     const node = host.current;
     const box = root.current;
     if (!node || !box) return;
-    const view = createSunnyView(node, { decorative: true, limbs: !head });
+    const view = createSunnyView(node, { decorative: true });
     const base = defaultRig();
     base.limbs = limbPose(pose);
     const performance = sequence ? SEQUENCE_BY_ID.get(sequence) : undefined;

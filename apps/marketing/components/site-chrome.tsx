@@ -63,10 +63,12 @@ const FOOTER_COLUMNS = [
   },
 ] as const;
 
-/** Sunny off duty in the deckchair: a still ink drawing, drawn once. */
-const FOOTER_ART = renderSunny(stillRig({ pose: 'hips', act: 'relax-sunbathe', at: 0.5 }), {
-  decorative: true,
-});
+/**
+ * A small Sunny waving goodbye: a still ink drawing, drawn once. (The
+ * deckchair and the sunglasses belong to the chat widget's Sunny, not the
+ * website's.)
+ */
+const FOOTER_ART = renderSunny(stillRig({ pose: 'wave' }), { decorative: true });
 
 export function SiteFooter(): React.JSX.Element {
   return (

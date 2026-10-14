@@ -46,7 +46,7 @@ export function SunnySpot({
   useEffect(() => {
     const node = host.current;
     if (!node) return;
-    const view = createSunnyView(node, { decorative: true, limbs: !head });
+    const view = createSunnyView(node, { decorative: true });
     const base = defaultRig();
     base.limbs = limbPose(pose);
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -2,7 +2,6 @@ import {
   blendLimbs,
   cloneRig,
   limbPose,
-  SIT_DROP,
   type LimbPoseName,
   type PropRig,
   type SunnyRig,
@@ -70,10 +69,10 @@ const held = (id: PropRig['id'], x: number, y: number, rotation = 0, scale = 1):
 
 // ─── looking things up ───────────────────────────────────────────────────────
 
-/** Sitting down to read: the body lowers onto the ground, eyes on the page. */
+/** Reading: the book held up in front, eyes on the page. */
 function readPose(base: SunnyRig, t: number, still: boolean): SunnyRig {
   const r = cloneRig(base);
-  r.y = base.y + SIT_DROP;
+  r.y = base.y + 3;
   r.squash = 0.04;
   r.stretch = 0.03;
   act(r, base, 'read', 1);
@@ -88,15 +87,16 @@ function readPose(base: SunnyRig, t: number, still: boolean): SunnyRig {
   r.faceTilt = still ? -3 : -3 + wave(t) * 2;
   if (!still) breathe(r, base, t, 0.6);
   const turn = still ? 0 : Math.max(0, Math.sin(clamp01((t - 0.55) / 0.2) * Math.PI));
-  r.props = [held('book', 0, 30, 0, 1)];
-  if (turn > 0.01) r.props.push({ ...held('book', 0, 30, 0, 1), id: 'book-page', opacity: turn });
+  r.props = [held('book', 0, 40, 0, 1.05)];
+  if (turn > 0.01)
+    r.props.push({ ...held('book', 0, 40, 0, 1.05), id: 'book-page', opacity: turn });
   return r;
 }
 
-/** Typing on a laptop on the lap, glancing up at the visitor now and then. */
+/** Typing on a laptop, glancing up at the visitor now and then. */
 function typePose(base: SunnyRig, t: number, still: boolean): SunnyRig {
   const r = cloneRig(base);
-  r.y = base.y + SIT_DROP;
+  r.y = base.y + 3;
   r.squash = 0.04;
   r.stretch = 0.03;
   act(r, base, 'type', 1);
@@ -112,7 +112,7 @@ function typePose(base: SunnyRig, t: number, still: boolean): SunnyRig {
   r.eyes.left.gaze = gaze;
   r.eyes.right.gaze = { ...gaze };
   r.smile.depth = base.smile.depth * (1 + up * 0.2);
-  r.props = [held('laptop', 4, 34, 0, 1)];
+  r.props = [held('laptop', 4, 44, 0, 1.05)];
   return r;
 }
 
