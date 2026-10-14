@@ -28,14 +28,25 @@ test('lists every catalogued moment, and only those', async ({ page }) => {
 
   await expect(page.locator('#catalogue-card .moment')).toHaveCount(CATALOGUE.length);
 
-  for (const entry of CATALOGUE) {
-    const moment = page.locator(card(entry.group));
-    await expect(moment, `${entry.group} is missing from the gallery`).toHaveCount(1);
-    // The name on the page and the name in the catalogue are the same string,
-    // so a moment cannot be renamed in one place and not the other.
-    await expect(moment.locator('.moment-name')).toHaveText(entry.name);
-    await expect(moment.locator('.moment-desc')).toHaveText(entry.description);
-  }
+  // Read once, compare once: one round trip rather than three per moment,
+  // which kept this inside its budget only on an idle machine.
+  const listed = await page.locator('#catalogue-card .moment').evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      group: (node as HTMLElement).dataset['group'] ?? '',
+      name: node.querySelector('.moment-name')?.textContent?.trim() ?? '',
+      description: node.querySelector('.moment-desc')?.textContent?.trim() ?? '',
+    })),
+  );
+  // The name on the page and the name in the catalogue are the same string,
+  // so a moment cannot be renamed in one place and not the other.
+  const expected = CATALOGUE.map((entry) => ({
+    group: entry.group,
+    name: entry.name,
+    description: entry.description,
+  }));
+  const byGroup = (a: { group: string }, b: { group: string }): number =>
+    a.group.localeCompare(b.group);
+  expect([...listed].sort(byGroup)).toEqual([...expected].sort(byGroup));
 });
 
 test('marks the moments nothing asks for, rather than hiding them', async ({ page }) => {
