@@ -9,10 +9,12 @@ export * from './types.js';
 export * from './machine.js';
 export * from './scheduler.js';
 export * from './compositor.js';
+export { FIDGETS, GESTURES, LOOKUP_GROUP, type LookupKind } from './acting.js';
 export * from './sequences.js';
 export * from './catalogue.js';
 export * from './engine.js';
 
+import type { LookupKind } from './acting.js';
 import type { MachineEvent } from './machine.js';
 
 /**
@@ -25,10 +27,18 @@ import type { MachineEvent } from './machine.js';
  */
 export function machineEventForStreamEvent(event: StreamEventLike): MachineEvent | null {
   switch (event.type) {
+    // The first words of the answer: from thinking this is the eureka. Every
+    // later delta maps the same way and is a no-op once Sunny is speaking.
+    case 'text_delta':
+      return { type: 'speaking_started' };
     case 'tool_started':
-      return { type: 'guiding_started' };
+      return event.tool === POINTING_TOOL
+        ? { type: 'guiding_started' }
+        : { type: 'lookup', kind: lookupKindForTool(event.tool ?? '') };
     case 'tool_finished':
-      return { type: 'guiding_finished' };
+      return event.tool === POINTING_TOOL
+        ? { type: 'guiding_finished' }
+        : { type: 'lookup_finished' };
     // A finished recommendation is Sunny's own good work: the sunglasses.
     case 'recommendation_ready':
       return { type: 'impress' };
@@ -44,7 +54,24 @@ export function machineEventForStreamEvent(event: StreamEventLike): MachineEvent
   }
 }
 
+/** The one tool whose job is to point at the host page. */
+const POINTING_TOOL = 'suggest_page_action';
+
+/**
+ * What Sunny holds while a tool runs, by what the tool is doing: reading the
+ * knowledge base is a book, searching is a magnifying glass, working out a
+ * price or filling something in is the laptop. An unknown tool gets the
+ * laptop, the most neutral of the three.
+ */
+export function lookupKindForTool(tool: string): LookupKind {
+  if (/knowledge|questionnaire|faq|retrieve/.test(tool)) return 'book';
+  if (/search|validate|sunscan|find|lookup/.test(tool)) return 'magnifier';
+  return 'laptop';
+}
+
 /** The subset of a stream event this mapping needs; kept structural on purpose. */
 export interface StreamEventLike {
   type: string;
+  /** The tool's name, on tool events. */
+  tool?: string;
 }

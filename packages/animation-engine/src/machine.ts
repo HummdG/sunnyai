@@ -1,3 +1,4 @@
+import type { LookupKind } from './acting.js';
 import type { SunnyState } from './types.js';
 
 /**
@@ -19,6 +20,17 @@ export type MachineEvent =
   | { type: 'turn_failed' }
   /** The assistant is pointing at something on the host page. */
   | { type: 'guiding_started' }
+  /**
+   * A tool is running: Sunny gets the book, the laptop or the magnifying glass
+   * out for as long as it takes. A cue as much as a transition: from thinking
+   * it changes no state, only what Sunny is holding.
+   */
+  | { type: 'lookup'; kind: LookupKind }
+  | { type: 'lookup_finished' }
+  /** The visitor is typing a message. */
+  | { type: 'user_typing' }
+  /** Nobody has done anything for a long while: time for the deckchair. */
+  | { type: 'idle_timeout' }
   | { type: 'guiding_finished' }
   /** Something worth celebrating happened: a lead was saved. */
   | { type: 'celebrate' }
@@ -68,9 +80,14 @@ const TABLE: Readonly<Record<SunnyState, Partial<Record<MachineEvent['type'], Su
     confused: 'confused',
     play_started: 'playing',
     dismissed: 'relaxing',
+    lookup: 'thinking',
+    user_typing: 'listening',
+    idle_timeout: 'relaxing',
   },
   listening: {
     turn_started: 'thinking',
+    speaking_started: 'speaking',
+    lookup: 'thinking',
     impress: 'celebrating',
     idle: 'idle',
     dismissed: 'relaxing',
@@ -78,6 +95,8 @@ const TABLE: Readonly<Record<SunnyState, Partial<Record<MachineEvent['type'], Su
   },
   thinking: {
     speaking_started: 'speaking',
+    // A tool that points at the page, asked for mid-turn.
+    guiding_started: 'guiding',
     impress: 'celebrating',
     celebrate: 'celebrating',
     turn_failed: 'error',
@@ -87,6 +106,8 @@ const TABLE: Readonly<Record<SunnyState, Partial<Record<MachineEvent['type'], Su
   },
   speaking: {
     turn_finished: 'idle',
+    // A tool called part-way through an answer: back to working it out.
+    lookup: 'thinking',
     turn_failed: 'error',
     guiding_started: 'guiding',
     celebrate: 'celebrating',
@@ -108,11 +129,15 @@ const TABLE: Readonly<Record<SunnyState, Partial<Record<MachineEvent['type'], Su
   confused: {
     idle: 'idle',
     turn_started: 'thinking',
+    user_typing: 'listening',
     dismissed: 'relaxing',
   },
   relaxing: {
     attention: 'listening',
     idle: 'idle',
+    // Typing wakes Sunny out of the deckchair.
+    user_typing: 'listening',
+    turn_started: 'thinking',
   },
   playing: {
     play_finished: 'idle',
@@ -124,6 +149,7 @@ const TABLE: Readonly<Record<SunnyState, Partial<Record<MachineEvent['type'], Su
     idle: 'idle',
     attention: 'listening',
     turn_started: 'thinking',
+    user_typing: 'listening',
   },
 };
 
@@ -139,6 +165,9 @@ const SETTLE: Partial<Record<SunnyState, { afterMs: number; to: SunnyState }>> =
   guiding: { afterMs: 20_000, to: 'idle' },
   celebrating: { afterMs: 4_000, to: 'idle' },
   confused: { afterMs: 3_500, to: 'idle' },
+  // An error used to hold until the next event, so a failed turn left Sunny
+  // drooping indefinitely. Eight seconds is long enough to be noticed.
+  error: { afterMs: 8_000, to: 'idle' },
 };
 
 export interface TransitionResult {

@@ -7,6 +7,7 @@ import {
   type Vec2,
 } from '@sunny/character';
 
+import { FIDGETS, GESTURES, LOOKUP_GROUP } from './acting.js';
 import { SunnyMachine, type MachineEvent } from './machine.js';
 import { Scheduler, type RenderResult } from './scheduler.js';
 import { PRIORITY, type EngineContext, type Intensity, type SunnyState } from './types.js';
@@ -14,6 +15,22 @@ import { PRIORITY, type EngineContext, type Intensity, type SunnyState } from '.
 /** Milliseconds between blinks, when Sunny is resting. */
 const BLINK_MIN_MS = 2_600;
 const BLINK_MAX_MS = 6_400;
+
+/**
+ * The director's clock. While an answer streams, a gesture every few seconds;
+ * after a quiet spell in idle, a fidget now and then; after a long one, the
+ * deckchair. Each interval has a random part so nothing lands on a beat a
+ * visitor could learn.
+ */
+const GESTURE_FIRST_MS = 1_700;
+const GESTURE_MIN_MS = 2_200;
+const GESTURE_MAX_MS = 4_200;
+const FIDGET_AFTER_MS = 20_000;
+const FIDGET_MIN_MS = 7_000;
+const FIDGET_MAX_MS = 12_000;
+const LOUNGE_AFTER_MS = 45_000;
+/** The lean-in while the visitor types is a reaction, not a loop: at most this often. */
+const LEAN_EVERY_MS = 2_800;
 
 /**
  * How close a pointer has to come to a prop's centre to count as a hit on it, in
@@ -52,6 +69,12 @@ export interface AnimatorOptions {
   reducedMotion?: boolean;
   /** Seed for the blink cadence. Fixed by default so replays match. */
   seed?: number;
+  /**
+   * Whether Sunny acts on its own between events: gestures while speaking,
+   * fidgets and finally the deckchair when nothing happens. On by default; a
+   * surface that drives every moment itself (the lab's gallery) turns it off.
+   */
+  director?: boolean;
 }
 
 /**
@@ -68,12 +91,21 @@ export class SunnyAnimator {
   #random: () => number;
   #nextBlinkAt = 0;
   #last: RenderResult | null = null;
+  readonly #directing: boolean;
+  #directedState: SunnyState | null = null;
+  #quietSince = 0;
+  #nextGestureAt = 0;
+  #nextFidgetAt = 0;
+  #lastLeanAt = -Infinity;
+  /** The last few gestures and fidgets, so the director does not repeat itself. */
+  #recent: string[] = [];
 
   constructor(base: SunnyRig = defaultRig(), options: AnimatorOptions = {}) {
     this.#base = base;
     this.machine = new SunnyMachine('idle', 0);
     this.scheduler = new Scheduler(options.intensity ?? 'balanced', options.reducedMotion ?? false);
     this.#random = xorshift(options.seed ?? 0x5eed_1234);
+    this.#directing = options.director ?? true;
   }
 
   get state(): SunnyState {
@@ -107,8 +139,33 @@ export class SunnyAnimator {
       return;
     }
 
+    // Anything the application tells us about counts as something happening,
+    // except being told that nothing is.
+    if (event.type !== 'idle') this.#quietSince = now;
+
     const previous = this.machine.state;
     const result = this.machine.send(event, now);
+
+    // Cues that act within a state as well as moving between them.
+    switch (event.type) {
+      case 'lookup':
+        // Whatever was out is put away before the next thing comes out.
+        for (const group of Object.values(LOOKUP_GROUP)) this.scheduler.cancel(group);
+        this.scheduler.request(LOOKUP_GROUP[event.kind], this.machine.state, now);
+        return;
+      case 'lookup_finished':
+        for (const group of Object.values(LOOKUP_GROUP)) this.scheduler.cancel(group);
+        return;
+      case 'user_typing':
+        if (this.machine.state === 'listening' && now - this.#lastLeanAt >= LEAN_EVERY_MS) {
+          this.#lastLeanAt = now;
+          this.scheduler.request('lean', 'listening', now);
+        }
+        return;
+      default:
+        break;
+    }
+
     if (!result.changed) return;
 
     // Events are named by the moment they express, never by a variant id, so the
@@ -151,6 +208,13 @@ export class SunnyAnimator {
         // panel. The chair is a finite event, so reopening the chat retires it
         // along with the state.
         this.scheduler.request('relax', result.state, now);
+        break;
+      case 'turn_finished':
+        // An answer delivered: a satisfied nod as Sunny settles.
+        if (result.state === 'idle') this.scheduler.request('nod', result.state, now);
+        break;
+      case 'idle_timeout':
+        this.scheduler.request('lounge', result.state, now);
         break;
       case 'speaking_started':
         // Coming out of thinking, the first token is the answer arriving, which
@@ -199,6 +263,7 @@ export class SunnyAnimator {
    * touched.
    */
   tap(point: Vec2, now: number): boolean {
+    this.#quietSince = now;
     const rig = this.#last?.rig ?? this.#base;
     const local = toBodyFrame(rig, point);
 
@@ -242,6 +307,7 @@ export class SunnyAnimator {
 
     if (!context.paused && !context.hidden && context.intensity !== 'off') {
       this.maybeBlink(now);
+      if (this.#directing) this.direct(now);
     }
 
     const result = this.scheduler.update(this.#base, this.machine.state, context, now);
@@ -251,6 +317,63 @@ export class SunnyAnimator {
 
   get lastFrame(): RenderResult | null {
     return this.#last;
+  }
+
+  /**
+   * The director: what Sunny does on its own between the application's events,
+   * so a conversation never looks like the same loop playing over and over.
+   *
+   * - **Speaking:** a gesture every few seconds (a nod, an open palm, a
+   *   finger-gun, a raised finger), never the same one twice running.
+   * - **Idle:** after twenty quiet seconds, a fidget now and then (a look
+   *   round, a stretch, a peace sign, a hop, the balloon); after forty-five,
+   *   the deckchair comes out and Sunny waits in it until someone types.
+   *
+   * All of it is seeded, so a replay draws the same frames.
+   */
+  private direct(now: number): void {
+    const state = this.machine.state;
+    if (state !== this.#directedState) {
+      this.#directedState = state;
+      if (state === 'idle') this.#quietSince = now;
+      if (state === 'speaking') this.#nextGestureAt = now + GESTURE_FIRST_MS;
+      this.#nextFidgetAt = now + FIDGET_AFTER_MS;
+    }
+
+    if (state === 'speaking' && now >= this.#nextGestureAt) {
+      this.perform(GESTURES, now);
+      this.#nextGestureAt = now + this.between(GESTURE_MIN_MS, GESTURE_MAX_MS);
+      return;
+    }
+
+    if (state !== 'idle') return;
+    const quiet = now - this.#quietSince;
+    if (quiet >= LOUNGE_AFTER_MS) {
+      this.dispatch({ type: 'idle_timeout' }, now);
+      return;
+    }
+    if (quiet >= FIDGET_AFTER_MS && now >= this.#nextFidgetAt) {
+      this.perform(FIDGETS, now);
+      this.#nextFidgetAt = now + this.between(FIDGET_MIN_MS, FIDGET_MAX_MS);
+    }
+  }
+
+  /** Play one of `choices` that has not played recently and can play now. */
+  private perform(choices: readonly string[], now: number): void {
+    const fresh = choices.filter((id) => !this.#recent.includes(id));
+    const pool = fresh.length > 0 ? fresh : [...choices];
+    const start = Math.floor(this.#random() * pool.length);
+    for (let i = 0; i < pool.length; i++) {
+      const id = pool[(start + i) % pool.length]!;
+      if (this.scheduler.request(id, this.machine.state, now)) {
+        this.#recent = [id, ...this.#recent].slice(0, 2);
+        return;
+      }
+    }
+  }
+
+  private between(min: number, max: number): number {
+    return min + this.#random() * (max - min);
   }
 
   /**

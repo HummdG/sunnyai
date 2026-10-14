@@ -249,7 +249,9 @@ export class Scheduler {
     const key = winner ? `${winner.sequence.id}@${winner.instance.startedAt}` : null;
     const rig = this.#compositor.compose(target, now, {
       key,
-      blendMs: winner && winner.instance === floor ? STATE_BLEND_MS : BLEND_MS,
+      blendMs:
+        winner?.sequence.blendInMs ??
+        (winner && winner.instance === floor ? STATE_BLEND_MS : BLEND_MS),
       reducedMotion: this.#reducedMotion,
     });
 

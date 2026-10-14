@@ -128,6 +128,12 @@ export interface Sequence {
    */
   layer?: 'eyelids';
   /**
+   * How long this sequence takes to blend in when it takes the frame, when
+   * the default (`BLEND_MS`) is too quick -- a prop being got out, a chair
+   * being sat in.
+   */
+  blendInMs?: number;
+  /**
    * The pose at progress `t` in 0..1 (or, when looping, the phase in 0..1).
    * Must be pure: same inputs, same rig, every time. `anchor` is present only
    * for a moment that was asked for with one -- see `MomentAnchor`.

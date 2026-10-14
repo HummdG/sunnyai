@@ -77,7 +77,7 @@ export class Compositor {
     if (this.#from) {
       const k = (now - this.#blendStart) / this.#blendMs;
       if (k >= 1) this.#from = null;
-      else rig = lerpRig(this.#from, target, easeOutCubic(Math.max(0, k)));
+      else rig = lerpRig(nearestTurn(this.#from, target), target, easeOutCubic(Math.max(0, k)));
     }
 
     // Reduced motion keeps the gentle blend (it is a fade between still poses)
@@ -86,6 +86,18 @@ export class Compositor {
     this.#last = rig;
     return rig;
   }
+}
+
+/**
+ * The same rig with its rotation moved by whole turns to within half a turn of
+ * `target`, so a blend out of a spin takes the short way round rather than
+ * unwinding every revolution backwards.
+ */
+function nearestTurn(from: SunnyRig, target: SunnyRig): SunnyRig {
+  const d = from.rotation - target.rotation;
+  const wrapped = d - 360 * Math.round(d / 360);
+  if (wrapped === d) return from;
+  return { ...from, rotation: target.rotation + wrapped };
 }
 
 /** Fixed integration step, so the springs do not depend on the display rate. */
@@ -142,13 +154,18 @@ export class FollowThrough {
       const dt = STEP_MS / 1000;
       springStep(this.#x, rig.x, dt);
       springStep(this.#y, rig.y, dt);
+      // Follow the rotation the short way round, so a spin's wrap from 359
+      // back to 0 degrees is not a full turn for the spring to chase.
+      const dr = this.#r.p - rig.rotation;
+      this.#r.p = rig.rotation + dr - 360 * Math.round(dr / 360);
       springStep(this.#r, rig.rotation, dt);
       this.#t += STEP_MS;
     }
 
     const lagX = clamp(this.#x.p - rig.x, MAX_LAG);
     const lagY = clamp(this.#y.p - rig.y, MAX_LAG);
-    const lagR = clamp(this.#r.p - rig.rotation, MAX_ROT_LAG);
+    const rawR = this.#r.p - rig.rotation;
+    const lagR = clamp(rawR - 360 * Math.round(rawR / 360), MAX_ROT_LAG);
     if (Math.abs(lagX) < DEADZONE && Math.abs(lagY) < DEADZONE && Math.abs(lagR) < DEADZONE) {
       return rig;
     }

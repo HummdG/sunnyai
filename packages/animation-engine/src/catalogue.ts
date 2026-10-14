@@ -213,6 +213,75 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     askedBy: 'the ambient layer of the error state',
   },
   {
+    group: 'lookup-book',
+    name: 'Reading up',
+    description:
+      'Sits down with a book while a knowledge-base tool runs, eyes running along the lines.',
+    category: 'conversation',
+    asked: 'engine',
+    askedBy: '`lookup` with kind `book` (a knowledge or questionnaire tool started)',
+  },
+  {
+    group: 'lookup-laptop',
+    name: 'On the laptop',
+    description:
+      'Sits down and types on a laptop while a pricing or estimate tool runs, glancing up now and then.',
+    category: 'conversation',
+    asked: 'engine',
+    askedBy: '`lookup` with kind `laptop` (an estimate, quote or form tool started)',
+  },
+  {
+    group: 'lookup-magnify',
+    name: 'Searching',
+    description: 'Holds a magnifying glass up to one eye and scans while a search tool runs.',
+    category: 'conversation',
+    asked: 'engine',
+    askedBy: '`lookup` with kind `magnifier` (a search or check tool started)',
+  },
+  {
+    group: 'gesture',
+    name: 'Talking with the hands',
+    description:
+      'While the answer streams: a nod, an open palm, a finger-gun or a raised finger, never the same twice running.',
+    category: 'conversation',
+    asked: 'engine',
+    askedBy: 'the director, every few seconds in the speaking state',
+  },
+  {
+    group: 'lean',
+    name: 'Leaning in',
+    description: 'The visitor is typing: Sunny leans in, eyes on the message box, and nods.',
+    category: 'conversation',
+    asked: 'engine',
+    askedBy: '`user_typing`, at most every few seconds',
+  },
+  {
+    group: 'nod',
+    name: 'Satisfied nod',
+    description: 'An answer delivered: a small nod and a smile as Sunny settles.',
+    category: 'conversation',
+    asked: 'engine',
+    askedBy: '`turn_finished`',
+  },
+  {
+    group: 'fidget',
+    name: 'Fidgeting',
+    description:
+      'Nothing has happened for a while: a look round, a stretch, a peace sign or a hop.',
+    category: 'reflex',
+    asked: 'engine',
+    askedBy: 'the director, after twenty quiet seconds in idle',
+  },
+  {
+    group: 'lounge',
+    name: 'Waiting in the deckchair',
+    description:
+      'After a long quiet spell the deckchair comes out and Sunny waits in it, shades on, until someone types.',
+    category: 'reflex',
+    asked: 'engine',
+    askedBy: '`idle_timeout`, which the director sends after forty-five quiet seconds',
+  },
+  {
     group: 'play',
     name: 'Playing along',
     description:

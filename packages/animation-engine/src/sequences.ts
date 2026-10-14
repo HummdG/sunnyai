@@ -1,3 +1,4 @@
+import { ACTING } from './acting.js';
 import { withLimbActing } from './limb-acting.js';
 import {
   blendLimbs,
@@ -2664,6 +2665,7 @@ const AUTHORED: readonly Sequence[] = [
   bloomSeed,
   bloomGrow,
   bloomShowcase,
+  ...ACTING,
 ];
 
 /** Every sequence, with the body acting from `limb-acting.ts` layered on. */

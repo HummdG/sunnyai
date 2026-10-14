@@ -309,8 +309,8 @@ export const LIMB_POSES = {
   read: {
     visible: true,
     arms: {
-      left: arm({ x: -22, y: 32 }, -1.2, 'grip', 150, true),
-      right: arm({ x: 22, y: 32 }, 1.2, 'grip', -150, true),
+      left: arm({ x: -33, y: 36 }, -0.9, 'grip', 100, true),
+      right: arm({ x: 33, y: 36 }, 0.9, 'grip', -100, true),
     },
     legs: SIT,
   },
@@ -318,8 +318,8 @@ export const LIMB_POSES = {
   type: {
     visible: true,
     arms: {
-      left: arm({ x: -16, y: 42 }, -1.4, 'relaxed', 170, true),
-      right: arm({ x: 18, y: 42 }, 1.4, 'relaxed', -170, true),
+      left: arm({ x: -14, y: 48 }, -1.4, 'relaxed', 175, true),
+      right: arm({ x: 18, y: 48 }, 1.4, 'relaxed', -175, true),
     },
     legs: SIT,
   },

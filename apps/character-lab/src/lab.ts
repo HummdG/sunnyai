@@ -179,9 +179,24 @@ const groupOfSequence = new Map<string, string>(SEQUENCES.map((s) => [s.id, s.gr
  * one moment would strand the next, and which cards worked would depend on the
  * order they were clicked in.
  */
-const ROUTE: Record<string, readonly MachineEvent['type'][]> = {
+/** Events a route can send by name alone (a lookup also needs its kind). */
+type RouteEvent = Exclude<MachineEvent, { type: 'lookup' }>['type'];
+
+const ROUTE: Record<string, readonly RouteEvent[]> = {
   listen: ['attention'],
   think: ['turn_started'],
+  // Looking things up happens while a turn is being worked out.
+  'lookup-book': ['turn_started'],
+  'lookup-laptop': ['turn_started'],
+  'lookup-magnify': ['turn_started'],
+  gesture: ['speaking_started'],
+  lean: ['attention'],
+  // The lounge is what the director asks for after a long quiet spell.
+  lounge: ['idle_timeout'],
+  // The glow, ponder and droop are the floors of their states.
+  'celebrate-glow': ['celebrate'],
+  ponder: ['confused'],
+  droop: ['turn_started', 'turn_failed'],
   // The answer arriving: `speaking_started` out of thinking is what the engine
   // itself reads as the eureka, so the gallery only has to set the scene.
   eureka: ['turn_started', 'speaking_started'],

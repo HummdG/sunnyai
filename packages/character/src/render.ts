@@ -206,7 +206,9 @@ function eyeHalfWidthAt(eye: EyeRig, y: number): number {
  * something stamped on top of them. It re-tints with the theme, so a tenant's
  * purple character gets a lilac chair.
  */
-const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?: boolean }>> = {
+const PROP_PATHS: Readonly<
+  Record<PropId, { d: string; filled: boolean; surface?: boolean; colour?: string }>
+> = {
   // A bold question mark: the bowl, the stem, and a dot.
   'question-mark': {
     d: 'M-3.1-4.4a3.3 3.3 0 1 1 5.1 2.8q-2 1.3-2 3.1M0 5.6v0.1',
@@ -221,6 +223,8 @@ const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?
       'M-3.4 12H3.4L2.4 14.4H-2.4Z',
     filled: true,
     surface: true,
+    // Yellow, as on the sheet: a pale bulb read as a white blob at launcher size.
+    colour: '#FFD54A',
   },
   // A four-pointed sparkle.
   sparkle: {
@@ -325,6 +329,12 @@ const PROP_PATHS: Readonly<Record<PropId, { d: string; filled: boolean; surface?
     filled: true,
     surface: true,
   },
+  // Held props from the sheet, drawn by their own art functions below (fixed
+  // colours: a book is blue whatever the theme). The paths are unused.
+  book: { d: '', filled: true },
+  'book-page': { d: '', filled: true },
+  laptop: { d: '', filled: true },
+  magnifier: { d: '', filled: true },
   // A ping-pong bat, held upright: the blade, then a short handle. Authored tall
   // rather than wide -- the second prop that is, after the deckchair's scenery --
   // because the ball has to meet the blade's *face*, and A09's rules decide
@@ -439,7 +449,7 @@ function renderProp(prop: PropRig, paint: Paint): string {
     `scale(${n(prop.scale)})`,
   ].join(' ');
   const draw = path.surface
-    ? `fill="${paint.highlight}" stroke="${paint.ink}" stroke-width="2.2" stroke-linejoin="round"`
+    ? `fill="${path.colour ?? paint.highlight}" stroke="${paint.ink}" stroke-width="2.2" stroke-linejoin="round"`
     : path.filled
       ? `fill="${paint.ink}"`
       : `fill="none" stroke="${paint.ink}" stroke-width="2.2" stroke-linecap="round"`;
@@ -448,12 +458,8 @@ function renderProp(prop: PropRig, paint: Paint): string {
   // rather than something a test has to infer by diffing two SVG strings. The
   // animation contract is entirely about which sequence put which asset in the
   // scene, so that is worth naming in the output.
-  const art =
-    prop.id === 'sunglasses'
-      ? SUNGLASSES_ART(paint)
-      : prop.id === 'deckchair'
-        ? DECKCHAIR_ART(paint)
-        : `<path d="${path.d}" ${draw}/>`;
+  const custom = PROP_ART[prop.id];
+  const art = custom ? custom(paint) : `<path d="${path.d}" ${draw}/>`;
   return (
     `<g data-prop="${prop.id}" transform="${transform}" opacity="${n(Math.min(1, prop.opacity))}">` +
     art +
@@ -463,6 +469,8 @@ function renderProp(prop: PropRig, paint: Paint): string {
 
 /** Props drawn behind Sunny (furniture Sunny sits in). */
 export const BEHIND_PROPS: readonly PropId[] = ['deckchair'];
+/** Props held in front of the body, under the hands that hold them. */
+export const HELD_PROPS: readonly PropId[] = ['book', 'book-page', 'laptop', 'magnifier'];
 /** Props worn on the face, drawn in the face frame so they follow its tilt. */
 export const FACE_PROPS: readonly PropId[] = ['sunglasses'];
 
@@ -515,6 +523,67 @@ const DECKCHAIR_ART = (paint: Paint): string => {
     rail('M38 -64L52 -60', 3.6) +
     rail('M-54 30L-44 40', 3.6)
   );
+};
+
+/**
+ * An open book held up in both hands (sheet: third row, second): a blue cover
+ * behind two white pages with a few lines of text and the spine down the
+ * middle. Authored about its centre, about 56 units across.
+ */
+const BOOK_ART = (paint: Paint): string => {
+  const ink = paint.ink;
+  const cover = 'M-31 -17L0 -13L31 -17L31 18L0 22L-31 18Z';
+  const pages = 'M-27.5 -14.5L0 -10.5L27.5 -14.5L27.5 15L0 19L-27.5 15Z';
+  const lines = [-7, -2, 3, 8].map((y) => `M-23 ${y - 2.6}L-5 ${y}M5 ${y}L23 ${y - 2.6}`).join('');
+  return (
+    `<path d="${cover}" fill="#2F6FD6" stroke="${ink}" stroke-width="2.6" stroke-linejoin="round"/>` +
+    `<path d="${pages}" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8" stroke-linejoin="round"/>` +
+    `<path d="M0 -10.5L0 19" stroke="${ink}" stroke-width="1.8"/>` +
+    `<path d="${lines}" stroke="#9AA3AF" stroke-width="1.4" stroke-linecap="round"/>`
+  );
+};
+
+/** A page mid-turn, lifting off the right-hand page. */
+const BOOK_PAGE_ART = (paint: Paint): string =>
+  `<path d="M0 -10.5C8 -20 18 -22 22 -20L22 10C16 8 8 10 0 19Z" fill="#FFFFFF" stroke="${paint.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
+
+/**
+ * A laptop on the lap, seen from the side so the visitor sees the back of the
+ * lid and the keyboard edge (sheet: third row, third). About 60 units across.
+ */
+const LAPTOP_ART = (paint: Paint): string => {
+  const ink = paint.ink;
+  return (
+    `<path d="M-6 -24L32 -20L28 12L-10 12Z" fill="#B7BCC4" stroke="${ink}" stroke-width="2.6" stroke-linejoin="round"/>` +
+    `<circle cx="11" cy="-5" r="3.2" fill="#E6E9ED"/>` +
+    `<path d="M-34 12L30 12L34 19L-30 19Z" fill="#9AA0A8" stroke="${ink}" stroke-width="2.6" stroke-linejoin="round"/>`
+  );
+};
+
+/**
+ * A magnifying glass (sheet: third row, fourth): a thick grey rim round a pale
+ * glass with a glint, and a wooden handle running down to the lower left.
+ * The origin is the centre of the glass.
+ */
+const MAGNIFIER_ART = (paint: Paint): string => {
+  const ink = paint.ink;
+  return (
+    `<path d="M-9 9L-22 22" stroke="${ink}" stroke-width="9.4" stroke-linecap="round"/>` +
+    `<path d="M-9 9L-22 22" stroke="#9A6334" stroke-width="5.2" stroke-linecap="round"/>` +
+    `<circle r="14" fill="#DDEFFF" fill-opacity="0.55" stroke="${ink}" stroke-width="7.6"/>` +
+    `<circle r="14" fill="none" stroke="#A9AFB7" stroke-width="3.6"/>` +
+    `<path d="M-7 -5C-5 -8.5 -1.5 -10 2 -9.6" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>`
+  );
+};
+
+/** Props with art of their own rather than a single painted path. */
+const PROP_ART: Readonly<Partial<Record<PropId, (paint: Paint) => string>>> = {
+  sunglasses: (paint) => SUNGLASSES_ART(paint),
+  deckchair: (paint) => DECKCHAIR_ART(paint),
+  book: BOOK_ART,
+  'book-page': BOOK_PAGE_ART,
+  laptop: LAPTOP_ART,
+  magnifier: MAGNIFIER_ART,
 };
 
 /** The brow: an arc bowing upward from its chord. */
@@ -775,6 +844,15 @@ export function renderSunnyParts(rig: SunnyRig, options: RenderOptions = {}): Su
       ],
     ],
     over: [
+      [
+        'props-held',
+        plain(
+          rig.props
+            .filter((prop) => HELD_PROPS.includes(prop.id))
+            .map((prop) => renderProp(prop, paint))
+            .join(''),
+        ),
+      ],
       ['arm-front-left', plain(armIn('left', true))],
       ['arm-front-right', plain(armIn('right', true))],
       // Props sit in the body frame rather than the face frame: a question mark
@@ -783,7 +861,12 @@ export function renderSunnyParts(rig: SunnyRig, options: RenderOptions = {}): Su
         'props',
         plain(
           rig.props
-            .filter((prop) => !BEHIND_PROPS.includes(prop.id) && !FACE_PROPS.includes(prop.id))
+            .filter(
+              (prop) =>
+                !BEHIND_PROPS.includes(prop.id) &&
+                !FACE_PROPS.includes(prop.id) &&
+                !HELD_PROPS.includes(prop.id),
+            )
             .map((prop) => renderProp(prop, paint))
             .join(''),
         ),

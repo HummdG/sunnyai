@@ -204,7 +204,14 @@ export class SunnyWidget {
       // Blueprint §4.6; the server enforces the same and the config can change it.
       maxlength: MAX_INPUT_CHARS,
     });
-    this.#composer.addEventListener('input', () => this.#autoGrow());
+    this.#composer.addEventListener('input', () => {
+      this.#autoGrow();
+      // Sunny leans in while the visitor types (and climbs out of the
+      // deckchair). The engine rate-limits the reaction; this only reports it.
+      if (this.#composer.value.trim() !== '') {
+        this.#animator.dispatch({ type: 'user_typing' }, performance.now());
+      }
+    });
     this.#composer.addEventListener('keydown', (event) => {
       // Enter sends, Shift+Enter breaks the line. IME composition is respected
       // so a visitor typing in a composing script does not send mid-word.
