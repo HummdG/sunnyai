@@ -728,25 +728,28 @@ export function renderSunnyParts(rig: SunnyRig, options: RenderOptions = {}): Su
     ? 'aria-hidden="true" focusable="false"'
     : `role="img" aria-label="${escapeXml(options.title ?? 'Sunny')}"`;
 
+  const behindProps = rig.props
+    .filter((prop) => BEHIND_PROPS.includes(prop.id))
+    .map((prop) => renderProp(prop, paint))
+    .join('');
+
   return {
     svgAttributes: `xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${n(size)}" height="${n(size)}" ${aria}${options.className ? ` class="${escapeXml(options.className)}"` : ''}`,
     label,
     root,
     faceTransform: `rotate(${n(rig.faceTilt)})`,
     under: [
+      // Furniture goes under everything, legs included: Sunny's legs stretch
+      // out *over* the front of the deckchair, as on the sheet. The chair is
+      // authored in the body frame, so it carries the root transform here.
+      [
+        'props-behind',
+        plain(behindProps === '' ? '' : `<g transform="${root}">${behindProps}</g>`),
+      ],
       ['leg-left', plain(leg('left'))],
       ['leg-right', plain(leg('right'))],
     ],
     behind: [
-      [
-        'props-behind',
-        plain(
-          rig.props
-            .filter((prop) => BEHIND_PROPS.includes(prop.id))
-            .map((prop) => renderProp(prop, paint))
-            .join(''),
-        ),
-      ],
       ...rig.rays.map((_, index): [string, PartDrawing] => [
         `ray-${index}`,
         hidden.includes(index) ? EMPTY : tracedRayPart(rig, index, paint, boil),

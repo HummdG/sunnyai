@@ -14,3 +14,4 @@ export * from './view.js';
 export * from './limbs.js';
 export * from './boil.js';
 export { TRACED_HANDS } from './traced-hands.js';
+export { HANDS, SMEAR, type HandArt } from './hands.js';

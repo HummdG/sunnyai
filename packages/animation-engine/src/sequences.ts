@@ -1456,7 +1456,8 @@ function relaxPose(base: SunnyRig, t: number, extra: { shades: boolean; doze: bo
   // right) and sinks a little; the chair is counter-rotated so it stays level.
   const lean = seated * 16;
   r.rotation = base.rotation + lean;
-  r.x = base.x - seated * 4;
+  // She slides a little to the right, to leave room for her legs in front.
+  r.x = base.x + seated * 8;
   r.y = base.y + seated * 6 - breath * 0.8 - stretch * 1.4;
   r.faceTilt = base.faceTilt - seated * 4;
 
@@ -1466,41 +1467,22 @@ function relaxPose(base: SunnyRig, t: number, extra: { shades: boolean; doze: bo
     ray.lengthScale = 1 - seated * 0.04 + breath * 0.04 + stretch * 0.12;
   }
 
-  // Limbs: legs stretched out to the front of the chair and crossed at the
-  // ankle; arms folded behind the head (drawn behind the body, so only the
-  // elbows show). Each grows from its ray as she settles and goes back after.
-  const relaxed = limbPose('rest');
+  // Limbs: the sheet's recline -- hands clasped behind the head (drawn behind
+  // the body, so the elbows show either side of it) and the legs stretched out
+  // over the front of the chair, crossed at the ankle. Each comes out as she
+  // settles and tucks away again after.
+  const relaxed = limbPose('recline');
   relaxed.legs.left = {
     ...relaxed.legs.left,
-    foot: { x: -66, y: 54 },
-    bend: 0.25,
-    footRotation: -12,
-    morph: 1,
+    foot: { x: -50, y: 78 },
+    bend: -0.25,
+    footRotation: -32,
   };
   relaxed.legs.right = {
     ...relaxed.legs.right,
-    foot: { x: -78, y: 47 },
-    bend: 0.35,
-    footRotation: -6,
-    morph: 1,
-  };
-  relaxed.arms.left = {
-    ...relaxed.arms.left,
-    hand: { x: -16, y: -26 },
-    bend: 1.35,
-    shape: 'fist',
-    handRotation: 0,
-    behind: true,
-    morph: 1,
-  };
-  relaxed.arms.right = {
-    ...relaxed.arms.right,
-    hand: { x: 18, y: -28 },
-    bend: -1.35,
-    shape: 'fist',
-    handRotation: 0,
-    behind: true,
-    morph: 1,
+    foot: { x: -74, y: 62 },
+    bend: 0.3,
+    footRotation: -10,
   };
   r.limbs = blendLimbs(base.limbs, relaxed, seated * (1 - stretch * 0.5));
 

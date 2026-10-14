@@ -138,22 +138,27 @@ appear in anything a customer might read when worried or out of pocket.
 - Always the real character from `@sunny/character` (`createSunnyView`,
   `cartoonClock`) — drawn from the traced reference with the rubber-hose body
   from `reference_poses.png`. Never a screenshot, never a redrawn clip-art.
-- Motion runs on 24 fps film frames with the boiling ink line; reduced motion
-  gets a still pose of the same meaning.
+- Motion runs at the display rate, with the ink line boiling on its own
+  clock (24 fps film frames only on low-power devices). Every change of pose
+  blends from what is on screen; nothing cuts. Reduced motion gets a still
+  pose of the same meaning, cross-faded.
 - Sizes: 24–40px **badge** (head only, `limbs: false`); 64–120px **spot**
   (full body, used in empty states/toasts); 240px+ **hero** (website,
   onboarding, 404).
-- **The rays are the limbs.** Arms and legs never sprout from the body
-  circle: the side rays (~268.5° and ~91.5°) morph into the arms and the two
-  lower rays (~228.5° and ~131.5°) into the legs, with the bottom ray staying
-  between the legs. At rest every limb is still its triangle, so the resting
-  Sunny is exactly the logo. A gesture grows only the rays it needs (a wave
-  grows one arm; standing grows the legs): the ray pops out with a quick
-  squash, tapers from its triangle base into a rubber-hose limb, and the traced
-  mitten hand or round shoe grows from its tip; it retracts the same way.
-  Hands and shoes are traced from `reference_poses.png` (open, fist, point,
-  thumbs-up, peace; shoe). In code: `morph` on each `ArmRig`/`LegRig`,
-  `LIMB_RAYS`, `limbPose('rest' | 'stand' | 'hips' | …)`.
+- **Limbs follow the pose sheet** (changed 2026-10-14, owner direction: the
+  earlier ray-morph hands and feet were rejected). All eight rays are always
+  drawn. Arms are short, even rubber hoses that come out of the body's sides
+  just below the side rays; legs come out of the bottom either side of the
+  lowest ray. At rest the limbs are tucked away, so the resting Sunny is
+  exactly the logo; a gesture brings out only what it needs.
+  Hands are chunky four-finger cartoon hands with a thick ink line and inked
+  creases between the fingers: open, relaxed, fist, grip, finger-gun, raised
+  index, thumbs-up, peace. Shoes are big, flat-soled beans. They are built from
+  shapes in `hands.ts`, not traced, so every hand has the same line weight and
+  swaps cleanly. A change of hand shape passes through a one-frame smear.
+  In code: `morph` on each `ArmRig`/`LegRig` (0 = tucked), `LIMB_SOCKETS`,
+  `limbPose('rest' | 'stand' | 'hips' | 'read' | 'recline' | …)`,
+  `scripts/render-pose-sheet.ts` to review them all against the sheet.
 
 ### C2. Pose and moment map (use these — meaning must be consistent)
 

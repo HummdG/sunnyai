@@ -1,7 +1,24 @@
 # ADR-007: Character animation runtime — Rive, authored by an animator
 
-- **Status:** Amended 2026-10-12 — see "Amendment" below
+- **Status:** Amended 2026-10-12 and 2026-10-14 — see "Amendment" sections below
 - **Date:** 2026-10-12
+
+## Amendment (2026-10-14, owner direction)
+
+The owner found the in-house character moved "like a slideshow" and rejected
+its hands and feet. Still in-house (Rive was considered again and declined),
+with three changes to the runtime:
+
+- **Compositing.** `animation-engine/src/compositor.ts` blends from the last
+  drawn rig into each new target (180 ms; 260 ms into a state's loop), lays the
+  blink over the frame as an eyelid overlay instead of letting it win, and
+  trails the body with damped springs so rays and hands follow through. Every
+  state now has a resting loop.
+- **Frame rate.** Body motion runs at the display rate; the 24 fps film clock
+  is kept for the ink boil, and for motion only on low-power devices.
+- **Anatomy.** Limbs come out of sockets between the rays instead of morphing
+  rays (`character/src/limbs.ts`), with hands and shoes built from shapes
+  (`character/src/hands.ts`) rather than traced from the pose sheet.
 
 ## Amendment (2026-10-12, owner direction)
 
