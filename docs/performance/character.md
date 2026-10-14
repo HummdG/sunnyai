@@ -36,3 +36,18 @@ main thread), which the new renderer does not have at all.
 
 Re-run: `npm run build:lab && npx tsx apps/character-lab/serve.ts --port 4190`
 then `node scripts/perf-character.mjs`.
+
+## 2026-10-14: display-rate motion
+
+Body motion now runs at the display rate (the ink boil keeps its own 8 fps
+clock), with the compositor's blends and follow-through springs on every
+frame. `scripts/perf-character.mjs` on the same harness:
+
+| Throttle | Frames | p95 frame | Dropped | Work p95 | Script/frame |
+| -------- | ------ | --------- | ------- | -------- | ------------ |
+| 1×       | 301    | 16.8 ms   | 0       | 3.6 ms   | 1.84 ms      |
+| 4×       | 301    | 16.7 ms   | 1       | 7.7 ms   | 4.09 ms      |
+
+One dropped frame in 301 at 4× CPU, against none at 24 fps. Devices that ask to
+save data, or report two cores or fewer, fall back to 24 fps film frames in
+the widget (`lowPower()` in `widget.ts`).
