@@ -143,6 +143,23 @@ const DIRECTORS: Readonly<Record<string, Director>> = {
   'error-deflate': (r, t, base) => act(r, base, pose('droop'), envelope(t, 0.3, 0.3)),
   'error-still': (r, t, base) => act(r, base, pose('droop'), envelope(t, 0.3, 0.3) * 0.6),
 
+  'celebrate-glow': (r, t, base) => {
+    // Fists pumping on the bounce, the cheer from the sheet kept at half height.
+    const limbs = blendLimbs(pose('hips'), pose('cheer'), 0.55 + Math.sin(t * 4 * Math.PI) * 0.2);
+    act(r, base, limbs, 1);
+  },
+  'celebrate-glow-still': (r, _t, base) => act(r, base, pose('thumbsUp'), 1),
+  ponder: (r, t, base) => {
+    // A hand scratching the chin; the other on the hip.
+    const limbs = pose('chin');
+    limbs.arms.left.hand.x += Math.sin(t * 6 * TAU) * 1.2;
+    limbs.arms.left.handRotation += Math.sin(t * 6 * TAU) * 6;
+    act(r, base, limbs, 1);
+  },
+  'ponder-still': (r, _t, base) => act(r, base, pose('chin'), 1),
+  droop: (r, _t, base) => act(r, base, pose('droop'), 0.85),
+  'droop-still': (r, _t, base) => act(r, base, pose('droop'), 0.85),
+
   'cool-still': (r, t, base) => act(r, base, pose('thumbsUp'), envelope(t, 0.2, 0.2)),
 
   'charging-panel': (r, t, base) => {

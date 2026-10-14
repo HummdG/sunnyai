@@ -209,7 +209,19 @@ const blink: Sequence = {
   intensity: 'minimal',
   assets: [],
   reducedMotionFallback: null,
-  states: ['idle', 'listening', 'speaking', 'guiding', 'relaxing', 'playing'],
+  states: [
+    'idle',
+    'listening',
+    'thinking',
+    'speaking',
+    'guiding',
+    'celebrating',
+    'confused',
+    'relaxing',
+    'playing',
+    'error',
+  ],
+  layer: 'eyelids',
   pose: (base, t) => {
     const r = cloneRig(base);
     const close = t < 0.35 ? ease(t / 0.35) : 1 - ease((t - 0.35) / 0.65);
@@ -2458,6 +2470,156 @@ const bloomShowcase: Sequence = {
   pose: (base, t) => bloomPose(base, t, { shine: 0.16, gleam: 2, bloom: 1.12, hop: true, lean: 3 }),
 };
 
+// ─── the resting loops of the reactive states ────────────────────────────────
+//
+// `celebrating`, `confused` and `error` used to have no floor: their moment
+// played for a second and then Sunny stood as a bare base rig, not even
+// breathing, until the state settled (and `error` never settles on its own).
+// Each loop below is periodic -- the pose at t = 1 is the pose at t = 0 -- so it
+// can run for as long as the state lasts without a seam.
+
+/** Celebrating, after the big moment: a happy little bounce, squinting with joy. */
+const celebrateGlow: Sequence = {
+  id: 'celebrate-glow',
+  group: 'celebrate-glow',
+  priority: PRIORITY.idle + 10,
+  duration: 1600,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'minimal',
+  assets: [],
+  reducedMotionFallback: 'celebrate-glow-still',
+  states: ['celebrating'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const b = hoseBounce(t * 2);
+    r.y = base.y - b.lift * 4;
+    r.squash = b.squash * 0.09 - b.stretch * 0.03;
+    r.stretch = b.stretch * 0.04 - b.squash * 0.05;
+    r.faceTilt = wave(t, -0.1) * 4;
+    rubberRays(r, t * 2 - 0.12, 1);
+    r.smile.depth = base.smile.depth * 1.3;
+    r.smile.span = base.smile.span * 1.08;
+    eyes(r, (eye) => {
+      eye.scaleY = 0.86;
+      eye.gaze = { x: 0, y: -0.2 };
+    });
+    r.brows.left.y = base.brows.left.y - 3 - b.lift;
+    r.brows.right.y = base.brows.right.y - 3 - b.lift;
+    return r;
+  },
+};
+
+const celebrateGlowStill: Sequence = {
+  ...celebrateGlow,
+  id: 'celebrate-glow-still',
+  intensity: 'off',
+  reducedMotionFallback: null,
+  pose: (base) => {
+    const r = cloneRig(base);
+    r.smile.depth = base.smile.depth * 1.3;
+    eyes(r, (eye) => (eye.scaleY = 0.86));
+    return r;
+  },
+};
+
+/** Confused, after the double take: a slow puzzled sway, one brow up. */
+const ponder: Sequence = {
+  id: 'ponder',
+  group: 'ponder',
+  priority: PRIORITY.idle + 10,
+  duration: 2400,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'minimal',
+  assets: [],
+  reducedMotionFallback: 'ponder-still',
+  states: ['confused'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const sway = wave(t);
+    r.faceTilt = -9 + sway * 4;
+    r.rotation = -2 + sway * 1.5;
+    r.y = base.y - Math.abs(wave(t * 2)) * 1.2;
+    rubberRays(r, t, 0.4);
+    r.brows.left.y = base.brows.left.y - 5 - Math.max(0, sway) * 2;
+    r.brows.left.rotation = base.brows.left.rotation + 10;
+    r.brows.right.y = base.brows.right.y + 2;
+    r.eyes.left.scaleY = 0.85;
+    r.eyes.right.scaleY = 1.2;
+    eyes(r, (eye) => (eye.gaze = { x: -0.4 + sway * 0.2, y: -0.45 }));
+    r.smile.depth = base.smile.depth * 0.35;
+    r.smile.span = base.smile.span * 0.75;
+    r.smile.rotation = base.smile.rotation + 8;
+    return r;
+  },
+};
+
+const ponderStill: Sequence = {
+  ...ponder,
+  id: 'ponder-still',
+  intensity: 'off',
+  reducedMotionFallback: null,
+  pose: (base) => {
+    const r = cloneRig(base);
+    r.faceTilt = -9;
+    r.brows.left.y = base.brows.left.y - 5;
+    r.smile.depth = base.smile.depth * 0.35;
+    return r;
+  },
+};
+
+/** Error, after the deflation: slumped, rays drooping, a slow sad breath. */
+const droop: Sequence = {
+  id: 'droop',
+  group: 'droop',
+  priority: PRIORITY.idle + 10,
+  duration: 3200,
+  canInterrupt: true,
+  loop: true,
+  intensity: 'minimal',
+  assets: [],
+  reducedMotionFallback: 'droop-still',
+  states: ['error'],
+  pose: (base, t) => {
+    const r = cloneRig(base);
+    const breath = (1 - Math.cos(t * TAU)) / 2;
+    r.y = base.y + 3 - breath * 1.5;
+    r.squash = 0.05 - breath * 0.03;
+    r.stretch = -0.03 + breath * 0.02;
+    for (const ray of r.rays) {
+      const angle = (ray.angleDeg + 360) % 360;
+      const towardDown = angle < 180 ? 1 : -1;
+      ray.rotation = towardDown * (10 - breath * 3) * Math.sin((angle * Math.PI) / 180) ** 2;
+      ray.lengthScale = 0.88 + breath * 0.03;
+    }
+    eyes(r, (eye) => {
+      eye.scaleY = 0.8;
+      eye.gaze = { x: 0, y: 0.5 };
+    });
+    r.brows.left.rotation = base.brows.left.rotation + 10;
+    r.brows.right.rotation = base.brows.right.rotation - 10;
+    r.brows.left.y = base.brows.left.y + 2;
+    r.brows.right.y = base.brows.right.y + 2;
+    r.smile.depth = base.smile.depth * -0.25;
+    r.smile.span = base.smile.span * 0.7;
+    return r;
+  },
+};
+
+const droopStill: Sequence = {
+  ...droop,
+  id: 'droop-still',
+  intensity: 'off',
+  reducedMotionFallback: null,
+  pose: (base) => {
+    const r = cloneRig(base);
+    for (const ray of r.rays) ray.lengthScale = 0.9;
+    r.smile.depth = base.smile.depth * -0.2;
+    return r;
+  },
+};
+
 /**
  * The registry. Every sequence the engine can run is here; the scheduler can
  * only pick from this list, so a typo in a state name is a typecheck failure
@@ -2484,6 +2646,12 @@ const AUTHORED: readonly Sequence[] = [
   confused,
   errorStill,
   error,
+  celebrateGlowStill,
+  celebrateGlow,
+  ponderStill,
+  ponder,
+  droopStill,
+  droop,
   chargingStill,
   charging,
   coolShadesStill,

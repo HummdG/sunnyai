@@ -122,6 +122,12 @@ export interface Sequence {
   /** The states this sequence is eligible to play in. */
   states: readonly SunnyState[];
   /**
+   * An overlay layer, when the sequence is not a pose of its own. An `eyelids`
+   * sequence never wins the frame: its eye closure is laid over whatever does,
+   * so a blink lands on a bouncing body instead of freezing it for 160 ms.
+   */
+  layer?: 'eyelids';
+  /**
    * The pose at progress `t` in 0..1 (or, when looping, the phase in 0..1).
    * Must be pure: same inputs, same rig, every time. `anchor` is present only
    * for a moment that was asked for with one -- see `MomentAnchor`.

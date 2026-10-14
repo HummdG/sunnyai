@@ -188,6 +188,31 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     askedBy: '`turn_failed`',
   },
   {
+    group: 'celebrate-glow',
+    name: 'Glowing',
+    description: 'After a celebration: a happy little bounce with fists pumping, eyes squinting.',
+    category: 'ambient',
+    asked: 'engine',
+    askedBy: 'the ambient layer of the celebrating state',
+  },
+  {
+    group: 'ponder',
+    name: 'Pondering',
+    description: 'After a double take: a slow puzzled sway, one brow up, scratching the chin.',
+    category: 'ambient',
+    asked: 'engine',
+    askedBy: 'the ambient layer of the confused state',
+  },
+  {
+    group: 'droop',
+    name: 'Drooping',
+    description:
+      'After an error: slumped with the rays hanging, breathing slowly until the next turn.',
+    category: 'ambient',
+    asked: 'engine',
+    askedBy: 'the ambient layer of the error state',
+  },
+  {
     group: 'play',
     name: 'Playing along',
     description:

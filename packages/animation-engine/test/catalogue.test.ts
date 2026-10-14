@@ -63,6 +63,9 @@ function stateWhereItPlays(
     if (frame.sequenceId !== null && members.has(frame.sequenceId)) {
       return { state, sequenceId: frame.sequenceId };
     }
+    // An overlay (the blink) is drawn on top of the winner rather than winning.
+    const overlay = frame.overlays.find((id) => members.has(id));
+    if (overlay) return { state, sequenceId: overlay };
   }
   return null;
 }

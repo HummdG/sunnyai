@@ -263,13 +263,19 @@ export class SunnyAnimator {
     // is long, the move is a short burst at the start of it, and between bursts
     // the resting layer is what the visitor is looking at. A character that
     // stops blinking for the length of a game reads as switched off.
+    // Every state blinks now: the blink is an overlay on the eyelids, so it
+    // can land on a thinking or celebrating pose without interrupting it.
     const blinkable: SunnyState[] = [
       'idle',
       'listening',
+      'thinking',
       'speaking',
       'guiding',
+      'celebrating',
+      'confused',
       'relaxing',
       'playing',
+      'error',
     ];
     if (!blinkable.includes(this.machine.state)) {
       this.#nextBlinkAt = now + BLINK_MIN_MS;

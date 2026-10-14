@@ -189,25 +189,42 @@ function morph(target: Element, source: Element): void {
   for (let i = sourceKids.length; i < targetKids.length; i++) targetKids[i]!.remove();
 }
 
-/** Drawings per second for character motion: film rate, animated "on ones". */
+/**
+ * Drawings per second for character motion when stepping is asked for. Motion
+ * normally runs at the display rate; see `cartoonClock`.
+ */
 export const CARTOON_FPS = 24;
 /** How often the ink "boils" to a new drawing, and how many drawings it cycles. */
 export const BOIL_FPS = 8;
 export const BOIL_DRAWINGS = 3;
 
+export interface CartoonClockOptions {
+  /**
+   * Step the motion on 24 fps film frames. Off by default: stepped motion is
+   * what made every cut between poses read as a slide change, and the 1930s
+   * look comes from the boiling line and the arcs, not from a choppy body.
+   * Worth turning on for a low-power device, where it also saves frames.
+   */
+  stepped?: boolean;
+}
+
 /**
  * The 1930s cartoon clock.
  *
- * Hand-drawn animation does not move continuously: it advances in whole film
- * frames, and the ink lines are redrawn a few times a second so they never sit
- * quite still. Feed a frame loop's timestamp through this and pass `time` to
- * the animator and `boil` to the view, and the character moves on film frames
- * with a living line instead of gliding like a vector graphic.
+ * The ink lines are redrawn a few times a second so they never sit quite
+ * still -- the hand-inked shimmer. Feed a frame loop's timestamp through this
+ * and pass `time` to the animator and `boil` to the view. The body moves at the
+ * display rate (smooth arcs, game feel) unless `stepped` asks for film frames.
  */
-export function cartoonClock(now: number): { time: number; boil: number } {
-  const frame = Math.floor((now * CARTOON_FPS) / 1000);
+export function cartoonClock(
+  now: number,
+  options: CartoonClockOptions = {},
+): { time: number; boil: number } {
+  const time = options.stepped
+    ? (Math.floor((now * CARTOON_FPS) / 1000) * 1000) / CARTOON_FPS
+    : now;
   return {
-    time: (frame * 1000) / CARTOON_FPS,
+    time,
     boil: Math.floor((now * BOIL_FPS) / 1000) % BOIL_DRAWINGS,
   };
 }

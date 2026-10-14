@@ -509,7 +509,8 @@ export class SunnyWidget {
   #startFrameLoop(): void {
     const step = (time: number): void => {
       this.#frameHandle = requestAnimationFrame(step);
-      if (time - this.#lastFrameAt < FRAME_MS) return;
+      // Display-rate motion; a low-power device falls back to film frames.
+      if (lowPower() && time - this.#lastFrameAt < FRAME_MS) return;
       this.#lastFrameAt = time;
       this.#renderCharacter(time);
     };
@@ -519,7 +520,7 @@ export class SunnyWidget {
   #renderCharacter(time: number): void {
     const hidden = document.visibilityState === 'hidden';
     // Film frames and a boiling ink line: the 1930s cartoon clock.
-    const clock = cartoonClock(time);
+    const clock = cartoonClock(time, { stepped: lowPower() });
     const result = this.#animator.frame(clock.time, {
       hidden,
       reducedMotion: prefersReducedMotion(),
@@ -1158,6 +1159,17 @@ interface RoofSummary {
 
 function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * A device that has asked to save data or reports very few cores gets film-rate
+ * (24 fps) motion instead of the display rate: still the same animation, at
+ * well under half the work.
+ */
+function lowPower(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const nav = navigator as Navigator & { connection?: { saveData?: boolean } };
+  return nav.connection?.saveData === true || (nav.hardwareConcurrency ?? 8) <= 2;
 }
 
 /** Derive a theme from the tenant's single accent colour. */

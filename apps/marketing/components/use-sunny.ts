@@ -78,8 +78,8 @@ export function useSunny(
     });
     io.observe(node);
 
-    // Motion steps on 24 fps film frames and the ink boils a few times a
-    // second (`cartoonClock`): a 1930s cartoon, not a gliding vector graphic.
+    // Motion runs at the display rate and the ink boils a few times a second
+    // (`cartoonClock`): smooth arcs with a hand-inked, living line.
     let handle = 0;
     let lastTime = -1;
     let lastBoil = -1;
@@ -97,7 +97,7 @@ export function useSunny(
       });
 
       if (gaze && !reduced) {
-        // Eased once per film frame, so the eyes move on the same frames.
+        // Eased once per frame, so the eyes move with the body.
         look.x += (target.x - look.x) * 0.3;
         look.y += (target.y - look.y) * 0.3;
         view.draw(withGaze(rig, look), { boil });

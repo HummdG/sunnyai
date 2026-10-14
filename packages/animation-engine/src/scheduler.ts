@@ -1,5 +1,6 @@
-import type { SunnyRig } from '@sunny/character';
+import { cloneRig, type SunnyRig } from '@sunny/character';
 
+import { BLEND_MS, Compositor, STATE_BLEND_MS } from './compositor.js';
 import { SEQUENCE_BY_ID, bestInGroup, isEligible } from './sequences.js';
 import {
   PRIORITY,
@@ -29,6 +30,8 @@ export interface RenderResult {
   sequenceId: string | null;
   /** Sequences that lost this frame, strongest first. Useful in a debug overlay. */
   yields: string[];
+  /** Overlay sequences (a blink) drawn on top of the winner this frame. */
+  overlays: string[];
 }
 
 /**
@@ -49,6 +52,12 @@ const AMBIENT_GROUP: Partial<Record<SunnyState, string>> = {
   thinking: 'think',
   speaking: 'speak',
   guiding: 'guide',
+  // The reactive states used to have no floor, so once their short moment was
+  // over Sunny stood as a bare, unbreathing base pose for seconds (error: until
+  // the next event). Each now has a quiet loop of its own underneath.
+  celebrating: 'celebrate-glow',
+  confused: 'ponder',
+  error: 'droop',
 };
 
 /**
@@ -71,6 +80,7 @@ export class Scheduler {
   #reducedMotion: boolean;
   #floor: Instance | null = null;
   #floorGroup: string | null = null;
+  readonly #compositor = new Compositor();
 
   constructor(intensity: Intensity = 'balanced', reducedMotion = false) {
     this.#intensity = intensity;
@@ -152,6 +162,7 @@ export class Scheduler {
     this.#active = [];
     this.#floor = null;
     this.#floorGroup = null;
+    this.#compositor.reset();
   }
 
   /** Resume the sequence a state change interrupted, if it qualifies. */
@@ -179,7 +190,7 @@ export class Scheduler {
 
     if (ctx.paused || ctx.hidden) {
       this.clear();
-      return { rig: base, sequenceId: null, yields: [] };
+      return { rig: base, sequenceId: null, yields: [], overlays: [] };
     }
 
     // Retire finished instances and anything no longer valid for this state.
@@ -203,26 +214,50 @@ export class Scheduler {
 
     const floor = this.#floor;
     const pool = floor ? [...this.#active, floor] : [...this.#active];
-    const resolved = pool
+    const eligible = pool
       .map((instance) => ({ instance, sequence: this.resolve(instance.sequence) }))
       .filter((e): e is { instance: Instance; sequence: Sequence } => e.sequence !== null)
-      .filter((e) => isEligible(e.sequence, this.#intensity))
+      .filter((e) => isEligible(e.sequence, this.#intensity));
+    // Overlays (a blink) never compete for the frame: they are drawn on top of
+    // whatever wins, so a blink no longer freezes the bounce underneath it.
+    const overlays = eligible.filter((e) => e.sequence.layer === 'eyelids');
+    const resolved = eligible
+      .filter((e) => e.sequence.layer === undefined)
       .sort((a, b) => b.sequence.priority - a.sequence.priority);
 
-    if (resolved.length === 0) {
-      return { rig: base, sequenceId: null, yields: [] };
+    const progress = (e: { instance: Instance; sequence: Sequence }): number => {
+      const elapsed = now - e.instance.startedAt;
+      return e.sequence.loop
+        ? (elapsed % e.sequence.duration) / e.sequence.duration
+        : Math.min(1, elapsed / e.sequence.duration);
+    };
+
+    const winner = resolved[0];
+    let target = winner
+      ? winner.sequence.pose(base, progress(winner), winner.instance.anchor)
+      : base;
+
+    if (overlays.length > 0) {
+      target = cloneRig(target);
+      for (const o of overlays) {
+        const lid = o.sequence.pose(base, progress(o), o.instance.anchor);
+        target.eyes.left.closed = Math.max(target.eyes.left.closed, lid.eyes.left.closed);
+        target.eyes.right.closed = Math.max(target.eyes.right.closed, lid.eyes.right.closed);
+      }
     }
 
-    const winner = resolved[0]!;
-    const elapsed = now - winner.instance.startedAt;
-    const t = winner.sequence.loop
-      ? (elapsed % winner.sequence.duration) / winner.sequence.duration
-      : Math.min(1, elapsed / winner.sequence.duration);
+    const key = winner ? `${winner.sequence.id}@${winner.instance.startedAt}` : null;
+    const rig = this.#compositor.compose(target, now, {
+      key,
+      blendMs: winner && winner.instance === floor ? STATE_BLEND_MS : BLEND_MS,
+      reducedMotion: this.#reducedMotion,
+    });
 
     return {
-      rig: winner.sequence.pose(base, t, winner.instance.anchor),
-      sequenceId: winner.sequence.id,
+      rig,
+      sequenceId: winner?.sequence.id ?? null,
       yields: resolved.slice(1).map((e) => e.sequence.id),
+      overlays: overlays.map((e) => e.sequence.id),
     };
   }
 

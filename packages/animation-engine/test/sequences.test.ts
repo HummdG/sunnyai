@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BLEND_MS,
+  STATE_BLEND_MS,
   SunnyAnimator,
   PRIORITY,
   Scheduler,
@@ -205,7 +207,7 @@ describe('SunnyAnimator', () => {
     let blinked = false;
     for (let i = 0; i < 400; i++) {
       const r = a.frame(20 + i * 50);
-      if (r.sequenceId === 'blink' || r.yields.includes('blink')) blinked = true;
+      if (r.overlays.includes('blink')) blinked = true;
     }
     expect(blinked).toBe(true);
   });
@@ -436,7 +438,7 @@ describe('SunnyAnimator', () => {
     const a = new SunnyAnimator(defaultRig(), { seed: 3 });
     a.dispatch({ type: 'play_started' }, 0);
     const drawn = new Set<string | null>();
-    for (let i = 0; i <= 400; i++) drawn.add(a.frame(i * 50).sequenceId);
+    for (let i = 0; i <= 400; i++) for (const id of a.frame(i * 50).overlays) drawn.add(id);
     expect([...drawn]).toContain('blink');
   });
 
@@ -487,7 +489,11 @@ describe('SunnyAnimator', () => {
     // The visitor clicks the launcher again, still well inside the sequence.
     a.dispatch({ type: 'attention' }, 700);
     expect(a.state).toBe('listening');
-    expect(a.frame(700).rig.props).toEqual([]);
+    // The chair fades rather than vanishing in one frame, and is gone once the
+    // blend is over.
+    const fading = a.frame(700).rig.props.find((p) => p.id === 'deckchair');
+    expect(fading?.opacity ?? 0).toBeLessThan(1);
+    expect(a.frame(600 + STATE_BLEND_MS).rig.props.filter((p) => p.opacity > 0.001)).toEqual([]);
   });
 
   it('plants the chair on the ground while she settles into it', () => {
@@ -698,7 +704,12 @@ describe('A05, the balloon', () => {
 
     a.dispatch({ type: 'turn_started' }, 300);
     expect(a.state).toBe('thinking');
-    expect(a.frame(300).rig.props.map((p) => p.id)).not.toContain('balloon');
+    expect(
+      a
+        .frame(200 + STATE_BLEND_MS)
+        .rig.props.filter((p) => p.opacity > 0.001)
+        .map((p) => p.id),
+    ).not.toContain('balloon');
   });
 
   it('holds a still balloon for a visitor who asked for less motion', () => {
@@ -713,7 +724,8 @@ describe('A05, the balloon', () => {
     a.frame(0, { reducedMotion: true });
     expect(a.tap({ x: 100, y: 100 }, 0)).toBe(true);
 
-    const held = a.frame(0, { reducedMotion: true }).rig;
+    a.frame(0, { reducedMotion: true });
+    const held = a.frame(BLEND_MS, { reducedMotion: true }).rig;
     expect(a.lastFrame?.sequenceId).toBe('balloon-still');
     expect(held.props.map((p) => p.id)).toContain('balloon');
     expect(a.frame(900, { reducedMotion: true }).rig).toEqual(held);
@@ -722,7 +734,7 @@ describe('A05, the balloon', () => {
     // burst with the motion removed: the balloon is simply gone.
     const at = toViewBox(held, balloonIn(held, 'the still'));
     expect(a.tap(at, 900)).toBe(true);
-    const after = a.frame(960, { reducedMotion: true });
+    const after = a.frame(900 + STATE_BLEND_MS, { reducedMotion: true });
     expect(after.rig.props.map((p) => p.id)).not.toContain('balloon');
     expect(SEQUENCE_BY_ID.get(after.sequenceId!)?.group).not.toBe('pop');
   });
@@ -737,13 +749,15 @@ describe('A05, the balloon', () => {
     a.frame(0);
     expect(a.tap({ x: 100, y: 100 }, 0)).toBe(true);
 
-    const held = a.frame(0).rig;
+    a.frame(0);
+    const held = a.frame(BLEND_MS).rig;
     expect(a.lastFrame?.sequenceId).toBe('balloon-still');
     expect(a.frame(3_000).rig).toEqual(held);
 
     const at = toViewBox(held, balloonIn(held, 'the still'));
     expect(a.tap(at, 3_000)).toBe(true);
-    expect(a.frame(3_000).rig).toEqual(base);
+    a.frame(3_000);
+    expect(a.frame(3_000 + STATE_BLEND_MS).rig).toEqual(base);
   });
 });
 

@@ -36,20 +36,22 @@ describe('character rendering', () => {
     // Guards the degenerate pass: if the rasteriser silently produced one blank
     // image for everything, every baseline below would still match and the suite
     // would be green while checking nothing at all. It is not a bijection, and
-    // deliberately so -- three scenes are *supposed* to coincide, and spelling
+    // deliberately so -- two scenes are *supposed* to coincide, and spelling
     // that out is more useful than a loosened threshold:
     //
-    //   `celebrating-off`             an intensity of `off` resolves no sequence
-    //                                 at all, so the character rests
-    //   `celebrating-reduced-motion`  resolves `celebrate-still`, whose pose is
-    //                                 the resting pose
+    //   `celebrating-reduced-motion`  captured as `celebrate-still` ends on the
+    //                                 resting pose, at the start of the blend
+    //                                 into the celebrating state's held glow
     //   `relaxing-reduced-motion`     resolves `relax-still`, which is the same
     //                                 pose for the same reason: there is no
     //                                 honest still of a deckchair arriving, so a
     //                                 visitor who asked for less motion gets the
     //                                 resting pose rather than a frozen chair
     //
-    // Different reasons, the same image, and all three correct. Any *other* pair
+    // (`celebrating-off` used to be a third: an intensity of `off` resolved no
+    // sequence at all. The celebrating state now has a held, smiling floor.)
+    //
+    // Different reasons, the same image, and both correct. Any *other* pair
     // coinciding fails here, so it has to be explained rather than discovered --
     // which is the check that caught the bug this suite was extended for: until
     // A04, `relaxing` borrowed the idle layer and a break looked exactly like
@@ -63,9 +65,9 @@ describe('character rendering', () => {
 
     const coincident = [...byDigest.values()].filter((names) => names.length > 1);
     expect(coincident).toEqual([
-      ['celebrating-off', 'celebrating-reduced-motion', 'relaxing-reduced-motion'],
+      ['celebrating-reduced-motion', 'relaxing-reduced-motion'],
     ]);
-    expect(byDigest.size).toBe(SCENES.length - 2);
+    expect(byDigest.size).toBe(SCENES.length - 1);
     // Every scene is rasterised here rather than one, and each walks the frame
     // loop up to its capture time. Slower than the default budget, on purpose,
     // and generous enough for a full parallel run on a loaded machine.
