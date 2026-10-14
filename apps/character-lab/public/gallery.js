@@ -66,8 +66,8 @@
   var BOIL_AMPLITUDE = 0.32;
   var cache = /* @__PURE__ */ new Map();
   var CACHE_LIMIT = 4e3;
-  function noise(index, variant) {
-    const s = Math.sin(index * 12.9898 + variant * 78.233 + 0.5) * 43758.5453;
+  function noise(index2, variant) {
+    const s = Math.sin(index2 * 12.9898 + variant * 78.233 + 0.5) * 43758.5453;
     return (s - Math.floor(s)) * 2 - 1;
   }
   function boilPath(d, variant, amplitude = BOIL_AMPLITUDE) {
@@ -78,10 +78,10 @@
     let i = 0;
     const out = d.replace(/-?\d*\.?\d+(?:e-?\d+)?/gi, (num) => {
       const v = Number(num);
-      const index = Math.floor(i / 2);
+      const index2 = Math.floor(i / 2);
       const axis = i % 2;
       i += 1;
-      const shifted = v + noise(index * 2 + axis, variant) * amplitude;
+      const shifted = v + noise(index2 * 2 + axis, variant) * amplitude;
       return String(Math.round(shifted * 100) / 100);
     });
     if (cache.size > CACHE_LIMIT) cache.clear();
@@ -89,57 +89,280 @@
     return out;
   }
 
-  // packages/character/src/traced-hands.ts
-  var TRACED_HANDS = {
-    open: {
-      ink: "M-7.7 0.2C-10.7 -0.2 -9.1 -1 -9.7 -2.1C-10.4 -3.3 -11 -4.6 -11.5 -6.9C-11.9 -9.2 -12.3 -14 -12.4 -15.9C-12.5 -17.9 -12.1 -17.9 -11.9 -18.6C-11.7 -19.2 -11.6 -19.5 -11 -20C-10.5 -20.4 -9.7 -21.1 -8.7 -21.3C-7.8 -21.4 -6.2 -20.6 -5.4 -20.8C-4.5 -21.1 -4.6 -22.4 -3.8 -22.9C-3.1 -23.4 -1.7 -23.9 -0.8 -24C0.2 -24.1 1.2 -23.9 1.9 -23.3C2.7 -22.8 3 -20.9 3.9 -20.6C4.7 -20.4 5.9 -21.7 6.9 -21.7C7.8 -21.8 8.9 -21.4 9.7 -21C10.4 -20.5 10.8 -19.8 11.1 -19C11.5 -18.2 11.8 -17.7 11.6 -16.3C11.4 -14.9 9.7 -11.6 10 -10.7C10.2 -9.8 12.4 -11.1 13.1 -11.1C13.8 -11.1 14.1 -11 14.4 -10.9C14.6 -10.7 15.7 -12.2 14.6 -10.4C13.6 -8.6 11.8 -1.8 8.1 0C4.4 1.8 -4.7 0.6 -7.7 0.2Z",
-      fill: "M-5.6 -0.3C-8.1 -0.8 -7.7 -2.1 -8.3 -3.3C-9 -4.6 -9.4 -5.7 -9.8 -7.8C-10.1 -9.9 -10.6 -14.2 -10.5 -16C-10.5 -17.8 -10 -18.1 -9.6 -18.6C-9.1 -19.2 -8.4 -19.5 -7.8 -19.5C-7.2 -19.5 -6.5 -19.3 -6 -18.8C-5.6 -18.3 -5.3 -17.5 -5.1 -16.5C-4.9 -15.4 -4.9 -13.3 -4.8 -12.6C-4.7 -11.9 -4.5 -12.2 -4.3 -12.3C-4.2 -12.3 -4 -12 -4 -12.9C-3.9 -13.7 -4.1 -16.2 -4 -17.4C-3.9 -18.7 -3.7 -19.6 -3.4 -20.3C-3.1 -21 -2.7 -21.4 -2.1 -21.7C-1.5 -22 -0.3 -22.2 0.3 -22C0.9 -21.9 1.3 -21.4 1.7 -20.9C2 -20.3 2.2 -20.2 2.2 -18.9C2.2 -17.5 1.7 -13.7 1.7 -12.6C1.7 -11.5 1.8 -11.6 2.1 -12.2C2.5 -12.9 3.1 -15.4 3.7 -16.6C4.2 -17.7 4.7 -18.6 5.3 -19.2C6 -19.7 7 -19.8 7.6 -19.8C8.2 -19.8 8.6 -19.5 9 -19.1C9.3 -18.7 9.6 -18 9.8 -17.4C9.9 -16.8 10.2 -17.3 9.7 -15.6C9.2 -13.9 7.2 -8.7 6.9 -7.2C6.5 -5.8 6.8 -6.6 7.5 -6.9C8.2 -7.2 10.1 -8.6 11.1 -9C12 -9.4 13.6 -10.4 13.1 -9.1C12.6 -7.8 9.1 -2.4 8 -1C7 0.5 9.1 -0.3 6.8 -0.2C4.5 -0.1 -3.1 0.2 -5.6 -0.3Z",
-      joint: 8.2
-    },
-    fist: {
-      ink: "M10.9 -0.9C8.7 -0.1 4.1 0.1 0.3 0.2C-3.5 0.4 -9.5 0.5 -11.8 0.2C-14 -0.1 -12.7 -0.7 -13.1 -1.5C-13.6 -2.3 -14.2 -3.6 -14.5 -4.6C-14.7 -5.7 -14.9 -6.8 -14.8 -7.9C-14.7 -9.1 -14.9 -9.8 -14 -11.4C-13.2 -13 -10.7 -16.1 -9.5 -17.5C-8.3 -19 -7.8 -19.4 -6.8 -20C-5.9 -20.5 -5 -20.4 -3.9 -21C-2.9 -21.5 -1.8 -22.9 -0.6 -23.4C0.6 -23.8 2.4 -23.8 3.4 -23.8C4.3 -23.8 4.3 -23.7 5.2 -23.3C6 -22.8 7.6 -21.9 8.5 -20.9C9.4 -19.9 9.9 -18.2 10.6 -17.2C11.3 -16.3 12.3 -16 12.9 -15.3C13.5 -14.7 14 -14.1 14.3 -13C14.6 -12 14.7 -10.2 14.7 -9.2C14.7 -8.2 14.6 -7.8 14.3 -7C14.1 -6.2 13.9 -5.5 13.4 -4.5C12.8 -3.5 13.1 -1.7 10.9 -0.9Z",
-      fill: "M8.3 -1.2C6.6 -0.4 3.2 -0.4 0.3 -0.3C-2.7 -0.2 -7.3 -0.1 -9.1 -0.3C-11 -0.6 -10.3 -1.3 -10.8 -2.1C-11.3 -2.8 -11.9 -4 -12.2 -5C-12.5 -6 -12.6 -7.1 -12.5 -8.2C-12.4 -9.2 -12.3 -10.3 -11.6 -11.4C-11 -12.4 -9.4 -13.4 -8.6 -14.3C-7.9 -15.3 -7.7 -16.2 -7.1 -16.9C-6.5 -17.6 -5.8 -18.3 -5 -18.7C-4.1 -19.1 -2.8 -18.8 -2.2 -19.1C-1.6 -19.5 -1.6 -20.2 -1.1 -20.6C-0.7 -21 0 -21.3 0.7 -21.5C1.3 -21.6 2.1 -21.7 2.8 -21.5C3.5 -21.4 4.2 -21.3 5 -20.8C5.8 -20.4 6.8 -19.5 7.3 -18.9C7.9 -18.4 8.8 -18 8.2 -17.4C7.6 -16.8 4.8 -15.2 3.7 -15.3C2.6 -15.3 2.1 -17.1 1.5 -17.6C0.8 -18 -0.1 -18.4 0.1 -17.9C0.2 -17.4 2.2 -15.5 2.4 -14.4C2.5 -13.3 1.2 -12.3 1 -11.3C0.8 -10.3 1.4 -8.9 1.4 -8.2C1.3 -7.6 1.1 -7.6 0.9 -7.3C0.7 -7.1 0.4 -6.9 0.1 -6.8C-0.1 -6.8 0 -6.3 -0.6 -7.2C-1.2 -8.1 -2.4 -11.2 -3.4 -12.3C-4.3 -13.4 -5.6 -13.6 -6.1 -13.7C-6.6 -13.8 -6.8 -13.7 -6.3 -13.1C-5.7 -12.5 -3.6 -10.8 -2.9 -9.8C-2.2 -8.9 -2.2 -8.2 -2 -7.5C-1.9 -6.8 -1.8 -6.5 -2 -5.9C-2.3 -5.3 -2.9 -4.4 -3.3 -4C-3.8 -3.6 -4.3 -3.5 -4.8 -3.4C-5.2 -3.3 -5.4 -3.2 -6 -3.6C-6.5 -3.9 -7.7 -5.3 -8.1 -5.5C-8.4 -5.8 -8.5 -5.7 -8.3 -5.3C-8.1 -4.8 -7.5 -3.4 -6.8 -2.9C-6.1 -2.4 -5 -2.2 -4.2 -2.2C-3.4 -2.3 -2.7 -2.6 -2 -3.1C-1.4 -3.6 -1 -4.6 -0.2 -5.1C0.5 -5.7 1.7 -6.4 2.4 -6.6C3.2 -6.8 3.5 -6.3 4.2 -6.3C4.9 -6.4 6.2 -6.5 6.8 -6.8C7.5 -7.1 8 -7.8 8.2 -8.1C8.4 -8.5 8.5 -8.8 8.2 -8.8C7.8 -8.8 6.8 -8 6.2 -7.9C5.6 -7.7 5 -7.6 4.5 -7.8C3.9 -8 3 -8.6 2.7 -9.1C2.4 -9.5 2.3 -10 2.4 -10.6C2.5 -11.2 2.9 -12 3.4 -12.6C3.8 -13.2 4.4 -13.8 5 -14.3C5.6 -14.7 6.1 -15 6.8 -15.1C7.5 -15.3 8.3 -15.5 9.1 -15.2C9.8 -14.9 10.9 -14.3 11.5 -13.4C12.1 -12.6 12.7 -11.5 12.6 -10.1C12.5 -8.6 11.6 -6.4 10.9 -4.9C10.2 -3.4 10.1 -1.9 8.3 -1.2Z",
-      joint: 11.27
-    },
-    thumb: {
-      ink: "M16.3 -11.8C16.8 -10.2 17 -8.4 17.1 -7.4C17.2 -6.4 17.2 -6.2 17 -5.8C16.9 -5.5 19 -6.3 16.2 -5.3C13.4 -4.3 5.9 -0.7 0.3 0.2C-5.4 1.1 -14.9 0.3 -17.8 0C-20.7 -0.2 -17.6 -0.9 -17.2 -1.5C-16.7 -2 -16.4 -2.6 -15.2 -3.4C-14 -4.1 -10.4 -4.8 -9.8 -5.9C-9.2 -7.1 -11.2 -9.1 -11.5 -10.2C-11.9 -11.2 -11.8 -11.5 -11.7 -12.3C-11.7 -13.1 -11.5 -14.3 -11.2 -15.1C-10.9 -15.9 -10.6 -16.5 -10 -17.1C-9.4 -17.6 -8.7 -18.2 -7.8 -18.6C-6.9 -18.9 -5.5 -18.7 -4.5 -19.2C-3.6 -19.6 -2.9 -20.7 -2 -21.1C-1.2 -21.6 -0.4 -21.8 0.5 -21.8C1.4 -21.8 2.4 -21.2 3.3 -21.3C4.2 -21.5 5.2 -22.4 6 -22.6C6.9 -22.8 7.7 -22.7 8.4 -22.5C9.2 -22.3 9.7 -22 10.5 -21.5C11.2 -21 12.3 -20.1 13 -19.4C13.6 -18.6 13.8 -18.3 14.4 -17.1C14.9 -15.8 15.8 -13.4 16.3 -11.8Z",
-      fill: "M14.6 -9.4C14.8 -9.1 15 -8.2 15 -7.5C15 -6.8 17 -6.5 14.5 -5.4C12 -4.2 5.1 -1.2 0.2 -0.4C-4.7 0.5 -12.8 -0.1 -15 -0.4C-17.1 -0.7 -13.8 -1.8 -12.6 -2.4C-11.5 -3 -9.4 -3.9 -8.1 -3.9C-6.7 -3.9 -5.6 -2.6 -4.5 -2.4C-3.4 -2.1 -2.4 -2.2 -1.6 -2.4C-0.8 -2.5 -0.1 -3.1 0.4 -3.5C0.9 -3.9 0.7 -4.7 1.5 -4.9C2.3 -5.1 4.3 -4.7 5.2 -4.8C6.1 -5 6.4 -5.3 6.9 -5.8C7.4 -6.2 7.7 -7.2 8.4 -7.5C9.1 -7.8 10.4 -7.2 11.3 -7.5C12.2 -7.9 13.3 -9.3 13.8 -9.6C14.4 -10 14.4 -9.8 14.6 -9.4ZM12.2 -16.3C12.7 -15.4 13 -14.2 13.2 -13.3C13.3 -12.5 13.2 -12 13 -11.4C12.8 -10.7 12.6 -10 12.1 -9.6C11.5 -9.1 10.4 -8.7 9.8 -8.7C9.1 -8.7 8.5 -8.7 8 -9.6C7.4 -10.5 7.1 -12.7 6.6 -13.8C6.2 -14.9 5.5 -15.8 5.2 -16.2C4.9 -16.7 4.4 -17.5 4.6 -16.3C4.9 -15.1 6.6 -10.4 6.8 -8.8C7.1 -7.2 6.5 -7.5 6.1 -7C5.7 -6.5 5.1 -5.9 4.4 -6C3.6 -6 2.5 -5.7 1.3 -7C0.2 -8.4 -2.1 -13.5 -2.6 -14C-3.1 -14.6 -2.2 -11.5 -1.8 -10.2C-1.3 -8.9 0 -7.1 0.3 -6.2C0.5 -5.3 0.1 -5.2 -0.3 -4.8C-0.8 -4.3 -1.7 -3.8 -2.3 -3.6C-2.9 -3.5 -3.5 -3.7 -4.2 -3.9C-4.9 -4.2 -5.5 -4.4 -6.2 -5.1C-6.9 -5.7 -7.8 -6.8 -8.4 -7.8C-8.9 -8.8 -9.4 -10.1 -9.5 -11.1C-9.7 -12.1 -9.6 -13.1 -9.3 -13.9C-9 -14.7 -8.5 -15.4 -7.9 -15.9C-7.4 -16.4 -6.6 -16.6 -5.9 -16.7C-5.2 -16.8 -4.5 -16.2 -3.9 -16.5C-3.2 -16.8 -2.6 -18.1 -2 -18.6C-1.4 -19.1 -0.9 -19.3 -0.3 -19.5C0.2 -19.6 0.8 -19.7 1.4 -19.6C2.1 -19.5 2.8 -18.7 3.6 -18.8C4.4 -18.9 5.4 -20 6.2 -20.2C6.9 -20.5 7.2 -20.5 7.9 -20.3C8.7 -20 9.8 -19.6 10.5 -18.9C11.2 -18.3 11.8 -17.3 12.2 -16.3Z",
-      joint: 18.07
-    },
-    point: {
-      ink: "M-17.7 -6.1C-17.6 -7 -17.4 -8.5 -16.8 -9.5C-16.3 -10.5 -15.2 -11.4 -14.5 -11.9C-13.8 -12.5 -13.3 -12.7 -12.5 -12.8C-11.8 -12.9 -11.3 -12.3 -10.2 -12.6C-9.1 -13 -7.4 -14.6 -6.2 -14.9C-4.9 -15.3 -3.3 -13.7 -2.6 -14.5C-1.8 -15.4 -2 -18.6 -1.6 -19.8C-1.3 -21 -1.2 -21 -0.6 -21.6C-0.1 -22.2 1 -23 1.7 -23.4C2.5 -23.7 3 -24 3.9 -23.7C4.8 -23.5 6.4 -22.7 7.2 -22C8 -21.2 8.4 -20.3 8.6 -19C8.9 -17.7 9.1 -16.1 8.9 -14.1C8.7 -12 7 -7.9 7.3 -6.7C7.5 -5.5 9.4 -7 10.4 -6.9C11.4 -6.7 12.5 -6.3 13.4 -5.7C14.3 -5 15.2 -3.8 15.6 -3C16 -2.2 16.1 -1.4 16 -0.8C16 -0.3 18.1 0 15.4 0.2C12.6 0.4 5 0.7 -0.4 0.2C-5.8 -0.3 -14.2 -2.3 -17.1 -2.9C-19.9 -3.6 -17.5 -3.4 -17.7 -4C-17.8 -4.5 -17.9 -5.1 -17.7 -6.1Z",
-      fill: "M-3.6 -1C-3.7 -1.5 -1.7 -3 -0.9 -3.4C0 -3.7 1.5 -3 1.5 -3.3C1.5 -3.6 -0.2 -4 -0.6 -5.1C-1 -6.2 -1 -7.6 -0.9 -9.7C-0.7 -11.8 -0.2 -15.9 0.2 -17.7C0.6 -19.4 0.9 -19.6 1.4 -20.2C1.8 -20.8 2.4 -21.1 2.9 -21.2C3.4 -21.4 3.8 -21.6 4.4 -21.1C5 -20.6 6.1 -19.6 6.5 -18.4C6.9 -17.3 6.9 -16.2 6.6 -14.1C6.3 -11.9 5.3 -7.3 4.7 -5.5C4.2 -3.7 2.7 -3.5 3.3 -3.4C4 -3.2 7.3 -4.4 8.7 -4.5C10.1 -4.6 10.7 -4.4 11.5 -4C12.3 -3.6 13.1 -2.7 13.4 -2.1C13.8 -1.5 16 -0.9 13.7 -0.6C11.5 -0.3 2.7 -0.3 -0.2 -0.3C-3.1 -0.4 -3.5 -0.5 -3.6 -1ZM-8.6 -9.4C-8.6 -10.5 -8.2 -10.9 -7.8 -11.5C-7.3 -12 -6.5 -12.6 -5.8 -12.8C-5.2 -13 -4.4 -12.8 -3.9 -12.6C-3.4 -12.4 -3 -12.1 -2.7 -11.8C-2.3 -11.4 -2 -11 -1.8 -10.5C-1.6 -10 -1.5 -9.6 -1.5 -8.7C-1.5 -7.9 -1.5 -6.4 -1.7 -5.6C-1.9 -4.7 -2 -4.2 -2.6 -3.6C-3.2 -3.1 -4.4 -2.4 -5 -2.2C-5.7 -2 -6.2 -2.1 -6.6 -2.5C-7.1 -2.9 -7.6 -3.4 -7.9 -4.5C-8.2 -5.6 -8.6 -8.2 -8.6 -9.4ZM-15.3 -6.3C-15.4 -7.1 -15.1 -7.5 -14.9 -8C-14.6 -8.6 -14.1 -9.2 -13.6 -9.6C-13.1 -10 -12.3 -10.4 -11.8 -10.6C-11.3 -10.7 -10.9 -10.7 -10.6 -10.5C-10.3 -10.3 -10.1 -10.8 -9.9 -9.5C-9.7 -8.2 -9.3 -3.7 -9.4 -2.5C-9.4 -1.3 -9.2 -2.1 -10.1 -2.2C-10.9 -2.3 -13.5 -2.4 -14.4 -3C-15.3 -3.7 -15.2 -5.5 -15.3 -6.3Z",
-      joint: 17.8
-    },
-    peace: {
-      ink: "M-9.6 0.2C-11.3 0.2 -10 0.2 -10.1 0.1C-10.3 0 -10.2 0.4 -10.4 -0.4C-10.7 -1.1 -11.6 -2.9 -11.6 -4.4C-11.6 -5.9 -11.1 -8.1 -10.5 -9.3C-9.9 -10.5 -8.6 -11.1 -7.9 -11.6C-7.2 -12.1 -6.5 -11 -6.4 -12.3C-6.3 -13.5 -7.3 -17.4 -7.2 -19C-7.1 -20.6 -6.3 -21.2 -5.9 -21.8C-5.5 -22.4 -5.1 -22.5 -4.6 -22.7C-4.1 -22.9 -3.6 -23.2 -2.9 -23.1C-2.1 -23 -1.1 -22.7 -0.4 -22.2C0.3 -21.7 0.8 -20.9 1.2 -20C1.6 -19 1.5 -16.5 2 -16.6C2.5 -16.7 3.4 -19.5 4 -20.4C4.7 -21.3 5.3 -21.7 5.9 -22C6.6 -22.4 7.3 -22.6 8.1 -22.4C8.9 -22.3 10 -21.8 10.6 -21.3C11.2 -20.8 11.6 -20.1 11.8 -19.4C12 -18.8 12 -18 11.9 -17.2C11.8 -16.3 11.8 -15.9 11.1 -14.2C10.4 -12.6 8.1 -9 7.7 -7.3C7.3 -5.5 8.6 -4.7 8.7 -3.9C8.9 -3.1 9.9 -2.9 8.5 -2.2C7 -1.5 3.3 -0.2 0.3 0.2C-2.7 0.6 -7.8 0.2 -9.6 0.2Z",
-      fill: "M-8.1 -0.2C-9.1 -0.2 -8.4 -0.1 -8.6 -0.4C-8.8 -0.7 -9.1 -1.2 -9.4 -2.1C-9.6 -3 -10 -4.9 -10 -5.9C-10 -6.9 -9.7 -7.4 -9.4 -8C-9 -8.7 -8.3 -9.4 -7.7 -9.8C-7.2 -10.2 -6.7 -10.5 -6.2 -10.6C-5.6 -10.7 -4.4 -9.3 -4.3 -10.4C-4.2 -11.4 -5.3 -15.5 -5.5 -17C-5.7 -18.5 -5.5 -18.9 -5.3 -19.5C-5.2 -20.1 -5 -20.3 -4.7 -20.6C-4.4 -21 -3.9 -21.3 -3.5 -21.4C-3.1 -21.5 -2.7 -21.5 -2.3 -21.5C-2 -21.4 -1.6 -21.2 -1.3 -20.9C-1 -20.6 -0.7 -20.4 -0.5 -19.7C-0.2 -19 0.1 -18.1 0.3 -16.6C0.5 -15.1 0.6 -11.7 0.8 -10.6C1 -9.6 1.1 -10.3 1.3 -10.3C1.6 -10.3 1.7 -9.9 2.1 -10.8C2.5 -11.8 3.1 -14.8 3.7 -16.2C4.2 -17.6 4.6 -18.5 5.2 -19.3C5.8 -20.1 6.7 -20.5 7.2 -20.7C7.7 -21 8 -20.9 8.3 -20.8C8.7 -20.7 9 -20.6 9.4 -20.2C9.7 -19.8 10.2 -19.1 10.3 -18.4C10.4 -17.7 10.7 -17.8 10 -16.1C9.4 -14.4 7.1 -9.6 6.4 -8.2C5.7 -6.9 6.4 -7.8 5.8 -7.9C5.3 -8.1 4 -8.8 3.1 -9C2.2 -9.2 1.1 -9.2 0.3 -9.1C-0.5 -9 -1.2 -8.7 -1.8 -8.3C-2.4 -8 -2.9 -6.9 -3.3 -7C-3.7 -7.1 -3.8 -8.4 -4.1 -8.8C-4.3 -9.1 -4.7 -9.7 -4.7 -9.1C-4.7 -8.4 -4.2 -5.8 -4.1 -4.9C-4.1 -4 -4.3 -3.9 -4.5 -3.5C-4.8 -3.1 -5.3 -2.7 -5.7 -2.6C-6.1 -2.5 -6.4 -2.3 -6.9 -2.7C-7.3 -3.2 -8.3 -5.1 -8.6 -5.2C-8.9 -5.3 -8.7 -3.9 -8.5 -3.4C-8.3 -2.9 -7.8 -2.4 -7.5 -2.1C-7.2 -1.8 -7 -1.7 -6.5 -1.7C-6 -1.6 -5.3 -1.6 -4.7 -1.9C-4.1 -2.2 -3.5 -3.5 -3 -3.5C-2.5 -3.5 -1.7 -2.5 -1.6 -1.9C-1.5 -1.4 -1.3 -0.5 -2.4 -0.2C-3.5 0.1 -7.1 -0.1 -8.1 -0.2ZM-1.3 -0.2C-1.7 -0.2 -1.6 -0.4 -1.6 -0.6C-1.5 -0.8 -1.6 -1 -1 -1.4C-0.4 -1.8 2.2 -2.4 2.2 -2.8C2.1 -3.2 -0.6 -3.3 -1.4 -3.7C-2.1 -4.1 -2.2 -4.7 -2.2 -5.2C-2.3 -5.7 -2.1 -6.3 -1.8 -6.7C-1.5 -7.1 -0.9 -7.5 -0.3 -7.7C0.2 -8 0.8 -8.2 1.6 -8.1C2.4 -8.1 3.9 -7.8 4.6 -7.5C5.3 -7.2 5.4 -7 5.8 -6.5C6.3 -6 6.9 -5 7 -4.3C7.2 -3.6 7.9 -2.7 6.8 -2.1C5.7 -1.4 1.9 -0.6 0.5 -0.3C-0.8 0.1 -1 -0.1 -1.3 -0.2Z",
-      joint: 8.95
-    },
-    shoe: {
-      ink: "M4.1 12.5C6.5 12.5 11.6 12.1 13.8 11.9C15.9 11.6 16.1 11.3 17.2 10.9C18.3 10.6 19.6 10 20.3 9.5C21.1 9.1 21.4 8.8 21.7 8.3C22 7.8 22.1 7.3 22.1 6.5C22.1 5.7 22 4.4 21.7 3.5C21.4 2.6 21 1.9 20.3 1C19.6 0.2 18.8 -0.8 17.6 -1.6C16.5 -2.3 15 -3 13.6 -3.4C12.3 -3.8 11 -4 9.5 -3.8C8.1 -3.6 5.8 -2.2 4.8 -2.2C3.8 -2.1 5 -4.6 3.5 -3.6C2.1 -2.7 -2.7 2.1 -3.9 3.5C-5.1 4.9 -3.5 3.8 -3.4 4.6C-3.3 5.4 -3.6 7.1 -3.4 8C-3.2 9 -2.9 9.7 -2.4 10.4C-1.9 11 -1.7 11.5 -0.6 11.8C0.5 12.2 1.7 12.5 4.1 12.5Z",
-      fill: "M3.9 10.6C5.7 10.6 9.1 10.5 11.4 10.2C13.7 9.9 16.1 9.4 17.5 8.8C19 8.2 19.8 7.7 20.1 6.8C20.4 5.9 20 4.5 19.5 3.5C19.1 2.5 18.4 1.7 17.4 0.9C16.4 0.1 15 -1 13.5 -1.4C12.1 -1.8 10.2 -1.9 8.6 -1.7C7.1 -1.4 5.2 0.4 4.1 0.3C3 0.2 3.2 -2.5 2.1 -2.2C1 -1.9 -2 1.1 -2.6 2.3C-3.2 3.4 -1.7 3.9 -1.5 4.7C-1.4 5.5 -1.8 6.5 -1.7 7.3C-1.7 8 -1.5 8.6 -1.2 9C-0.8 9.5 -0.6 9.8 0.2 10.1C1 10.3 2 10.6 3.9 10.6Z",
-      joint: 5.3
-    }
+  // packages/character/src/hands.ts
+  var OUTLINE = 1.75;
+  var CREASE = 0.55;
+  var K = 0.5523;
+  var r2 = (v) => {
+    const r = Math.round(v * 100) / 100;
+    return Object.is(r, -0) ? "0" : String(r);
   };
+  var pt = (p) => `${r2(p.x)} ${r2(p.y)}`;
+  function capsule(a, b, r) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1e-6;
+    const u = { x: dx / len, y: dy / len };
+    const n4 = { x: -u.y, y: u.x };
+    const at = (c, ux, nx) => ({
+      x: c.x + u.x * ux * r + n4.x * nx * r,
+      y: c.y + u.y * ux * r + n4.y * nx * r
+    });
+    const p0 = at(b, 0, -1);
+    const p1 = at(b, 1, 0);
+    const p2 = at(b, 0, 1);
+    const p3 = at(a, 0, 1);
+    const p4 = at(a, -1, 0);
+    const p5 = at(a, 0, -1);
+    return [
+      `M${pt(p0)}`,
+      `C${pt(at(b, K, -1))} ${pt(at(b, 1, -K))} ${pt(p1)}`,
+      `C${pt(at(b, 1, K))} ${pt(at(b, K, 1))} ${pt(p2)}`,
+      `L${pt(p3)}`,
+      `C${pt(at(a, -K, 1))} ${pt(at(a, -1, K))} ${pt(p4)}`,
+      `C${pt(at(a, -1, -K))} ${pt(at(a, -K, -1))} ${pt(p5)}`,
+      "Z"
+    ].join("");
+  }
+  function ellipse(c, rx, ry, deg = 0) {
+    const a = deg * Math.PI / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const at = (x, y) => ({
+      x: c.x + x * cos - y * sin,
+      y: c.y + x * sin + y * cos
+    });
+    const q = [at(rx, 0), at(0, ry), at(-rx, 0), at(0, -ry)];
+    return [
+      `M${pt(q[0])}`,
+      `C${pt(at(rx, ry * K))} ${pt(at(rx * K, ry))} ${pt(q[1])}`,
+      `C${pt(at(-rx * K, ry))} ${pt(at(-rx, ry * K))} ${pt(q[2])}`,
+      `C${pt(at(-rx, -ry * K))} ${pt(at(-rx * K, -ry))} ${pt(q[3])}`,
+      `C${pt(at(rx * K, -ry))} ${pt(at(rx, -ry * K))} ${pt(q[0])}`,
+      "Z"
+    ].join("");
+  }
+  function partPath(p, grow) {
+    return p.kind === "capsule" ? capsule(p.a, p.b, p.r + grow) : ellipse(p.c, p.rx + grow, p.ry + grow, p.deg ?? 0);
+  }
+  function build(parts, joint, lines = []) {
+    return {
+      ink: parts.map((p) => partPath(p, OUTLINE)).join(""),
+      fill: parts.map((p) => partPath(p, 0)).join(""),
+      lines: lines.map(([from, to]) => capsule(from, to, CREASE)).join(""),
+      joint
+    };
+  }
+  function edge(f, side, from = 0.15, to = 0.72) {
+    if (f.kind !== "capsule") throw new Error("edge() needs a finger");
+    const dx = f.b.x - f.a.x;
+    const dy = f.b.y - f.a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len * side * (f.r - 0.15);
+    const ny = dx / len * side * (f.r - 0.15);
+    const at = (t) => ({ x: f.a.x + dx * t + nx, y: f.a.y + dy * t + ny });
+    return [at(from), at(to)];
+  }
+  var P = (x, y) => ({ x, y });
+  var wrist = { kind: "capsule", a: P(0, 1), b: P(0, -4), r: 4.1 };
+  var palm = (rx = 7.6, ry = 7.1, cy = -9) => ({ kind: "ellipse", c: P(0, cy), rx, ry });
+  function finger(base2, deg, length, r = 2.45) {
+    const a = deg * Math.PI / 180;
+    return {
+      kind: "capsule",
+      a: base2,
+      b: { x: base2.x + Math.sin(a) * length, y: base2.y - Math.cos(a) * length },
+      r,
+      finger: true
+    };
+  }
+  var knuckle = (x, y, rx = 2.5, ry = 2.9, deg = 0) => ({
+    kind: "ellipse",
+    c: P(x, y),
+    rx,
+    ry,
+    deg,
+    finger: true
+  });
+  var OPEN_F = [
+    finger(P(-5, -12.5), -26, 9.5),
+    finger(P(-1.7, -14), -8, 11),
+    finger(P(1.7, -14), 8, 10.5),
+    finger(P(5, -12.5), 25, 8.5, 2.3)
+  ];
+  var open = build([...OPEN_F, finger(P(-6, -6.5), -72, 7.5, 2.6), palm(), wrist], 8.2, [
+    edge(OPEN_F[1], -1, 0.2, 0.4),
+    edge(OPEN_F[2], -1, 0.2, 0.45),
+    edge(OPEN_F[3], -1, 0.2, 0.35)
+  ]);
+  var RELAXED_F = [
+    finger(P(-4.8, -13), -11, 8.6),
+    finger(P(-1.6, -14.2), -3.5, 9.6),
+    finger(P(1.6, -14.2), 3.5, 9.2),
+    finger(P(4.8, -13), 11, 7.8, 2.3)
+  ];
+  var relaxed = build(
+    [...RELAXED_F, finger(P(-6.2, -7), -48, 6.2, 2.5), palm(7.4, 7.2), wrist],
+    8.2,
+    [
+      edge(RELAXED_F[1], -1, 0.25, 0.8),
+      edge(RELAXED_F[2], -1, 0.25, 0.8),
+      edge(RELAXED_F[3], -1, 0.25, 0.75)
+    ]
+  );
+  function knuckleGaps(xs, top, depth = 2.6) {
+    const out = [];
+    for (let i = 0; i + 1 < xs.length; i++) {
+      const x = (xs[i] + xs[i + 1]) / 2;
+      out.push([P(x, top), P(x, top + depth)]);
+    }
+    return out;
+  }
+  var FOLDED_THUMB = {
+    kind: "capsule",
+    a: P(-7.4, -8.4),
+    b: P(-0.6, -12),
+    r: 2.5,
+    finger: true
+  };
+  var foldedThumbLine = [P(-6.6, -5.9), P(0.4, -9.6)];
+  var fist = build(
+    [
+      knuckle(-5.4, -15.3),
+      knuckle(-1.8, -16.2),
+      knuckle(1.8, -16.2),
+      knuckle(5.4, -15.3, 2.4, 2.7),
+      FOLDED_THUMB,
+      palm(8.4, 8, -9.5),
+      wrist
+    ],
+    8.4,
+    [...knuckleGaps([-5.4, -1.8, 1.8, 5.4], -15.6), foldedThumbLine]
+  );
+  var grip = build(
+    [
+      knuckle(6.2, -15, 2.6, 2.4, 20),
+      knuckle(7.6, -11.4, 2.6, 2.4, 10),
+      knuckle(7.8, -7.8, 2.6, 2.4),
+      knuckle(6.8, -4.4, 2.4, 2.2, -10),
+      finger(P(-5.6, -11), -30, 6.5, 2.5),
+      palm(7.8, 8.2, -9.5),
+      wrist
+    ],
+    8.4,
+    [
+      [P(4.8, -13.2), P(7.4, -13.4)],
+      [P(5.4, -9.6), P(8, -9.6)],
+      [P(5.2, -6.1), P(7.8, -6)]
+    ]
+  );
+  var POINT_INDEX = finger(P(1.4, -14), 0, 13.5, 2.5);
+  var point = build(
+    [
+      POINT_INDEX,
+      knuckle(5.6, -13.4, 2.6, 2.3, 15),
+      knuckle(6.6, -10.2, 2.6, 2.3),
+      knuckle(6.4, -7, 2.4, 2.2, -10),
+      finger(P(-5.4, -10.5), -24, 8.5, 2.6),
+      palm(7.4, 7.6, -9.5),
+      wrist
+    ],
+    8.2,
+    [edge(POINT_INDEX, 1, 0.05, 0.35), [P(4.4, -11.8), P(7, -11.8)], [P(4.6, -8.6), P(7.2, -8.6)]]
+  );
+  var INDEX_F = finger(P(-0.8, -14.5), -3, 13, 2.5);
+  var index = build(
+    [
+      INDEX_F,
+      knuckle(3.4, -15.2, 2.3, 2.7),
+      knuckle(6.2, -13.4, 2.3, 2.6, 20),
+      knuckle(7.4, -10.2, 2.2, 2.4, 35),
+      FOLDED_THUMB,
+      palm(7.6, 7.6, -9.5),
+      wrist
+    ],
+    8.2,
+    [edge(INDEX_F, 1, 0.05, 0.3), [P(4.9, -14.6), P(4.4, -12.4)], foldedThumbLine]
+  );
+  var thumb = build(
+    [
+      { kind: "ellipse", c: P(2.6, -14.6), rx: 6.4, ry: 2.9, finger: true },
+      { kind: "ellipse", c: P(3, -10.6), rx: 6.6, ry: 2.9, finger: true },
+      { kind: "ellipse", c: P(2.8, -6.6), rx: 6.3, ry: 2.8, finger: true },
+      finger(P(-2.6, -15), -4, 8.5, 3.1),
+      palm(7.2, 7.8, -10),
+      wrist
+    ],
+    8.4,
+    [
+      [P(0, -12.6), P(8.4, -12.6)],
+      [P(0.2, -8.6), P(8.6, -8.6)],
+      [P(0.4, -4.7), P(7.8, -4.7)]
+    ]
+  );
+  var PEACE_F = [
+    finger(P(-2.1, -14.5), -14, 12.5, 2.4),
+    finger(P(2.1, -14.5), 14, 12.5, 2.4)
+  ];
+  var peace = build(
+    [
+      ...PEACE_F,
+      knuckle(5.6, -13, 2.3, 2.5, 20),
+      knuckle(7, -9.8, 2.2, 2.4, 35),
+      FOLDED_THUMB,
+      palm(7.6, 7.6, -9.5),
+      wrist
+    ],
+    8.2,
+    [edge(PEACE_F[0], 1, 0.05, 0.2), [P(5.8, -11.6), P(4.6, -10)], foldedThumbLine]
+  );
+  var SHOE_PARTS = [
+    { kind: "ellipse", c: P(7.5, 1.6), rx: 12.4, ry: 6.6, deg: -3 },
+    { kind: "ellipse", c: P(-3, 2.6), rx: 5.6, ry: 4.6 },
+    { kind: "capsule", a: P(-4, 4.4), b: P(14, 4.4), r: 3.6 },
+    { kind: "capsule", a: P(0, 0), b: P(0, -4.5), r: 4.2 }
+  ];
+  var shoe = {
+    ink: SHOE_PARTS.map((p) => partPath(p, OUTLINE * 0.85)).join(""),
+    fill: SHOE_PARTS.map((p) => partPath(p, 0)).join(""),
+    lines: "",
+    joint: 8.4
+  };
+  var HANDS = {
+    open,
+    relaxed,
+    fist,
+    grip,
+    point,
+    index,
+    thumb,
+    peace,
+    shoe
+  };
+  var SMEAR = build(
+    [{ kind: "ellipse", c: P(0, -11.5), rx: 6.4, ry: 10.5 }, palm(7, 6.8), wrist],
+    8.2
+  );
 
   // packages/character/src/limbs.ts
-  var LIMB_RAYS = {
-    arms: { left: 6, right: 2 },
-    legs: { left: 5, right: 3 }
+  var LIMB_SOCKETS = {
+    arms: { left: 247, right: 113 },
+    legs: { left: 204, right: 156 }
   };
   var LIMB = {
     /** The ink outline outside the orange, matching the traced rays. */
     outline: 2.4,
-    /** Half-width at the wrist and the ankle when fully morphed. */
-    wristHalf: 4.8,
-    ankleHalf: 5.6,
-    /** Retained for older callers; the tube is now tapered (see `tubePath`). */
-    fill: 7,
-    ink: 11.4,
-    shoulderRadius: 50,
-    /** How far a grown limb's root tucks inside the body, hiding the ray's base corners. */
-    rootInset: 9,
+    /** Half-width of an arm's hose: thick and even, like the sheet's. */
+    armHalf: 5.4,
+    /** Half-width at the wrist. */
+    wristHalf: 4.6,
+    /** Half-width of a leg's hose, and at the ankle. */
+    legHalf: 6.6,
+    ankleHalf: 6,
+    /** The radius at which limbs are rooted: inside the body, so hidden by it. */
+    socketRadius: 40,
+    /** The size a shoe is drawn at, relative to its art. */
+    shoeScale: 1.55,
     /** The body's rest centre in the viewBox, which feet are planted against. */
     restCentre: { x: 100, y: 100 }
   };
@@ -151,81 +374,96 @@
     footRotation,
     morph
   });
-  var ARM_RAY_L = arm({ x: -70, y: 2 }, 0, "open", 0, false, 0);
-  var ARM_RAY_R = arm({ x: 70, y: 2 }, 0, "open", 0, false, 0);
-  var LEG_RAY_L = leg({ x: -40, y: 60 }, 0, 0, 0);
-  var LEG_RAY_R = leg({ x: 40, y: 60 }, 0, 0, 0);
+  var ARM_IN_L = arm({ x: -40, y: 18 }, 0, "relaxed", 0, false, 0);
+  var ARM_IN_R = arm({ x: 40, y: 18 }, 0, "relaxed", 0, false, 0);
+  var LEG_IN_L = leg({ x: -18, y: 44 }, 0, 0, 0);
+  var LEG_IN_R = leg({ x: 18, y: 44 }, 0, 0, 0);
   var STAND = {
-    left: leg({ x: -24, y: 86 }, -0.12),
-    right: leg({ x: 24, y: 86 }, 0.12)
+    left: leg({ x: -23, y: 82 }, -0.1, -4),
+    right: leg({ x: 23, y: 82 }, 0.1, 4)
   };
+  var SIT_DROP = 20;
+  var SIT = {
+    left: leg({ x: -44, y: 76 }, 0.35, -28),
+    right: leg({ x: 44, y: 76 }, -0.35, 28)
+  };
+  var HIP_L = arm({ x: -51, y: 22 }, 2.8, "fist", 35, true);
+  var HIP_R = arm({ x: 51, y: 22 }, -2.8, "fist", -35, true);
+  var DOWN_L = arm({ x: -52, y: 44 }, -0.35, "relaxed", 10);
+  var DOWN_R = arm({ x: 52, y: 44 }, 0.35, "relaxed", -10);
   var LIMB_POSES = {
-    /** The logo: every limb is still its ray. */
+    /** The logo: no limbs out. */
     rest: {
       visible: true,
-      arms: { left: ARM_RAY_L, right: ARM_RAY_R },
-      legs: { left: LEG_RAY_L, right: LEG_RAY_R }
+      arms: { left: ARM_IN_L, right: ARM_IN_R },
+      legs: { left: LEG_IN_L, right: LEG_IN_R }
     },
-    /** Standing on two legs, arms still rays. */
+    /** Standing on two legs, arms tucked. */
     stand: {
       visible: true,
-      arms: { left: ARM_RAY_L, right: ARM_RAY_R },
+      arms: { left: ARM_IN_L, right: ARM_IN_R },
+      legs: STAND
+    },
+    /** Standing easy, arms loose at the sides. */
+    easy: {
+      visible: true,
+      arms: { left: DOWN_L, right: DOWN_R },
       legs: STAND
     },
     /** Hands on hips, elbows out (sheet: bottom right). */
     hips: {
       visible: true,
-      arms: {
-        left: arm({ x: -54, y: 34 }, 2.2, "fist", 0, true),
-        right: arm({ x: 54, y: 34 }, -2.2, "fist", 0, true)
-      },
+      arms: { left: HIP_L, right: HIP_R },
       legs: STAND
     },
-    /** Waving hello (sheet: top left). */
+    /** Waving hello, the other fist on the hip (sheet: top left). */
     wave: {
       visible: true,
       arms: {
-        left: arm({ x: -66, y: -34 }, 0.35, "open", -10),
-        right: ARM_RAY_R
+        left: arm({ x: -66, y: -26 }, 0.5, "open", -12),
+        right: HIP_R
       },
       legs: STAND
     },
-    /** Thumbs up (sheet: top row, third). */
+    /** Thumbs up, the other fist on the hip (sheet: top row, third). */
     thumbsUp: {
       visible: true,
       arms: {
-        left: ARM_RAY_L,
-        right: arm({ x: 70, y: -14 }, -0.35, "thumb", 30)
+        left: HIP_L,
+        right: arm({ x: 66, y: -6 }, -0.5, "thumb", -70)
       },
       legs: STAND
     },
-    /** Pointing off to the side (sheet: top right). */
+    /** Finger-guns, one each side (sheet: top right). */
     point: {
       visible: true,
       arms: {
-        left: ARM_RAY_L,
-        right: arm({ x: 78, y: -2 }, -0.1, "point", 0)
+        left: arm({ x: -64, y: 6 }, -0.25, "point", 0),
+        right: arm({ x: 66, y: 4 }, 0.25, "point", 0)
       },
-      legs: STAND
+      legs: {
+        left: leg({ x: -20, y: 82 }, -0.1, -4),
+        right: leg({ x: 28, y: 78 }, 0.25, 14)
+      }
     },
     /** Both fists up, cheering (sheet: second row, first). */
     cheer: {
       visible: true,
       arms: {
-        left: arm({ x: -60, y: -46 }, 0.3, "fist", 0),
-        right: arm({ x: 60, y: -46 }, -0.3, "fist", 0)
+        left: arm({ x: -62, y: -44 }, 0.45, "fist", 0),
+        right: arm({ x: 62, y: -44 }, -0.45, "fist", 0)
       },
       legs: {
-        left: leg({ x: -30, y: 86 }, -0.1),
-        right: leg({ x: 30, y: 86 }, 0.1)
+        left: leg({ x: -30, y: 82 }, -0.15, -8),
+        right: leg({ x: 30, y: 82 }, 0.15, 8)
       }
     },
-    /** Hand on chin, thinking (sheet: second row, second). */
+    /** Hand on chin, thinking, the other on the hip (sheet: second row, second). */
     chin: {
       visible: true,
       arms: {
-        left: ARM_RAY_L,
-        right: arm({ x: 4, y: 44 }, 1.1, "fist", 70, true)
+        left: HIP_L,
+        right: arm({ x: 6, y: 40 }, 1.4, "index", -150, true)
       },
       legs: STAND
     },
@@ -233,8 +471,8 @@
     idea: {
       visible: true,
       arms: {
-        left: arm({ x: -62, y: -38 }, 0.3, "point", -55),
-        right: ARM_RAY_R
+        left: arm({ x: -62, y: -30 }, 0.45, "index", -20),
+        right: HIP_R
       },
       legs: STAND
     },
@@ -242,8 +480,8 @@
     peace: {
       visible: true,
       arms: {
-        left: arm({ x: -64, y: -34 }, 0.3, "peace", -35),
-        right: ARM_RAY_R
+        left: arm({ x: -62, y: -30 }, 0.45, "peace", -20),
+        right: HIP_R
       },
       legs: STAND
     },
@@ -251,33 +489,103 @@
     shrug: {
       visible: true,
       arms: {
-        left: arm({ x: -72, y: 8 }, 0.45, "open", -55),
-        right: arm({ x: 72, y: 8 }, -0.45, "open", 55)
+        left: arm({ x: -66, y: 10 }, 0.6, "open", -60),
+        right: arm({ x: 66, y: 10 }, -0.6, "open", 60)
       },
       legs: STAND
     },
-    /** Mid-jump, arms flung up, legs tucked (sheet: bottom row, second). */
+    /** Mid-jump, arms flung up, legs kicked out (sheet: bottom row, second). */
     jump: {
       visible: true,
       arms: {
-        left: arm({ x: -74, y: -34 }, 0.25, "open", -15),
-        right: arm({ x: 74, y: -34 }, -0.25, "open", 15)
+        left: arm({ x: -70, y: -30 }, 0.35, "open", -20),
+        right: arm({ x: 70, y: -30 }, -0.35, "open", 20)
       },
       legs: {
-        left: leg({ x: -34, y: 64 }, -0.5, -20),
-        right: leg({ x: 34, y: 64 }, 0.5, 20)
+        left: leg({ x: -36, y: 70 }, -0.5, -24),
+        right: leg({ x: 36, y: 70 }, 0.5, 24)
       }
     },
     /** Drooping: arms hang limp, knees buckle. */
     droop: {
       visible: true,
       arms: {
-        left: arm({ x: -52, y: 54 }, -0.25, "relaxed", 0),
-        right: arm({ x: 52, y: 54 }, 0.25, "relaxed", 0)
+        left: arm({ x: -46, y: 50 }, -0.3, "relaxed", 10),
+        right: arm({ x: 46, y: 50 }, 0.3, "relaxed", -10)
       },
       legs: {
-        left: leg({ x: -26, y: 86 }, 0.4),
-        right: leg({ x: 26, y: 86 }, -0.4)
+        left: leg({ x: -20, y: 82 }, 0.45, 6),
+        right: leg({ x: 20, y: 82 }, -0.45, -6)
+      }
+    },
+    /** Sitting on the ground, legs out in front, hands at the sides. */
+    sit: {
+      visible: true,
+      arms: { left: DOWN_L, right: DOWN_R },
+      legs: SIT
+    },
+    /** Holding an open book in both hands (sheet: third row, second). */
+    read: {
+      visible: true,
+      arms: {
+        left: arm({ x: -33, y: 36 }, -0.9, "grip", 100, true),
+        right: arm({ x: 33, y: 36 }, 0.9, "grip", -100, true)
+      },
+      legs: SIT
+    },
+    /** Typing on a laptop on the lap (sheet: third row, third). */
+    type: {
+      visible: true,
+      arms: {
+        left: arm({ x: -14, y: 48 }, -1.4, "relaxed", 175, true),
+        right: arm({ x: 18, y: 48 }, 1.4, "relaxed", -175, true)
+      },
+      legs: SIT
+    },
+    /** A magnifying glass held up to one eye (sheet: third row, fourth). */
+    magnify: {
+      visible: true,
+      arms: {
+        left: arm({ x: -44, y: 4 }, -1, "grip", 20, true),
+        right: arm({ x: 54, y: 26 }, -0.4, "relaxed", -20)
+      },
+      legs: STAND
+    },
+    /** A balloon string held out to the side (sheet: third row, first). */
+    balloon: {
+      visible: true,
+      arms: {
+        left: arm({ x: -62, y: -4 }, 0.4, "grip", 0),
+        right: arm({ x: 58, y: 24 }, -0.5, "open", -40)
+      },
+      legs: {
+        left: leg({ x: -26, y: 80 }, -0.25, -10),
+        right: leg({ x: 24, y: 82 }, 0.15, 6)
+      }
+    },
+    /** Reclining: hands behind the head, legs crossed (sheet: the deckchair). */
+    recline: {
+      visible: true,
+      arms: {
+        // The hands are hidden behind the head; only the elbows show, as wings.
+        left: { ...arm({ x: -18, y: -30 }, -1.3, "fist", 160), behind: true },
+        right: { ...arm({ x: 18, y: -30 }, 1.3, "fist", -160), behind: true }
+      },
+      legs: {
+        left: leg({ x: -46, y: 50 }, 0.3, -6),
+        right: leg({ x: -30, y: 58 }, -0.2, -4)
+      }
+    },
+    /** Walking: one stride (sheet: top row, second). Sequences swing it. */
+    walk: {
+      visible: true,
+      arms: {
+        left: arm({ x: -60, y: 28 }, -0.4, "fist", 0),
+        right: arm({ x: 58, y: 8 }, -0.5, "fist", -30)
+      },
+      legs: {
+        left: leg({ x: -34, y: 80 }, -0.3, -18),
+        right: leg({ x: 26, y: 76 }, 0.45, 20)
       }
     }
   };
@@ -304,6 +612,8 @@
       const pm = morphOf(p.morph);
       const qm = morphOf(q.morph);
       const shapeFrom = pm < 0.01 ? q : qm < 0.01 ? p : k < 0.5 ? p : q;
+      const changing = pm >= 0.01 && qm >= 0.01 && p.shape !== q.shape;
+      const smear = changing && k > 0.3 && k < 0.7;
       return {
         shoulderDeg: mix(p.shoulderDeg, q.shoulderDeg, k),
         // A limb growing from its ray keeps aiming at its target; it does not
@@ -311,8 +621,9 @@
         hand: pm < 0.01 ? { ...q.hand } : qm < 0.01 ? { ...p.hand } : mixV(p.hand, q.hand, k),
         bend: pm < 0.01 ? q.bend : qm < 0.01 ? p.bend : mix(p.bend, q.bend, k),
         shape: shapeFrom.shape,
+        ...smear ? { smear: true } : {},
         handRotation: pm < 0.01 ? q.handRotation : qm < 0.01 ? p.handRotation : mix(p.handRotation, q.handRotation, k),
-        handScale: mix(p.handScale, q.handScale, k),
+        handScale: mix(p.handScale, q.handScale, k) * (changing ? 1 - 0.14 * Math.sin(Math.PI * k) : 1),
         front: shapeFrom.front,
         tubeFront: shapeFrom.tubeFront,
         ...shapeFrom.behind !== void 0 ? { behind: shapeFrom.behind } : {},
@@ -363,12 +674,14 @@
     const perp = { x: -dy / len, y: dx / len };
     const straight = { x: t.base.x + t.dir.x * len * 0.5, y: t.base.y + t.dir.y * len * 0.5 };
     const bowed = {
-      x: (t.base.x + end.x) / 2 + perp.x * t.bend * len * 0.5,
-      y: (t.base.y + end.y) / 2 + perp.y * t.bend * len * 0.5
+      // The bow is measured against at least a forearm's length, so a short
+      // arm (a fist on the hip) can still throw its elbow well out.
+      x: (t.base.x + end.x) / 2 + perp.x * t.bend * Math.max(len, 24) * 0.5,
+      y: (t.base.y + end.y) / 2 + perp.y * t.bend * Math.max(len, 24) * 0.5
     };
     const c = mixV(straight, bowed, m);
     const endHalf = mix(0.35, t.endHalf, smooth(m * 1.4));
-    const power = mix(1, 3.2, m);
+    const power = t.power ?? mix(1, 3.2, m);
     const N = 16;
     const left = [];
     const right = [];
@@ -436,61 +749,51 @@
     return `<path d="${d}" fill="${paint.limb}"/>`;
   }
   var HAND_ART = {
-    relaxed: "open",
-    open: "open",
-    fist: "fist",
-    point: "point",
-    thumb: "thumb",
-    peace: "peace"
+    relaxed: HANDS.relaxed,
+    open: HANDS.open,
+    fist: HANDS.fist,
+    grip: HANDS.grip,
+    point: HANDS.point,
+    index: HANDS.index,
+    thumb: HANDS.thumb,
+    peace: HANDS.peace
   };
   function artInk(art, paint, boil2) {
     return `<path d="${boilPath(art.ink, boil2, 0.18)}" fill="${paint.ink}"/>`;
   }
   function artFill(art, paint, boil2) {
-    return `<path d="${boilPath(art.fill, boil2, 0.18)}" fill="${paint.limb}"/>`;
+    const fill = `<path d="${boilPath(art.fill, boil2, 0.18)}" fill="${paint.limb}"/>`;
+    if (!art.lines) return fill;
+    return fill + `<path d="${boilPath(art.lines, boil2, 0.12)}" fill="${paint.ink}"/>`;
   }
   function joined(tubeD, endArt, endArtFill, paint) {
     return tubeInk(tubeD, paint) + endArt + endArtFill + tubeFill(tubeD, paint);
   }
-  function rayOf(rays, index) {
-    return rays[index] ?? {
-      angleDeg: RAY.anglesDeg[index] ?? 0,
-      rotation: 0,
-      lengthScale: 1,
-      widthScale: 1,
-      offset: { x: 0, y: 0 },
-      visible: true
-    };
+  function socket(deg) {
+    const dir = rayDirection(deg);
+    return { base: { x: dir.x * LIMB.socketRadius, y: dir.y * LIMB.socketRadius }, dir };
   }
-  function armParts(armRig, side, rays, paint, boil2) {
-    const whole = armMarkupSplit(armRig, side, rays, paint, boil2);
-    return whole;
+  function armParts(armRig, side, _rays, paint, boil2) {
+    return armMarkupSplit(armRig, side, paint, boil2);
   }
-  function armMarkupSplit(armRig, side, rays, paint, boil2) {
+  function armMarkupSplit(armRig, side, paint, boil2) {
     const m = morphOf(armRig.morph);
     if (m < 0.02) return { tube: "", hand: "" };
-    const ray = rayOf(rays, LIMB_RAYS.arms[side]);
-    const dir = rayDirection(ray.angleDeg + ray.rotation);
-    const inset = LIMB.rootInset * smooth(m * 2);
-    const base2 = {
-      x: dir.x * (RAY.baseRadius - inset) + ray.offset.x,
-      y: dir.y * (RAY.baseRadius - inset) + ray.offset.y
-    };
+    const { base: base2, dir } = socket(LIMB_SOCKETS.arms[side]);
+    const art = armRig.smear ? SMEAR : HAND_ART[armRig.shape];
     const tube = tubePath({
       base: base2,
       dir,
-      baseHalf: RAY.baseHalfWidth * ray.widthScale,
-      rayLength: (RAY.tipRadius - RAY.baseRadius) * ray.lengthScale,
+      baseHalf: LIMB.armHalf,
+      rayLength: 0,
       target: armRig.hand,
       endHalf: LIMB.wristHalf,
       // Flare to just inside the hand's own wrist, so the hand stays a touch wider.
-      flareHalf: Math.min(
-        TRACED_HANDS[HAND_ART[armRig.shape]].joint * armRig.handScale * 0.78,
-        LIMB.wristHalf * 1.9
-      ),
+      flareHalf: Math.min(art.joint * armRig.handScale * 0.5, LIMB.wristHalf * 1.4),
       bend: armRig.bend,
       morph: m,
-      boil: boil2
+      boil: boil2,
+      power: 1
     });
     const growth = smooth((m - 0.3) / 0.7);
     if (growth > 0.01) {
@@ -499,9 +802,8 @@
       const rotation = follow + (mirror ? -armRig.handRotation : armRig.handRotation);
       const s = armRig.handScale * growth;
       const back = LIMB.wristHalf * 0.6;
-      const wrist = { x: tube.end.x - tube.endDir.x * back, y: tube.end.y - tube.endDir.y * back };
-      const place = `<g transform="translate(${n(wrist.x)} ${n(wrist.y)}) rotate(${n(rotation)}) scale(${n(mirror ? -s : s)} ${n(s)})">`;
-      const art = TRACED_HANDS[HAND_ART[armRig.shape]];
+      const wrist2 = { x: tube.end.x - tube.endDir.x * back, y: tube.end.y - tube.endDir.y * back };
+      const place = `<g transform="translate(${n(wrist2.x)} ${n(wrist2.y)}) rotate(${n(rotation)}) scale(${n(mirror ? -s : s)} ${n(s)})">`;
       const ink = place + artInk(art, paint, boil2) + "</g>";
       const fill = place + artFill(art, paint, boil2) + "</g>";
       const inFront = armRig.front && m >= 0.85;
@@ -515,18 +817,12 @@
     }
     return { tube: tubeInk(tube.d, paint) + tubeFill(tube.d, paint), hand: "" };
   }
-  function legMarkup(legRig, side, rays, toViewBox2, scale, paint, boil2) {
+  function legMarkup(legRig, side, _rays, toViewBox2, scale, paint, boil2) {
     const m = morphOf(legRig.morph);
     if (m < 0.02) return "";
-    const ray = rayOf(rays, LIMB_RAYS.legs[side]);
-    const dirLocal = rayDirection(ray.angleDeg + ray.rotation);
-    const inset = LIMB.rootInset * smooth(m * 2);
-    const baseLocal = {
-      x: dirLocal.x * (RAY.baseRadius - inset) + ray.offset.x,
-      y: dirLocal.y * (RAY.baseRadius - inset) + ray.offset.y
-    };
-    const base2 = toViewBox2(baseLocal);
-    const ahead = toViewBox2({ x: baseLocal.x + dirLocal.x, y: baseLocal.y + dirLocal.y });
+    const local = socket(LIMB_SOCKETS.legs[side]);
+    const base2 = toViewBox2(local.base);
+    const ahead = toViewBox2({ x: local.base.x + local.dir.x, y: local.base.y + local.dir.y });
     const dl = Math.hypot(ahead.x - base2.x, ahead.y - base2.y) || 1;
     const dir = { x: (ahead.x - base2.x) / dl, y: (ahead.y - base2.y) / dl };
     const foot = {
@@ -536,37 +832,32 @@
     const tube = tubePath({
       base: base2,
       dir,
-      baseHalf: RAY.baseHalfWidth * ray.widthScale * scale,
-      rayLength: (RAY.tipRadius - RAY.baseRadius) * ray.lengthScale * scale,
+      baseHalf: LIMB.legHalf * scale,
+      rayLength: 0,
       target: foot,
       endHalf: LIMB.ankleHalf,
-      flareHalf: TRACED_HANDS.shoe.joint * 1.65 * 1.05,
+      flareHalf: HANDS.shoe.joint * LIMB.shoeScale * 0.5,
       bend: legRig.bend,
       morph: m,
-      boil: boil2
+      boil: boil2,
+      power: 1
     });
     const growth = smooth((m - 0.3) / 0.7);
     if (growth > 0.01) {
       const mirror = side === "left";
-      const s = 1.65 * growth;
-      const place = `<g transform="translate(${n(tube.end.x)} ${n(tube.end.y)}) scale(${n(mirror ? -s : s)} ${n(s)}) rotate(${n(legRig.footRotation)}) translate(-1.5 -1)">`;
+      const s = LIMB.shoeScale * growth;
+      const place = `<g transform="translate(${n(tube.end.x)} ${n(tube.end.y)}) scale(${n(mirror ? -s : s)} ${n(s)}) rotate(${n(legRig.footRotation)})">`;
       return joined(
         tube.d,
-        place + artInk(TRACED_HANDS.shoe, paint, boil2) + "</g>",
-        place + artFill(TRACED_HANDS.shoe, paint, boil2) + "</g>",
+        place + artInk(HANDS.shoe, paint, boil2) + "</g>",
+        place + artFill(HANDS.shoe, paint, boil2) + "</g>",
         paint
       );
     }
     return tubeInk(tube.d, paint) + tubeFill(tube.d, paint);
   }
-  function limbRayIndices(limbs) {
-    if (!limbs.visible) return [];
-    const out = [];
-    if (morphOf(limbs.arms.left.morph) >= 0.02) out.push(LIMB_RAYS.arms.left);
-    if (morphOf(limbs.arms.right.morph) >= 0.02) out.push(LIMB_RAYS.arms.right);
-    if (morphOf(limbs.legs.left.morph) >= 0.02) out.push(LIMB_RAYS.legs.left);
-    if (morphOf(limbs.legs.right.morph) >= 0.02) out.push(LIMB_RAYS.legs.right);
-    return out;
+  function limbRayIndices(_limbs) {
+    return [];
   }
 
   // packages/character/src/rig.ts
@@ -655,21 +946,21 @@
   function rootScale(rig) {
     return { sx: rig.scale * (1 + rig.stretch), sy: rig.scale * (1 - rig.squash) };
   }
-  function toViewBox(rig, point) {
+  function toViewBox(rig, point2) {
     const { sx, sy } = rootScale(rig);
     const a = rig.rotation * Math.PI / 180;
-    const x = point.x * sx;
-    const y = point.y * sy;
+    const x = point2.x * sx;
+    const y = point2.y * sy;
     return {
       x: rig.x + x * Math.cos(a) - y * Math.sin(a),
       y: rig.y + x * Math.sin(a) + y * Math.cos(a)
     };
   }
-  function toBodyFrame(rig, point) {
+  function toBodyFrame(rig, point2) {
     const { sx, sy } = rootScale(rig);
     const a = -rig.rotation * Math.PI / 180;
-    const dx = point.x - rig.x;
-    const dy = point.y - rig.y;
+    const dx = point2.x - rig.x;
+    const dy = point2.y - rig.y;
     return {
       x: (dx * Math.cos(a) - dy * Math.sin(a)) / sx,
       y: (dx * Math.sin(a) + dy * Math.cos(a)) / sy
@@ -756,8 +1047,8 @@
   function safeRatio(value, rest) {
     return rest === 0 ? 1 : value / rest;
   }
-  function rayTransform(ray, index) {
-    const restAngle = RAY.anglesDeg[index] ?? ray.angleDeg;
+  function rayTransform(ray, index2) {
+    const restAngle = RAY.anglesDeg[index2] ?? ray.angleDeg;
     const angle = ray.angleDeg + ray.rotation;
     const rad = restAngle * Math.PI / 180;
     const bx = Math.sin(rad) * RAY.baseRadius;
@@ -791,12 +1082,12 @@
       sy: safeRatio(eye2.scaleY * eye2.height, rest.scaleY * rest.height) * (1 - closed * 0.92)
     };
   }
-  function tracedRayPart(rig, index, paint, boil2) {
-    const ray = rig.rays[index];
-    const art = TRACED_ART.rays[index];
+  function tracedRayPart(rig, index2, paint, boil2) {
+    const ray = rig.rays[index2];
+    const art = TRACED_ART.rays[index2];
     if (!ray || !art || !ray.visible || ray.lengthScale <= 0.01) return { transform: "", inner: "" };
     return {
-      transform: rayTransform(ray, index),
+      transform: rayTransform(ray, index2),
       inner: `<path d="${boilPath(art.ink, boil2)}" fill="${paint.ink}"/><path d="${boilPath(art.fill, boil2)}" fill="${paint.ray}"/>`
     };
   }
@@ -860,7 +1151,9 @@
     lightbulb: {
       d: "M0-11C5.6-11 9-7 9-2.6 9 1 7 3 5.4 4.8 4.4 6 4 7.2 4 8.4H-4C-4 7.2-4.4 6-5.4 4.8-7 3-9 1-9-2.6-9-7-5.6-11 0-11ZM-4 9.4H4V11H-4ZM-3.4 12H3.4L2.4 14.4H-2.4Z",
       filled: true,
-      surface: true
+      surface: true,
+      // Yellow, as on the sheet: a pale bulb read as a white blob at launcher size.
+      colour: "#FFD54A"
     },
     // A four-pointed sparkle.
     sparkle: {
@@ -951,6 +1244,12 @@
       filled: true,
       surface: true
     },
+    // Held props from the sheet, drawn by their own art functions below (fixed
+    // colours: a book is blue whatever the theme). The paths are unused.
+    book: { d: "", filled: true },
+    "book-page": { d: "", filled: true },
+    laptop: { d: "", filled: true },
+    magnifier: { d: "", filled: true },
     // A ping-pong bat, held upright: the blade, then a short handle. Authored tall
     // rather than wide -- the second prop that is, after the deckchair's scenery --
     // because the ball has to meet the blade's *face*, and A09's rules decide
@@ -1045,11 +1344,13 @@
       `rotate(${n3(prop2.rotation)})`,
       `scale(${n3(prop2.scale)})`
     ].join(" ");
-    const draw = path.surface ? `fill="${paint.highlight}" stroke="${paint.ink}" stroke-width="2.2" stroke-linejoin="round"` : path.filled ? `fill="${paint.ink}"` : `fill="none" stroke="${paint.ink}" stroke-width="2.2" stroke-linecap="round"`;
-    const art = prop2.id === "sunglasses" ? SUNGLASSES_ART(paint) : prop2.id === "deckchair" ? DECKCHAIR_ART(paint) : `<path d="${path.d}" ${draw}/>`;
+    const draw = path.surface ? `fill="${path.colour ?? paint.highlight}" stroke="${paint.ink}" stroke-width="2.2" stroke-linejoin="round"` : path.filled ? `fill="${paint.ink}"` : `fill="none" stroke="${paint.ink}" stroke-width="2.2" stroke-linecap="round"`;
+    const custom = PROP_ART[prop2.id];
+    const art = custom ? custom(paint) : `<path d="${path.d}" ${draw}/>`;
     return `<g data-prop="${prop2.id}" transform="${transform}" opacity="${n3(Math.min(1, prop2.opacity))}">` + art + `</g>`;
   }
   var BEHIND_PROPS = ["deckchair"];
+  var HELD_PROPS = ["book", "book-page", "laptop", "magnifier"];
   var FACE_PROPS = ["sunglasses"];
   var SUNGLASSES_ART = (paint) => {
     const lens = (cx) => `M${cx - 13.5} -8.5C${cx - 4} -10 ${cx + 4} -10 ${cx + 13} -8.5C${cx + 13.5} -2 ${cx + 12} 6 ${cx + 7.5} 9C${cx + 3} 11 ${cx - 5} 11 ${cx - 9} 8.5C${cx - 12.5} 6 ${cx - 14} -2 ${cx - 13.5} -8.5Z`;
@@ -1066,6 +1367,30 @@
       `<path d="${sling}" fill="none" stroke="${paint.ink}" stroke-width="24" stroke-linecap="butt"/><path d="${sling}" fill="none" stroke="#FFFFFF" stroke-width="19.4" stroke-linecap="butt"/><path d="${sling}" fill="none" stroke="#2F6FD6" stroke-width="19.4" stroke-dasharray="9 9" stroke-linecap="butt"/>` + // The crossbars at each end of the canvas.
       rail("M38 -64L52 -60", 3.6) + rail("M-54 30L-44 40", 3.6)
     );
+  };
+  var BOOK_ART = (paint) => {
+    const ink = paint.ink;
+    const cover = "M-31 -17L0 -13L31 -17L31 18L0 22L-31 18Z";
+    const pages = "M-27.5 -14.5L0 -10.5L27.5 -14.5L27.5 15L0 19L-27.5 15Z";
+    const lines = [-7, -2, 3, 8].map((y) => `M-23 ${y - 2.6}L-5 ${y}M5 ${y}L23 ${y - 2.6}`).join("");
+    return `<path d="${cover}" fill="#2F6FD6" stroke="${ink}" stroke-width="2.6" stroke-linejoin="round"/><path d="${pages}" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8" stroke-linejoin="round"/><path d="M0 -10.5L0 19" stroke="${ink}" stroke-width="1.8"/><path d="${lines}" stroke="#9AA3AF" stroke-width="1.4" stroke-linecap="round"/>`;
+  };
+  var BOOK_PAGE_ART = (paint) => `<path d="M0 -10.5C8 -20 18 -22 22 -20L22 10C16 8 8 10 0 19Z" fill="#FFFFFF" stroke="${paint.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
+  var LAPTOP_ART = (paint) => {
+    const ink = paint.ink;
+    return `<path d="M-6 -24L32 -20L28 12L-10 12Z" fill="#B7BCC4" stroke="${ink}" stroke-width="2.6" stroke-linejoin="round"/><circle cx="11" cy="-5" r="3.2" fill="#E6E9ED"/><path d="M-34 12L30 12L34 19L-30 19Z" fill="#9AA0A8" stroke="${ink}" stroke-width="2.6" stroke-linejoin="round"/>`;
+  };
+  var MAGNIFIER_ART = (paint) => {
+    const ink = paint.ink;
+    return `<path d="M-9 9L-22 22" stroke="${ink}" stroke-width="9.4" stroke-linecap="round"/><path d="M-9 9L-22 22" stroke="#9A6334" stroke-width="5.2" stroke-linecap="round"/><circle r="14" fill="#DDEFFF" fill-opacity="0.55" stroke="${ink}" stroke-width="7.6"/><circle r="14" fill="none" stroke="#A9AFB7" stroke-width="3.6"/><path d="M-7 -5C-5 -8.5 -1.5 -10 2 -9.6" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>`;
+  };
+  var PROP_ART = {
+    sunglasses: (paint) => SUNGLASSES_ART(paint),
+    deckchair: (paint) => DECKCHAIR_ART(paint),
+    book: BOOK_ART,
+    "book-page": BOOK_PAGE_ART,
+    laptop: LAPTOP_ART,
+    magnifier: MAGNIFIER_ART
   };
   var SAFE_PAINT = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z][a-zA-Z0-9-]{0,31}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\([#a-zA-Z0-9%\s.,/+-]*\)|var\(--[a-zA-Z0-9-]{1,32}\))$/;
   function safePaint(value, fallback) {
@@ -1120,25 +1445,27 @@
     const decorative = options.decorative ?? !named;
     const label = named && !decorative ? `<title>${escapeXml(options.title ?? "")}</title>` : "";
     const aria = decorative ? 'aria-hidden="true" focusable="false"' : `role="img" aria-label="${escapeXml(options.title ?? "Sunny")}"`;
+    const behindProps = rig.props.filter((prop2) => BEHIND_PROPS.includes(prop2.id)).map((prop2) => renderProp(prop2, paint)).join("");
     return {
       svgAttributes: `xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${n3(size)}" height="${n3(size)}" ${aria}${options.className ? ` class="${escapeXml(options.className)}"` : ""}`,
       label,
       root,
       faceTransform: `rotate(${n3(rig.faceTilt)})`,
       under: [
+        // Furniture goes under everything, legs included: Sunny's legs stretch
+        // out *over* the front of the deckchair, as on the sheet. The chair is
+        // authored in the body frame, so it carries the root transform here.
+        [
+          "props-behind",
+          plain(behindProps === "" ? "" : `<g transform="${root}">${behindProps}</g>`)
+        ],
         ["leg-left", plain(leg2("left"))],
         ["leg-right", plain(leg2("right"))]
       ],
       behind: [
-        [
-          "props-behind",
-          plain(
-            rig.props.filter((prop2) => BEHIND_PROPS.includes(prop2.id)).map((prop2) => renderProp(prop2, paint)).join("")
-          )
-        ],
-        ...rig.rays.map((_, index) => [
-          `ray-${index}`,
-          hidden.includes(index) ? EMPTY : tracedRayPart(rig, index, paint, boil2)
+        ...rig.rays.map((_, index2) => [
+          `ray-${index2}`,
+          hidden.includes(index2) ? EMPTY : tracedRayPart(rig, index2, paint, boil2)
         ]),
         ["arm-left", plain(armIn("left", false))],
         ["arm-right", plain(armIn("right", false))],
@@ -1158,6 +1485,12 @@
         ]
       ],
       over: [
+        [
+          "props-held",
+          plain(
+            rig.props.filter((prop2) => HELD_PROPS.includes(prop2.id)).map((prop2) => renderProp(prop2, paint)).join("")
+          )
+        ],
         ["arm-front-left", plain(armIn("left", true))],
         ["arm-front-right", plain(armIn("right", true))],
         // Props sit in the body frame rather than the face frame: a question mark
@@ -1165,7 +1498,9 @@
         [
           "props",
           plain(
-            rig.props.filter((prop2) => !BEHIND_PROPS.includes(prop2.id) && !FACE_PROPS.includes(prop2.id)).map((prop2) => renderProp(prop2, paint)).join("")
+            rig.props.filter(
+              (prop2) => !BEHIND_PROPS.includes(prop2.id) && !FACE_PROPS.includes(prop2.id) && !HELD_PROPS.includes(prop2.id)
+            ).map((prop2) => renderProp(prop2, paint)).join("")
           )
         ]
       ]
@@ -1223,15 +1558,15 @@
         parts.set(key, { node, transform: "", slots: [], inner: [], shown: -1 });
       }
     };
-    const slotFor = (part, index) => {
-      while (part.slots.length <= index) {
+    const slotFor = (part, index2) => {
+      while (part.slots.length <= index2) {
         const g = doc.createElementNS("http://www.w3.org/2000/svg", "g");
         g.setAttribute("display", "none");
         part.node.append(g);
         part.slots.push(g);
         part.inner.push("");
       }
-      return part.slots[index];
+      return part.slots[index2];
     };
     const update = (key, drawing, boil2) => {
       const part = parts.get(key);
@@ -1285,15 +1620,15 @@
   var CARTOON_FPS = 24;
   var BOIL_FPS = 8;
   var BOIL_DRAWINGS = 3;
-  function cartoonClock(now) {
-    const frame = Math.floor(now * CARTOON_FPS / 1e3);
+  function cartoonClock(now, options = {}) {
+    const time = options.stepped ? Math.floor(now * CARTOON_FPS / 1e3) * 1e3 / CARTOON_FPS : now;
     return {
-      time: frame * 1e3 / CARTOON_FPS,
+      time,
       boil: Math.floor(now * BOIL_FPS / 1e3) % BOIL_DRAWINGS
     };
   }
 
-  // packages/animation-engine/src/limb-acting.ts
+  // packages/animation-engine/src/acting.ts
   var TAU = Math.PI * 2;
   var clamp01 = (t) => Math.min(1, Math.max(0, t));
   var ease = (t) => {
@@ -1306,8 +1641,403 @@
     const c = clamp01(t) - 1;
     return 1 + c * c * ((s + 1) * c + s);
   };
+  function act(r, base2, name, w) {
+    r.limbs = blendLimbs(base2.limbs, limbPose(name), w);
+  }
+  function breathe(r, base2, p, amount = 1) {
+    r.y += -Math.sin(p * TAU) * 1.2 * amount;
+    for (const [i, ray] of r.rays.entries()) {
+      ray.lengthScale = base2.rays[i].lengthScale * (1 + wave(p, -i / 8) * 0.03 * amount);
+    }
+  }
+  var held = (id, x, y, rotation = 0, scale = 1) => ({
+    id,
+    x,
+    y,
+    rotation,
+    scale,
+    opacity: 1
+  });
+  function readPose(base2, t, still) {
+    const r = cloneRig(base2);
+    r.y = base2.y + SIT_DROP;
+    r.squash = 0.04;
+    r.stretch = 0.03;
+    act(r, base2, "read", 1);
+    const line = still ? 0.3 : t * 4 % 1 * 1.2 - 0.6;
+    r.eyes.left.gaze = { x: line, y: 0.75 };
+    r.eyes.right.gaze = { x: line, y: 0.75 };
+    r.eyes.left.scaleY = 0.86;
+    r.eyes.right.scaleY = 0.86;
+    r.brows.left.y = base2.brows.left.y + 1.5;
+    r.brows.right.y = base2.brows.right.y + 1.5;
+    r.faceTilt = still ? -3 : -3 + wave(t) * 2;
+    if (!still) breathe(r, base2, t, 0.6);
+    const turn = still ? 0 : Math.max(0, Math.sin(clamp01((t - 0.55) / 0.2) * Math.PI));
+    r.props = [held("book", 0, 30, 0, 1)];
+    if (turn > 0.01) r.props.push({ ...held("book", 0, 30, 0, 1), id: "book-page", opacity: turn });
+    return r;
+  }
+  function typePose(base2, t, still) {
+    const r = cloneRig(base2);
+    r.y = base2.y + SIT_DROP;
+    r.squash = 0.04;
+    r.stretch = 0.03;
+    act(r, base2, "type", 1);
+    if (!still) {
+      r.limbs.arms.left.hand.y += Math.abs(Math.sin(t * 9 * Math.PI)) * -1.8;
+      r.limbs.arms.right.hand.y += Math.abs(Math.sin(t * 9 * Math.PI + 1.3)) * -1.8;
+      breathe(r, base2, t, 0.5);
+    }
+    const up = still ? 0 : ease((t - 0.6) / 0.08) * (1 - ease((t - 0.82) / 0.08));
+    const gaze = { x: 0.15, y: 0.7 - up * 0.9 };
+    r.eyes.left.gaze = gaze;
+    r.eyes.right.gaze = { ...gaze };
+    r.smile.depth = base2.smile.depth * (1 + up * 0.2);
+    r.props = [held("laptop", 4, 34, 0, 1)];
+    return r;
+  }
+  function magnifyPose(base2, t, still) {
+    const r = cloneRig(base2);
+    act(r, base2, "magnify", 1);
+    const scan = still ? 0 : wave(t);
+    const x = -15 + scan * 6;
+    const y = -9 + Math.abs(scan) * 2;
+    r.faceTilt = scan * 4;
+    r.rotation = scan * 2;
+    r.eyes.left.scaleX = 1.35;
+    r.eyes.left.scaleY = 1.35;
+    r.eyes.left.gaze = { x: scan * 0.5, y: 0 };
+    r.eyes.right.scaleY = 0.8;
+    r.eyes.right.gaze = { x: scan * 0.5, y: 0 };
+    r.brows.left.y = base2.brows.left.y - 4;
+    r.limbs.arms.left.hand = { x: x - 22, y: y + 22 };
+    if (!still) breathe(r, base2, t, 0.5);
+    r.props = [held("magnifier", x, y, 0, 1)];
+    return r;
+  }
+  var lookup = (id, group, pose2, asset) => {
+    const moving = {
+      id,
+      group,
+      priority: PRIORITY.chat + 10,
+      duration: 3200,
+      canInterrupt: true,
+      loop: true,
+      intensity: "minimal",
+      assets: asset,
+      reducedMotionFallback: `${id}-still`,
+      // Idle too: a host page can stage a prop outside a conversation (the
+      // website's guide reads up on the knowledge-base section).
+      states: ["thinking", "idle"],
+      blendInMs: 420,
+      pose: (base2, t) => pose2(base2, t, false)
+    };
+    const still = {
+      ...moving,
+      id: `${id}-still`,
+      intensity: "off",
+      assets: asset.filter((a) => a !== "book-page"),
+      reducedMotionFallback: null,
+      pose: (base2) => pose2(base2, 0, true)
+    };
+    return [moving, still];
+  };
+  var [lookupBook, lookupBookStill] = lookup("lookup-book", "lookup-book", readPose, [
+    "book",
+    "book-page"
+  ]);
+  var [lookupLaptop, lookupLaptopStill] = lookup("lookup-laptop", "lookup-laptop", typePose, [
+    "laptop"
+  ]);
+  var [lookupMagnify, lookupMagnifyStill] = lookup(
+    "lookup-magnify",
+    "lookup-magnify",
+    magnifyPose,
+    ["magnifier"]
+  );
+  var gesture = (id, intensity, duration, pose2) => ({
+    id,
+    group: "gesture",
+    priority: PRIORITY.chat + 5,
+    duration,
+    canInterrupt: true,
+    loop: false,
+    intensity,
+    assets: [],
+    reducedMotionFallback: null,
+    // Idle as well, so a host page can ask for one by name.
+    states: ["speaking", "idle"],
+    pose: (base2, t) => {
+      const r = cloneRig(base2);
+      pose2(r, base2, t);
+      return r;
+    }
+  });
+  var gestureNod = gesture("gesture-nod", "minimal", 900, (r, base2, t) => {
+    const w = envelope(t, 0.2, 0.3);
+    r.faceTilt = base2.faceTilt + Math.sin(t * TAU * 2) * 3 * w;
+    r.y = base2.y + Math.max(0, Math.sin(t * TAU * 2)) * 2 * w;
+    r.eyes.left.closed = 0.25 * w;
+    r.eyes.right.closed = 0.25 * w;
+    r.smile.depth = base2.smile.depth * (1 + 0.2 * w);
+  });
+  var gesturePalm = gesture("gesture-palm", "balanced", 1500, (r, base2, t) => {
+    const w = envelope(t, 0.18, 0.25);
+    const limbs = limbPose("hips");
+    limbs.arms.left = {
+      ...limbs.arms.left,
+      hand: { x: -60, y: 8 - Math.sin(t * Math.PI) * 6 },
+      bend: 0.5,
+      shape: "open",
+      handRotation: -70 + wave(t * 1.5) * 8,
+      front: false
+    };
+    r.limbs = blendLimbs(base2.limbs, limbs, w);
+    r.rotation = base2.rotation - 3 * w;
+    r.faceTilt = base2.faceTilt - 4 * w;
+    r.brows.left.y = base2.brows.left.y - 2.5 * w;
+    r.brows.right.y = base2.brows.right.y - 2.5 * w;
+  });
+  var gesturePoint = gesture("gesture-point", "balanced", 1300, (r, base2, t) => {
+    const w = envelope(t, 0.15, 0.28);
+    const shot = overshoot(clamp01((t - 0.05) / 0.25));
+    const limbs = limbPose("hips");
+    limbs.arms.right = {
+      ...limbPose("point").arms.right,
+      hand: { x: 58 + shot * 8, y: 4 - shot * 4 }
+    };
+    r.limbs = blendLimbs(base2.limbs, limbs, w);
+    const wink = t > 0.3 && t < 0.55 ? Math.sin((t - 0.3) / 0.25 * Math.PI) : 0;
+    r.eyes.right.closed = wink;
+    r.smile.depth = base2.smile.depth * (1 + 0.3 * w);
+    r.smile.rotation = base2.smile.rotation - 4 * w;
+    r.rotation = base2.rotation + 3 * w;
+  });
+  var gestureIndex = gesture("gesture-index", "balanced", 1400, (r, base2, t) => {
+    const w = envelope(t, 0.18, 0.25);
+    r.limbs = blendLimbs(base2.limbs, limbPose("idea"), w);
+    r.limbs.arms.left.hand.y -= Math.abs(Math.sin(t * TAU * 1.5)) * 3 * w;
+    r.brows.left.y = base2.brows.left.y - 3 * w;
+    r.faceTilt = base2.faceTilt + 3 * w;
+  });
+  var leanIn = {
+    id: "lean-in",
+    group: "lean",
+    priority: PRIORITY.interaction - 10,
+    duration: 1600,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: [],
+    reducedMotionFallback: null,
+    states: ["listening"],
+    pose: (base2, t) => {
+      const r = cloneRig(base2);
+      const w = envelope(t, 0.2, 0.3);
+      r.rotation = base2.rotation + 4 * w;
+      r.y = base2.y + 2 * w;
+      r.faceTilt = base2.faceTilt + 5 * w + Math.max(0, Math.sin(t * TAU * 2)) * 2 * w;
+      r.eyes.left.gaze = { x: 0.35 * w, y: 0.6 * w };
+      r.eyes.right.gaze = { x: 0.35 * w, y: 0.6 * w };
+      r.brows.left.y = base2.brows.left.y - 2 * w;
+      r.brows.right.y = base2.brows.right.y - 2 * w;
+      r.limbs = blendLimbs(base2.limbs, limbPose("chin"), w * 0.8);
+      return r;
+    }
+  };
+  var settleNod = {
+    id: "settle-nod",
+    group: "nod",
+    priority: PRIORITY.chat - 10,
+    duration: 1100,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: [],
+    reducedMotionFallback: null,
+    states: ["idle"],
+    pose: (base2, t) => {
+      const r = cloneRig(base2);
+      const w = envelope(t, 0.15, 0.35);
+      r.faceTilt = base2.faceTilt + Math.sin(t * TAU * 1.5) * 3 * w;
+      r.eyes.left.closed = 0.35 * w;
+      r.eyes.right.closed = 0.35 * w;
+      r.smile.depth = base2.smile.depth * (1 + 0.3 * w);
+      r.limbs = blendLimbs(base2.limbs, limbPose("hips"), w);
+      return r;
+    }
+  };
+  var fidget = (id, intensity, duration, pose2) => ({
+    id,
+    group: "fidget",
+    priority: PRIORITY.idle + 30,
+    duration,
+    canInterrupt: true,
+    loop: false,
+    intensity,
+    assets: [],
+    reducedMotionFallback: null,
+    states: ["idle"],
+    pose: (base2, t) => {
+      const r = cloneRig(base2);
+      pose2(r, base2, t);
+      return r;
+    }
+  });
+  var fidgetLook = fidget("fidget-look", "minimal", 2600, (r, base2, t) => {
+    const w = envelope(t, 0.1, 0.15);
+    const k = ease(t < 0.5 ? (t - 0.1) / 0.15 : (t - 0.5) / 0.15);
+    const x = (t < 0.5 ? -k : -1 + 2 * k) * w;
+    r.eyes.left.gaze = { x: x * 0.9, y: 0 };
+    r.eyes.right.gaze = { x: x * 0.9, y: 0 };
+    r.faceTilt = base2.faceTilt + x * 6;
+    r.rotation = base2.rotation + x * 2;
+    r.limbs = blendLimbs(base2.limbs, limbPose("hips"), w);
+  });
+  var fidgetStretch = fidget("fidget-stretch", "balanced", 2400, (r, base2, t) => {
+    const w = envelope(t, 0.3, 0.3);
+    r.limbs = blendLimbs(base2.limbs, limbPose("cheer"), w);
+    r.limbs.arms.left.shape = "open";
+    r.limbs.arms.right.shape = "open";
+    r.y = base2.y - 4 * w;
+    r.squash = -0.06 * w;
+    r.stretch = -0.04 * w;
+    r.eyes.left.closed = 0.8 * w;
+    r.eyes.right.closed = 0.8 * w;
+    r.smile.depth = base2.smile.depth * (1 - 0.6 * w);
+    r.smile.span = base2.smile.span * (1 - 0.35 * w);
+    for (const [i, ray] of r.rays.entries()) {
+      ray.lengthScale = base2.rays[i].lengthScale * (1 + 0.12 * w);
+    }
+  });
+  var fidgetPeace = fidget("fidget-peace", "balanced", 1800, (r, base2, t) => {
+    const w = envelope(t, 0.18, 0.25);
+    r.limbs = blendLimbs(base2.limbs, limbPose("peace"), w);
+    r.limbs.arms.left.handRotation += wave(t * 2) * 10 * w;
+    r.faceTilt = base2.faceTilt - 5 * w;
+    r.smile.depth = base2.smile.depth * (1 + 0.35 * w);
+    r.eyes.right.closed = Math.max(0, Math.sin((t - 0.4) / 0.25 * Math.PI)) * (t > 0.4 && t < 0.65 ? 1 : 0);
+  });
+  var fidgetHop = fidget("fidget-hop", "playful", 1200, (r, base2, t) => {
+    const air = t > 0.2 && t < 0.7 ? Math.sin((t - 0.2) / 0.5 * Math.PI) : 0;
+    const crouch = Math.max(
+      t < 0.2 ? Math.sin(t / 0.2 * Math.PI) : 0,
+      t > 0.7 && t < 0.9 ? Math.sin((t - 0.7) / 0.2 * Math.PI) : 0
+    );
+    r.y = base2.y - air * 9 + crouch * 3;
+    r.squash = crouch * 0.1 - air * 0.05;
+    r.stretch = -crouch * 0.06 + air * 0.03;
+    const limbs = blendLimbs(limbPose("hips"), limbPose("jump"), air);
+    for (const side of ["left", "right"]) limbs.legs[side].foot.y -= air * 9;
+    r.limbs = blendLimbs(base2.limbs, limbs, envelope(t, 0.1, 0.12));
+  });
+  var LOUNGE_MS = 6e5;
+  function loungePose(base2, t, still) {
+    const r = cloneRig(base2);
+    const ms = t * LOUNGE_MS;
+    const seated = still ? 1 : ease(ms / 900);
+    const breath = still ? 0 : wave(ms / 4200) * seated;
+    r.rotation = base2.rotation + seated * 16;
+    r.x = base2.x + seated * 8;
+    r.y = base2.y + seated * 6 - breath * 0.8;
+    r.faceTilt = base2.faceTilt - seated * 4;
+    r.smile.depth = base2.smile.depth * (1 + seated * 0.35);
+    for (const ray of r.rays) ray.lengthScale = 1 - seated * 0.04 + breath * 0.04;
+    const limbs = limbPose("recline");
+    limbs.legs.left = { ...limbs.legs.left, foot: { x: -50, y: 78 }, bend: -0.25, footRotation: -32 };
+    limbs.legs.right = { ...limbs.legs.right, foot: { x: -74, y: 62 }, bend: 0.3, footRotation: -10 };
+    const tap = still ? 0 : Math.max(0, Math.sin(ms / 700 * Math.PI)) * (Math.floor(ms / 5600) % 2);
+    limbs.legs.right.footRotation -= tap * 12;
+    r.limbs = blendLimbs(base2.limbs, limbs, seated);
+    const back = -r.rotation * Math.PI / 180;
+    const dx = base2.x - r.x;
+    const dy = base2.y - r.y;
+    const shades = still ? 1 : ease((ms - 600) / 500);
+    const peek = still ? 0 : Math.max(0, Math.sin((ms % 21e3 - 18e3) / 1200 * Math.PI));
+    r.props = [
+      {
+        id: "deckchair",
+        x: dx * Math.cos(back) - dy * Math.sin(back),
+        y: dx * Math.sin(back) + dy * Math.cos(back),
+        rotation: -r.rotation + (1 - seated) * 18,
+        scale: 0.55 + 0.45 * seated,
+        opacity: seated
+      },
+      {
+        id: "sunglasses",
+        x: 1.8,
+        y: -5.4 - 40 * (1 - shades) + peek * 6,
+        rotation: -11.4,
+        scale: 1,
+        opacity: shades
+      }
+    ];
+    r.eyes.left.closed = 0.35 * shades * (1 - peek);
+    r.eyes.right.closed = 0.35 * shades * (1 - peek);
+    r.brows.left.y = base2.brows.left.y - peek * 3;
+    return r;
+  }
+  var lounge = {
+    id: "lounge-deckchair",
+    group: "lounge",
+    priority: PRIORITY.idle + 40,
+    duration: LOUNGE_MS,
+    canInterrupt: true,
+    loop: false,
+    intensity: "minimal",
+    assets: ["deckchair", "sunglasses"],
+    reducedMotionFallback: "lounge-still",
+    states: ["relaxing"],
+    blendInMs: 500,
+    pose: (base2, t) => loungePose(base2, t, false)
+  };
+  var loungeStill = {
+    ...lounge,
+    id: "lounge-still",
+    // A held pose: it loops on one frame until the state it belongs to ends.
+    loop: true,
+    duration: 1,
+    intensity: "off",
+    reducedMotionFallback: null,
+    pose: (base2) => loungePose(base2, 0, true)
+  };
+  var ACTING = [
+    lookupBookStill,
+    lookupBook,
+    lookupLaptopStill,
+    lookupLaptop,
+    lookupMagnifyStill,
+    lookupMagnify,
+    gestureNod,
+    gesturePalm,
+    gesturePoint,
+    gestureIndex,
+    leanIn,
+    settleNod,
+    fidgetLook,
+    fidgetStretch,
+    fidgetPeace,
+    fidgetHop,
+    loungeStill,
+    lounge
+  ];
+
+  // packages/animation-engine/src/limb-acting.ts
+  var TAU2 = Math.PI * 2;
+  var clamp012 = (t) => Math.min(1, Math.max(0, t));
+  var ease2 = (t) => {
+    const c = clamp012(t);
+    return c * c * (3 - 2 * c);
+  };
+  var wave2 = (p, phase = 0) => Math.sin((p + phase) * TAU2);
+  var envelope2 = (t, a, b) => t <= 0 || t >= 1 ? 0 : Math.min(ease2(t / a), ease2((1 - t) / b));
+  var overshoot2 = (t, s = 1.9) => {
+    const c = clamp012(t) - 1;
+    return 1 + c * c * ((s + 1) * c + s);
+  };
   var pose = (name) => limbPose(name);
-  function act(r, base2, limbs, w) {
+  function act2(r, base2, limbs, w) {
     r.limbs = blendLimbs(base2.limbs, limbs, w);
   }
   function findProp(r, id) {
@@ -1318,47 +2048,47 @@
     if (Math.abs(turn) > limit) r.limbs.visible = false;
   }
   var wavingHello = (r, t, base2) => {
-    const w = envelope(t, 0.2, 0.25);
+    const w = envelope2(t, 0.2, 0.25);
     const limbs = pose("wave");
-    limbs.arms.left.handRotation += wave(t * 3) * 28;
-    limbs.arms.left.hand.x += wave(t * 3) * 3;
-    act(r, base2, limbs, w);
+    limbs.arms.left.handRotation += wave2(t * 3) * 28;
+    limbs.arms.left.hand.x += wave2(t * 3) * 3;
+    act2(r, base2, limbs, w);
   };
   var DIRECTORS = {
     "idle-breathe": (r, t) => {
-      r.limbs.arms.left.bend += wave(t * 6) * 0.18;
-      r.limbs.arms.right.bend -= wave(t * 6) * 0.18;
+      r.limbs.arms.left.bend += wave2(t * 6) * 0.18;
+      r.limbs.arms.right.bend -= wave2(t * 6) * 0.18;
     },
     "listening-perk": wavingHello,
     "bubble-open": (r, t, base2) => {
       const w = t < 0.3 ? 0 : Math.sin((t - 0.3) / 0.7 * Math.PI);
       const limbs = pose("wave");
-      limbs.arms.left.handRotation += wave(t * 2) * 30;
-      act(r, base2, limbs, w);
+      limbs.arms.left.handRotation += wave2(t * 2) * 30;
+      act2(r, base2, limbs, w);
     },
     "thinking-whirr": (r, t, base2) => {
       const limbs = pose("chin");
       limbs.arms.left.hand.y += Math.abs(Math.sin(t * 4 * Math.PI)) * 1.6;
-      act(r, base2, limbs, 1);
+      act2(r, base2, limbs, 1);
     },
-    "thinking-still": (r, _t, base2) => act(r, base2, pose("chin"), 1),
+    "thinking-still": (r, _t, base2) => act2(r, base2, pose("chin"), 1),
     "thinking-eureka": (r, t, base2) => {
-      const lit = t < 0.45 ? 0 : overshoot((t - 0.45) / 0.18);
+      const lit = t < 0.45 ? 0 : overshoot2((t - 0.45) / 0.18);
       const limbs = blendLimbs(pose("chin"), pose("idea"), lit);
-      act(r, base2, limbs, Math.min(1, ease((1 - t) / 0.15)));
+      act2(r, base2, limbs, Math.min(1, ease2((1 - t) / 0.15)));
     },
-    "eureka-still": (r, t, base2) => act(r, base2, pose("idea"), envelope(t, 0.2, 0.2)),
+    "eureka-still": (r, t, base2) => act2(r, base2, pose("idea"), envelope2(t, 0.2, 0.2)),
     "speaking-pulse": (r, t, base2) => {
       const beat = Math.sin(t * 2 % 1 * Math.PI);
       const limbs = blendLimbs(pose("hips"), pose("shrug"), 0.45 + beat * 0.3);
       limbs.arms.right = pose("hips").arms.right;
-      act(r, base2, limbs, 1);
+      act2(r, base2, limbs, 1);
     },
     "guiding-point": (r, t, base2) => {
       const limbs = pose("point");
       limbs.arms.left = pose("hips").arms.left;
-      limbs.arms.right.hand.x += wave(t * 2) * 2.5;
-      act(r, base2, limbs, 1);
+      limbs.arms.right.hand.x += wave2(t * 2) * 2.5;
+      act2(r, base2, limbs, 1);
       const wink = t > 0.1 && t < 0.3 ? Math.sin((t - 0.1) / 0.2 * Math.PI) : 0;
       r.eyes.right.closed = Math.max(r.eyes.right.closed, wink);
       r.smile.depth *= 1 + wink * 0.25;
@@ -1366,32 +2096,46 @@
     "guiding-still": (r, _t, base2) => {
       const limbs = pose("point");
       limbs.arms.left = pose("hips").arms.left;
-      act(r, base2, limbs, 1);
+      act2(r, base2, limbs, 1);
     },
     "celebrate-bounce": (r, t, base2) => {
       const air = Math.max(0, base2.y - r.y);
-      const flying = clamp01(air / 6);
+      const flying = clamp012(air / 6);
       const limbs = blendLimbs(pose("cheer"), pose("jump"), flying);
       for (const side of ["left", "right"]) limbs.legs[side].foot.y -= air;
-      limbs.arms.left.handRotation += wave(t * 3) * 12;
-      limbs.arms.right.handRotation -= wave(t * 3) * 12;
-      act(r, base2, limbs, envelope(t, 0.1, 0.12));
+      limbs.arms.left.handRotation += wave2(t * 3) * 12;
+      limbs.arms.right.handRotation -= wave2(t * 3) * 12;
+      act2(r, base2, limbs, envelope2(t, 0.1, 0.12));
     },
-    "celebrate-still": (r, t, base2) => act(r, base2, pose("thumbsUp"), envelope(t, 0.2, 0.2)),
+    "celebrate-still": (r, t, base2) => act2(r, base2, pose("thumbsUp"), envelope2(t, 0.2, 0.2)),
     "celebrate-spin": (r, t, base2) => {
-      act(r, base2, pose("cheer"), envelope(t, 0.1, 0.1));
+      act2(r, base2, pose("cheer"), envelope2(t, 0.1, 0.1));
       tuckWhileSpinning(r, base2);
     },
     "confused-tilt": (r, t, base2) => {
       const limbs = pose("shrug");
       limbs.arms.left.hand.y -= Math.abs(Math.sin(t * Math.PI * 3)) * 3;
       limbs.arms.right.hand.y -= Math.abs(Math.sin(t * Math.PI * 3)) * 3;
-      act(r, base2, limbs, envelope(t, 0.25, 0.25));
+      act2(r, base2, limbs, envelope2(t, 0.25, 0.25));
     },
-    "confused-still": (r, t, base2) => act(r, base2, pose("shrug"), envelope(t, 0.3, 0.3) * 0.6),
-    "error-deflate": (r, t, base2) => act(r, base2, pose("droop"), envelope(t, 0.3, 0.3)),
-    "error-still": (r, t, base2) => act(r, base2, pose("droop"), envelope(t, 0.3, 0.3) * 0.6),
-    "cool-still": (r, t, base2) => act(r, base2, pose("thumbsUp"), envelope(t, 0.2, 0.2)),
+    "confused-still": (r, t, base2) => act2(r, base2, pose("shrug"), envelope2(t, 0.3, 0.3) * 0.6),
+    "error-deflate": (r, t, base2) => act2(r, base2, pose("droop"), envelope2(t, 0.3, 0.3)),
+    "error-still": (r, t, base2) => act2(r, base2, pose("droop"), envelope2(t, 0.3, 0.3) * 0.6),
+    "celebrate-glow": (r, t, base2) => {
+      const limbs = blendLimbs(pose("hips"), pose("cheer"), 0.55 + Math.sin(t * 4 * Math.PI) * 0.2);
+      act2(r, base2, limbs, 1);
+    },
+    "celebrate-glow-still": (r, _t, base2) => act2(r, base2, pose("thumbsUp"), 1),
+    ponder: (r, t, base2) => {
+      const limbs = pose("chin");
+      limbs.arms.left.hand.x += Math.sin(t * 6 * TAU2) * 1.2;
+      limbs.arms.left.handRotation += Math.sin(t * 6 * TAU2) * 6;
+      act2(r, base2, limbs, 1);
+    },
+    "ponder-still": (r, _t, base2) => act2(r, base2, pose("chin"), 1),
+    droop: (r, _t, base2) => act2(r, base2, pose("droop"), 0.85),
+    "droop-still": (r, _t, base2) => act2(r, base2, pose("droop"), 0.85),
+    "cool-still": (r, t, base2) => act2(r, base2, pose("thumbsUp"), envelope2(t, 0.2, 0.2)),
     "charging-panel": (r, t, base2) => {
       const battery = findProp(r, "battery");
       const limbs = pose("hips");
@@ -1401,13 +2145,13 @@
         limbs.arms.right.bend = 0.4;
         limbs.arms.right.handRotation = -20;
       }
-      act(r, base2, limbs, envelope(t, 0.12, 0.12));
+      act2(r, base2, limbs, envelope2(t, 0.12, 0.12));
     },
     "play-shuffle": (r, t, base2) => walk(r, t, base2, 3, 0.6),
     "play-run": (r, t, base2) => walk(r, t, base2, 4, 1),
     "play-dance": (r, t, base2) => {
       walk(r, t, base2, 4, 0.8);
-      const w = envelope(t, 0.1, 0.12);
+      const w = envelope2(t, 0.1, 0.12);
       const limbs = blendLimbs(r.limbs, pose("cheer"), 0.6 * w);
       limbs.legs = r.limbs.legs;
       r.limbs = limbs;
@@ -1415,39 +2159,39 @@
     "balloon-rise": (r, t, base2) => holdBalloon(r, t, base2),
     "balloon-sway": (r, t, base2) => holdBalloon(r, t, base2),
     "balloon-wander": (r, t, base2) => holdBalloon(r, t, base2),
-    "pop-burst": (r, t, base2) => act(r, base2, pose("jump"), envelope(t, 0.08, 0.4)),
-    "pop-flinch": (r, t, base2) => act(r, base2, pose("jump"), envelope(t, 0.08, 0.4)),
-    "pop-shower": (r, t, base2) => act(r, base2, pose("cheer"), envelope(t, 0.1, 0.3)),
+    "pop-burst": (r, t, base2) => act2(r, base2, pose("jump"), envelope2(t, 0.08, 0.4)),
+    "pop-flinch": (r, t, base2) => act2(r, base2, pose("jump"), envelope2(t, 0.08, 0.4)),
+    "pop-shower": (r, t, base2) => act2(r, base2, pose("cheer"), envelope2(t, 0.1, 0.3)),
     "arcade-tuck": (r, _t, base2) => tuckWhileSpinning(r, base2),
     "arcade-roll": (r, _t, base2) => tuckWhileSpinning(r, base2),
     "arcade-spin": (r, _t, base2) => tuckWhileSpinning(r, base2),
-    "bloom-seed": (r, t, base2) => act(r, base2, pose("point"), envelope(t, 0.15, 0.15) * 0.5),
-    "bloom-grow": (r, t, base2) => act(r, base2, pose("cheer"), Math.max(0, envelope(t, 0.6, 0.12))),
-    "bloom-showcase": (r, t, base2) => act(r, base2, pose("cheer"), Math.max(0, envelope(t, 0.6, 0.12)))
+    "bloom-seed": (r, t, base2) => act2(r, base2, pose("point"), envelope2(t, 0.15, 0.15) * 0.5),
+    "bloom-grow": (r, t, base2) => act2(r, base2, pose("cheer"), Math.max(0, envelope2(t, 0.6, 0.12))),
+    "bloom-showcase": (r, t, base2) => act2(r, base2, pose("cheer"), Math.max(0, envelope2(t, 0.6, 0.12)))
   };
   function walk(r, t, base2, steps, size) {
     const limbs = pose("stand");
     const p = t * steps * 0.5;
-    const stride = wave(p) * 12 * size;
-    limbs.legs.left.foot = { x: -22 + stride, y: 86 - Math.max(0, wave(p)) * 10 * size };
-    limbs.legs.right.foot = { x: 22 - stride, y: 86 - Math.max(0, -wave(p)) * 10 * size };
-    limbs.legs.left.bend = -0.25 - Math.max(0, wave(p)) * 0.4;
-    limbs.legs.right.bend = 0.25 + Math.max(0, -wave(p)) * 0.4;
+    const stride = wave2(p) * 12 * size;
+    limbs.legs.left.foot = { x: -22 + stride, y: 86 - Math.max(0, wave2(p)) * 10 * size };
+    limbs.legs.right.foot = { x: 22 - stride, y: 86 - Math.max(0, -wave2(p)) * 10 * size };
+    limbs.legs.left.bend = -0.25 - Math.max(0, wave2(p)) * 0.4;
+    limbs.legs.right.bend = 0.25 + Math.max(0, -wave2(p)) * 0.4;
     limbs.arms.left = {
       ...limbs.arms.left,
-      hand: { x: -62 - stride * 0.9, y: 36 - Math.max(0, -wave(p)) * 14 * size },
+      hand: { x: -62 - stride * 0.9, y: 36 - Math.max(0, -wave2(p)) * 14 * size },
       bend: -0.35,
       shape: "fist",
       morph: 1
     };
     limbs.arms.right = {
       ...limbs.arms.right,
-      hand: { x: 62 - stride * 0.9, y: 36 - Math.max(0, wave(p)) * 14 * size },
+      hand: { x: 62 - stride * 0.9, y: 36 - Math.max(0, wave2(p)) * 14 * size },
       bend: 0.35,
       shape: "fist",
       morph: 1
     };
-    act(r, base2, limbs, envelope(t, 0.1, 0.12));
+    act2(r, base2, limbs, envelope2(t, 0.1, 0.12));
   }
   function holdBalloon(r, t, base2) {
     const balloon = findProp(r, "balloon");
@@ -1467,7 +2211,7 @@
         handRotation: 0
       };
     }
-    act(r, base2, limbs, envelope(t, 0.1, 0.1));
+    act2(r, base2, limbs, envelope2(t, 0.1, 0.1));
   }
   function withLimbActing(sequence) {
     const director = DIRECTORS[sequence.id];
@@ -1483,36 +2227,36 @@
   }
 
   // packages/animation-engine/src/sequences.ts
-  var TAU2 = Math.PI * 2;
-  var wave2 = (p, phase = 0) => Math.sin((p + phase) * TAU2);
+  var TAU3 = Math.PI * 2;
+  var wave3 = (p, phase = 0) => Math.sin((p + phase) * TAU3);
   var bump = (t) => Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
   var land = (t) => t <= 0 || t >= 1 ? 0 : Math.sin(Math.PI * t);
   var turns = (t, whole) => whole * 360 * t % 360;
   var swell = (t, from, to) => t <= from || t >= to ? 0 : Math.sin(Math.PI * ((t - from) / (to - from)));
-  var ease2 = (t) => {
+  var ease3 = (t) => {
     const c = Math.min(1, Math.max(0, t));
     return c * c * (3 - 2 * c);
   };
-  var clamp012 = (t) => Math.min(1, Math.max(0, t));
-  var overshoot2 = (t, s = 1.9) => {
-    const c = clamp012(t) - 1;
+  var clamp013 = (t) => Math.min(1, Math.max(0, t));
+  var overshoot3 = (t, s = 1.9) => {
+    const c = clamp013(t) - 1;
     return 1 + c * c * ((s + 1) * c + s);
   };
-  var settle = (t, cycles = 2.5, decay = 4.5) => t <= 0 || t >= 1 ? 0 : Math.sin(t * cycles * TAU2) * Math.exp(-decay * t) * (1 - t);
+  var settle = (t, cycles = 2.5, decay = 4.5) => t <= 0 || t >= 1 ? 0 : Math.sin(t * cycles * TAU3) * Math.exp(-decay * t) * (1 - t);
   function hoseBounce(p) {
     const ph = (p % 1 + 1) % 1;
     const lift = Math.sin(ph * Math.PI);
-    const edge = Math.min(ph, 1 - ph);
-    const squash = Math.max(0, 1 - edge / 0.14) ** 2;
+    const edge2 = Math.min(ph, 1 - ph);
+    const squash = Math.max(0, 1 - edge2 / 0.14) ** 2;
     const stretch = Math.abs(Math.cos(ph * Math.PI)) * (1 - squash);
     return { lift, squash, stretch };
   }
   function rubberRays(r, p, amount) {
     for (const [i, ray] of r.rays.entries()) {
       const phase = i / r.rays.length;
-      ray.rotation += wave2(p, -phase) * 7 * amount;
-      ray.lengthScale *= 1 + wave2(p, 0.25 - phase) * 0.09 * amount;
-      ray.widthScale *= 1 - wave2(p, 0.25 - phase) * 0.05 * amount;
+      ray.rotation += wave3(p, -phase) * 7 * amount;
+      ray.lengthScale *= 1 + wave3(p, 0.25 - phase) * 0.09 * amount;
+      ray.widthScale *= 1 - wave3(p, 0.25 - phase) * 0.05 * amount;
     }
   }
   function eyes(r, f) {
@@ -1539,10 +2283,10 @@
       r.y = base2.y - b.lift * 3.2;
       r.squash = b.squash * 0.07 - b.stretch * 0.025;
       r.stretch = b.stretch * 0.035 - b.squash * 0.04;
-      r.faceTilt = wave2(t * 3, -0.12) * 2.6;
+      r.faceTilt = wave3(t * 3, -0.12) * 2.6;
       rubberRays(r, t * 6 - 0.15, 0.7);
       const phase = t * 4 % 1;
-      const hold = ease2(Math.min(1, phase * 3));
+      const hold = ease3(Math.min(1, phase * 3));
       const targets = [
         [0, 0],
         [0.55, 0.15],
@@ -1584,10 +2328,22 @@
     intensity: "minimal",
     assets: [],
     reducedMotionFallback: null,
-    states: ["idle", "listening", "speaking", "guiding", "relaxing", "playing"],
+    states: [
+      "idle",
+      "listening",
+      "thinking",
+      "speaking",
+      "guiding",
+      "celebrating",
+      "confused",
+      "relaxing",
+      "playing",
+      "error"
+    ],
+    layer: "eyelids",
     pose: (base2, t) => {
       const r = cloneRig(base2);
-      const close = t < 0.35 ? ease2(t / 0.35) : 1 - ease2((t - 0.35) / 0.65);
+      const close = t < 0.35 ? ease3(t / 0.35) : 1 - ease3((t - 0.35) / 0.65);
       r.eyes.left.closed = close;
       r.eyes.right.closed = close;
       return r;
@@ -1597,7 +2353,8 @@
     id: "listening-perk",
     group: "listen",
     priority: PRIORITY.interaction,
-    duration: 700,
+    // Long enough to read as a wave hello (three flaps), not a twitch.
+    duration: 1400,
     canInterrupt: true,
     loop: false,
     intensity: "balanced",
@@ -1607,7 +2364,7 @@
     pose: (base2, t) => {
       const r = cloneRig(base2);
       const dip = t < 0.18 ? Math.sin(t / 0.18 * Math.PI * 0.5) * (1 - t / 0.18) * 1.6 : 0;
-      const pop = t < 0.18 ? 0 : overshoot2((t - 0.18) / 0.35) * (1 - ease2((t - 0.5) / 0.5));
+      const pop = t < 0.18 ? 0 : overshoot3((t - 0.18) / 0.35) * (1 - ease3((t - 0.5) / 0.5));
       const wob = settle(t, 2, 3);
       r.y = base2.y + dip * 3 - pop * 5;
       r.squash = dip * 0.12 - pop * 0.06 + wob * 0.04;
@@ -1619,7 +2376,7 @@
       r.brows.left.y = base2.brows.left.y - pop * 4;
       r.brows.right.y = base2.brows.right.y - pop * 4;
       for (const [i, ray] of r.rays.entries()) {
-        ray.lengthScale = 1 + pop * 0.14 - dip * 0.12 + settle(clamp012(t - i * 0.02), 2, 3) * 0.08;
+        ray.lengthScale = 1 + pop * 0.14 - dip * 0.12 + settle(clamp013(t - i * 0.02), 2, 3) * 0.08;
       }
       r.smile.depth = base2.smile.depth * (1 + pop * 0.3);
       return r;
@@ -1661,15 +2418,15 @@
       const k = Math.floor(beat);
       const f = beat - k;
       const dir = k % 2 === 0 ? 1 : -1;
-      const tick2 = dir * (overshoot2(f / 0.45) * 2 - 1);
+      const tick2 = dir * (overshoot3(f / 0.45) * 2 - 1);
       for (const [i, ray] of r.rays.entries()) {
         ray.rotation = tick2 * 9;
-        ray.lengthScale = 1 + wave2(t * 2, -i / r.rays.length) * 0.07;
+        ray.lengthScale = 1 + wave3(t * 2, -i / r.rays.length) * 0.07;
       }
       r.rotation = tick2 * 2.2;
-      r.faceTilt = -tick2 * 3 + wave2(t) * 2;
+      r.faceTilt = -tick2 * 3 + wave3(t) * 2;
       r.y = base2.y - Math.abs(Math.sin(beat * Math.PI)) * 1.4;
-      const up = 0.68 + wave2(t * 0.5) * 0.12;
+      const up = 0.68 + wave3(t * 0.5) * 0.12;
       eyes(r, (eye2) => {
         eye2.gaze = { x: -up * 0.6, y: -up };
         eye2.scaleY = 0.86;
@@ -1723,14 +2480,14 @@
     states: ["thinking", "speaking"],
     pose: (base2, t) => {
       const r = cloneRig(base2);
-      const flare = t < 0.45 ? 0 : ease2((t - 0.45) / 0.55);
+      const flare = t < 0.45 ? 0 : ease3((t - 0.45) / 0.55);
       const hold = t < 0.45 ? bump(t / 0.45) : 1;
       r.props = [
         {
           id: "question-mark",
           x: -34,
-          y: -30 - wave2(t * 1.5) * 2,
-          rotation: -12 + wave2(t) * 4,
+          y: -30 - wave3(t * 1.5) * 2,
+          rotation: -12 + wave3(t) * 4,
           scale: 0.5 + hold * 0.5,
           // Fades out as the flare takes over.
           opacity: Math.max(0, 1 - flare * 1.6)
@@ -1809,16 +2566,16 @@
     pose: (base2, t) => {
       const r = cloneRig(base2);
       const syl = hoseBounce(t * 2);
-      const open = Math.sin(t * 2 % 1 * Math.PI);
-      r.smile.depth = base2.smile.depth * (1 + open * 0.55);
-      r.smile.span = base2.smile.span * (1 - open * 0.08);
-      r.smile.y = base2.smile.y + open * 0.9;
-      r.brows.left.y = base2.brows.left.y - open * 2.2;
-      r.brows.right.y = base2.brows.right.y - open * 2.2;
+      const open2 = Math.sin(t * 2 % 1 * Math.PI);
+      r.smile.depth = base2.smile.depth * (1 + open2 * 0.55);
+      r.smile.span = base2.smile.span * (1 - open2 * 0.08);
+      r.smile.y = base2.smile.y + open2 * 0.9;
+      r.brows.left.y = base2.brows.left.y - open2 * 2.2;
+      r.brows.right.y = base2.brows.right.y - open2 * 2.2;
       r.y = base2.y - syl.lift * 1.8;
       r.squash = syl.squash * 0.05;
       r.stretch = syl.stretch * 0.02;
-      r.faceTilt = wave2(t, 0.1) * 2;
+      r.faceTilt = wave3(t, 0.1) * 2;
       rubberRays(r, t * 2 - 0.2, 0.45);
       return r;
     }
@@ -1850,7 +2607,7 @@
     pose: (base2, t) => {
       const r = cloneRig(base2);
       const lean = 9;
-      r.faceTilt = lean + wave2(t) * 1.4;
+      r.faceTilt = lean + wave3(t) * 1.4;
       r.rotation = lean * 0.4;
       const arm2 = r.rays[2];
       if (arm2) {
@@ -1898,7 +2655,7 @@
     pose: (base2, t) => {
       const r = cloneRig(base2);
       const a = bump(t);
-      r.rotation = ease2(Math.min(1, t / 0.8)) * 720;
+      r.rotation = ease3(Math.min(1, t / 0.8)) * 720;
       r.y = base2.y - a * 7;
       r.squash = -a * 0.06;
       r.stretch = a * 0.06;
@@ -1938,11 +2695,11 @@
       r.y = base2.y - air + crouch * 4;
       r.squash = crouch * 0.18 - rising * 0.06;
       r.stretch = rising * 0.12 - crouch * 0.1;
-      r.rotation = wave2(clamp012((t - 0.12) / 0.76)) * 8 * (1 - t);
+      r.rotation = wave3(clamp013((t - 0.12) / 0.76)) * 8 * (1 - t);
       const joy = Math.min(1, air / 6);
       for (const [i, ray] of r.rays.entries()) {
-        ray.lengthScale = 1 + joy * 0.22 - crouch * 0.15 + settle(clamp012(t - i * 0.015), 3, 4) * 0.06;
-        ray.rotation = wave2(t * 2, -i / 8) * 8 * joy;
+        ray.lengthScale = 1 + joy * 0.22 - crouch * 0.15 + settle(clamp013(t - i * 0.015), 3, 4) * 0.06;
+        ray.rotation = wave3(t * 2, -i / 8) * 8 * joy;
       }
       const a = bump(t);
       r.smile.span = base2.smile.span * (1 + a * 0.22);
@@ -2007,8 +2764,8 @@
     states: ["confused"],
     pose: (base2, t) => {
       const r = cloneRig(base2);
-      const shake = t < 0.22 ? Math.sin(t / 0.22 * TAU2 * 2) * (1 - t / 0.22) : 0;
-      const tilt = t < 0.2 ? 0 : overshoot2((t - 0.2) / 0.3) * (1 - ease2((t - 0.75) / 0.25));
+      const shake = t < 0.22 ? Math.sin(t / 0.22 * TAU3 * 2) * (1 - t / 0.22) : 0;
+      const tilt = t < 0.2 ? 0 : overshoot3((t - 0.2) / 0.3) * (1 - ease3((t - 0.75) / 0.25));
       const shrug = swell(t, 0.3, 0.75);
       r.faceTilt = -16 * tilt + shake * 8 + settle(t, 2, 3) * 4;
       r.rotation = -5 * tilt;
@@ -2032,9 +2789,9 @@
         {
           id: "question-mark",
           x: 36,
-          y: -36 - Math.abs(Math.sin(t * TAU2 * 1.5)) * 3,
-          rotation: 14 + wave2(t * 1.5) * 8,
-          scale: 0.5 + overshoot2(clamp012(t / 0.35)) * 0.45 * a,
+          y: -36 - Math.abs(Math.sin(t * TAU3 * 1.5)) * 3,
+          rotation: 14 + wave3(t * 1.5) * 8,
+          scale: 0.5 + overshoot3(clamp013(t / 0.35)) * 0.45 * a,
           opacity: Math.min(1, a * 1.4)
         }
       ];
@@ -2076,12 +2833,12 @@
     states: ["error"],
     pose: (base2, t) => {
       const r = cloneRig(base2);
-      const sag = t < 0.55 ? ease2(t / 0.4) : (1 - overshoot2((t - 0.55) / 0.45)) * (1 - t);
+      const sag = t < 0.55 ? ease3(t / 0.4) : (1 - overshoot3((t - 0.55) / 0.45)) * (1 - t);
       for (const [i, ray] of r.rays.entries()) {
         const angle = (ray.angleDeg + 360) % 360;
         const towardDown = angle < 180 ? 1 : -1;
         ray.rotation = towardDown * sag * 22 * Math.sin(angle * Math.PI / 180) ** 2;
-        ray.lengthScale = 1 - sag * 0.28 + settle(clamp012((t - 0.55) / 0.45 - i * 0.01), 2, 4) * 0.1;
+        ray.lengthScale = 1 - sag * 0.28 + settle(clamp013((t - 0.55) / 0.45 - i * 0.01), 2, 4) * 0.1;
         ray.widthScale = 1 - sag * 0.15;
       }
       r.squash = sag * 0.16;
@@ -2190,9 +2947,9 @@
     states: ["guiding", "speaking", "idle"],
     pose: (base2, t) => {
       const r = cloneRig(base2);
-      const charge = ease2(Math.min(1, t / 0.85));
+      const charge = ease3(Math.min(1, t / 0.85));
       for (const [i, ray] of r.rays.entries()) {
-        const pulse = Math.max(0, wave2(t * 2.5, -i / r.rays.length));
+        const pulse = Math.max(0, wave3(t * 2.5, -i / r.rays.length));
         ray.lengthScale = 1 + pulse * 0.22;
         ray.widthScale = 1 - pulse * 0.12;
       }
@@ -2245,14 +3002,14 @@
     states: ["idle", "listening"],
     pose: (base2, t) => {
       const r = cloneRig(base2);
-      const crouch = t < 0.3 ? Math.sin(t / 0.3 * Math.PI * 0.5) : Math.max(0, 1 - ease2((t - 0.3) / 0.12));
+      const crouch = t < 0.3 ? Math.sin(t / 0.3 * Math.PI * 0.5) : Math.max(0, 1 - ease3((t - 0.3) / 0.12));
       const launch = swell(t, 0.3, 0.75);
       const wob = t < 0.6 ? 0 : settle((t - 0.6) / 0.4, 1.5, 3);
       r.squash = crouch * 0.22 - launch * 0.08 + wob * 0.06;
       r.stretch = launch * 0.16 - crouch * 0.12 - wob * 0.04;
       r.y = base2.y + crouch * 6 - launch * 7;
       for (const [i, ray] of r.rays.entries()) {
-        ray.lengthScale = 1 - crouch * 0.3 + launch * 0.25 + settle(clamp012((t - 0.55) / 0.45 - i * 0.02), 2, 4) * 0.08;
+        ray.lengthScale = 1 - crouch * 0.3 + launch * 0.25 + settle(clamp013((t - 0.55) / 0.45 - i * 0.02), 2, 4) * 0.08;
       }
       eyes(r, (eye2) => {
         eye2.scaleY = 1 - crouch * 0.5 + launch * 0.25;
@@ -2335,8 +3092,8 @@
     pose: (base2, t) => {
       const r = cloneRig(base2);
       const env = bump(t);
-      const stride = Math.abs(wave2(t * 2)) * env;
-      const sway = wave2(t, 0.25) * env;
+      const stride = Math.abs(wave3(t * 2)) * env;
+      const sway = wave3(t, 0.25) * env;
       r.rotation = env * 7 + stride * 2;
       r.x = base2.x + sway * 2;
       r.y = base2.y - stride * 4.5;
@@ -2373,11 +3130,11 @@
     pose: (base2, t) => {
       const r = cloneRig(base2);
       const env = bump(t);
-      const rock = wave2(t * 1.5) * env;
+      const rock = wave3(t * 1.5) * env;
       const swing = Math.abs(rock);
       r.rotation = rock * 11;
       r.x = base2.x + rock * 4.5;
-      r.y = base2.y - Math.abs(wave2(t * 1.5, 0.25)) * 4 * env;
+      r.y = base2.y - Math.abs(wave3(t * 1.5, 0.25)) * 4 * env;
       r.squash = -swing * 0.04;
       r.stretch = swing * 0.05;
       r.faceTilt = -rock * 6;
@@ -2403,7 +3160,7 @@
     }
   };
   function gather(t, inBy, outFrom) {
-    return Math.min(ease2(t / inBy), ease2((1 - t) / outFrom));
+    return Math.min(ease3(t / inBy), ease3((1 - t) / outFrom));
   }
   var arcadeTuck = {
     id: "arcade-tuck",
@@ -2447,7 +3204,7 @@
       const r = cloneRig(base2);
       const fold = gather(t, 0.2, 0.26);
       const a = land(t);
-      r.rotation = base2.rotation + turns(ease2((t - 0.14) / 0.62), 1);
+      r.rotation = base2.rotation + turns(ease3((t - 0.14) / 0.62), 1);
       r.x = base2.x + a * 2.5;
       r.y = base2.y - a * 2;
       r.squash = base2.squash + fold * 0.11;
@@ -2479,7 +3236,7 @@
       const fold = gather(t, 0.16, 0.24);
       const a = land(t);
       const hop = a * Math.sin(Math.PI * Math.min(1, Math.max(0, (t - 0.15) / 0.7)));
-      r.rotation = base2.rotation + turns(ease2((t - 0.12) / 0.68), 2);
+      r.rotation = base2.rotation + turns(ease3((t - 0.12) / 0.68), 2);
       r.y = base2.y - hop * 4;
       r.squash = base2.squash + (fold * 0.14 - hop * 0.05);
       r.stretch = base2.stretch + (hop * 0.04 - fold * 0.06);
@@ -2498,13 +3255,13 @@
   };
   function relaxPose(base2, t, extra) {
     const r = cloneRig(base2);
-    const seated = Math.min(ease2(t / 0.2), ease2((1 - t) / 0.12));
-    const deployed = Math.min(ease2(t / 0.16), ease2((1 - t) / 0.08));
-    const breath = wave2(t * 1.25) * seated;
+    const seated = Math.min(ease3(t / 0.2), ease3((1 - t) / 0.12));
+    const deployed = Math.min(ease3(t / 0.16), ease3((1 - t) / 0.08));
+    const breath = wave3(t * 1.25) * seated;
     const stretch = bump((t - 0.7) / 0.18);
     const lean = seated * 16;
     r.rotation = base2.rotation + lean;
-    r.x = base2.x - seated * 4;
+    r.x = base2.x + seated * 8;
     r.y = base2.y + seated * 6 - breath * 0.8 - stretch * 1.4;
     r.faceTilt = base2.faceTilt - seated * 4;
     r.smile.depth = base2.smile.depth * (1 + seated * 0.35);
@@ -2512,40 +3269,20 @@
     for (const ray of r.rays) {
       ray.lengthScale = 1 - seated * 0.04 + breath * 0.04 + stretch * 0.12;
     }
-    const relaxed = limbPose("rest");
-    relaxed.legs.left = {
-      ...relaxed.legs.left,
-      foot: { x: -66, y: 54 },
-      bend: 0.25,
-      footRotation: -12,
-      morph: 1
+    const relaxed2 = limbPose("recline");
+    relaxed2.legs.left = {
+      ...relaxed2.legs.left,
+      foot: { x: -50, y: 78 },
+      bend: -0.25,
+      footRotation: -32
     };
-    relaxed.legs.right = {
-      ...relaxed.legs.right,
-      foot: { x: -78, y: 47 },
-      bend: 0.35,
-      footRotation: -6,
-      morph: 1
+    relaxed2.legs.right = {
+      ...relaxed2.legs.right,
+      foot: { x: -74, y: 62 },
+      bend: 0.3,
+      footRotation: -10
     };
-    relaxed.arms.left = {
-      ...relaxed.arms.left,
-      hand: { x: -16, y: -26 },
-      bend: 1.35,
-      shape: "fist",
-      handRotation: 0,
-      behind: true,
-      morph: 1
-    };
-    relaxed.arms.right = {
-      ...relaxed.arms.right,
-      hand: { x: 18, y: -28 },
-      bend: -1.35,
-      shape: "fist",
-      handRotation: 0,
-      behind: true,
-      morph: 1
-    };
-    r.limbs = blendLimbs(base2.limbs, relaxed, seated * (1 - stretch * 0.5));
+    r.limbs = blendLimbs(base2.limbs, relaxed2, seated * (1 - stretch * 0.5));
     const back = -r.rotation * Math.PI / 180;
     const dx = base2.x - r.x;
     const dy = base2.y - r.y;
@@ -2560,7 +3297,7 @@
       }
     ];
     if (extra.shades) {
-      const on = Math.min(ease2((t - 0.18) / 0.1), ease2((0.84 - t) / 0.1));
+      const on = Math.min(ease3((t - 0.18) / 0.1), ease3((0.84 - t) / 0.1));
       props.push({ ...SHADES_REST, y: SHADES_REST.y - 40 * (1 - on), opacity: on });
       const squint = on * 0.35;
       r.eyes.left.closed = squint;
@@ -2602,20 +3339,20 @@
   function shadesPose(base2, t, playful) {
     const r = cloneRig(base2);
     const clamp = (v) => Math.min(1, Math.max(0, v));
-    const reach = ease2(clamp(t / 0.12));
-    const bring = ease2(clamp((t - 0.12) / 0.24));
+    const reach = ease3(clamp(t / 0.12));
+    const bring = ease3(clamp((t - 0.12) / 0.24));
     const landed = t >= 0.36;
     const land2 = landed ? Math.sin(clamp((t - 0.36) / 0.18) * Math.PI * 2.5) * Math.exp(-clamp((t - 0.36) / 0.18) * 4) * (1 - clamp((t - 0.36) / 0.18)) : 0;
     const nudge = swell(t, 0.44, 0.54);
-    const retract = ease2(clamp((t - 0.56) / 0.14));
-    const off = ease2(clamp((t - 0.86) / 0.14));
+    const retract = ease3(clamp((t - 0.56) / 0.14));
+    const off = ease3(clamp((t - 0.86) / 0.14));
     const pop = swell(t, 0, 0.12);
     const wearing = landed ? Math.min(1, (t - 0.36) / 0.1) * (1 - off) : 0;
     r.squash = pop * 0.06;
     r.stretch = -pop * 0.03;
     r.rotation = base2.rotation - wearing * 3;
-    r.y = base2.y - wearing * 1.5 - (playful ? Math.abs(wave2(t * 4)) * 2 * wearing : 0);
-    r.faceTilt = base2.faceTilt + wearing * wave2(t * 2) * 2.5;
+    r.y = base2.y - wearing * 1.5 - (playful ? Math.abs(wave3(t * 4)) * 2 * wearing : 0);
+    r.faceTilt = base2.faceTilt + wearing * wave3(t * 2) * 2.5;
     const start = { x: 70, y: -96 };
     const temple = { x: 50, y: -14 };
     const hand = {
@@ -2723,23 +3460,23 @@
   var BALLOON_RELEASE = { x: 12, y: 18 };
   function balloonPose(base2, t, extra) {
     const r = cloneRig(base2);
-    const arrive = ease2(t / 0.2);
-    const leave = ease2((t - 0.8) / 0.2);
+    const arrive = ease3(t / 0.2);
+    const leave = ease3((t - 0.8) / 0.2);
     const visible = arrive * (1 - leave);
-    const held = ease2(Math.min(arrive, (0.8 - t) / 0.12));
-    const sway = wave2(t * 1.5) * extra.sway * held;
-    const wander = wave2(t * 2.3, 0.15) * extra.wander * held;
-    const bob = wave2(t * 1.5, 0.25) * (2.2 + extra.sway * 0.25) * held;
-    const drift = wave2(t * 3.1, 0.6) * extra.wander * held;
+    const held2 = ease3(Math.min(arrive, (0.8 - t) / 0.12));
+    const sway = wave3(t * 1.5) * extra.sway * held2;
+    const wander = wave3(t * 2.3, 0.15) * extra.wander * held2;
+    const bob = wave3(t * 1.5, 0.25) * (2.2 + extra.sway * 0.25) * held2;
+    const drift = wave3(t * 3.1, 0.6) * extra.wander * held2;
     const x = BALLOON_START.x + (BALLOON_HOVER.x - BALLOON_START.x) * arrive + sway + wander + leave * BALLOON_RELEASE.x;
     const y = BALLOON_START.y + (BALLOON_HOVER.y - BALLOON_START.y) * arrive - bob - leave * BALLOON_RELEASE.y;
-    const toward = extra.lean * held;
+    const toward = extra.lean * held2;
     r.rotation = base2.rotation + toward;
     r.faceTilt = base2.faceTilt - toward * 0.6;
     r.x = base2.x + toward * 0.35;
-    r.y = base2.y - held * 0.5 - bob * 0.1;
-    r.smile.depth = base2.smile.depth * (1 + held * 0.12);
-    r.smile.span = base2.smile.span * (1 + held * 0.05);
+    r.y = base2.y - held2 * 0.5 - bob * 0.1;
+    r.smile.depth = base2.smile.depth * (1 + held2 * 0.12);
+    r.smile.span = base2.smile.span * (1 + held2 * 0.05);
     const mag = Math.max(1, Math.hypot(x, y));
     const gaze = {
       x: Math.max(-1, Math.min(1, x / mag)),
@@ -2748,8 +3485,8 @@
     r.eyes.left.gaze = gaze;
     r.eyes.right.gaze = { ...gaze };
     for (const ray of r.rays) {
-      ray.lengthScale = 1 + held * 0.04 + drift * 0.02;
-      ray.widthScale = 1 + held * 0.02;
+      ray.lengthScale = 1 + held2 * 0.04 + drift * 0.02;
+      ray.widthScale = 1 + held2 * 0.02;
       ray.rotation = drift * 2;
     }
     r.props = [
@@ -2944,8 +3681,8 @@
     r.rays.forEach((ray, i) => {
       ray.lengthScale = base2.rays[i].lengthScale + shine;
     });
-    const fallen = ease2((t - SEED_DROPS_AT) / (SEED_LANDS_BY - SEED_DROPS_AT));
-    const seedOpacity = ease2(t / SEED_APPEARS_BY) * (1 - ease2((t - SEED_FADES_FROM) / (SEED_GONE - SEED_FADES_FROM)));
+    const fallen = ease3((t - SEED_DROPS_AT) / (SEED_LANDS_BY - SEED_DROPS_AT));
+    const seedOpacity = ease3(t / SEED_APPEARS_BY) * (1 - ease3((t - SEED_FADES_FROM) / (SEED_GONE - SEED_FADES_FROM)));
     if (seedOpacity > 0) {
       props.push({
         id: "seed",
@@ -2956,8 +3693,8 @@
         opacity: seedOpacity
       });
     }
-    const sprout = ease2((t - SPROUT_AT) / (SPROUT_DONE - SPROUT_AT));
-    const sproutOpacity = Math.min(1, sprout * 4) * (1 - ease2((t - FLOWER_AT) / 0.14));
+    const sprout = ease3((t - SPROUT_AT) / (SPROUT_DONE - SPROUT_AT));
+    const sproutOpacity = Math.min(1, sprout * 4) * (1 - ease3((t - FLOWER_AT) / 0.14));
     if (sproutOpacity > 0) {
       props.push({
         id: "sprout",
@@ -2968,8 +3705,8 @@
         opacity: sproutOpacity
       });
     }
-    const bloom = ease2((t - FLOWER_AT) / (FLOWER_DONE - FLOWER_AT));
-    const flowerOpacity = Math.min(1, bloom * 4) * (1 - ease2((t - TAKEN_IN) / (1 - TAKEN_IN)));
+    const bloom = ease3((t - FLOWER_AT) / (FLOWER_DONE - FLOWER_AT));
+    const flowerOpacity = Math.min(1, bloom * 4) * (1 - ease3((t - TAKEN_IN) / (1 - TAKEN_IN)));
     if (flowerOpacity > 0) {
       props.push({
         id: "flower",
@@ -2980,13 +3717,13 @@
         opacity: flowerOpacity
       });
     }
-    const held = land(t / 0.9);
-    const lean = extra.lean * held;
+    const held2 = land(t / 0.9);
+    const lean = extra.lean * held2;
     r.rotation = base2.rotation + lean;
     r.x = base2.x + lean * 0.35;
     r.faceTilt = base2.faceTilt - lean * 0.5;
-    r.smile.depth = base2.smile.depth * (1 + held * 0.16);
-    r.smile.span = base2.smile.span * (1 + held * 0.06);
+    r.smile.depth = base2.smile.depth * (1 + held2 * 0.16);
+    r.smile.span = base2.smile.span * (1 + held2 * 0.06);
     if (extra.hop) r.y = base2.y - swell(t, 0.58, 0.88) * 2.4;
     const focus = sprout > 0 || bloom > 0 ? bloomCentre() : {
       x: SEED_HELD.x + (PLANT.x - SEED_HELD.x) * fallen,
@@ -2994,8 +3731,8 @@
     };
     const mag = Math.max(1, Math.hypot(focus.x, focus.y));
     const gaze = {
-      x: base2.eyes.left.gaze.x + (focus.x / mag - base2.eyes.left.gaze.x) * held,
-      y: base2.eyes.left.gaze.y + (focus.y / mag - base2.eyes.left.gaze.y) * held
+      x: base2.eyes.left.gaze.x + (focus.x / mag - base2.eyes.left.gaze.x) * held2,
+      y: base2.eyes.left.gaze.y + (focus.y / mag - base2.eyes.left.gaze.y) * held2
     };
     r.eyes.left.gaze = gaze;
     r.eyes.right.gaze = { ...gaze };
@@ -3077,6 +3814,139 @@
     states: ["idle", "playing"],
     pose: (base2, t) => bloomPose(base2, t, { shine: 0.16, gleam: 2, bloom: 1.12, hop: true, lean: 3 })
   };
+  var celebrateGlow = {
+    id: "celebrate-glow",
+    group: "celebrate-glow",
+    priority: PRIORITY.idle + 10,
+    duration: 1600,
+    canInterrupt: true,
+    loop: true,
+    intensity: "minimal",
+    assets: [],
+    reducedMotionFallback: "celebrate-glow-still",
+    states: ["celebrating"],
+    pose: (base2, t) => {
+      const r = cloneRig(base2);
+      const b = hoseBounce(t * 2);
+      r.y = base2.y - b.lift * 4;
+      r.squash = b.squash * 0.09 - b.stretch * 0.03;
+      r.stretch = b.stretch * 0.04 - b.squash * 0.05;
+      r.faceTilt = wave3(t, -0.1) * 4;
+      rubberRays(r, t * 2 - 0.12, 1);
+      r.smile.depth = base2.smile.depth * 1.3;
+      r.smile.span = base2.smile.span * 1.08;
+      eyes(r, (eye2) => {
+        eye2.scaleY = 0.86;
+        eye2.gaze = { x: 0, y: -0.2 };
+      });
+      r.brows.left.y = base2.brows.left.y - 3 - b.lift;
+      r.brows.right.y = base2.brows.right.y - 3 - b.lift;
+      return r;
+    }
+  };
+  var celebrateGlowStill = {
+    ...celebrateGlow,
+    id: "celebrate-glow-still",
+    intensity: "off",
+    reducedMotionFallback: null,
+    pose: (base2) => {
+      const r = cloneRig(base2);
+      r.smile.depth = base2.smile.depth * 1.3;
+      eyes(r, (eye2) => eye2.scaleY = 0.86);
+      return r;
+    }
+  };
+  var ponder = {
+    id: "ponder",
+    group: "ponder",
+    priority: PRIORITY.idle + 10,
+    duration: 2400,
+    canInterrupt: true,
+    loop: true,
+    intensity: "minimal",
+    assets: [],
+    reducedMotionFallback: "ponder-still",
+    states: ["confused"],
+    pose: (base2, t) => {
+      const r = cloneRig(base2);
+      const sway = wave3(t);
+      r.faceTilt = -9 + sway * 4;
+      r.rotation = -2 + sway * 1.5;
+      r.y = base2.y - Math.abs(wave3(t * 2)) * 1.2;
+      rubberRays(r, t, 0.4);
+      r.brows.left.y = base2.brows.left.y - 5 - Math.max(0, sway) * 2;
+      r.brows.left.rotation = base2.brows.left.rotation + 10;
+      r.brows.right.y = base2.brows.right.y + 2;
+      r.eyes.left.scaleY = 0.85;
+      r.eyes.right.scaleY = 1.2;
+      eyes(r, (eye2) => eye2.gaze = { x: -0.4 + sway * 0.2, y: -0.45 });
+      r.smile.depth = base2.smile.depth * 0.35;
+      r.smile.span = base2.smile.span * 0.75;
+      r.smile.rotation = base2.smile.rotation + 8;
+      return r;
+    }
+  };
+  var ponderStill = {
+    ...ponder,
+    id: "ponder-still",
+    intensity: "off",
+    reducedMotionFallback: null,
+    pose: (base2) => {
+      const r = cloneRig(base2);
+      r.faceTilt = -9;
+      r.brows.left.y = base2.brows.left.y - 5;
+      r.smile.depth = base2.smile.depth * 0.35;
+      return r;
+    }
+  };
+  var droop = {
+    id: "droop",
+    group: "droop",
+    priority: PRIORITY.idle + 10,
+    duration: 3200,
+    canInterrupt: true,
+    loop: true,
+    intensity: "minimal",
+    assets: [],
+    reducedMotionFallback: "droop-still",
+    states: ["error"],
+    pose: (base2, t) => {
+      const r = cloneRig(base2);
+      const breath = (1 - Math.cos(t * TAU3)) / 2;
+      r.y = base2.y + 3 - breath * 1.5;
+      r.squash = 0.05 - breath * 0.03;
+      r.stretch = -0.03 + breath * 0.02;
+      for (const ray of r.rays) {
+        const angle = (ray.angleDeg + 360) % 360;
+        const towardDown = angle < 180 ? 1 : -1;
+        ray.rotation = towardDown * (10 - breath * 3) * Math.sin(angle * Math.PI / 180) ** 2;
+        ray.lengthScale = 0.88 + breath * 0.03;
+      }
+      eyes(r, (eye2) => {
+        eye2.scaleY = 0.8;
+        eye2.gaze = { x: 0, y: 0.5 };
+      });
+      r.brows.left.rotation = base2.brows.left.rotation + 10;
+      r.brows.right.rotation = base2.brows.right.rotation - 10;
+      r.brows.left.y = base2.brows.left.y + 2;
+      r.brows.right.y = base2.brows.right.y + 2;
+      r.smile.depth = base2.smile.depth * -0.25;
+      r.smile.span = base2.smile.span * 0.7;
+      return r;
+    }
+  };
+  var droopStill = {
+    ...droop,
+    id: "droop-still",
+    intensity: "off",
+    reducedMotionFallback: null,
+    pose: (base2) => {
+      const r = cloneRig(base2);
+      for (const ray of r.rays) ray.lengthScale = 0.9;
+      r.smile.depth = base2.smile.depth * -0.2;
+      return r;
+    }
+  };
   var AUTHORED = [
     idleStill,
     idle,
@@ -3098,6 +3968,12 @@
     confused,
     errorStill,
     error,
+    celebrateGlowStill,
+    celebrateGlow,
+    ponderStill,
+    ponder,
+    droopStill,
+    droop,
     chargingStill,
     charging,
     coolShadesStill,
@@ -3127,7 +4003,8 @@
     bloomStill,
     bloomSeed,
     bloomGrow,
-    bloomShowcase
+    bloomShowcase,
+    ...ACTING
   ];
   var SEQUENCES = AUTHORED.map(withLimbActing);
   var SEQUENCE_BY_ID = new Map(
@@ -3156,7 +4033,7 @@
     const local = ms % (seq.duration + HOLD_MS);
     return local < seq.duration ? local / seq.duration : null;
   }
-  function build() {
+  function build2() {
     createSunnyView(document.getElementById("rest"), { decorative: true }).draw(base);
     const grid = document.getElementById("grid");
     const groups = /* @__PURE__ */ new Map();
@@ -3245,7 +4122,7 @@
       elapsed = 0;
     });
   }
-  build();
+  build2();
   controls();
   requestAnimationFrame(tick);
 })();
