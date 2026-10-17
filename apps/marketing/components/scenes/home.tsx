@@ -65,7 +65,12 @@ export function HeroScene(): React.JSX.Element {
           />
         </>
       }
-      sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.4, y: 0.1 }, grin: 1.2 }}
+      sunny={{
+        pose: 'rest',
+        play: 'listening-perk',
+        look: { x: -0.4, y: 0.1 },
+        expression: 'hello',
+      }}
       at={{ x: 340, y: 232 }}
       size={200}
     />
@@ -91,6 +96,7 @@ export function QualifyScene(): React.JSX.Element {
         at: 0.25,
         play: 'lookup-magnify',
         props: [held('clipboard', 66, -6, 10)],
+        expression: 'focused',
       }}
       at={{ x: 60, y: 150 }}
       size={240}
@@ -125,7 +131,13 @@ export function RecommendScene(): React.JSX.Element {
           <Rosette x={362} y={250} label="BEST FIT" />
         </>
       }
-      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: 0.1, y: 0.8 }, tilt: 4, grin: 1.2 }}
+      sunny={{
+        pose: 'rest',
+        play: 'gesture-point',
+        look: { x: 0.1, y: 0.8 },
+        tilt: 4,
+        expression: 'knowing',
+      }}
       at={{ x: 214, y: 6 }}
       size={140}
     />
@@ -146,7 +158,12 @@ export function HandoverScene(): React.JSX.Element {
           <Van x={300} y={350} w={220} />
         </>
       }
-      sunny={{ pose: 'hold', play: 'gesture-point', props: [held('envelope', 72, -2, -10, 1.8)] }}
+      sunny={{
+        pose: 'hold',
+        play: 'gesture-nod',
+        props: [held('envelope', 72, -2, -10, 1.8)],
+        expression: 'proud',
+      }}
       at={{ x: 40, y: 140 }}
       size={250}
     />
@@ -183,7 +200,12 @@ export function PasteScene(): React.JSX.Element {
           />
         </>
       }
-      sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.6, y: 0.3 }, grin: 1.2 }}
+      sunny={{
+        pose: 'rest',
+        play: 'listening-perk',
+        look: { x: -0.6, y: 0.3 },
+        expression: 'curious',
+      }}
       at={{ x: 196, y: 70 }}
       size={100}
     />
@@ -217,7 +239,12 @@ export function WelcomeScene(): React.JSX.Element {
           />
         </>
       }
-      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.4, y: 0.6 }, grin: 1.25 }}
+      sunny={{
+        pose: 'rest',
+        play: 'celebrate-glow',
+        look: { x: -0.4, y: 0.6 },
+        expression: 'delighted',
+      }}
       at={{ x: 186, y: 96 }}
       size={104}
     />
@@ -237,7 +264,12 @@ export function ColoursScene(): React.JSX.Element {
           <PaintPots x={70} y={392} colours={PAINT_COLOURS} />
         </>
       }
-      sunny={{ pose: 'hold', play: 'gesture-palm', props: [held('paintbrush', 66, -10, 28, 1.9)] }}
+      sunny={{
+        pose: 'hold',
+        play: 'gesture-nod',
+        props: [held('paintbrush', 66, -10, 28, 1.9)],
+        expression: 'pondering',
+      }}
       at={{ x: 110, y: 120 }}
       size={250}
     />
@@ -277,7 +309,12 @@ export function SunriseScene(): React.JSX.Element {
           <Terrace x={80} y={356} s={1} count={5} panels={3} panelEvery={2} />
         </>
       }
-      sunny={{ pose: 'rest', play: 'celebrate-bounce', look: { x: 0, y: -0.2 }, grin: 1.25 }}
+      sunny={{
+        pose: 'rest',
+        play: 'celebrate-bounce',
+        look: { x: 0, y: -0.2 },
+        expression: 'laughing',
+      }}
       at={{ x: 160, y: 8 }}
       size={200}
     />

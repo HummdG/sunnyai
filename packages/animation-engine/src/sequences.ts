@@ -1,4 +1,5 @@
 import { ACTING } from './acting.js';
+import { withFaceRules } from './face-rules.js';
 import { withLimbActing } from './limb-acting.js';
 import {
   blendLimbs,
@@ -258,8 +259,9 @@ const listening: Sequence = {
     r.squash = dip * 0.12 - pop * 0.06 + wob * 0.04;
     r.stretch = pop * 0.08 - dip * 0.06;
     eyes(r, (eye) => {
-      eye.scaleY = 1 + pop * 0.32 - dip * 0.25;
-      eye.scaleX = 1 + pop * 0.1;
+      // Bright, not startled: a stare is what made the old hello unsettling.
+      eye.scaleY = 1 + pop * 0.14 - dip * 0.2;
+      eye.scaleX = 1 + pop * 0.05;
     });
     r.brows.left.y = base.brows.left.y - pop * 4;
     r.brows.right.y = base.brows.right.y - pop * 4;
@@ -440,7 +442,8 @@ const eureka: Sequence = {
     r.eyes.left.scaleY = 1 + flare * 0.2;
     r.eyes.right.scaleY = 1 + flare * 0.2;
     r.smile.span = base.smile.span * (0.7 + flare * 0.45);
-    r.smile.depth = base.smile.depth * (0.6 + flare * 0.6);
+    // Got it! The mouth opens at the flare (face-rules.ts: past OPEN_AT).
+    r.smile.depth = base.smile.depth * (0.6 + flare * 0.7);
     r.brows.left.y = base.brows.left.y - flare * 3;
     r.brows.right.y = base.brows.right.y - flare * 3;
     return r;
@@ -502,7 +505,9 @@ const speaking: Sequence = {
     // under it with a squash on the stress, and the rays wag a beat behind.
     const syl = hoseBounce(t * 2);
     const open = Math.sin(((t * 2) % 1) * Math.PI);
-    r.smile.depth = base.smile.depth * (1 + open * 0.55);
+    // Open on the syllable, the reference smile between: two drawings on the
+    // beat (see face-rules.ts), never one mouth stretched.
+    r.smile.depth = base.smile.depth * (1 + open * 0.3);
     r.smile.span = base.smile.span * (1 - open * 0.08);
     r.smile.y = base.smile.y + open * 0.9;
     r.brows.left.y = base.brows.left.y - open * 2.2;
@@ -1465,8 +1470,9 @@ function relaxPose(base: SunnyRig, t: number, extra: { shades: boolean; doze: bo
   r.y = base.y + seated * 6 - breath * 0.8 - stretch * 1.4;
   r.faceTilt = base.faceTilt - seated * 4;
 
-  r.smile.depth = base.smile.depth * (1 + seated * 0.35);
-  r.smile.span = base.smile.span * (1 + seated * 0.08);
+  // Contented, not beaming: the closed smile, a touch deeper.
+  r.smile.depth = base.smile.depth * (1 + seated * 0.1);
+  r.smile.span = base.smile.span * (1 + seated * 0.04);
   for (const ray of r.rays) {
     ray.lengthScale = 1 - seated * 0.04 + breath * 0.04 + stretch * 0.12;
   }
@@ -1643,7 +1649,7 @@ function shadesPose(base: SunnyRig, t: number, playful: boolean): SunnyRig {
   r.eyes.right.closed = squint;
   r.brows.left.y = base.brows.left.y - (nudge + wearing * 0.6) * 4;
   r.brows.left.rotation = base.brows.left.rotation - wearing * 8;
-  r.smile.depth = base.smile.depth * (1 + wearing * 0.35);
+  r.smile.depth = base.smile.depth * (1 + wearing * 0.1);
   r.smile.rotation = base.smile.rotation - wearing * 4;
   return r;
 }
@@ -2487,8 +2493,7 @@ const celebrateGlow: Sequence = {
     r.smile.depth = base.smile.depth * 1.3;
     r.smile.span = base.smile.span * 1.08;
     eyes(r, (eye) => {
-      eye.scaleY = 0.86;
-      eye.gaze = { x: 0, y: -0.2 };
+      if (eye.shape === 'open') eye.shape = 'happy';
     });
     r.brows.left.y = base.brows.left.y - 3 - b.lift;
     r.brows.right.y = base.brows.right.y - 3 - b.lift;
@@ -2504,7 +2509,9 @@ const celebrateGlowStill: Sequence = {
   pose: (base) => {
     const r = cloneRig(base);
     r.smile.depth = base.smile.depth * 1.3;
-    eyes(r, (eye) => (eye.scaleY = 0.86));
+    eyes(r, (eye) => {
+      if (eye.shape === 'open') eye.shape = 'happy';
+    });
     return r;
   },
 };
@@ -2671,8 +2678,12 @@ const AUTHORED: readonly Sequence[] = [
   ...ACTING,
 ];
 
-/** Every sequence, with the body acting from `limb-acting.ts` layered on. */
-export const SEQUENCES: readonly Sequence[] = AUTHORED.map(withLimbActing);
+/**
+ * Every sequence, with the body acting from `limb-acting.ts` layered on, and
+ * playing by the face rules (`face-rules.ts`): joy is a drawn mouth rather
+ * than a stretched one, and an eye is open or shut, never half.
+ */
+export const SEQUENCES: readonly Sequence[] = AUTHORED.map((s) => withFaceRules(withLimbActing(s)));
 
 export const SEQUENCE_BY_ID: ReadonlyMap<string, Sequence> = new Map(
   SEQUENCES.map((s) => [s.id, s]),

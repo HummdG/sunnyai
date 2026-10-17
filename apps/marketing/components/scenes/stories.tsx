@@ -90,7 +90,7 @@ export function NightShiftScene(): React.JSX.Element {
           />
         </>
       }
-      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: 0.8, y: 0.7 }, grin: 1.2 }}
+      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: 0.8, y: 0.7 }, expression: 'kind' }}
       at={{ x: sun.x - 75, y: sun.y - 75 }}
       size={150}
     />
@@ -118,7 +118,12 @@ export function ConversationScene(): React.JSX.Element {
           ]}
         />
       }
-      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.8, y: 0.2 }, grin: 1.15 }}
+      sunny={{
+        pose: 'rest',
+        play: 'speaking-pulse',
+        look: { x: -0.8, y: 0.2 },
+        expression: 'talking',
+      }}
       at={{ x: 196, y: 104 }}
       size={104}
     />
@@ -174,10 +179,10 @@ export function CorkboardScene(): React.JSX.Element {
       }
       sunny={{
         pose: 'rest',
-        play: 'gesture-nod',
+        play: 'thinking-eureka',
         look: { x: -0.8, y: -0.1 },
         tilt: -6,
-        grin: 1.15,
+        expression: 'thinking',
       }}
       at={{ x: sunny.x - 52, y: sunny.y - 52 }}
       size={104}
@@ -231,7 +236,12 @@ export function SignpostScene(): React.JSX.Element {
           ]}
         />
       }
-      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: 0.8, y: 0.4 }, grin: 1.15 }}
+      sunny={{
+        pose: 'rest',
+        play: 'gesture-nod',
+        look: { x: 0.8, y: 0.4 },
+        expression: 'reassuring',
+      }}
       at={{ x: 40, y: 22 }}
       size={150}
     />

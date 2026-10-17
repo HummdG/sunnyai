@@ -1095,7 +1095,8 @@
     scaleX: 1,
     scaleY: 1,
     closed: 0,
-    gaze: { x: 0, y: 0 }
+    gaze: { x: 0, y: 0 },
+    shape: "open"
   });
   var brow = (x, y, rotation, length, arch) => ({
     x,
@@ -1134,7 +1135,8 @@
         rotation: -14.6,
         span: 46.6,
         depth: 7.531,
-        strokeWidth: 4
+        strokeWidth: 4,
+        shape: "smile"
       },
       rays: createRays(),
       props: [],
@@ -1216,7 +1218,10 @@
       scaleX: n4(p.scaleX, q.scaleX),
       scaleY: n4(p.scaleY, q.scaleY),
       closed: n4(p.closed, q.closed),
-      gaze: { x: n4(p.gaze.x, q.gaze.x), y: n4(p.gaze.y, q.gaze.y) }
+      gaze: { x: n4(p.gaze.x, q.gaze.x), y: n4(p.gaze.y, q.gaze.y) },
+      // A drawing cannot be half one shape and half another: it changes at the
+      // midpoint, the way a cartoon swaps a mouth between drawings.
+      shape: k < 0.5 ? p.shape : q.shape
     });
     const browBlend = (p, q) => ({
       x: n4(p.x, q.x),
@@ -1245,7 +1250,8 @@
         rotation: n4(a.smile.rotation, b.smile.rotation),
         span: n4(a.smile.span, b.smile.span),
         depth: n4(a.smile.depth, b.smile.depth),
-        strokeWidth: n4(a.smile.strokeWidth, b.smile.strokeWidth)
+        strokeWidth: n4(a.smile.strokeWidth, b.smile.strokeWidth),
+        shape: k < 0.5 ? a.smile.shape : b.smile.shape
       },
       rays: a.rays.map((ra, i) => {
         const rb = b.rays[i] ?? ra;
@@ -1289,6 +1295,133 @@
     }
     return out;
   }
+
+  // packages/character/src/traced-faces.ts
+  var WEIGHT = 3.4;
+  var r1 = (v) => {
+    const r = Math.round(v * 100) / 100;
+    return Object.is(r, -0) ? "0" : String(r);
+  };
+  function along(pts, u) {
+    const segs = pts.length - 1;
+    const f = Math.min(segs - 1e-9, Math.max(0, u * segs));
+    const i = Math.floor(f);
+    const t = f - i;
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const c = (a, b, d, e) => 0.5 * (2 * b + (-a + d) * t + (2 * a - 5 * b + 4 * d - e) * t * t + (-a + 3 * b - 3 * d + e) * t * t * t);
+    return [c(p0[0], p1[0], p2[0], p3[0]), c(p0[1], p1[1], p2[1], p3[1])];
+  }
+  function inkStroke(pts, weight = WEIGHT, tip = 0.7) {
+    const N = 28;
+    const centre2 = [];
+    for (let k = 0; k <= N; k++) centre2.push(along(pts, k / N));
+    const left = [];
+    const right = [];
+    for (let k = 0; k <= N; k++) {
+      const a = centre2[Math.max(0, k - 1)];
+      const b = centre2[Math.min(N, k + 1)];
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const half = (tip + (weight - tip) * Math.sin(Math.PI * k / N) ** 0.6) / 2;
+      const [cx, cy] = centre2[k];
+      left.push([cx + nx * half, cy + ny * half]);
+      right.push([cx - nx * half, cy - ny * half]);
+    }
+    const ring = [...left, ...right.reverse()];
+    return `M${ring.map(([x, y]) => `${r1(x)} ${r1(y)}`).join("L")}Z`;
+  }
+  function crease(x, y, side, size = 1) {
+    return inkStroke(
+      [
+        [x + side * 0.6 * size, y - 3.6 * size],
+        [x + side * 2.3 * size, y - 0.2 * size],
+        [x + side * 1.2 * size, y + 3.2 * size]
+      ],
+      2.3 * size,
+      0.6
+    );
+  }
+  var MOUTH_ART = {
+    soft: {
+      ink: inkStroke([
+        [-15, -0.6],
+        [-7.5, 4.2],
+        [0.5, 5.6],
+        [8.5, 4],
+        [15.5, -1]
+      ]) + crease(-15.6, -0.8, -1, 0.8) + crease(16.1, -1.2, 1, 0.8)
+    },
+    open: {
+      ink: "M-18 -1.2Q0 2.6 18.5 -2.2Q17.5 13.5 0.4 14.6Q-15.6 13.6 -18 -1.2Z" + crease(-18.8, -1.4, -1, 0.9) + crease(19.3, -2.4, 1, 0.9),
+      tongue: "M-9.2 11.2Q-5 5.6 0.6 7.4Q6 5.4 9.8 10.8Q5.6 13.6 0.4 13.6Q-5 13.6 -9.2 11.2Z"
+    },
+    laugh: {
+      ink: "M-21.5 -2.4Q0 2.4 22 -3.4Q21.4 18.8 0.4 19.8Q-19.8 18.8 -21.5 -2.4Z" + crease(-22.3, -2.6, -1) + crease(22.8, -3.6, 1),
+      teeth: "M-18.6 -0.4Q0 3.8 19.2 -1.2L18.6 2.4Q0 6.8 -18 3Z",
+      tongue: "M-11.6 15.4Q-6 8.4 0.6 10.4Q7.2 8.2 12.4 14.6Q6.8 18.4 0.4 18.6Q-6.6 18.4 -11.6 15.4Z"
+    },
+    o: {
+      ink: "M0.6 -4.6Q7.4 -4.5 7.5 3.8Q7.3 12 0.6 12.1Q-6.2 12 -6.3 3.8Q-6.2 -4.5 0.6 -4.6Z",
+      tongue: "M-3.6 9.4Q0.6 6.4 4.8 9.4Q3 11.4 0.6 11.4Q-1.8 11.4 -3.6 9.4Z"
+    },
+    smirk: {
+      ink: inkStroke([
+        [-12.5, 1.8],
+        [-3, 3.6],
+        [7, 2.6],
+        [14, -1.2],
+        [17.5, -5.2]
+      ]) + crease(18.2, -5.6, 1, 0.85)
+    },
+    flat: {
+      ink: inkStroke(
+        [
+          [-12.5, 1.8],
+          [-4.5, 0.4],
+          [3.5, 1.6],
+          [12.5, 0.2]
+        ],
+        3.4
+      )
+    },
+    frown: {
+      ink: inkStroke(
+        [
+          [-13, 4.2],
+          [-6.5, 0.6],
+          [0.5, -0.8],
+          [7.5, 0.6],
+          [13.5, 4.4]
+        ],
+        3.2
+      )
+    }
+  };
+  function closedEyeArt(shape, width, height) {
+    const w = width / 2;
+    const at = (u, v) => [u * w, v * height];
+    const weight = WEIGHT * (width / 21.8) ** 0.5;
+    return shape === "happy" ? (
+      // An arch, sitting a little low: the cheeks have pushed the eye up shut.
+      inkStroke(
+        [at(-0.9, 0.24), at(-0.5, 0.02), at(0, -0.05), at(0.5, 0.02), at(0.9, 0.24)],
+        weight
+      )
+    ) : (
+      // A gentle downward curve: lids lowered, content.
+      inkStroke(
+        [at(-0.9, 0.06), at(-0.45, 0.17), at(0, 0.2), at(0.45, 0.17), at(0.9, 0.06)],
+        weight
+      )
+    );
+  }
+  var TONGUE = "#E4573D";
 
   // packages/character/src/traced-art.ts
   var TRACED_ART = {
@@ -1397,6 +1530,12 @@
       `translate(${n2(-rest.x)} ${n2(-rest.y)})`
     ].join(" ");
   }
+  function localTransform(now, sx, sy) {
+    return `translate(${n2(now.x)} ${n2(now.y)}) rotate(${n2(now.rotation)}) scale(${n2(sx)} ${n2(sy)})`;
+  }
+  var SMILE_DEPTH_RANGE = [0.85, 1.12];
+  var LOOK_BACK = -0.3;
+  var clampDepth = (v) => Math.max(SMILE_DEPTH_RANGE[0], Math.min(SMILE_DEPTH_RANGE[1], v));
   function eyeScale(eye2, rest) {
     const closed = Math.max(0, Math.min(1, eye2.closed));
     return {
@@ -1419,11 +1558,23 @@
   }
   function tracedEyePart(side, eye2, paint, uid, boil) {
     const rest = REST.eyes[side];
+    if (eye2.shape !== "open") {
+      const sx2 = safeRatio(eye2.scaleX * eye2.width, rest.scaleX * rest.width);
+      const sy2 = safeRatio(eye2.scaleY * eye2.height, rest.scaleY * rest.height);
+      return {
+        transform: localTransform(eye2, sx2, sy2),
+        inner: `<path d="${boilPath(closedEyeArt(eye2.shape, rest.width, rest.height), boil, 0.2)}" fill="${paint.ink}"/>`
+      };
+    }
     const art = TRACED_ART.eyes[side];
     const { sx, sy } = eyeScale(eye2, rest);
     const clipId = `sunny-traced-eye-${uid}${side}${boil ?? ""}`;
-    const gx = eye2.gaze.x * rest.width * 0.16;
+    const back = eye2.gaze.x < LOOK_BACK;
+    const gx = (back ? eye2.gaze.x + 0.6 : eye2.gaze.x) * rest.width * 0.16;
     const gy = eye2.gaze.y * rest.height * 0.1;
+    const [cx, cy] = art.centre;
+    const axis = 90 + rest.rotation;
+    const mirror = back ? ` translate(${n2(cx)} ${n2(cy)}) rotate(${n2(axis)}) scale(1 -1) rotate(${n2(-axis)}) translate(${n2(-cx)} ${n2(-cy)})` : "";
     const inner = boilPath(art.inner, boil, 0.2);
     return {
       transform: featureTransform(eye2, rest, sx, sy),
@@ -1432,7 +1583,7 @@
         `<path d="${boilPath(art.outer, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
         `<path d="${inner}" fill="${paint.highlight}"/>`,
         `<g clip-path="url(#${clipId})">`,
-        `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n2(gx)} ${n2(gy)})"/>`,
+        `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n2(gx)} ${n2(gy)})${mirror}"/>`,
         `</g>`
       ].join("")
     };
@@ -1451,10 +1602,19 @@
     const rest = REST.smile;
     const smile = rig.smile;
     const sx = safeRatio(smile.span, rest.span);
-    const sy = Math.max(-2, Math.min(2.5, safeRatio(smile.depth, rest.depth)));
+    const depth = safeRatio(smile.depth, rest.depth);
+    const shape = smile.shape === "smile" && depth < 0 ? "frown" : smile.shape === "smile" && depth < 0.55 ? "flat" : smile.shape;
+    const sy = clampDepth(Math.abs(depth));
+    if (shape === "smile") {
+      return {
+        transform: featureTransform(smile, rest, sx, sy),
+        inner: `<path d="${boilPath(TRACED_ART.mouth.ink, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`
+      };
+    }
+    const art = MOUTH_ART[shape];
     return {
-      transform: featureTransform(smile, rest, sx, sy),
-      inner: `<path d="${boilPath(TRACED_ART.mouth.ink, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`
+      transform: localTransform(smile, sx, sy),
+      inner: `<path d="${boilPath(art.ink, boil, 0.2)}" fill="${paint.ink}"/>` + (art.tongue ? `<path d="${boilPath(art.tongue, boil, 0.2)}" fill="${TONGUE}"/>` : "") + (art.teeth ? `<path d="${boilPath(art.teeth, boil, 0.2)}" fill="${paint.highlight}"/>` : "")
     };
   }
 
@@ -2172,11 +2332,14 @@
   });
   var gestureNod = gesture("gesture-nod", "minimal", 900, (r, base, t) => {
     const w = envelope(t, 0.2, 0.3);
-    r.faceTilt = base.faceTilt + Math.sin(t * TAU * 2) * 3 * w;
-    r.y = base.y + Math.max(0, Math.sin(t * TAU * 2)) * 2 * w;
-    r.eyes.left.closed = 0.25 * w;
-    r.eyes.right.closed = 0.25 * w;
-    r.smile.depth = base.smile.depth * (1 + 0.2 * w);
+    const dip = Math.sin(t * TAU * 2);
+    r.faceTilt = base.faceTilt + dip * 3 * w;
+    r.y = base.y + Math.max(0, dip) * 2 * w;
+    if (dip > 0.55 && w > 0.5) {
+      if (r.eyes.left.shape === "open") r.eyes.left.shape = "happy";
+      if (r.eyes.right.shape === "open") r.eyes.right.shape = "happy";
+    }
+    r.smile.depth = base.smile.depth * (1 + 0.08 * w);
   });
   var gesturePalm = gesture("gesture-palm", "balanced", 1500, (r, base, t) => {
     const w = envelope(t, 0.18, 0.25);
@@ -2257,9 +2420,7 @@
       const r = cloneRig(base);
       const w = envelope(t, 0.15, 0.35);
       r.faceTilt = base.faceTilt + Math.sin(t * TAU * 1.5) * 3 * w;
-      r.eyes.left.closed = 0.35 * w;
-      r.eyes.right.closed = 0.35 * w;
-      r.smile.depth = base.smile.depth * (1 + 0.3 * w);
+      r.smile.depth = base.smile.depth * (1 + 0.08 * w);
       r.limbs = blendLimbs(base.limbs, limbPose("hips"), w);
       return r;
     }
@@ -2301,8 +2462,8 @@
     r.stretch = -0.04 * w;
     r.eyes.left.closed = 0.8 * w;
     r.eyes.right.closed = 0.8 * w;
-    r.smile.depth = base.smile.depth * (1 - 0.6 * w);
-    r.smile.span = base.smile.span * (1 - 0.35 * w);
+    if (w > 0.6 && r.smile.shape === base.smile.shape) r.smile.shape = "o";
+    r.smile.span = base.smile.span * (1 - 0.2 * w);
     for (const [i, ray] of r.rays.entries()) {
       ray.lengthScale = base.rays[i].lengthScale * (1 + 0.12 * w);
     }
@@ -2431,6 +2592,64 @@
     laptop: "lookup-laptop",
     magnifier: "lookup-magnify"
   };
+
+  // packages/animation-engine/src/face-rules.ts
+  var OPEN_AT = 1.22;
+  var LAUGH_AT = 1.5;
+  var DEEPEST = 1.12;
+  var SHUT_AT = 0.5;
+  var SQUINT_AT = 0.72;
+  var JOY_UP = {
+    smile: "open",
+    soft: "open",
+    smirk: "open",
+    flat: "open",
+    open: "laugh"
+  };
+  function applyFaceRules(out, base) {
+    const smile = out.smile;
+    const ratio = base.smile.depth === 0 ? 1 : smile.depth / base.smile.depth;
+    if (smile.shape === base.smile.shape) {
+      const up = JOY_UP[smile.shape];
+      if (ratio >= OPEN_AT && up) {
+        smile.shape = ratio >= LAUGH_AT ? JOY_UP[up] ?? up : up;
+        smile.depth = base.smile.depth;
+        smile.span = Math.min(smile.span, base.smile.span * 1.08);
+      } else if (ratio >= OPEN_AT) {
+        smile.depth = base.smile.depth * DEEPEST;
+      } else if (smile.shape === "smile" && ratio < 0) {
+        smile.shape = "frown";
+        smile.depth = base.smile.depth;
+      } else if (smile.shape === "smile" && ratio < 0.55) {
+        smile.shape = "flat";
+        smile.depth = base.smile.depth;
+      }
+    }
+    const smiling = !["flat", "frown", "o"].includes(smile.shape);
+    const squashed = (eye2, rest) => eye2.shape === "open" && rest.scaleY > 0 && eye2.scaleY / rest.scaleY < SQUINT_AT;
+    const shut = (eye2) => eye2.shape === "open" && eye2.closed >= SHUT_AT;
+    const { left, right } = out.eyes;
+    const wink = shut(left) !== shut(right);
+    const lid = (eye2, rest) => {
+      if (eye2.shape !== "open") return;
+      if (squashed(eye2, rest)) {
+        eye2.scaleY = rest.scaleY;
+        eye2.shape = smiling ? "happy" : "shut";
+      } else if (shut(eye2)) {
+        eye2.shape = wink || smiling && smile.shape !== "smile" ? "happy" : "shut";
+      }
+      eye2.closed = 0;
+    };
+    lid(left, base.eyes.left);
+    lid(right, base.eyes.right);
+    return out;
+  }
+  function withFaceRules(sequence) {
+    return {
+      ...sequence,
+      pose: (base, t, anchor) => applyFaceRules(sequence.pose(base, t, anchor), base)
+    };
+  }
 
   // packages/animation-engine/src/limb-acting.ts
   var TAU2 = Math.PI * 2;
@@ -2781,8 +3000,8 @@
       r.squash = dip * 0.12 - pop * 0.06 + wob * 0.04;
       r.stretch = pop * 0.08 - dip * 0.06;
       eyes(r, (eye2) => {
-        eye2.scaleY = 1 + pop * 0.32 - dip * 0.25;
-        eye2.scaleX = 1 + pop * 0.1;
+        eye2.scaleY = 1 + pop * 0.14 - dip * 0.2;
+        eye2.scaleX = 1 + pop * 0.05;
       });
       r.brows.left.y = base.brows.left.y - pop * 4;
       r.brows.right.y = base.brows.right.y - pop * 4;
@@ -2932,7 +3151,7 @@
       r.eyes.left.scaleY = 1 + flare * 0.2;
       r.eyes.right.scaleY = 1 + flare * 0.2;
       r.smile.span = base.smile.span * (0.7 + flare * 0.45);
-      r.smile.depth = base.smile.depth * (0.6 + flare * 0.6);
+      r.smile.depth = base.smile.depth * (0.6 + flare * 0.7);
       r.brows.left.y = base.brows.left.y - flare * 3;
       r.brows.right.y = base.brows.right.y - flare * 3;
       return r;
@@ -2978,7 +3197,7 @@
       const r = cloneRig(base);
       const syl = hoseBounce(t * 2);
       const open2 = Math.sin(t * 2 % 1 * Math.PI);
-      r.smile.depth = base.smile.depth * (1 + open2 * 0.55);
+      r.smile.depth = base.smile.depth * (1 + open2 * 0.3);
       r.smile.span = base.smile.span * (1 - open2 * 0.08);
       r.smile.y = base.smile.y + open2 * 0.9;
       r.brows.left.y = base.brows.left.y - open2 * 2.2;
@@ -3675,8 +3894,8 @@
     r.x = base.x + seated * 8;
     r.y = base.y + seated * 6 - breath * 0.8 - stretch * 1.4;
     r.faceTilt = base.faceTilt - seated * 4;
-    r.smile.depth = base.smile.depth * (1 + seated * 0.35);
-    r.smile.span = base.smile.span * (1 + seated * 0.08);
+    r.smile.depth = base.smile.depth * (1 + seated * 0.1);
+    r.smile.span = base.smile.span * (1 + seated * 0.04);
     for (const ray of r.rays) {
       ray.lengthScale = 1 - seated * 0.04 + breath * 0.04 + stretch * 0.12;
     }
@@ -3810,7 +4029,7 @@
     r.eyes.right.closed = squint;
     r.brows.left.y = base.brows.left.y - (nudge + wearing * 0.6) * 4;
     r.brows.left.rotation = base.brows.left.rotation - wearing * 8;
-    r.smile.depth = base.smile.depth * (1 + wearing * 0.35);
+    r.smile.depth = base.smile.depth * (1 + wearing * 0.1);
     r.smile.rotation = base.smile.rotation - wearing * 4;
     return r;
   }
@@ -4247,8 +4466,7 @@
       r.smile.depth = base.smile.depth * 1.3;
       r.smile.span = base.smile.span * 1.08;
       eyes(r, (eye2) => {
-        eye2.scaleY = 0.86;
-        eye2.gaze = { x: 0, y: -0.2 };
+        if (eye2.shape === "open") eye2.shape = "happy";
       });
       r.brows.left.y = base.brows.left.y - 3 - b.lift;
       r.brows.right.y = base.brows.right.y - 3 - b.lift;
@@ -4263,7 +4481,9 @@
     pose: (base) => {
       const r = cloneRig(base);
       r.smile.depth = base.smile.depth * 1.3;
-      eyes(r, (eye2) => eye2.scaleY = 0.86);
+      eyes(r, (eye2) => {
+        if (eye2.shape === "open") eye2.shape = "happy";
+      });
       return r;
     }
   };
@@ -4417,7 +4637,7 @@
     bloomShowcase,
     ...ACTING
   ];
-  var SEQUENCES = AUTHORED.map(withLimbActing);
+  var SEQUENCES = AUTHORED.map((s) => withFaceRules(withLimbActing(s)));
   var SEQUENCE_BY_ID = new Map(
     SEQUENCES.map((s) => [s.id, s])
   );

@@ -18,6 +18,35 @@ export interface Vec2 {
   y: number;
 }
 
+/**
+ * The drawings an eye can be. `open` is the reference's own eye; the others are
+ * closed eyes drawn as a single inked arc, which is how a 1930s cartoon shows a
+ * feeling rather than a blink: `happy` arches up (a laugh, a beam), `shut`
+ * curves down (calm, content). A held half-lid is deliberately not a shape --
+ * squashing the traced eye part-way reads as a leer.
+ */
+export const EYE_SHAPES = ['open', 'happy', 'shut'] as const;
+export type EyeShape = (typeof EYE_SHAPES)[number];
+
+/**
+ * The mouths Sunny can pull. `smile` is the reference's own traced smile and
+ * the only one at rest. The rest are drawn in the same hand (`traced-faces.ts`):
+ * a smaller `soft` smile, the open `open` and `laugh` mouths, a little `o` of
+ * wonder, a lopsided `smirk`, a `flat` line and a `frown`. A bigger feeling is
+ * a different mouth, never a stretched one.
+ */
+export const MOUTH_SHAPES = [
+  'smile',
+  'soft',
+  'open',
+  'laugh',
+  'o',
+  'smirk',
+  'flat',
+  'frown',
+] as const;
+export type MouthShape = (typeof MOUTH_SHAPES)[number];
+
 export interface EyeRig {
   /** Centre of the eye within the face frame. */
   x: number;
@@ -33,6 +62,8 @@ export interface EyeRig {
   closed: number;
   /** Gaze offset, each axis in -1..1. Moves the highlight for eye-tracking. */
   gaze: Vec2;
+  /** Which drawing of the eye; `open` at rest. */
+  shape: EyeShape;
 }
 
 export interface BrowRig {
@@ -58,6 +89,8 @@ export interface SmileRig {
   /** Depth of the arc below the chord; negative turns the smile into a frown. */
   depth: number;
   strokeWidth: number;
+  /** Which mouth; `smile` (the reference's) at rest. */
+  shape: MouthShape;
 }
 
 export interface RayRig {
@@ -177,6 +210,7 @@ const eye = (x: number, y: number, rotation: number, width: number, height: numb
   scaleY: 1,
   closed: 0,
   gaze: { x: 0, y: 0 },
+  shape: 'open',
 });
 
 const brow = (x: number, y: number, rotation: number, length: number, arch: number): BrowRig => ({
@@ -237,6 +271,7 @@ export function defaultRig(): SunnyRig {
       span: 46.6,
       depth: 7.531,
       strokeWidth: 4.0,
+      shape: 'smile',
     },
     rays: createRays(),
     props: [],
@@ -386,6 +421,9 @@ export function lerpRig(a: SunnyRig, b: SunnyRig, t: number): SunnyRig {
     scaleY: n(p.scaleY, q.scaleY),
     closed: n(p.closed, q.closed),
     gaze: { x: n(p.gaze.x, q.gaze.x), y: n(p.gaze.y, q.gaze.y) },
+    // A drawing cannot be half one shape and half another: it changes at the
+    // midpoint, the way a cartoon swaps a mouth between drawings.
+    shape: k < 0.5 ? p.shape : q.shape,
   });
   const browBlend = (p: BrowRig, q: BrowRig): BrowRig => ({
     x: n(p.x, q.x),
@@ -415,6 +453,7 @@ export function lerpRig(a: SunnyRig, b: SunnyRig, t: number): SunnyRig {
       span: n(a.smile.span, b.smile.span),
       depth: n(a.smile.depth, b.smile.depth),
       strokeWidth: n(a.smile.strokeWidth, b.smile.strokeWidth),
+      shape: k < 0.5 ? a.smile.shape : b.smile.shape,
     },
     rays: a.rays.map((ra, i) => {
       const rb = b.rays[i] ?? ra;

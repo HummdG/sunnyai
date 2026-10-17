@@ -40,7 +40,7 @@ export default function MeetSunnyPage(): React.JSX.Element {
           <span className="eyebrow">The character</span>
           <h2>Drawn like a 1930s cartoon star</h2>
           <p className="intro">
-            A crown of rays, big pie-cut eyes and a grin you can see from across the room. Every
+            A crown of rays, big pie-cut eyes and a smile you can see from across the room. Every
             expression Sunny pulls in the chat comes from this sheet.
           </p>
           <ModelSheet />

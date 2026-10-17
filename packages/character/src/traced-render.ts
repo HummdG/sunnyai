@@ -2,6 +2,7 @@ import { boilPath } from './boil.js';
 import { RAY } from './geometry.js';
 import { defaultRig, type BrowRig, type EyeRig, type RayRig, type SunnyRig } from './rig.js';
 import { TRACED_ART } from './traced-art.js';
+import { closedEyeArt, MOUTH_ART, TONGUE } from './traced-faces.js';
 
 /**
  * Sunny drawn from the traced reference artwork.
@@ -74,6 +75,29 @@ function featureTransform(
   ].join(' ');
 }
 
+/** Place a feature drawn in its own frame (`traced-faces.ts`) where the rig puts it. */
+function localTransform(
+  now: { x: number; y: number; rotation: number },
+  sx: number,
+  sy: number,
+): string {
+  return `translate(${n(now.x)} ${n(now.y)}) rotate(${n(now.rotation)}) scale(${n(sx)} ${n(sy)})`;
+}
+
+/**
+ * How far the traced smile may be squashed or deepened. It is an inked line,
+ * and scaling it scales the ink: past this it stops reading as the same smile
+ * drawn deeper and starts reading as a grimace with a fat lower lip. A bigger
+ * feeling is a different mouth (`SmileRig.shape`), never a stretched one.
+ */
+export const SMILE_DEPTH_RANGE = [0.85, 1.12] as const;
+
+/** Gaze further left than this draws the pupils looking the other way. */
+export const LOOK_BACK = -0.3;
+
+const clampDepth = (v: number): number =>
+  Math.max(SMILE_DEPTH_RANGE[0], Math.min(SMILE_DEPTH_RANGE[1], v));
+
 function eyeScale(eye: EyeRig, rest: EyeRig): { sx: number; sy: number } {
   const closed = Math.max(0, Math.min(1, eye.closed));
   return {
@@ -140,13 +164,34 @@ export function tracedEyePart(
   boil?: number,
 ): PartDrawing {
   const rest = REST.eyes[side];
+  if (eye.shape !== 'open') {
+    // A closed eye is its own inked arc, drawn to this eye's rest size.
+    const sx = safeRatio(eye.scaleX * eye.width, rest.scaleX * rest.width);
+    const sy = safeRatio(eye.scaleY * eye.height, rest.scaleY * rest.height);
+    return {
+      transform: localTransform(eye, sx, sy),
+      inner: `<path d="${boilPath(closedEyeArt(eye.shape, rest.width, rest.height), boil, 0.2)}" fill="${paint.ink}"/>`,
+    };
+  }
   const art = TRACED_ART.eyes[side];
   const { sx, sy } = eyeScale(eye, rest);
   const clipId = `sunny-traced-eye-${uid}${side}${boil ?? ''}`;
   // Gaze slides the pupil inside the opening, in the eye's own rest frame so
   // "left" means left whatever the eye's tilt.
-  const gx = eye.gaze.x * rest.width * 0.16;
+  //
+  // The reference's pupils are drawn looking to Sunny's left (the viewer's
+  // right), so sliding them the other way only squeezes them against the far
+  // rim. Looking the other way is a different drawing: past `LOOK_BACK` the
+  // pupil is mirrored across the eye's own long axis, and the slide is
+  // measured from there.
+  const back = eye.gaze.x < LOOK_BACK;
+  const gx = (back ? eye.gaze.x + 0.6 : eye.gaze.x) * rest.width * 0.16;
   const gy = eye.gaze.y * rest.height * 0.1;
+  const [cx, cy] = art.centre;
+  const axis = 90 + rest.rotation;
+  const mirror = back
+    ? ` translate(${n(cx)} ${n(cy)}) rotate(${n(axis)}) scale(1 -1) rotate(${n(-axis)}) translate(${n(-cx)} ${n(-cy)})`
+    : '';
   const inner = boilPath(art.inner, boil, 0.2);
   return {
     transform: featureTransform(eye, rest, sx, sy),
@@ -155,7 +200,7 @@ export function tracedEyePart(
       `<path d="${boilPath(art.outer, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
       `<path d="${inner}" fill="${paint.highlight}"/>`,
       `<g clip-path="url(#${clipId})">`,
-      `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n(gx)} ${n(gy)})"/>`,
+      `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n(gx)} ${n(gy)})${mirror}"/>`,
       `</g>`,
     ].join(''),
   };
@@ -200,11 +245,30 @@ export function tracedMouthPart(rig: SunnyRig, paint: TracedPaint, boil?: number
   const rest = REST.smile;
   const smile = rig.smile;
   const sx = safeRatio(smile.span, rest.span);
-  // Depth scales the curve; a negative depth turns the smile into a frown.
-  const sy = Math.max(-2, Math.min(2.5, safeRatio(smile.depth, rest.depth)));
+  const depth = safeRatio(smile.depth, rest.depth);
+  // Sequences written before there were mouths to choose still flatten or
+  // invert the smile through its depth; those read as the flat line and the
+  // frown, drawn, rather than as the traced smile squashed or flipped.
+  const shape =
+    smile.shape === 'smile' && depth < 0
+      ? 'frown'
+      : smile.shape === 'smile' && depth < 0.55
+        ? 'flat'
+        : smile.shape;
+  const sy = clampDepth(Math.abs(depth));
+  if (shape === 'smile') {
+    return {
+      transform: featureTransform(smile, rest, sx, sy),
+      inner: `<path d="${boilPath(TRACED_ART.mouth.ink, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
+    };
+  }
+  const art = MOUTH_ART[shape];
   return {
-    transform: featureTransform(smile, rest, sx, sy),
-    inner: `<path d="${boilPath(TRACED_ART.mouth.ink, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
+    transform: localTransform(smile, sx, sy),
+    inner:
+      `<path d="${boilPath(art.ink, boil, 0.2)}" fill="${paint.ink}"/>` +
+      (art.tongue ? `<path d="${boilPath(art.tongue, boil, 0.2)}" fill="${TONGUE}"/>` : '') +
+      (art.teeth ? `<path d="${boilPath(art.teeth, boil, 0.2)}" fill="${paint.highlight}"/>` : ''),
   };
 }
 

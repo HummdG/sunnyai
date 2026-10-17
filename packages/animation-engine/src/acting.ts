@@ -210,14 +210,20 @@ const gesture = (
   },
 });
 
-/** A small, sure nod: down, up, settle. */
+/**
+ * A small, sure nod: down, up, settle. At the bottom of each nod the eyes
+ * close happy for a beat -- a held half-lid here is what used to read as a leer.
+ */
 const gestureNod = gesture('gesture-nod', 'minimal', 900, (r, base, t) => {
   const w = envelope(t, 0.2, 0.3);
-  r.faceTilt = base.faceTilt + Math.sin(t * TAU * 2) * 3 * w;
-  r.y = base.y + Math.max(0, Math.sin(t * TAU * 2)) * 2 * w;
-  r.eyes.left.closed = 0.25 * w;
-  r.eyes.right.closed = 0.25 * w;
-  r.smile.depth = base.smile.depth * (1 + 0.2 * w);
+  const dip = Math.sin(t * TAU * 2);
+  r.faceTilt = base.faceTilt + dip * 3 * w;
+  r.y = base.y + Math.max(0, dip) * 2 * w;
+  if (dip > 0.55 && w > 0.5) {
+    if (r.eyes.left.shape === 'open') r.eyes.left.shape = 'happy';
+    if (r.eyes.right.shape === 'open') r.eyes.right.shape = 'happy';
+  }
+  r.smile.depth = base.smile.depth * (1 + 0.08 * w);
 });
 
 /** "Here's the thing": a palm opens out to the visitor, the other on the hip. */
@@ -310,9 +316,7 @@ const settleNod: Sequence = {
     const r = cloneRig(base);
     const w = envelope(t, 0.15, 0.35);
     r.faceTilt = base.faceTilt + Math.sin(t * TAU * 1.5) * 3 * w;
-    r.eyes.left.closed = 0.35 * w;
-    r.eyes.right.closed = 0.35 * w;
-    r.smile.depth = base.smile.depth * (1 + 0.3 * w);
+    r.smile.depth = base.smile.depth * (1 + 0.08 * w);
     r.limbs = blendLimbs(base.limbs, limbPose('hips'), w);
     return r;
   },
@@ -366,8 +370,9 @@ const fidgetStretch = fidget('fidget-stretch', 'balanced', 2400, (r, base, t) =>
   r.stretch = -0.04 * w;
   r.eyes.left.closed = 0.8 * w;
   r.eyes.right.closed = 0.8 * w;
-  r.smile.depth = base.smile.depth * (1 - 0.6 * w);
-  r.smile.span = base.smile.span * (1 - 0.35 * w);
+  // The yawn: a round mouth while the stretch is at its height.
+  if (w > 0.6 && r.smile.shape === base.smile.shape) r.smile.shape = 'o';
+  r.smile.span = base.smile.span * (1 - 0.2 * w);
   for (const [i, ray] of r.rays.entries()) {
     ray.lengthScale = base.rays[i]!.lengthScale * (1 + 0.12 * w);
   }

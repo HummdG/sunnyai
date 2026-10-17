@@ -75,3 +75,4 @@ export interface StreamEventLike {
   /** The tool's name, on tool events. */
   tool?: string;
 }
+export * from './face-rules.js';

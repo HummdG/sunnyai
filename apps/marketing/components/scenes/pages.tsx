@@ -1,4 +1,4 @@
-import { renderSunny } from '@sunny/character';
+import { renderSunny, type ExpressionName } from '@sunny/character';
 
 import {
   BrowserFrame,
@@ -78,7 +78,7 @@ export function ProductScene(): React.JSX.Element {
           <Ground y={400} width={560} bulge={6} />
         </>
       }
-      sunny={{ pose: 'present', play: 'gesture-palm' }}
+      sunny={{ pose: 'present', play: 'gesture-palm', expression: 'proud' }}
       at={{ x: 320, y: 168 }}
       size={250}
     />
@@ -118,7 +118,12 @@ export function HowItWorksScene(): React.JSX.Element {
           />
         </>
       }
-      sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.6, y: 0.4 }, grin: 1.2 }}
+      sunny={{
+        pose: 'rest',
+        play: 'listening-perk',
+        look: { x: -0.6, y: 0.4 },
+        expression: 'wonder',
+      }}
       at={{ x: 330, y: 120 }}
       size={190}
     />
@@ -140,7 +145,7 @@ export function SpotlightScene(): React.JSX.Element {
           <path d="M0 0Q60 80 40 440H0ZM560 0Q500 80 520 440H560Z" fill={ORANGE} {...LINE} />
         </>
       }
-      sunny={{ pose: 'wave', play: 'listening-perk' }}
+      sunny={{ pose: 'wave', play: 'listening-perk', expression: 'hello' }}
       at={{ x: 150, y: 130 }}
       size={260}
     />
@@ -163,7 +168,12 @@ export function IntegrationsScene(): React.JSX.Element {
           <Plant x={480} y={380} />
         </>
       }
-      sunny={{ pose: 'hold', play: 'gesture-point', props: [held('plug', 66, -10, 0, 1.8)] }}
+      sunny={{
+        pose: 'hold',
+        play: 'thinking-eureka',
+        props: [held('plug', 66, -10, 0, 1.8)],
+        expression: 'idea',
+      }}
       at={{ x: 150, y: 150 }}
       size={240}
     />
@@ -184,7 +194,12 @@ export function PricingScene(): React.JSX.Element {
           <Detached x={292} y={378} s={0.98} panels={5} />
         </>
       }
-      sunny={{ pose: 'hold', play: 'gesture-nod', props: [held('price-tag', 74, -4, -14, 2)] }}
+      sunny={{
+        pose: 'hold',
+        play: 'gesture-nod',
+        props: [held('price-tag', 74, -4, -14, 2)],
+        expression: 'content',
+      }}
       at={{ x: 50, y: 140 }}
       size={250}
     />
@@ -204,7 +219,12 @@ export function PrivacyScene(): React.JSX.Element {
           <Ground y={360} width={560} bulge={6} />
         </>
       }
-      sunny={{ pose: 'hold', play: 'gesture-nod', props: [held('padlock', 68, -6, 0, 2)] }}
+      sunny={{
+        pose: 'hold',
+        play: 'gesture-nod',
+        props: [held('padlock', 68, -6, 0, 2)],
+        expression: 'serene',
+      }}
       at={{ x: 150, y: 110 }}
       size={250}
     />
@@ -224,7 +244,12 @@ export function TermsScene(): React.JSX.Element {
           <Ground y={360} width={560} bulge={6} />
         </>
       }
-      sunny={{ pose: 'hold', play: 'gesture-nod', props: [held('clipboard', 66, -14, 8, 2)] }}
+      sunny={{
+        pose: 'hold',
+        play: 'gesture-nod',
+        props: [held('clipboard', 66, -14, 8, 2)],
+        expression: 'focused',
+      }}
       at={{ x: 150, y: 110 }}
       size={250}
     />
@@ -270,7 +295,7 @@ export const SETUP_PANELS = [
     shadow={false}
     label="A sign-up card filled in with the installer's company name and website, with Sunny beside it."
     back={<SignUpCard x={16} y={16} w={186} />}
-    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.2 }, grin: 1.2 }}
+    sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.7, y: 0.2 }, expression: 'kind' }}
     at={{ x: 196, y: 76 }}
     size={104}
   />,
@@ -286,7 +311,12 @@ export const SETUP_PANELS = [
         </g>
       </>
     }
-    sunny={{ pose: 'hold', play: 'gesture-palm', props: [held('paintbrush', 66, -10, 28, 1.9)] }}
+    sunny={{
+      pose: 'hold',
+      play: 'gesture-nod',
+      props: [held('paintbrush', 66, -10, 28, 1.9)],
+      expression: 'proud',
+    }}
     at={{ x: 10, y: 60 }}
   />,
   <PasteScene key="paste" />,
@@ -308,7 +338,7 @@ export const VISIT_PANELS = [
         <SpeechBubble x={120} y={168} w={92} lines={['Hi there!']} tail="right" />
       </>
     }
-    sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.5, y: 0.2 }, grin: 1.2 }}
+    sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.5, y: 0.2 }, expression: 'hello' }}
     at={{ x: 190, y: 110 }}
     size={104}
   />,
@@ -324,7 +354,7 @@ export const VISIT_PANELS = [
         <Rosette x={252} y={92} label="BEST" />
       </>
     }
-    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: 0.3, y: 0.8 }, grin: 1.2 }}
+    sunny={{ pose: 'rest', play: 'gesture-point', look: { x: 0.3, y: 0.8 }, expression: 'knowing' }}
     at={{ x: 150, y: -10 }}
     size={110}
   />,
@@ -333,7 +363,12 @@ export const VISIT_PANELS = [
     shadow={false}
     label="A phone showing a new lead from Sunny, ready to call, with Sunny beside it."
     back={<PhoneWithLead x={30} y={16} />}
-    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.3 }, grin: 1.25 }}
+    sunny={{
+      pose: 'rest',
+      play: 'celebrate-glow',
+      look: { x: -0.7, y: 0.3 },
+      expression: 'delighted',
+    }}
     at={{ x: 170, y: 64 }}
     size={120}
   />,
@@ -343,19 +378,19 @@ export const VISIT_PANELS = [
  * The expressions on the model sheet: a moment from the chat Sunny's
  * repertoire, the frame of it that reads best, and an animator's note.
  */
-const MODEL_SHEET: ReadonlyArray<[sequence: string, at: number, note: string]> = [
-  ['idle-breathe', 0.1, 'At rest'],
-  ['listening-perk', 0.4, 'Hello!'],
-  ['thinking-whirr', 0.3, 'Thinking…'],
-  ['thinking-eureka', 0.75, 'Got it!'],
-  ['gesture-nod', 0.3, 'Of course'],
-  ['celebrate-bounce', 0.4, 'Hooray!'],
-  ['confused-tilt', 0.5, 'Hmm?'],
-  ['error-deflate', 0.35, 'Oops'],
-  ['lookup-book', 0.3, 'Reading up'],
-  ['lookup-magnify', 0.25, 'Looking closely'],
-  ['lookup-laptop', 0.2, 'On the case'],
-  ['celebrate-glow', 0.3, 'Chuffed'],
+const MODEL_SHEET: ReadonlyArray<[expression: ExpressionName, note: string]> = [
+  ['content', 'At rest'],
+  ['hello', 'Hello!'],
+  ['delighted', 'Lovely!'],
+  ['laughing', 'Hooray!'],
+  ['wonder', 'Ooh'],
+  ['curious', 'What’s this?'],
+  ['thinking', 'Thinking…'],
+  ['pondering', 'Hmm…'],
+  ['idea', 'An idea!'],
+  ['knowing', 'This one'],
+  ['proud', 'Chuffed'],
+  ['serene', 'All in hand'],
 ];
 
 /**
@@ -368,20 +403,20 @@ export function ModelSheet(): React.JSX.Element {
   return (
     <figure
       className="model-sheet"
-      aria-label="Sunny's model sheet: twelve expressions, from at rest to chuffed."
+      aria-label="Sunny's model sheet: twelve expressions, from at rest to all in hand."
     >
       <header>
         <span>SUNNY — Model sheet</span>
         <span>No. 1</span>
       </header>
       <ul>
-        {MODEL_SHEET.map(([act, at, note]) => (
-          <li key={act}>
+        {MODEL_SHEET.map(([expression, note]) => (
+          <li key={expression}>
             <span
               className="model-art"
               aria-hidden="true"
               dangerouslySetInnerHTML={{
-                __html: renderSunny(stillRig({ pose: 'rest', act, at }), {
+                __html: renderSunny(stillRig({ pose: 'rest', expression }), {
                   decorative: true,
                   size: 160,
                 }),

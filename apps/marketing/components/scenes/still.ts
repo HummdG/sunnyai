@@ -2,6 +2,8 @@ import { SEQUENCE_BY_ID } from '@sunny/animation-engine';
 import {
   defaultRig,
   limbPose,
+  withExpression,
+  type ExpressionName,
   type LimbPoseName,
   type PropRig,
   type SunnyRig,
@@ -35,8 +37,11 @@ export interface SunnyDirection {
   look?: { x: number; y: number };
   /** Tilt the head, in degrees. */
   tilt?: number;
-  /** A bigger grin (1 is the resting smile). */
-  grin?: number;
+  /**
+   * The face Sunny pulls, from the character's expression library: the one
+   * that fits what the scene is about. Omitted, Sunny wears the logo's face.
+   */
+  expression?: ExpressionName;
 }
 
 /** The still Sunny of a scene direction. Pure: the server and client agree. */
@@ -53,11 +58,10 @@ export function stillRig(direction: SunnyDirection): SunnyRig {
     rig.eyes.right.gaze = { ...direction.look };
   }
   if (direction.tilt) rig.faceTilt += direction.tilt;
-  if (direction.grin) {
-    rig.smile.depth *= direction.grin;
-    rig.smile.span *= 1 + (direction.grin - 1) * 0.4;
-  }
-  return rig;
+  // The expression goes on last, so a scene's `look` is the default gaze and
+  // an expression that has somewhere of its own to look (thinking looks up)
+  // wins.
+  return direction.expression ? withExpression(rig, direction.expression) : rig;
 }
 
 /** A prop held at full strength. */

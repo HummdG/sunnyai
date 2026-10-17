@@ -9,6 +9,8 @@
 export * from './tokens.js';
 export * from './geometry.js';
 export * from './rig.js';
+export * from './expressions.js';
+export { MOUTH_ART, closedEyeArt, inkStroke } from './traced-faces.js';
 export * from './render.js';
 export * from './view.js';
 export * from './limbs.js';
