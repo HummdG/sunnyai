@@ -1,4 +1,4 @@
-import { LIMB_POSES, renderSunny, type LimbPoseName } from '@sunny/character';
+import { renderSunny } from '@sunny/character';
 
 import {
   BrowserFrame,
@@ -401,46 +401,52 @@ export const VISIT_PANELS = [
   />,
 ];
 
-/** The poses on the model sheet, with an animator's note for each. */
-const MODEL_SHEET: ReadonlyArray<[LimbPoseName, string]> = [
-  ['hips', 'Rest — hands on hips'],
-  ['wave', 'Hello!'],
-  ['thumbsUp', 'Thumbs up'],
-  ['point', 'Finger-guns'],
-  ['cheer', 'Cheer'],
-  ['chin', 'Thinking…'],
-  ['idea', 'Got it!'],
-  ['peace', 'Peace'],
-  ['shrug', 'Hmm?'],
-  ['jump', 'Jump'],
-  ['magnify', 'Looking closely'],
-  ['walk', 'On the move'],
+/**
+ * The expressions on the model sheet: a moment from the chat Sunny's
+ * repertoire, the frame of it that reads best, and an animator's note.
+ */
+const MODEL_SHEET: ReadonlyArray<[sequence: string, at: number, note: string]> = [
+  ['idle-breathe', 0.1, 'At rest'],
+  ['listening-perk', 0.4, 'Hello!'],
+  ['thinking-whirr', 0.3, 'Thinking…'],
+  ['thinking-eureka', 0.75, 'Got it!'],
+  ['gesture-nod', 0.3, 'Of course'],
+  ['celebrate-bounce', 0.4, 'Hooray!'],
+  ['confused-tilt', 0.5, 'Hmm?'],
+  ['error-deflate', 0.35, 'Oops'],
+  ['lookup-book', 0.3, 'Reading up'],
+  ['lookup-magnify', 0.25, 'Looking closely'],
+  ['lookup-laptop', 0.2, 'On the case'],
+  ['celebrate-glow', 0.3, 'Chuffed'],
 ];
 
 /**
- * Sunny's model sheet: the pose library laid out the way an animation studio
- * lays out a character, on gridded paper with a note under each drawing. The
- * one place on the site where many Sunnys belong. Drawn once, on the server.
+ * Sunny's model sheet: the character's expressions laid out the way an
+ * animation studio lays out a character, on gridded paper with a note under
+ * each drawing. The one place on the site where many Sunnys belong. Drawn
+ * once, on the server.
  */
 export function ModelSheet(): React.JSX.Element {
-  const known = Object.keys(LIMB_POSES);
   return (
     <figure
       className="model-sheet"
-      aria-label="Sunny's model sheet: twelve poses, from hands on hips to a jump."
+      aria-label="Sunny's model sheet: twelve expressions, from at rest to chuffed."
     >
       <header>
         <span>SUNNY — Model sheet</span>
         <span>No. 1</span>
       </header>
       <ul>
-        {MODEL_SHEET.filter(([pose]) => known.includes(pose)).map(([pose, note]) => (
-          <li key={pose}>
+        {MODEL_SHEET.map(([act, at, note]) => (
+          <li key={act}>
             <span
               className="model-art"
               aria-hidden="true"
               dangerouslySetInnerHTML={{
-                __html: renderSunny(stillRig({ pose }), { decorative: true, size: 160 }),
+                __html: renderSunny(stillRig({ pose: 'rest', act, at }), {
+                  decorative: true,
+                  size: 160,
+                }),
               }}
             />
             <span className="model-note">{note}</span>

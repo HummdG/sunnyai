@@ -5826,6 +5826,15 @@
   }
   var cards = [];
   var host;
+  var cardsInView = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const card = cards.find((c) => c.svg === entry.target);
+        if (card) card.visible = entry.isIntersecting;
+      }
+    },
+    { rootMargin: "200px" }
+  );
   function buildGrid() {
     cards = SEQUENCES.map((sequence) => {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -5846,15 +5855,29 @@
         renderScrubber();
       });
       host.append(card);
-      return { id: sequence.id, group: sequence.group, rank: RANK2[sequence.intensity], svg, note };
+      cardsInView.observe(svg);
+      return {
+        id: sequence.id,
+        group: sequence.group,
+        rank: RANK2[sequence.intensity],
+        svg,
+        note,
+        visible: false
+      };
     });
   }
   function frame() {
     const base = defaultRig();
     for (const card of cards) {
       const sequence = SEQUENCES.find((s) => s.id === card.id);
-      const rig = poseAt(sequence, base, state.t);
-      card.svg.innerHTML = renderSunny(rig, { title: sequence.id, uniqueIds: true });
+      if (card.visible || card.svg.childElementCount === 0) {
+        const rig = poseAt(sequence, base, state.t);
+        card.svg.innerHTML = renderSunny(rig, { title: sequence.id, uniqueIds: true });
+        card.svg.parentElement?.classList.toggle(
+          "has-props",
+          rig.props.some((p) => p.opacity > 0.01)
+        );
+      }
       const eligible = card.rank <= RANK2[state.intensity];
       card.note.textContent = [
         sequence.group,
@@ -5864,10 +5887,6 @@
         eligible ? "" : `\xB7 hidden below ${sequence.intensity}`
       ].filter(Boolean).join(" \xB7 ");
       card.svg.parentElement?.classList.toggle("ineligible", !eligible);
-      card.svg.parentElement?.classList.toggle(
-        "has-props",
-        rig.props.some((p) => p.opacity > 0.01)
-      );
     }
     renderBigStage();
     const frame2 = animator.lastFrame;
@@ -6040,7 +6059,7 @@
   }
   var stageSvg = null;
   var stageLabel = null;
-  var animator = new SunnyAnimator(defaultRig(), { intensity: "balanced" });
+  var animator = new SunnyAnimator(defaultRig(), { intensity: "balanced", director: false });
   var board = null;
   var table = null;
   function renderBigStage() {
@@ -6088,7 +6107,8 @@
       state.intensity = intensity.value;
       animator = new SunnyAnimator(defaultRig(), {
         intensity: state.intensity,
-        reducedMotion: state.reducedMotion
+        reducedMotion: state.reducedMotion,
+        director: false
       });
       renderScrubber();
     });
@@ -6097,7 +6117,8 @@
       state.reducedMotion = reduced.checked;
       animator = new SunnyAnimator(defaultRig(), {
         intensity: state.intensity,
-        reducedMotion: state.reducedMotion
+        reducedMotion: state.reducedMotion,
+        director: false
       });
       renderScrubber();
     });

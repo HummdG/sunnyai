@@ -550,10 +550,16 @@ test('takes the right bat over on the first key, and hands it back', async ({ pa
   await page.keyboard.press('ArrowDown');
   await expect(page.locator(table)).toHaveAttribute('data-controlled', 'sunny');
 
+  // A short, fixed hold -- long enough for a game tick to see the key, and no
+  // longer. Holding until the take-over registered made the hold as long as the
+  // machine was slow: on a loaded run the visitor's bat was parked at the bottom
+  // of the court, every serve went past it, Sunny never had a ball to chase, and
+  // the check below failed on the machine's speed rather than on the game.
   await page.locator('#pong .pong-surface').focus();
   await page.keyboard.down('ArrowDown');
-  await expect(page.locator(table)).toHaveAttribute('data-controlled', 'right');
+  await page.waitForTimeout(250);
   await page.keyboard.up('ArrowDown');
+  await expect(page.locator(table)).toHaveAttribute('data-controlled', 'right');
 
   // Hers stays hers: she goes on playing the left end while the visitor plays
   // the right, which is what makes the take-over a take-over rather than a swap.

@@ -41,6 +41,8 @@ interface Card {
   readonly rank: number;
   readonly svg: SVGSVGElement;
   readonly note: HTMLElement;
+  /** Whether the card is on screen; only those are redrawn every frame. */
+  visible: boolean;
 }
 
 const state = {
@@ -71,6 +73,22 @@ function poseAt(sequence: Sequence, base: SunnyRig, t: number): SunnyRig {
 let cards: Card[] = [];
 let host: HTMLElement;
 
+/**
+ * The grid has a card for every sequence -- around eighty -- and redrawing all
+ * of them on every frame held the page to about 14 fps, slow enough for the
+ * browser suite's clicks to time out. Only the cards in view are animated; a
+ * card that scrolls into view is drawn on its next frame.
+ */
+const cardsInView = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      const card = cards.find((c) => c.svg === entry.target);
+      if (card) card.visible = entry.isIntersecting;
+    }
+  },
+  { rootMargin: '200px' },
+);
+
 function buildGrid(): void {
   cards = SEQUENCES.map((sequence) => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -92,7 +110,15 @@ function buildGrid(): void {
       renderScrubber();
     });
     host.append(card);
-    return { id: sequence.id, group: sequence.group, rank: RANK[sequence.intensity], svg, note };
+    cardsInView.observe(svg);
+    return {
+      id: sequence.id,
+      group: sequence.group,
+      rank: RANK[sequence.intensity],
+      svg,
+      note,
+      visible: false,
+    };
   });
 }
 
@@ -100,8 +126,15 @@ function frame(): void {
   const base = defaultRig();
   for (const card of cards) {
     const sequence = SEQUENCES.find((s) => s.id === card.id)!;
-    const rig = poseAt(sequence, base, state.t);
-    card.svg.innerHTML = renderSunny(rig, { title: sequence.id, uniqueIds: true });
+    // Off-screen cards keep their last drawing (or are drawn once, first time).
+    if (card.visible || card.svg.childElementCount === 0) {
+      const rig = poseAt(sequence, base, state.t);
+      card.svg.innerHTML = renderSunny(rig, { title: sequence.id, uniqueIds: true });
+      card.svg.parentElement?.classList.toggle(
+        'has-props',
+        rig.props.some((p) => p.opacity > 0.01),
+      );
+    }
 
     const eligible = card.rank <= RANK[state.intensity];
     card.note.textContent = [
@@ -114,10 +147,6 @@ function frame(): void {
       .filter(Boolean)
       .join(' · ');
     card.svg.parentElement?.classList.toggle('ineligible', !eligible);
-    card.svg.parentElement?.classList.toggle(
-      'has-props',
-      rig.props.some((p) => p.opacity > 0.01),
-    );
   }
   renderBigStage();
 
@@ -396,7 +425,10 @@ function buildArcade(): void {
 
 let stageSvg: SVGSVGElement | null = null;
 let stageLabel: HTMLElement | null = null;
-let animator = new SunnyAnimator(defaultRig(), { intensity: 'balanced' });
+// The lab drives every moment itself -- the gallery, the scrubber, the games --
+// so the idle director stays off: left on, a slow walk through the catalogue
+// would see Sunny wander off to the deckchair, where most moments cannot play.
+let animator = new SunnyAnimator(defaultRig(), { intensity: 'balanced', director: false });
 /** A06's board. Null until `start()` has built it. */
 let board: GamePanel | null = null;
 /** A09's table. Null until `start()` has built it. */
@@ -455,6 +487,7 @@ function controls(): HTMLElement {
     animator = new SunnyAnimator(defaultRig(), {
       intensity: state.intensity,
       reducedMotion: state.reducedMotion,
+      director: false,
     });
     renderScrubber();
   });
@@ -465,6 +498,7 @@ function controls(): HTMLElement {
     animator = new SunnyAnimator(defaultRig(), {
       intensity: state.intensity,
       reducedMotion: state.reducedMotion,
+      director: false,
     });
     renderScrubber();
   });
