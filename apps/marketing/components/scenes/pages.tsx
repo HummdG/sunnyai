@@ -3,25 +3,28 @@ import { renderSunny } from '@sunny/character';
 import {
   BrowserFrame,
   Cloud,
-  CopyLines,
-  Desk,
   Easel,
   GREY,
   Ground,
-  House,
   INK,
-  Laptop,
   LINE,
   ORANGE,
   PALE,
   PackageCard,
   Plant,
   Rosette,
-  Shelf,
   SocketBoard,
   Sunburst,
+  CodeStrip,
+  SiteMock,
+  SpeechBubble,
+  PhoneWithLead,
+  SignUpCard,
 } from './kit.js';
+import { Detached } from './homes.js';
 import { Scene } from './scene.js';
+import { PasteScene } from './home.js';
+import { ConversationScene, CorkboardScene } from './stories.js';
 import { held, stillRig, type SunnyDirection } from './still.js';
 
 /**
@@ -82,29 +85,42 @@ export function ProductScene(): React.JSX.Element {
   );
 }
 
-/** How it works: one line pinned to the installer's site, a thumbs up. */
+/**
+ * How it works: the installer's own site above its markup, the one added
+ * line lit up, and Sunny already at home in the corner of the page.
+ */
 export function HowItWorksScene(): React.JSX.Element {
   return (
     <Scene
       width={560}
       height={440}
-      label="Sunny gives a thumbs up beside a website with a script tag pinned to it."
+      shadow={false}
+      label="An installer's website above its code, with the one added script line highlighted, and Sunny appearing in the corner of the site."
       back={
         <>
-          <Sunburst x={420} y={320} r={240} count={24} />
-          <BrowserFrame x={30} y={40} w={340} h={260}>
-            <CopyLines x={24} y={26} w={220} lines={4} />
-            <rect x={24} y={150} width={290} height={60} rx={8} fill={INK} />
-            <text x={40} y={186} fontSize={15} fontFamily="ui-monospace, monospace" fill={PALE}>
-              {'<script src="…sunny-widget.js">'}
-            </text>
+          <rect width={560} height={440} fill="#FFF6E6" />
+          <Sunburst x={430} y={250} r={260} count={24} />
+          <BrowserFrame x={26} y={30} w={360} h={250} url="brightside-solar.co.uk">
+            <g transform={`scale(${360 / 410})`}>
+              <SiteMock w={410} h={220 / (360 / 410)} />
+            </g>
           </BrowserFrame>
-          <Ground y={400} width={560} bulge={6} />
+          <g transform="translate(60 300) scale(1.45)">
+            <CodeStrip x={0} y={0} w={200} />
+          </g>
+          <path
+            d="M360 360Q420 360 432 300"
+            fill="none"
+            stroke={INK}
+            strokeWidth={2.4}
+            strokeDasharray="3 7"
+            strokeLinecap="round"
+          />
         </>
       }
-      sunny={{ pose: 'thumbsUp', play: 'gesture-nod' }}
-      at={{ x: 310, y: 160 }}
-      size={250}
+      sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.6, y: 0.4 }, grin: 1.2 }}
+      at={{ x: 330, y: 120 }}
+      size={190}
     />
   );
 }
@@ -165,33 +181,11 @@ export function PricingScene(): React.JSX.Element {
         <>
           <Cloud x={70} y={60} s={0.8} />
           <Ground y={370} width={560} />
-          <House x={300} y={260} w={210} h={110} panels={3} />
+          <Detached x={292} y={378} s={0.98} panels={5} />
         </>
       }
       sunny={{ pose: 'hold', play: 'gesture-nod', props: [held('price-tag', 74, -4, -14, 2)] }}
       at={{ x: 50, y: 140 }}
-      size={250}
-    />
-  );
-}
-
-/** Resources: reading up in the library. */
-export function ResourcesScene(): React.JSX.Element {
-  return (
-    <Scene
-      width={560}
-      height={420}
-      label="Sunny sits reading a book beneath shelves of books."
-      back={
-        <>
-          <Shelf x={40} y={110} w={480} />
-          <Shelf x={40} y={210} w={300} />
-          <Ground y={390} width={560} bulge={4} />
-          <Plant x={470} y={390} />
-        </>
-      }
-      sunny={{ pose: 'hips', act: 'lookup-book', at: 0.3, play: 'lookup-book' }}
-      at={{ x: 150, y: 150 }}
       size={250}
     />
   );
@@ -273,28 +267,14 @@ const ground = <Ground y={214} width={300} bulge={4} />;
 export const SETUP_PANELS = [
   <Panel
     key="account"
-    label="Sunny holds a clipboard, signing you up."
-    back={
-      <>
-        {ground}
-        <Cloud x={200} y={40} s={0.6} />
-      </>
-    }
-    sunny={{ pose: 'hold', play: 'gesture-nod', props: [held('clipboard', 66, -12, 8, 1.8)] }}
-    at={{ x: 60, y: 60 }}
+    shadow={false}
+    label="A sign-up card filled in with the installer's company name and website, with Sunny beside it."
+    back={<SignUpCard x={16} y={16} w={186} />}
+    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.2 }, grin: 1.2 }}
+    at={{ x: 196, y: 76 }}
+    size={104}
   />,
-  <Panel
-    key="knowledge"
-    label="Sunny reads a book in front of a bookshelf."
-    back={
-      <>
-        <Shelf x={30} y={70} w={240} />
-        {ground}
-      </>
-    }
-    sunny={{ pose: 'hips', act: 'lookup-book', at: 0.3, play: 'lookup-book' }}
-    at={{ x: 70, y: 66 }}
-  />,
+  <CorkboardScene key="knowledge" />,
   <Panel
     key="colours"
     label="Sunny paints a portrait of the sun on an easel."
@@ -309,69 +289,30 @@ export const SETUP_PANELS = [
     sunny={{ pose: 'hold', play: 'gesture-palm', props: [held('paintbrush', 66, -10, 28, 1.9)] }}
     at={{ x: 10, y: 60 }}
   />,
-  <Panel
-    key="paste"
-    label="A website with one line of code added, and Sunny giving a thumbs up."
-    back={
-      <>
-        <BrowserFrame x={20} y={20} w={190} h={150}>
-          <CopyLines x={16} y={18} w={120} lines={3} />
-        </BrowserFrame>
-        <g transform="translate(40 150) rotate(-6)">
-          <rect x={4} y={5} width={150} height={44} rx={8} fill={INK} />
-          <rect width={150} height={44} rx={8} fill={ORANGE} {...LINE} />
-          <text
-            x={75}
-            y={29}
-            textAnchor="middle"
-            fontSize={17}
-            fontWeight={800}
-            fontFamily="ui-monospace, monospace"
-            fill={INK}
-          >
-            {'<script>'}
-          </text>
-        </g>
-      </>
-    }
-    sunny={{ pose: 'thumbsUp', play: 'gesture-nod' }}
-    at={{ x: 170, y: 70 }}
-    size={150}
-  />,
+  <PasteScene key="paste" />,
 ];
 
 /** The How it works storyboard: what a visitor experiences. */
 export const VISIT_PANELS = [
   <Panel
     key="hello"
-    label="Sunny waves hello from the corner of a website."
-    back={
-      <>
-        <BrowserFrame x={16} y={20} w={200} h={160}>
-          <CopyLines x={16} y={18} w={130} lines={3} />
-        </BrowserFrame>
-        {ground}
-      </>
-    }
-    sunny={{ pose: 'wave', play: 'listening-perk' }}
-    at={{ x: 150, y: 66 }}
-    size={150}
-  />,
-  <Panel
-    key="answers"
     shadow={false}
-    label="A visitor's question on a laptop screen, and Sunny glowing beside it with the answer."
+    label="An installer's website with Sunny popping out of the corner to say hello."
     back={
       <>
-        <Sunburst x={210} y={96} r={120} count={16} fill="#FFE7A6" />
-        <Desk x={10} y={190} w={280} />
-        <Laptop x={40} y={190} w={120} />
+        <BrowserFrame x={14} y={14} w={214} h={166} url="brightside-solar.co.uk">
+          <g transform={`scale(${214 / 410})`}>
+            <SiteMock w={410} h={136 / (214 / 410)} />
+          </g>
+        </BrowserFrame>
+        <SpeechBubble x={120} y={168} w={92} lines={['Hi there!']} tail="right" />
       </>
     }
-    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.5 }, grin: 1.15 }}
-    at={{ x: 160, y: 30 }}
-    size={130}
+    sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.5, y: 0.2 }, grin: 1.2 }}
+    at={{ x: 190, y: 110 }}
+    size={104}
   />,
+  <ConversationScene key="answers" />,
   <Panel
     key="options"
     shadow={false}
@@ -389,15 +330,12 @@ export const VISIT_PANELS = [
   />,
   <Panel
     key="lead"
-    label="Sunny holds up a phone showing a new lead notification."
-    back={
-      <>
-        {ground}
-        <House x={190} y={150} w={90} h={60} panels={1} door={false} />
-      </>
-    }
-    sunny={{ pose: 'hold', play: 'gesture-point', props: [held('phone', 64, -14, 8, 1.8)] }}
-    at={{ x: 30, y: 60 }}
+    shadow={false}
+    label="A phone showing a new lead from Sunny, ready to call, with Sunny beside it."
+    back={<PhoneWithLead x={30} y={16} />}
+    sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.3 }, grin: 1.25 }}
+    at={{ x: 170, y: 64 }}
+    size={120}
   />,
 ];
 
@@ -456,3 +394,5 @@ export function ModelSheet(): React.JSX.Element {
     </figure>
   );
 }
+
+export { SignpostScene as ResourcesScene } from './stories.js';

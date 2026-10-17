@@ -499,11 +499,10 @@ const ballAt = async (page: Page): Promise<string> => (await tableRead(page, 'ba
  * Where Sunny's bat is on the page, in viewport coordinates.
  *
  * Read from the painted rectangle rather than from an attribute the test worked
- * out, and read at all because "she is still playing" is the one claim about a
- * take-over that holds unconditionally: her aim is deliberately chosen to be as
- * far as it can be from the *opponent's* bat (D-24), so a visitor who takes the
- * right bat and then puts their hands down concedes, and the rally count is no
- * longer a promise the page can keep. Her bat moving is.
+ * out, and read at all because "she is still playing" is the claim a take-over
+ * makes: her aim is deliberately chosen to be as far as it can be from the
+ * *opponent's* bat (D-24), so the rally count is no promise the page can keep,
+ * while her bat moving to a ball that comes her way is.
  */
 const sunnyPaddleY = (page: Page): Promise<number | null> =>
   page.evaluate(() => {
@@ -550,30 +549,64 @@ test('takes the right bat over on the first key, and hands it back', async ({ pa
   await page.keyboard.press('ArrowDown');
   await expect(page.locator(table)).toHaveAttribute('data-controlled', 'sunny');
 
-  // A short, fixed hold -- long enough for a game tick to see the key, and no
-  // longer. Holding until the take-over registered made the hold as long as the
-  // machine was slow: on a loaded run the visitor's bat was parked at the bottom
-  // of the court, every serve went past it, Sunny never had a ball to chase, and
-  // the check below failed on the machine's speed rather than on the game.
+  // Held until the take-over registers: the rally only moves on the panel's
+  // clock, so a fixed short tap can end before any tick has seen the key. A long
+  // hold parks the visitor's bat at the bottom, which no longer matters -- the
+  // check below plays the bat back to the ball.
   await page.locator('#pong .pong-surface').focus();
   await page.keyboard.down('ArrowDown');
-  await page.waitForTimeout(250);
-  await page.keyboard.up('ArrowDown');
   await expect(page.locator(table)).toHaveAttribute('data-controlled', 'right');
+  await page.keyboard.up('ArrowDown');
 
   // Hers stays hers: she goes on playing the left end while the visitor plays
   // the right, which is what makes the take-over a take-over rather than a swap.
   //
-  // Asserted against her bat's motion rather than against the rally count. The
-  // count is the wrong proxy and was a flaky one: her aim is picked to be as far
-  // from the opponent's bat as it can be (D-24), so a visitor who takes the bat
-  // and then puts their hands down concedes the point, every rally resets `hits`
-  // to zero, and whether the count happened to grow was a coin flip on a serve
-  // angle. That she is still *playing* is the claim, and it holds every time.
+  // Asserted against her bat's motion, and with the visitor actually playing.
+  // A visitor who takes the bat and puts their hands down concedes, and a serve
+  // goes to the side that conceded -- so after one missed ball every serve goes
+  // to them, Sunny never has a ball to play, and her bat rightly waits in the
+  // ready position. Whether the first ball after the take-over was coming her
+  // way was a coin flip, and so was this check. So the test plays the right
+  // bat the way a visitor does, following the ball, until she has one to return.
+  // The visitor plays from inside the page, every frame -- a round trip per
+  // move from the test is too slow to reach the ball, and the visitor loses
+  // five-nil before Sunny ever has one to return.
   const before = await sunnyPaddleY(page);
+  await page.evaluate(() => {
+    const surface = document.querySelector('#pong .pong-surface')!;
+    const send = (type: 'keydown' | 'keyup', key: string): void => {
+      surface.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }));
+    };
+    let held: string | null = null;
+    const play = (): void => {
+      const ball = document.querySelector('#pong .pong-ball')?.getBoundingClientRect();
+      const bat = document.querySelector('#pong .pong-bat')?.getBoundingClientRect();
+      if (ball && bat) {
+        const gap = ball.y + ball.height / 2 - (bat.y + bat.height / 2);
+        const want = gap < -3 ? 'ArrowUp' : gap > 3 ? 'ArrowDown' : null;
+        if (want !== held) {
+          if (held) send('keyup', held);
+          if (want) send('keydown', want);
+          held = want;
+        }
+      }
+      (window as unknown as { visitorPlays: number }).visitorPlays = requestAnimationFrame(play);
+    };
+    play();
+  });
   await expect
-    .poll(async () => Math.abs((await sunnyPaddleY(page))! - before!), { timeout: 10_000 })
+    .poll(async () => Math.abs((await sunnyPaddleY(page))! - before!), {
+      message: 'Sunny went on playing the left end',
+      timeout: 15_000,
+    })
     .toBeGreaterThan(2);
+  await page.evaluate(() => {
+    cancelAnimationFrame((window as unknown as { visitorPlays: number }).visitorPlays);
+    const surface = document.querySelector('#pong .pong-surface')!;
+    for (const key of ['ArrowUp', 'ArrowDown']) {
+      surface.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+    }
+  });
   await expect(page.locator(table)).toHaveAttribute('data-controlled', 'right');
 
   await page.locator('#pong .btn', { hasText: 'Hand back to Sunny' }).click();

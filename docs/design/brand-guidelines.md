@@ -379,8 +379,14 @@ appear in anything a customer might read when worried or out of pocket.
   never a soft blur. **Every section has a crafted scene** (components in
   `apps/marketing/components/scenes/`): a set drawn from the kit (houses and
   panels, a browser window, a desk under the moon, shelves, the van) with the
-  real Sunny acting in it -- glowing beside a laptop at 2am, hovering over the
-  best-fit package, rising over a street of rooftops. Scenes are stills that play their moment once when they come into
+  real Sunny acting in it -- shining into the one lit window on a terraced
+  street at 2am, hovering over the best-fit package, tied by red string to a
+  corkboard of the installer's own documents, rising over a street of roofs.
+  The homes are British and drawn front-on (`scenes/homes.tsx`: semis,
+  terraces, detached houses), slate roofs facing the street with the panels
+  lying on them, so they read as the installer's customers' homes. Websites
+  in scenes show a believable installer homepage (`SiteMock`), never
+  placeholder bars. Scenes are stills that play their moment once when they come into
   view (and on hover), one at a time; reduced motion keeps them still. Steps
   are told as numbered storyboard panels; Meet Sunny has the model sheet. No
   cameos with joke bubbles. The sunglasses and the deckchair are the chat

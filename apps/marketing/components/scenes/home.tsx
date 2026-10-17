@@ -1,33 +1,25 @@
 import {
-  BrowserFrame,
   Birds,
-  Clock,
+  BrowserFrame,
   Cloud,
-  CopyLines,
-  DOTS_FINE,
-  Desk,
-  Door,
+  CodeStrip,
   Easel,
   Ground,
-  House,
   INK,
-  Lamp,
-  Laptop,
-  LINE,
-  Mug,
-  NightWindow,
+  InTray,
+  LeadCard,
   ORANGE,
+  PackageCard,
   PAINT_COLOURS,
   PaintPots,
-  PackageCard,
-  PALE,
   Rosette,
-  ScriptTag,
-  Shelf,
-  SolarPanel,
+  SiteMock,
+  SpeechBubble,
+  Stars,
   Sunburst,
   Van,
 } from './kit.js';
+import { SemiDetached, Terrace } from './homes.js';
 import { Scene } from './scene.js';
 import { held } from './still.js';
 
@@ -37,100 +29,48 @@ import { held } from './still.js';
  * when it comes into view.
  */
 
-/** The hero: Sunny stepping out of an installer's website to say hello. */
+/**
+ * The hero: an installer's website, with Sunny stepping out of the chat
+ * corner to say hello. Their street of homes stands on the hill behind.
+ */
 export function HeroScene(): React.JSX.Element {
   return (
     <Scene
       width={560}
       height={480}
-      label="Sunny, a cartoon sun, waving hello from the corner of a solar installer's website, with houses and solar panels on the hill behind."
+      label="Sunny, a cartoon sun, says hello from the corner of a solar installer's website, with a street of houses on the hill behind."
       testId="hero-stage"
       back={
         <>
-          <Sunburst x={410} y={300} r={260} count={28} />
-          <Cloud x={420} y={58} s={0.9} />
-          <Ground y={420} width={560} />
-          <House x={34} y={346} w={104} h={60} panels={2} door={false} />
-          <BrowserFrame x={40} y={50} w={400} h={290}>
-            <rect
-              x={20}
-              y={20}
-              width={360}
-              height={110}
-              rx={8}
-              fill={PALE}
-              {...LINE}
-              strokeWidth={1.8}
-            />
-            <SolarPanel x={210} y={46} w={120} h={56} skew={-14} />
-            <CopyLines x={34} y={44} w={150} lines={2} />
-            <CopyLines x={20} y={150} w={200} lines={3} heading={false} />
-            <rect
-              x={20}
-              y={206}
-              width={96}
-              height={26}
-              rx={13}
-              fill={ORANGE}
-              {...LINE}
-              strokeWidth={1.8}
-            />
+          <rect width={560} height={480} fill="#FFF6E6" />
+          <Sunburst x={430} y={330} r={280} count={28} />
+          <Cloud x={436} y={52} s={0.9} />
+          <Birds
+            points={[
+              [470, 120],
+              [494, 106],
+            ]}
+          />
+          <Ground y={410} width={560} bulge={12} />
+          <Terrace x={16} y={420} s={0.36} count={3} panels={2} panelEvery={1} />
+          <BrowserFrame x={30} y={34} w={410} h={300} url="brightside-solar.co.uk">
+            <SiteMock w={410} h={270} />
           </BrowserFrame>
+          <SpeechBubble
+            x={226}
+            y={262}
+            w={148}
+            lines={['Hi! Thinking', 'about solar?']}
+            tail="right"
+          />
         </>
       }
-      sunny={{ pose: 'wave', play: 'listening-perk', lean: -4 }}
-      at={{ x: 300, y: 196 }}
-      size={250}
+      sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.4, y: 0.1 }, grin: 1.2 }}
+      at={{ x: 340, y: 232 }}
+      size={200}
     />
   );
 }
-
-/**
- * Day and night: a desk at two in the morning, a visitor's question on the
- * laptop and Sunny glowing beside it with the answer -- the light that is on
- * when the office is closed.
- */
-export function NightShiftScene(): React.JSX.Element {
-  return (
-    <Scene
-      width={560}
-      height={420}
-      shadow={false}
-      label="A desk at night under a lamp: on the laptop, a visitor's question is being answered, and Sunny glows beside it while the clock reads two o'clock."
-      back={
-        <>
-          <rect x={0} y={0} width={560} height={420} fill="#F3E4C8" />
-          <rect x={0} y={0} width={560} height={420} fill={DOTS_FINE} opacity={0.5} />
-          <NightWindow x={330} y={44} w={180} h={150} />
-          <Clock x={100} y={92} r={32} />
-          <Sunburst x={268} y={190} r={150} count={20} fill="#FFE7A6" />
-        </>
-      }
-      front={
-        <>
-          <Lamp x={40} y={316} />
-          <Desk x={20} y={316} w={520} />
-          <Laptop x={70} y={316} w={170} />
-          <Mug x={470} y={316} />
-          <g transform="translate(250 196)">
-            <path
-              d="M0 0Q14 -16 34 -12"
-              fill="none"
-              stroke={INK}
-              strokeWidth={2}
-              strokeDasharray="2 5"
-              strokeLinecap="round"
-            />
-          </g>
-        </>
-      }
-      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.7, y: 0.5 }, tilt: -6, grin: 1.15 }}
-      at={{ x: 250, y: 100 }}
-      size={190}
-    />
-  );
-}
-
 /** Qualifying: a close look at the roof, the answers ticked off. */
 export function QualifyScene(): React.JSX.Element {
   return (
@@ -142,7 +82,7 @@ export function QualifyScene(): React.JSX.Element {
         <>
           <Cloud x={60} y={60} s={0.8} />
           <Ground y={360} width={560} />
-          <House x={300} y={250} w={200} h={120} panels={3} />
+          <SemiDetached x={292} y={372} s={0.94} panels={4} />
         </>
       }
       sunny={{
@@ -213,68 +153,76 @@ export function HandoverScene(): React.JSX.Element {
   );
 }
 
-/** Storyboard panel one: one line of code, pinned to the page. */
+/**
+ * Storyboard panel one: the installer's page and its markup, the one line
+ * being added, and Sunny turning up in the corner of the site because of it.
+ */
 export function PasteScene(): React.JSX.Element {
   return (
     <Scene
       width={300}
       height={240}
-      label="Sunny pins a big script tag onto a web page."
+      shadow={false}
+      label="An installer's website above its code, with one highlighted line, a script tag, being added; Sunny appears in the corner of the site."
       back={
         <>
-          <BrowserFrame x={20} y={20} w={190} h={150}>
-            <CopyLines x={16} y={18} w={120} lines={3} />
+          <BrowserFrame x={14} y={12} w={214} h={136} url="brightside-solar.co.uk">
+            {/* The full-size page, shrunk to fit: it is the same site as the hero's. */}
+            <g transform={`scale(${214 / 410})`}>
+              <SiteMock w={410} h={106 / (214 / 410)} />
+            </g>
           </BrowserFrame>
-          <ScriptTag x={44} y={150} />
+          <CodeStrip x={30} y={156} w={196} />
+          <path
+            d="M240 200Q262 196 262 168"
+            fill="none"
+            stroke={INK}
+            strokeWidth={2}
+            strokeDasharray="2 5"
+            strokeLinecap="round"
+          />
         </>
       }
-      sunny={{ pose: 'thumbsUp', play: 'gesture-nod' }}
-      at={{ x: 170, y: 70 }}
-      size={150}
+      sunny={{ pose: 'rest', play: 'listening-perk', look: { x: -0.6, y: 0.3 }, grin: 1.2 }}
+      at={{ x: 196, y: 70 }}
+      size={100}
     />
   );
 }
-
-/** Storyboard panel two: Sunny reading up on your business. */
-export function TeachScene(): React.JSX.Element {
-  return (
-    <Scene
-      width={300}
-      height={240}
-      label="Sunny sits reading a book in front of a bookshelf."
-      back={
-        <>
-          <Shelf x={30} y={70} w={240} />
-          <Ground y={214} width={300} bulge={4} />
-        </>
-      }
-      sunny={{ pose: 'hips', act: 'lookup-book', at: 0.3, play: 'lookup-book' }}
-      at={{ x: 70, y: 66 }}
-      size={160}
-    />
-  );
-}
-
-/** Storyboard panel three: the door opens and Sunny says hello. */
+/**
+ * Storyboard panel three: the leads arriving -- an in-tray marked "New leads"
+ * filling with ready-to-call cards, Sunny dropping in the next one.
+ */
 export function WelcomeScene(): React.JSX.Element {
   return (
     <Scene
       width={300}
       height={240}
-      label="Sunny waves hello at an open door."
+      shadow={false}
+      label="A wire in-tray labelled New leads, filling with cards for people ready to buy, as Sunny drops in another."
       back={
         <>
-          <Ground y={214} width={300} bulge={4} />
-          <Door x={180} y={210} />
+          <InTray x={26} y={214} w={170} label="NEW LEADS">
+            <LeadCard x={24} y={-92} name="Aisha K." postcode="BS6" tilt={-6} />
+            <LeadCard x={34} y={-80} name="Tom W." postcode="M20" tilt={4} />
+          </InTray>
+          <LeadCard x={150} y={44} name="Priya S." postcode="LS8" tilt={12} />
+          <Stars
+            points={[
+              [150, 32],
+              [276, 128],
+            ]}
+            size={6}
+            fill={ORANGE}
+          />
         </>
       }
-      sunny={{ pose: 'wave', play: 'listening-perk' }}
-      at={{ x: 20, y: 60 }}
-      size={160}
+      sunny={{ pose: 'rest', play: 'gesture-nod', look: { x: -0.4, y: 0.6 }, grin: 1.25 }}
+      at={{ x: 186, y: 96 }}
+      size={104}
     />
   );
 }
-
 /** Your colours: Sunny with a loaded brush beside the paint pots. */
 export function ColoursScene(): React.JSX.Element {
   return (
@@ -325,15 +273,15 @@ export function SunriseScene(): React.JSX.Element {
       }
       front={
         <>
-          <Ground y={330} width={520} bulge={6} />
-          <House x={18} y={250} w={130} h={84} panels={2} door={false} />
-          <House x={196} y={262} w={130} h={74} panels={2} roof="#FFD0A6" />
-          <House x={372} y={246} w={130} h={88} panels={3} door={false} />
+          <Ground y={354} width={520} bulge={4} />
+          <Terrace x={80} y={356} s={1} count={5} panels={3} panelEvery={2} />
         </>
       }
       sunny={{ pose: 'rest', play: 'celebrate-bounce', look: { x: 0, y: -0.2 }, grin: 1.25 }}
-      at={{ x: 160, y: 50 }}
+      at={{ x: 160, y: 8 }}
       size={200}
     />
   );
 }
+
+export { NightShiftScene, CorkboardScene as TeachScene } from './stories.js';

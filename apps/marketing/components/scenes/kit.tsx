@@ -82,6 +82,15 @@ export function SceneDefs(): React.JSX.Element {
         >
           <circle cx="3.5" cy="3.5" r="1.6" fill={ORANGE} opacity="0.55" />
         </pattern>
+        <pattern id="sk-brick" width="18" height="10" patternUnits="userSpaceOnUse">
+          <path
+            d="M0 0H18M0 5H18M6 0V5M15 5V10"
+            stroke={INK}
+            strokeWidth="0.7"
+            opacity="0.18"
+            fill="none"
+          />
+        </pattern>
         <pattern
           id="sk-hatch"
           width="5"
@@ -205,135 +214,6 @@ export function SolarPanel({
   );
 }
 
-/**
- * A storybook cottage: a chunky pitched roof with a deep eave, a chimney, two
- * four-pane windows and an arched door. `panels` lays that many solar panels
- * flat along the right-hand slope of the roof, where the sun is.
- *
- * Kept deliberately simple -- a few confident shapes, shade on the side away
- * from the light -- because a busy house fights Sunny for attention.
- */
-export function House({
-  x,
-  y,
-  w = 150,
-  h = 96,
-  roof = PALE,
-  panels = 0,
-  lit = false,
-  door = true,
-}: At & {
-  w?: number;
-  h?: number;
-  roof?: string;
-  panels?: number;
-  lit?: boolean;
-  door?: boolean;
-}): React.JSX.Element {
-  const peak = h * 0.7;
-  const eave = 12;
-  // The right-hand slope, from the ridge down to the eave.
-  const ridge = { x: w / 2, y: -peak };
-  const foot = { x: w + eave, y: 4 };
-  const slope = Math.atan2(foot.y - ridge.y, foot.x - ridge.x);
-  const slopeDeg = (slope * 180) / Math.PI;
-  const slopeLen = Math.hypot(foot.x - ridge.x, foot.y - ridge.y);
-  const panelW = (slopeLen * 0.72) / Math.max(1, panels);
-  const win = (wx: number): React.JSX.Element => {
-    const ww = w * 0.18;
-    const wh = ww;
-    const wy = h * 0.22;
-    return (
-      <g key={wx}>
-        <rect
-          x={wx}
-          y={wy}
-          width={ww}
-          height={wh}
-          rx={3}
-          fill={lit ? '#FFD66B' : '#DCEBFA'}
-          {...LINE}
-        />
-        {!lit && (
-          <path
-            d={`M${wx + ww * 0.18} ${wy + wh * 0.42}L${wx + ww * 0.42} ${wy + wh * 0.18}`}
-            stroke="#fff"
-            strokeWidth={2.4}
-            strokeLinecap="round"
-          />
-        )}
-        <path d={`M${wx + ww / 2} ${wy}V${wy + wh}M${wx} ${wy + wh / 2}H${wx + ww}`} {...fine} />
-        <rect x={wx - 4} y={wy + wh} width={ww + 8} height={5} rx={2} fill={PAPER} {...fine} />
-      </g>
-    );
-  };
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <ContactShadow x={w / 2} y={h + 2} rx={w * 0.62} />
-      {/* The chimney, behind the roof, with a curl of smoke. */}
-      <rect
-        x={w * 0.22}
-        y={-peak * 0.86}
-        width={w * 0.11}
-        height={peak * 0.6}
-        fill={PAPER}
-        {...LINE}
-      />
-      <rect
-        x={w * 0.22 - 4}
-        y={-peak * 0.86 - 7}
-        width={w * 0.11 + 8}
-        height={8}
-        rx={2}
-        fill={GREY}
-        {...fine}
-      />
-      <path
-        d={`M${w * 0.275} ${-peak * 0.86 - 12}q-9 -9 0 -18q9 -9 0 -18`}
-        fill="none"
-        stroke={INK}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        opacity={0.45}
-      />
-      {/* The walls, shaded on the side away from the light. */}
-      <rect x={0} y={0} width={w} height={h} rx={3} fill={PAPER} {...LINE} />
-      <rect x={w * 0.78} y={1.4} width={w * 0.22 - 1.4} height={h - 2.8} fill={HATCH} />
-      {/* The roof: a deep eave, the right slope in shade. */}
-      <path d={`M${-eave} 4L${w / 2} ${-peak}L${w + eave} 4Z`} fill={roof} />
-      <path d={`M${w / 2} ${-peak}L${w + eave} 4H${w / 2 + 8}Z`} fill={DOTS} />
-      <path d={`M${-eave} 4L${w / 2} ${-peak}L${w + eave} 4Z`} fill="none" {...LINE} />
-      <path d={`M${-eave + 4} 4H${w + eave - 4}`} {...LINE} strokeWidth={5} />
-      {/* Panels lying flat along the sunny slope. */}
-      {Array.from({ length: panels }, (_, i) => {
-        const along = slopeLen * 0.12 + i * (panelW + 4);
-        return (
-          <g
-            key={i}
-            transform={`translate(${ridge.x + Math.cos(slope) * along} ${ridge.y + Math.sin(slope) * along}) rotate(${slopeDeg})`}
-          >
-            <SolarPanel x={0} y={-18} w={panelW} h={14} skew={0} />
-          </g>
-        );
-      })}
-      {win(w * 0.1)}
-      {!door && win(w * 0.41)}
-      {win(w * 0.72)}
-      {door && (
-        <g>
-          <path
-            d={`M${w * 0.4} ${h}V${h * 0.52}Q${w * 0.5} ${h * 0.36} ${w * 0.6} ${h * 0.52}V${h}`}
-            fill={ORANGE}
-            {...LINE}
-          />
-          <circle cx={w * 0.56} cy={h * 0.76} r={2} fill={INK} />
-          <rect x={w * 0.36} y={h} width={w * 0.28} height={4} rx={2} fill={GREY} {...fine} />
-        </g>
-      )}
-    </g>
-  );
-}
-
 /** A browser window: the installer's website, where Sunny lives. */
 export function BrowserFrame({
   x,
@@ -343,6 +223,12 @@ export function BrowserFrame({
   url = 'your-solar-company.co.uk',
   children,
 }: At & { w: number; h: number; url?: string; children?: React.ReactNode }): React.JSX.Element {
+  // The address bar grows to its text, and the text shrinks before it would
+  // ever run out of the bar on a narrow window.
+  const room = w - 90;
+  const natural = url.length * 5.5 + 26;
+  const pill = Math.min(room, Math.max(120, natural));
+  const urlSize = natural > room ? (9.5 * (room - 26)) / (natural - 26) : 9.5;
   return (
     <g transform={`translate(${x} ${y})`}>
       <rect x={7} y={9} width={w} height={h} rx={14} fill={INK} />
@@ -353,9 +239,9 @@ export function BrowserFrame({
       {[18, 34, 50].map((cx, i) => (
         <circle key={cx} cx={cx} cy={15} r={4.6} fill={i === 0 ? ORANGE : PAPER} {...fine} />
       ))}
-      <rect x={70} y={7} width={Math.min(220, w - 90)} height={16} rx={8} fill={PAPER} {...fine} />
+      <rect x={70} y={7} width={pill} height={16} rx={8} fill={PAPER} {...fine} />
       <path d="M78 15.5a3 3 0 1 1 0.01 0Z" fill={GREY} />
-      <text x={86} y={19} fontSize={9.5} fontFamily="var(--font-sans), sans-serif" fill={INK}>
+      <text x={86} y={18.6} fontSize={urlSize} fontFamily="var(--font-sans), sans-serif" fill={INK}>
         {url}
       </text>
       <g transform="translate(0 30)">{children}</g>
@@ -430,108 +316,6 @@ export function Stars({
           </g>
         );
       })}
-    </g>
-  );
-}
-
-/** A desk: a thick, grained top on two tapered legs, a drawer underneath. */
-export function Desk({ x, y, w = 220 }: At & { w?: number }): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <path
-        d={`M14 14L6 96H20L32 14ZM${w - 14} 14L${w - 6} 96H${w - 20}L${w - 32} 14Z`}
-        fill={WOOD}
-        {...LINE}
-      />
-      <path d={`M14 14L6 96H12L22 14Z`} fill={HATCH} />
-      <rect x={w * 0.55} y={14} width={w * 0.32} height={22} rx={2} fill={WOOD} {...fine} />
-      <rect x={w * 0.55} y={14} width={w * 0.32} height={22} rx={2} fill={DOTS} />
-      <rect x={w * 0.68} y={23} width={w * 0.06} height={4} rx={2} fill={INK} />
-      <rect width={w} height={16} rx={4} fill={WOOD} {...LINE} />
-      <path
-        d={`M10 6Q${w * 0.3} 3 ${w * 0.45} 7T${w - 20} 6M24 11Q${w * 0.4} 9 ${w * 0.7} 11`}
-        fill="none"
-        {...hair}
-        opacity={0.55}
-      />
-    </g>
-  );
-}
-
-/** A mug of something hot. */
-export function Mug({ x, y }: At): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <path
-        d="M2 -26Q-2 -32 2 -38M10 -26Q6 -32 10 -38"
-        fill="none"
-        stroke={INK}
-        strokeWidth={1.4}
-        strokeLinecap="round"
-        opacity={0.5}
-      />
-      <path d="M16 -16Q26 -16 24 -8Q22 -2 14 -4" fill="none" {...fine} />
-      <path d="M-4 -20H18V-2Q18 2 14 2H0Q-4 2 -4 -2Z" fill={ORANGE} {...LINE} />
-      <path d="M-4 -12H18" {...hair} />
-    </g>
-  );
-}
-
-/** An anglepoise lamp throwing a cone of light. */
-export function Lamp({ x, y, light = true }: At & { light?: boolean }): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      {light && <path d="M34 -60L130 6H-10Z" fill="#FFE7A6" opacity={0.5} />}
-      {light && <path d="M34 -60L130 6H-10Z" fill={DOTS_ORANGE} opacity={0.35} />}
-      <path d="M-12 0H24" {...LINE} strokeWidth={6} />
-      <path d="M6 0L-6 -40L30 -64" fill="none" {...LINE} strokeWidth={4.4} />
-      <circle cx={-6} cy={-40} r={3.6} fill={GREY} {...fine} />
-      <path d="M22 -78L54 -54L34 -46Q24 -62 12 -66Z" fill={ORANGE} {...LINE} />
-      <path d="M22 -78L32 -70L18 -64Z" fill={DOTS} />
-      <path d="M-12 0Q-30 4 -36 18" fill="none" {...fine} />
-    </g>
-  );
-}
-
-/** A shelf of books, with bookends and the odd book leaning. */
-export function Shelf({ x, y, w = 200 }: At & { w?: number }): React.JSX.Element {
-  const palette = [ORANGE, PANEL, PALE, WOOD, GREY, ORANGE, PAPER, PANEL];
-  // Enough books to fill the shelf, with a gap at the end to lean one in.
-  const count = Math.max(4, Math.floor((w - 60) / 17));
-  let cursor = 10;
-  const books = Array.from({ length: count }, (_, i) => {
-    const fill = palette[i % palette.length]!;
-    const bw = 12 + ((i * 7) % 9);
-    const bh = 34 + ((i * 11) % 16);
-    const book = (
-      <g key={i}>
-        <rect x={cursor} y={-bh} width={bw} height={bh} rx={2} fill={fill} {...fine} />
-        <path d={`M${cursor} ${-bh + 6}h${bw}M${cursor} ${-10}h${bw}`} {...hair} />
-        {i % 3 === 0 && (
-          <rect
-            x={cursor + bw / 2 - 2}
-            y={-bh + 12}
-            width={4}
-            height={bh - 26}
-            rx={2}
-            fill={INK}
-            opacity={0.6}
-          />
-        )}
-      </g>
-    );
-    cursor += bw + 2;
-    return book;
-  });
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      {books}
-      <g transform={`translate(${cursor + 8} 0) rotate(18)`}>
-        <rect x={0} y={-40} width={13} height={40} rx={2} fill={ORANGE} {...fine} />
-      </g>
-      <rect x={0} y={0} width={w} height={10} rx={3} fill={WOOD} {...LINE} />
-      <rect x={1.4} y={6} width={w - 2.8} height={3} fill={DOTS} />
-      <path d={`M14 10V22M${w - 14} 10V22`} {...fine} />
     </g>
   );
 }
@@ -727,44 +511,6 @@ export function SocketBoard({
   );
 }
 
-/** A big, tilted `<script>` tag label, as if pinned to the page. */
-export function ScriptTag({ x, y, rotate = -6 }: At & { rotate?: number }): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y}) rotate(${rotate})`}>
-      <rect x={4} y={5} width={150} height={44} rx={8} fill={INK} />
-      <rect width={150} height={44} rx={8} fill={ORANGE} {...LINE} />
-      <rect x={1.4} y={30} width={147} height={12} rx={6} fill={DOTS} />
-      <circle cx={12} cy={10} r={3} fill={GREY} {...hair} />
-      <text
-        x={78}
-        y={29}
-        textAnchor="middle"
-        fontSize={17}
-        fontWeight={800}
-        fontFamily="ui-monospace, monospace"
-        fill={INK}
-      >
-        {'<script>'}
-      </text>
-    </g>
-  );
-}
-
-/** A door, half open, with light spilling out across the floor. */
-export function Door({ x, y }: At): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <path d="M0 0L-40 26H70L70 0Z" fill="#FFE7A6" opacity={0.7} />
-      <rect x={-6} y={-126} width={82} height={126} fill={PAPER} {...LINE} />
-      <rect x={0} y={-120} width={70} height={120} fill="#FFE7A6" {...LINE} />
-      <rect x={0} y={-120} width={70} height={120} fill={DOTS_ORANGE} opacity={0.35} />
-      <path d="M70 -120L104 -108V8L70 0Z" fill={ORANGE} {...LINE} />
-      <path d="M76 -100L98 -92V-62L76 -68ZM76 -50L98 -44V-10L76 -14Z" fill="none" {...fine} />
-      <circle cx={96} cy={-54} r={3} fill={INK} />
-    </g>
-  );
-}
-
 /** An easel with a canvas on it: a portrait of the sun, in your colour. */
 export function Easel({ x, y }: At): React.JSX.Element {
   return (
@@ -824,100 +570,6 @@ export function PaintPots({
           />
         </g>
       ))}
-    </g>
-  );
-}
-
-/**
- * An open laptop on a desk, its screen lit with a conversation: the visitor's
- * question, and Sunny's answer arriving.
- */
-export function Laptop({ x, y, w = 150 }: At & { w?: number }): React.JSX.Element {
-  const h = w * 0.62;
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <ContactShadow x={w / 2} y={6} rx={w * 0.62} />
-      <rect x={0} y={-h} width={w} height={h} rx={8} fill={INK} {...LINE} />
-      <rect x={8} y={-h + 8} width={w - 16} height={h - 16} rx={4} fill="#FFF6DD" />
-      <rect
-        x={8}
-        y={-h + 8}
-        width={w - 16}
-        height={h - 16}
-        rx={4}
-        fill={DOTS_ORANGE}
-        opacity={0.18}
-      />
-      {/* The visitor's question, then Sunny's reply. */}
-      <rect x={w * 0.42} y={-h + 16} width={w * 0.46} height={16} rx={8} fill={GREY} />
-      <rect x={16} y={-h + 40} width={w * 0.58} height={26} rx={9} fill={ORANGE} {...hair} />
-      <path
-        d={`M24 ${-h + 49}h${w * 0.42}M24 ${-h + 57}h${w * 0.3}`}
-        stroke={INK}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-      <circle cx={w * 0.8} cy={-h + 54} r={2.2} fill={INK} />
-      <circle cx={w * 0.86} cy={-h + 54} r={2.2} fill={INK} opacity={0.6} />
-      <path d={`M-14 0H${w + 14}L${w + 4} 8H-4Z`} fill={GREY} {...LINE} />
-      <rect x={w / 2 - 14} y={1} width={28} height={3} rx={1.5} fill={INK} opacity={0.5} />
-    </g>
-  );
-}
-
-/** A window onto the night: moon, stars and the roofs across the street. */
-export function NightWindow({
-  x,
-  y,
-  w = 170,
-  h = 150,
-}: At & { w?: number; h?: number }): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <rect x={-8} y={-8} width={w + 16} height={h + 16} rx={6} fill={WOOD} {...LINE} />
-      <rect x={0} y={0} width={w} height={h} fill="#1E2433" {...LINE} />
-      <Stars
-        points={[
-          [24, 22],
-          [70, 46],
-          [130, 18],
-          [150, 70],
-          [40, 80],
-        ]}
-        size={5}
-      />
-      <Moon x={w * 0.66} y={h * 0.34} r={18} />
-      <path
-        d={`M0 ${h}V${h * 0.74}L${w * 0.18} ${h * 0.6}L${w * 0.36} ${h * 0.74}V${h * 0.66}L${w * 0.56} ${h * 0.5}L${w * 0.76} ${h * 0.66}V${h * 0.72}L${w} ${h * 0.6}V${h}Z`}
-        fill={INK}
-      />
-      <rect x={w * 0.1} y={h * 0.8} width={8} height={8} fill="#FFD66B" />
-      <rect x={w * 0.62} y={h * 0.74} width={8} height={8} fill="#FFD66B" />
-      <path d={`M${w / 2} 0V${h}M0 ${h / 2}H${w}`} stroke={WOOD} strokeWidth={6} />
-      <path d={`M${w / 2} 0V${h}M0 ${h / 2}H${w}`} {...hair} />
-      <rect x={-14} y={h + 6} width={w + 28} height={8} rx={3} fill={PAPER} {...LINE} />
-    </g>
-  );
-}
-
-/** A wall clock, hands at two in the morning. */
-export function Clock({ x, y, r = 30 }: At & { r?: number }): React.JSX.Element {
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <circle r={r + 6} fill={ORANGE} {...LINE} />
-      <circle r={r} fill={PAPER} {...LINE} />
-      {Array.from({ length: 12 }, (_, i) => {
-        const a = (i / 12) * Math.PI * 2;
-        return (
-          <path
-            key={i}
-            d={`M${Math.sin(a) * r * 0.8} ${-Math.cos(a) * r * 0.8}L${Math.sin(a) * r * 0.92} ${-Math.cos(a) * r * 0.92}`}
-            {...(i % 3 === 0 ? fine : hair)}
-          />
-        );
-      })}
-      <path d={`M0 0V${-r * 0.7}M0 0L${r * 0.42} ${-r * 0.24}`} {...LINE} strokeWidth={3.2} />
-      <circle r={2.8} fill={INK} />
     </g>
   );
 }
@@ -1072,6 +724,689 @@ export function Birds({ points }: { points: ReadonlyArray<[number, number]> }): 
       {points.map(([bx, by], i) => (
         <path key={i} d={`M${bx - 9} ${by}q5 -6 9 0q4 -6 9 0`} fill="none" {...fine} />
       ))}
+    </g>
+  );
+}
+
+/** A speech bubble with a tail, holding a line or two of text. */
+export function SpeechBubble({
+  x,
+  y,
+  w,
+  lines,
+  tail = 'left',
+  fill = PAPER,
+}: At & {
+  w: number;
+  lines: readonly string[];
+  tail?: 'left' | 'right' | 'down';
+  fill?: string;
+}): React.JSX.Element {
+  const h = 14 + lines.length * 15;
+  const tails = {
+    left: `M18 ${h - 2}L6 ${h + 14}L32 ${h - 2}`,
+    right: `M${w - 32} ${h - 2}L${w - 6} ${h + 14}L${w - 18} ${h - 2}`,
+    down: `M${w / 2 - 10} ${h - 2}L${w / 2} ${h + 14}L${w / 2 + 10} ${h - 2}`,
+  } as const;
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x={4} y={5} width={w} height={h} rx={12} fill={INK} />
+      <path d={tails[tail]} fill={fill} {...LINE} />
+      <rect width={w} height={h} rx={12} fill={fill} {...LINE} />
+      {lines.map((line, i) => (
+        <text
+          key={i}
+          x={12}
+          y={21 + i * 15}
+          fontSize={12.5}
+          fontWeight={700}
+          fontFamily="var(--font-sans), sans-serif"
+          fill={INK}
+        >
+          {line}
+        </text>
+      ))}
+    </g>
+  );
+}
+
+/** The chat panel itself: a header with Sunny's name, then the conversation. */
+export function ChatWindow({
+  x,
+  y,
+  w,
+  h,
+  messages,
+}: At & {
+  w: number;
+  h: number;
+  messages: ReadonlyArray<{ from: 'visitor' | 'sunny'; text: string }>;
+}): React.JSX.Element {
+  let cursor = 44;
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x={6} y={8} width={w} height={h} rx={16} fill={INK} />
+      <rect width={w} height={h} rx={16} fill={PAPER} {...LINE} />
+      <path
+        d={`M1.4 34V16Q1.4 1.4 16 1.4H${w - 16}Q${w - 1.4} 1.4 ${w - 1.4} 16V34Z`}
+        fill={PALE}
+      />
+      <path d={`M0 34H${w}`} {...LINE} />
+      <circle cx={20} cy={18} r={8} fill={ORANGE} {...fine} />
+      <text
+        x={34}
+        y={22}
+        fontSize={11.5}
+        fontWeight={800}
+        fontFamily="var(--font-display), serif"
+        fill={INK}
+      >
+        Sunny · Your Solar Co.
+      </text>
+      {messages.map((m, i) => {
+        const bw = Math.min(w - 40, 18 + m.text.length * 6.2);
+        const bx = m.from === 'visitor' ? w - bw - 12 : 12;
+        const top = cursor;
+        cursor += 34;
+        return (
+          <g key={i}>
+            <rect
+              x={bx}
+              y={top}
+              width={bw}
+              height={26}
+              rx={10}
+              fill={m.from === 'visitor' ? '#E4E7EC' : ORANGE}
+              {...fine}
+            />
+            <text
+              x={bx + 9}
+              y={top + 17}
+              fontSize={10.5}
+              fontWeight={700}
+              fontFamily="var(--font-sans), sans-serif"
+              fill={INK}
+            >
+              {m.text}
+            </text>
+          </g>
+        );
+      })}
+      <g transform={`translate(12 ${cursor})`}>
+        <rect width={44} height={22} rx={11} fill={PALE} {...hair} />
+        {[12, 22, 32].map((cx, i) => (
+          <circle key={cx} cx={cx} cy={11} r={2.6} fill={INK} opacity={0.35 + i * 0.25} />
+        ))}
+      </g>
+    </g>
+  );
+}
+
+/** A cork pinboard in a wooden frame. Its contents are its children. */
+export function Corkboard({
+  x,
+  y,
+  w,
+  h,
+  children,
+}: At & { w: number; h: number; children?: React.ReactNode }): React.JSX.Element {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x={6} y={8} width={w} height={h} rx={6} fill={INK} />
+      <rect width={w} height={h} rx={6} fill={WOOD} {...LINE} />
+      <rect x={10} y={10} width={w - 20} height={h - 20} rx={2} fill="#D9A86C" {...fine} />
+      <rect x={10} y={10} width={w - 20} height={h - 20} rx={2} fill={DOTS_FINE} opacity={0.6} />
+      {children}
+    </g>
+  );
+}
+
+/** One of the installer's documents, pinned up: what it is, drawn on it. */
+export function PinnedDoc({
+  x,
+  y,
+  kind,
+  tilt = 0,
+}: At & { kind: 'spec' | 'price' | 'warranty' | 'faq'; tilt?: number }): React.JSX.Element {
+  const title = { spec: 'Spec sheet', price: 'Price list', warranty: 'Warranty', faq: 'FAQ' }[kind];
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${tilt})`}>
+      <rect x={3} y={4} width={78} height={96} fill={INK} opacity={0.25} />
+      <rect width={78} height={96} fill={PAPER} {...LINE} />
+      <text
+        x={8}
+        y={16}
+        fontSize={9}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+      >
+        {title}
+      </text>
+      <path d="M8 21H70" {...hair} />
+      {kind === 'spec' && (
+        <g>
+          <SolarPanel x={12} y={30} w={52} h={26} skew={-10} />
+          <path
+            d="M10 70H58M10 78H50M10 86H44"
+            stroke={GREY}
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+        </g>
+      )}
+      {kind === 'price' &&
+        [0, 1, 2, 3, 4].map((r) => (
+          <g key={r}>
+            <path d={`M8 ${34 + r * 12}H38`} stroke={GREY} strokeWidth={3} strokeLinecap="round" />
+            <text
+              x={44}
+              y={37 + r * 12}
+              fontSize={8.5}
+              fontWeight={800}
+              fontFamily="var(--font-sans), sans-serif"
+              fill={INK}
+            >
+              {['£4,200', '£6,850', '£8,400', '£11,100', '£2,950'][r]}
+            </text>
+          </g>
+        ))}
+      {kind === 'warranty' && (
+        <g>
+          <path
+            d="M10 32H66M10 40H60M10 48H66M10 56H44"
+            stroke={GREY}
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+          <circle cx={56} cy={78} r={11} fill={ORANGE} {...fine} />
+          <circle cx={56} cy={78} r={7} fill="none" {...hair} strokeDasharray="2 2" />
+          <path d="M10 80Q20 70 26 82T42 80" fill="none" {...fine} />
+        </g>
+      )}
+      {kind === 'faq' &&
+        [0, 1, 2].map((r) => (
+          <g key={r}>
+            <text
+              x={8}
+              y={38 + r * 22}
+              fontSize={11}
+              fontWeight={800}
+              fontFamily="var(--font-display), serif"
+              fill={ORANGE}
+            >
+              Q
+            </text>
+            <path
+              d={`M20 ${34 + r * 22}H66M20 ${41 + r * 22}H54`}
+              stroke={GREY}
+              strokeWidth={3}
+              strokeLinecap="round"
+            />
+          </g>
+        ))}
+      {/* The drawing pin. */}
+      <circle cx={39} cy={-2} r={5.5} fill="#E8432E" {...fine} />
+      <circle cx={37.5} cy={-3.5} r={1.6} fill="#fff" opacity={0.7} />
+    </g>
+  );
+}
+
+/** Red string, sagging a little, from pin to pin: the detective's board. */
+export function RedString({
+  from,
+  to,
+}: {
+  from: [number, number];
+  to: [number, number];
+}): React.JSX.Element {
+  const [ax, ay] = from;
+  const [bx, by] = to;
+  return (
+    <path
+      d={`M${ax} ${ay}Q${(ax + bx) / 2} ${Math.max(ay, by) + 22} ${bx} ${by}`}
+      fill="none"
+      stroke="#D7322A"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+    />
+  );
+}
+
+/** A wooden signpost with arms pointing left and right, each with a label. */
+export function Signpost({
+  x,
+  y,
+  arms,
+}: At & { arms: ReadonlyArray<{ label: string; dir: 'left' | 'right' }> }): React.JSX.Element {
+  const h = 70 + arms.length * 34;
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <ContactShadow x={0} y={2} rx={34} />
+      <rect x={-6} y={-h} width={12} height={h} rx={3} fill={WOOD} {...LINE} />
+      <rect x={1} y={-h + 2} width={4} height={h - 4} fill={HATCH} />
+      <path d={`M-9 ${-h}L0 ${-h - 10}L9 ${-h}Z`} fill={WOOD} {...LINE} />
+      {arms.map((arm, i) => {
+        const ay = -h + 14 + i * 34;
+        const len = 30 + arm.label.length * 6.8;
+        const d =
+          arm.dir === 'right'
+            ? `M-4 ${ay}H${len}L${len + 12} ${ay + 12}L${len} ${ay + 24}H-4Z`
+            : `M4 ${ay}H${-len}L${-len - 12} ${ay + 12}L${-len} ${ay + 24}H4Z`;
+        return (
+          <g key={arm.label} transform={`rotate(${i % 2 === 0 ? -2 : 2} 0 ${ay + 12})`}>
+            <path d={d} transform="translate(3 4)" fill={INK} />
+            <path d={d} fill={i === 0 ? ORANGE : PAPER} {...LINE} />
+            <text
+              x={arm.dir === 'right' ? 8 : -8}
+              y={ay + 16.5}
+              textAnchor={arm.dir === 'right' ? 'start' : 'end'}
+              fontSize={12}
+              fontWeight={800}
+              fontFamily="var(--font-display), serif"
+              fill={INK}
+            >
+              {arm.label}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/**
+ * A believable installer's homepage, drawn to fit inside a `BrowserFrame` of
+ * width `w` (below its address bar): the company's name and nav, a banner with
+ * a headline, a "Get a quote" button and a pair of semis with panels on the
+ * roof, then a row of three feature tiles.
+ */
+export function SiteMock({
+  w,
+  h,
+  name = 'Brightside Solar',
+}: {
+  w: number;
+  h: number;
+  name?: string;
+}): React.JSX.Element {
+  const banner = { x: 12, y: 30, w: w - 24, h: Math.min(130, h * 0.52) };
+  const tilesY = banner.y + banner.h + 12;
+  const tileW = (w - 24 - 16) / 3;
+  return (
+    <g>
+      {/* The site's own header. */}
+      <circle cx={22} cy={15} r={7} fill={ORANGE} {...hair} />
+      <text
+        x={34}
+        y={19}
+        fontSize={11}
+        fontWeight={800}
+        fontFamily="var(--font-display), serif"
+        fill={INK}
+      >
+        {name}
+      </text>
+      {[0, 1, 2].map((i) => (
+        <rect key={i} x={w - 130 + i * 40} y={12} width={30} height={5} rx={2.5} fill={GREY} />
+      ))}
+      <path d={`M0 26H${w}`} stroke={GREY} strokeWidth={1} />
+      {/* The banner. */}
+      <rect
+        x={banner.x}
+        y={banner.y}
+        width={banner.w}
+        height={banner.h}
+        rx={8}
+        fill={PALE}
+        {...fine}
+      />
+      <rect
+        x={banner.x}
+        y={banner.y}
+        width={banner.w}
+        height={banner.h}
+        rx={8}
+        fill={DOTS_FINE}
+        opacity={0.35}
+      />
+      <text
+        x={banner.x + 14}
+        y={banner.y + 30}
+        fontSize={15}
+        fontWeight={800}
+        fontFamily="var(--font-display), serif"
+        fill={INK}
+      >
+        Clean power,
+      </text>
+      <text
+        x={banner.x + 14}
+        y={banner.y + 48}
+        fontSize={15}
+        fontWeight={800}
+        fontFamily="var(--font-display), serif"
+        fill={INK}
+      >
+        for your home.
+      </text>
+      <rect
+        x={banner.x + 14}
+        y={banner.y + 58}
+        width={banner.w * 0.38}
+        height={4}
+        rx={2}
+        fill={GREY}
+      />
+      <rect
+        x={banner.x + 14}
+        y={banner.y + 67}
+        width={banner.w * 0.3}
+        height={4}
+        rx={2}
+        fill={GREY}
+      />
+      <g transform={`translate(${banner.x + 14} ${banner.y + banner.h - 36})`}>
+        <rect x={2} y={3} width={78} height={22} rx={11} fill={INK} />
+        <rect width={78} height={22} rx={11} fill={ORANGE} {...fine} />
+        <text
+          x={39}
+          y={15}
+          textAnchor="middle"
+          fontSize={9.5}
+          fontWeight={800}
+          fontFamily="var(--font-sans), sans-serif"
+          fill={INK}
+        >
+          Get a quote
+        </text>
+      </g>
+      <SemiDetachedMini x={banner.x + banner.w - 128} y={banner.y + banner.h - 6} />
+      {/* Three feature tiles. */}
+      {tilesY + 40 < h &&
+        [0, 1, 2].map((i) => (
+          <g key={i} transform={`translate(${12 + i * (tileW + 8)} ${tilesY})`}>
+            <rect
+              width={tileW}
+              height={Math.min(46, h - tilesY - 8)}
+              rx={6}
+              fill={PAPER}
+              {...hair}
+            />
+            <circle cx={14} cy={14} r={7} fill={[ORANGE, PALE, '#CFE6D6'][i]} {...hair} />
+            <rect x={26} y={10} width={tileW - 36} height={4} rx={2} fill={INK} opacity={0.75} />
+            <rect x={10} y={28} width={tileW - 20} height={3.5} rx={1.75} fill={GREY} />
+          </g>
+        ))}
+    </g>
+  );
+}
+
+/**
+ * A small semi-detached pair, drawn simply enough to sit inside a picture on a
+ * web page (the full `SemiDetached` is too detailed at this size).
+ */
+function SemiDetachedMini({ x, y }: At): React.JSX.Element {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <path d="M-6 -56L20 -78H96L122 -56Z" fill="#5B6472" {...fine} />
+      <rect x={58} y={-76} width={28} height={14} rx={1} fill={PANEL} {...hair} />
+      <path d="M65 -76V-62M72 -76V-62M79 -76V-62M58 -69H86" stroke="#5A6B8C" strokeWidth={0.7} />
+      <rect x={52} y={-90} width={12} height={14} fill="#E2A07A" {...hair} />
+      <rect x={0} y={-56} width={116} height={56} fill="#E2A07A" {...fine} />
+      <path d="M58 -56V0" {...hair} />
+      {[8, 34, 70, 96].map((wx) => (
+        <rect key={wx} x={wx} y={-48} width={14} height={14} fill="#C9DCEB" {...hair} />
+      ))}
+      {[8, 92].map((wx) => (
+        <rect key={wx} x={wx} y={-26} width={18} height={18} fill="#C9DCEB" {...hair} />
+      ))}
+      <rect x={42} y={-28} width={11} height={28} fill={ORANGE} {...hair} />
+      <rect x={63} y={-28} width={11} height={28} fill={PANEL} {...hair} />
+    </g>
+  );
+}
+
+/** A code editor strip: the page's markup, with the one line being added lit up. */
+export function CodeStrip({ x, y, w }: At & { w: number }): React.JSX.Element {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x={5} y={6} width={w} height={70} rx={10} fill={INK} opacity={0.35} />
+      <rect width={w} height={70} rx={10} fill="#1E2433" {...LINE} />
+      <text x={12} y={18} fontSize={9} fontFamily="ui-monospace, monospace" fill="#8C96A8">
+        {'<body>'}
+      </text>
+      <rect x={6} y={25} width={w - 12} height={20} rx={5} fill={ORANGE} />
+      <text
+        x={14}
+        y={39}
+        fontSize={10}
+        fontWeight={700}
+        fontFamily="ui-monospace, monospace"
+        fill={INK}
+      >
+        {'<script src="sunny.js">'}
+      </text>
+      <rect x={w - 18} y={28} width={2.4} height={14} fill={INK} />
+      <text x={12} y={60} fontSize={9} fontFamily="ui-monospace, monospace" fill="#8C96A8">
+        {'</body>'}
+      </text>
+    </g>
+  );
+}
+
+/** A lead, as a card: who, where, and that they are ready. */
+export function LeadCard({
+  x,
+  y,
+  name,
+  postcode,
+  tilt = 0,
+}: At & { name: string; postcode: string; tilt?: number }): React.JSX.Element {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${tilt})`}>
+      <rect x={4} y={5} width={120} height={64} rx={8} fill={INK} opacity={0.3} />
+      <rect width={120} height={64} rx={8} fill={PAPER} {...LINE} />
+      <circle cx={18} cy={18} r={9} fill={PALE} {...fine} />
+      <circle cx={18} cy={15} r={3.4} fill={INK} opacity={0.6} />
+      <path d="M11 24Q18 18 25 24" fill={INK} opacity={0.6} />
+      <text
+        x={34}
+        y={17}
+        fontSize={10.5}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+      >
+        {name}
+      </text>
+      <text
+        x={34}
+        y={29}
+        fontSize={8.5}
+        fontWeight={700}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+        opacity={0.6}
+      >
+        {postcode} · 3-bed semi
+      </text>
+      <rect x={10} y={40} width={44} height={16} rx={8} fill={ORANGE} {...hair} />
+      <text
+        x={32}
+        y={51}
+        textAnchor="middle"
+        fontSize={8.5}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+      >
+        Ready
+      </text>
+      <rect x={60} y={46} width={50} height={4} rx={2} fill={GREY} />
+    </g>
+  );
+}
+
+/** A wire in-tray with a label on its front lip. Its contents are its children. */
+export function InTray({
+  x,
+  y,
+  w,
+  label,
+  children,
+}: At & { w: number; label: string; children?: React.ReactNode }): React.JSX.Element {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <ContactShadow x={w / 2} y={6} rx={w * 0.6} />
+      <path d={`M0 0L10 -40H${w - 10}L${w} 0Z`} fill="#E4E7EC" {...LINE} />
+      {children}
+      <path d={`M-4 0H${w + 4}L${w - 4} -24H4Z`} fill={GREY} {...LINE} />
+      <path d={`M10 -6H${w - 10}M14 -14H${w - 14}`} stroke={INK} strokeWidth={1} opacity={0.4} />
+      <rect x={w / 2 - 44} y={-20} width={88} height={16} rx={3} fill={PAPER} {...fine} />
+      <text
+        x={w / 2}
+        y={-8.5}
+        textAnchor="middle"
+        fontSize={9.5}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+        letterSpacing={1}
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
+/** A sign-up card: the installer's details going in, a tick, and the button. */
+export function SignUpCard({ x, y, w = 190 }: At & { w?: number }): React.JSX.Element {
+  const field = (fy: number, label: string, value: string): React.JSX.Element => (
+    <g transform={`translate(14 ${fy})`}>
+      <text
+        fontSize={8}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+        opacity={0.65}
+        letterSpacing={0.6}
+      >
+        {label}
+      </text>
+      <rect y={5} width={w - 28} height={22} rx={6} fill={PAPER} {...fine} />
+      <text
+        x={8}
+        y={20}
+        fontSize={10}
+        fontWeight={700}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+      >
+        {value}
+      </text>
+    </g>
+  );
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x={6} y={8} width={w} height={196} rx={14} fill={INK} />
+      <rect width={w} height={196} rx={14} fill={CREAM} {...LINE} />
+      <text
+        x={14}
+        y={26}
+        fontSize={14}
+        fontWeight={800}
+        fontFamily="var(--font-display), serif"
+        fill={INK}
+      >
+        Create your account
+      </text>
+      {field(46, 'COMPANY', 'Brightside Solar')}
+      {field(88, 'WEBSITE', 'brightside-solar.co.uk')}
+      <rect x={14} y={128} width={14} height={14} rx={3} fill={ORANGE} {...fine} />
+      <path
+        d="M17 135L20 138L25 131"
+        fill="none"
+        stroke={INK}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <text
+        x={34}
+        y={139}
+        fontSize={9}
+        fontWeight={700}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+      >
+        Show Sunny on my site only
+      </text>
+      <rect x={16} y={158} width={w - 28} height={26} rx={13} fill={INK} />
+      <rect x={14} y={155} width={w - 28} height={26} rx={13} fill={ORANGE} {...fine} />
+      <text
+        x={w / 2}
+        y={172}
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+      >
+        Start free
+      </text>
+    </g>
+  );
+}
+
+/** A phone lying on a desk, a new lead's card on its screen. */
+export function PhoneWithLead({ x, y }: At): React.JSX.Element {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <ContactShadow x={60} y={206} rx={72} />
+      <rect x={6} y={8} width={120} height={200} rx={20} fill={INK} opacity={0.35} />
+      <rect width={120} height={200} rx={20} fill={INK} {...LINE} />
+      <rect x={8} y={14} width={104} height={174} rx={12} fill="#FFF6E6" />
+      <rect x={44} y={6} width={32} height={5} rx={2.5} fill="#3A4152" />
+      <text
+        x={16}
+        y={34}
+        fontSize={8}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+        opacity={0.6}
+        letterSpacing={0.6}
+      >
+        NOW · SUNNY
+      </text>
+      <text
+        x={16}
+        y={48}
+        fontSize={12}
+        fontWeight={800}
+        fontFamily="var(--font-display), serif"
+        fill={INK}
+      >
+        New lead!
+      </text>
+      <g transform="translate(14 58) scale(0.76)">
+        <LeadCard x={0} y={0} name="Priya S." postcode="LS8" />
+      </g>
+      <rect x={16} y={124} width={88} height={4} rx={2} fill={GREY} />
+      <rect x={16} y={133} width={70} height={4} rx={2} fill={GREY} />
+      <rect x={16} y={150} width={88} height={24} rx={12} fill={ORANGE} {...fine} />
+      <text
+        x={60}
+        y={166}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={800}
+        fontFamily="var(--font-sans), sans-serif"
+        fill={INK}
+      >
+        Call Priya
+      </text>
     </g>
   );
 }
