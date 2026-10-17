@@ -92,8 +92,8 @@ function localTransform(
  */
 export const SMILE_DEPTH_RANGE = [0.85, 1.12] as const;
 
-/** Gaze further left than this draws the pupils looking the other way. */
-export const LOOK_BACK = -0.3;
+/** The furthest a pupil slides back against its own drawing (see `tracedEyePart`). */
+export const LOOK_BACK = -0.25;
 
 const clampDepth = (v: number): number =>
   Math.max(SMILE_DEPTH_RANGE[0], Math.min(SMILE_DEPTH_RANGE[1], v));
@@ -180,18 +180,13 @@ export function tracedEyePart(
   // "left" means left whatever the eye's tilt.
   //
   // The reference's pupils are drawn looking to Sunny's left (the viewer's
-  // right), so sliding them the other way only squeezes them against the far
-  // rim. Looking the other way is a different drawing: past `LOOK_BACK` the
-  // pupil is mirrored across the eye's own long axis, and the slide is
-  // measured from there.
-  const back = eye.gaze.x < LOOK_BACK;
-  const gx = (back ? eye.gaze.x + 0.6 : eye.gaze.x) * rest.width * 0.16;
-  const gy = eye.gaze.y * rest.height * 0.1;
-  const [cx, cy] = art.centre;
-  const axis = 90 + rest.rotation;
-  const mirror = back
-    ? ` translate(${n(cx)} ${n(cy)}) rotate(${n(axis)}) scale(1 -1) rotate(${n(-axis)}) translate(${n(-cx)} ${n(-cy)})`
-    : '';
+  // right). Sliding them far the other way squeezes them against the rim, and
+  // redrawing them mirrored was tried and looked derpy to the owner, so a
+  // backward glance stops at `LOOK_BACK`. To look the other way, Sunny turns:
+  // the whole character is drawn mirrored (a scene's `flip`).
+  const gx = Math.max(LOOK_BACK, eye.gaze.x) * rest.width * 0.16;
+  // Up is the long way inside these tall eyes: a glance up travels further.
+  const gy = eye.gaze.y * rest.height * (eye.gaze.y < 0 ? 0.17 : 0.1);
   const inner = boilPath(art.inner, boil, 0.2);
   return {
     transform: featureTransform(eye, rest, sx, sy),
@@ -200,7 +195,7 @@ export function tracedEyePart(
       `<path d="${boilPath(art.outer, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
       `<path d="${inner}" fill="${paint.highlight}"/>`,
       `<g clip-path="url(#${clipId})">`,
-      `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n(gx)} ${n(gy)})${mirror}"/>`,
+      `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n(gx)} ${n(gy)})"/>`,
       `</g>`,
     ].join(''),
   };

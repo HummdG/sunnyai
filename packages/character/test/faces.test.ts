@@ -52,11 +52,20 @@ describe('faces', () => {
     }
   });
 
-  it('draws the pupils the other way round when looking back', () => {
+  it('stops a backward glance before it squeezes the pupil against the rim', () => {
     const rig = defaultRig();
-    expect(tracedEyePart('left', rig.eyes.left, PAINT, 'u').inner).not.toContain('scale(1 -1)');
-    rig.eyes.left.gaze = { x: LOOK_BACK - 0.1, y: 0 };
-    expect(tracedEyePart('left', rig.eyes.left, PAINT, 'u').inner).toContain('scale(1 -1)');
+    rig.eyes.left.gaze = { x: LOOK_BACK, y: 0 };
+    const stop = tracedEyePart('left', rig.eyes.left, PAINT, 'u').inner;
+    rig.eyes.left.gaze = { x: -1, y: 0 };
+    expect(tracedEyePart('left', rig.eyes.left, PAINT, 'u').inner).toBe(stop);
+    expect(stop).not.toContain('scale(1 -1)');
+  });
+
+  it('looks only up, down and to his own side in every expression', () => {
+    for (const name of EXPRESSION_NAMES) {
+      const face = withExpression(defaultRig(), name);
+      expect(face.eyes.left.gaze.x, name).toBeGreaterThanOrEqual(LOOK_BACK);
+    }
   });
 
   it('renders every expression, and none of them leaves the rig it was given changed', () => {

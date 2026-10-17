@@ -75,31 +75,38 @@ const PRESETS = {
     r.brows.right.rotation -= 8;
     lift(r, -1.5);
   },
-  /** Thinking it over: eyes up and away, one brow raised, mouth to the side. */
+  /**
+   * Thinking it over: eyes up to the corner, one brow raised, a "hmm" of a
+   * half-smile. Up and to his own side, so the pupils stay the reference's
+   * drawing -- the version that looked up and away the other way read as dazed.
+   */
   thinking: (r) => {
-    r.smile.shape = 'flat';
-    r.smile.x += 2;
-    r.smile.rotation -= 10;
-    look(r, -0.55, -0.75);
-    r.brows.left.y -= 5;
-    r.brows.right.y += 1;
-    r.faceTilt -= 5;
-  },
-  /** Turning it over: eyes up the other way, a sly half-smile, one brow up. */
-  pondering: (r) => {
     r.smile.shape = 'smirk';
-    r.smile.span *= 0.85;
-    look(r, 0.5, -0.8);
-    r.brows.right.y -= 4.5;
-    r.brows.left.y += 0.5;
-    r.faceTilt += 6;
+    r.smile.span *= 0.65;
+    r.smile.x += 1;
+    look(r, 0.55, -0.85);
+    r.brows.left.y -= 5;
+    r.brows.right.y += 0.5;
+    r.brows.right.rotation -= 6;
+    r.faceTilt += 5;
+  },
+  /** Turning it over: a long sideways look, one brow up, mouth pressed small. */
+  pondering: (r) => {
+    r.smile.shape = 'flat';
+    r.smile.span *= 0.6;
+    r.smile.x += 3;
+    look(r, 0.8, 0.05);
+    r.brows.right.y -= 4;
+    r.brows.left.y += 1;
+    r.brows.left.rotation += 6;
+    r.faceTilt -= 3;
   },
   /** That doesn't add up: brows at odds, a small wavering line. */
   puzzled: (r) => {
     r.smile.shape = 'flat';
     r.smile.span *= 0.8;
     r.smile.rotation += 10;
-    look(r, -0.5, -0.2);
+    look(r, 0.4, -0.35);
     r.brows.left.y -= 6;
     r.brows.left.rotation -= 8;
     r.brows.right.y += 1.5;

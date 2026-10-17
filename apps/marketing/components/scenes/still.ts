@@ -44,6 +44,18 @@ export interface SunnyDirection {
   expression?: ExpressionName;
 }
 
+/**
+ * Whether Sunny is drawn turned to face the other way. Asked for by `flip`,
+ * and also whenever a scene has him looking left: the reference's pupils are
+ * drawn looking right, and they cannot look left without looking wrong (a
+ * slid pupil squeezes against the rim, a mirrored one looked derpy), so he
+ * turns instead -- the whole character mirrored, as an animator would turn
+ * him. Never with props, whose lettering would read backwards.
+ */
+export function turnsAway(direction: SunnyDirection): boolean {
+  return !!direction.flip || ((direction.look?.x ?? 0) < -0.3 && !(direction.props?.length ?? 0));
+}
+
 /** The still Sunny of a scene direction. Pure: the server and client agree. */
 export function stillRig(direction: SunnyDirection): SunnyRig {
   const base = defaultRig();
@@ -54,8 +66,14 @@ export function stillRig(direction: SunnyDirection): SunnyRig {
   const rig = act ? act.pose(base, direction.at ?? 0.3) : base;
   if (act && direction.props) rig.props = [...rig.props, ...direction.props];
   if (direction.look) {
-    rig.eyes.left.gaze = { ...direction.look };
-    rig.eyes.right.gaze = { ...direction.look };
+    // A turned Sunny is drawn mirrored, so a look to the left is a look to
+    // his own side in the drawing.
+    const look =
+      turnsAway(direction) && !direction.flip
+        ? { x: -direction.look.x, y: direction.look.y }
+        : direction.look;
+    rig.eyes.left.gaze = { ...look };
+    rig.eyes.right.gaze = { ...look };
   }
   if (direction.tilt) rig.faceTilt += direction.tilt;
   // The expression goes on last, so a scene's `look` is the default gaze and

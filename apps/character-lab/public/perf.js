@@ -1506,7 +1506,7 @@
     return `translate(${n2(now.x)} ${n2(now.y)}) rotate(${n2(now.rotation)}) scale(${n2(sx)} ${n2(sy)})`;
   }
   var SMILE_DEPTH_RANGE = [0.85, 1.12];
-  var LOOK_BACK = -0.3;
+  var LOOK_BACK = -0.25;
   var clampDepth = (v) => Math.max(SMILE_DEPTH_RANGE[0], Math.min(SMILE_DEPTH_RANGE[1], v));
   function eyeScale(eye2, rest) {
     const closed = Math.max(0, Math.min(1, eye2.closed));
@@ -1541,12 +1541,8 @@
     const art = TRACED_ART.eyes[side];
     const { sx, sy } = eyeScale(eye2, rest);
     const clipId = `sunny-traced-eye-${uid}${side}${boil ?? ""}`;
-    const back = eye2.gaze.x < LOOK_BACK;
-    const gx = (back ? eye2.gaze.x + 0.6 : eye2.gaze.x) * rest.width * 0.16;
-    const gy = eye2.gaze.y * rest.height * 0.1;
-    const [cx, cy] = art.centre;
-    const axis = 90 + rest.rotation;
-    const mirror = back ? ` translate(${n2(cx)} ${n2(cy)}) rotate(${n2(axis)}) scale(1 -1) rotate(${n2(-axis)}) translate(${n2(-cx)} ${n2(-cy)})` : "";
+    const gx = Math.max(LOOK_BACK, eye2.gaze.x) * rest.width * 0.16;
+    const gy = eye2.gaze.y * rest.height * (eye2.gaze.y < 0 ? 0.17 : 0.1);
     const inner = boilPath(art.inner, boil, 0.2);
     return {
       transform: featureTransform(eye2, rest, sx, sy),
@@ -1555,7 +1551,7 @@
         `<path d="${boilPath(art.outer, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
         `<path d="${inner}" fill="${paint.highlight}"/>`,
         `<g clip-path="url(#${clipId})">`,
-        `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n2(gx)} ${n2(gy)})${mirror}"/>`,
+        `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n2(gx)} ${n2(gy)})"/>`,
         `</g>`
       ].join("")
     };

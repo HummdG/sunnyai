@@ -1,7 +1,7 @@
 import { renderSunny } from '@sunny/character';
 
 import { SceneSunny } from './scene-sunny.js';
-import { stillRig, type SunnyDirection } from './still.js';
+import { stillRig, turnsAway, type SunnyDirection } from './still.js';
 
 /**
  * An illustrated scene: a set drawn from the kit, with the real Sunny standing
@@ -73,7 +73,7 @@ export function Scene({
       )}
       {box && sunny && (
         <div
-          className={`scene-sunny${sunny.flip ? ' is-flipped' : ''}`}
+          className={`scene-sunny${turnsAway(sunny) ? ' is-flipped' : ''}`}
           style={{
             left: `${(at.x / width) * 100}%`,
             top: `${(at.y / height) * 100}%`,
