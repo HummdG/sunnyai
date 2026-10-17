@@ -7,6 +7,11 @@
 // depth beyond what the renderer allows -- so none of them can become the
 // stretched grin that the old "bigger smile" produced.
 //
+// Looks: `look` asks for a direction and the renderer decides how to show
+// it -- the pupils slide only as far as they stay the reference's drawing,
+// and the rest of the look moves the whole face toward it (`glance` in
+// traced-render.ts). The eyes are never resized to make a point.
+//
 // Brow notes, since the rig's numbers are not obvious: a brow's `y` going down
 // (negative) raises it; the left brow is the long steep one over the big eye,
 // and rotating it clockwise drops its inner (right-hand) end, while the right
@@ -36,7 +41,6 @@ const PRESETS = {
   hello: (r) => {
     r.smile.shape = 'open';
     lift(r, 3);
-    r.eyes.left.scaleY = r.eyes.right.scaleY = 1.05;
   },
   /** Something lovely just happened: open smile, eyes squeezed happy. */
   delighted: (r) => {
@@ -54,8 +58,8 @@ const PRESETS = {
   /** Ooh: a little round mouth, eyes wide, brows high. */
   wonder: (r) => {
     r.smile.shape = 'o';
-    r.eyes.left.scaleY = r.eyes.right.scaleY = 1.1;
-    r.eyes.left.scaleX = r.eyes.right.scaleX = 1.04;
+    // A touch rounder, and no more: these are the reference's eyes.
+    r.eyes.left.scaleY = r.eyes.right.scaleY = 1.05;
     lift(r, 5, 4);
   },
   /** What's this? One brow up, a small smile, head cocked. */
@@ -83,7 +87,8 @@ const PRESETS = {
   thinking: (r) => {
     r.smile.shape = 'smirk';
     r.smile.span *= 0.65;
-    r.smile.x += 1;
+    r.smile.x -= 2.5;
+    r.smile.y += 1;
     look(r, 0.55, -0.85);
     r.brows.left.y -= 5;
     r.brows.right.y += 0.5;
@@ -127,7 +132,6 @@ const PRESETS = {
   idea: (r) => {
     r.smile.shape = 'o';
     look(r, 0.3, -0.9);
-    r.eyes.left.scaleY = r.eyes.right.scaleY = 1.08;
     lift(r, 5);
     r.faceTilt += 2;
   },
@@ -179,7 +183,6 @@ const PRESETS = {
     r.brows.left.rotation -= 8;
     r.brows.right.rotation += 8;
     lift(r, 2);
-    r.eyes.left.scaleY = r.eyes.right.scaleY = 1.05;
   },
 } satisfies Record<string, Preset>;
 

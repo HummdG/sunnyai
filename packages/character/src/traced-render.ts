@@ -92,8 +92,28 @@ function localTransform(
  */
 export const SMILE_DEPTH_RANGE = [0.85, 1.12] as const;
 
-/** The furthest a pupil slides back against its own drawing (see `tracedEyePart`). */
-export const LOOK_BACK = -0.25;
+/**
+ * The pupils do not move. The traced pupil sits flush against its eye's rim,
+ * and any slide opens a sliver of white between them (or clips the pupil
+ * smaller): the eye stops being the reference's, and the owner saw it every
+ * time -- squeezed, mirrored, beady, slivered. So a look is shown the 1930s
+ * way, by the whole face moving toward it (`glance`), the eyes intact.
+ */
+export const LOOK_BACK = 0;
+
+/** Face units the whole face moves per unit of gaze. */
+const GLANCE_UNITS = { x: 4.6, y: 4.2 } as const;
+
+/**
+ * A look, as a shift of the whole face toward it: the features slide across
+ * the head together and the eyes keep their drawing. Averaged over both eyes.
+ */
+export function glance(rig: SunnyRig): { x: number; y: number } {
+  const clamp1 = (v: number): number => Math.max(-1, Math.min(1, v));
+  const gx = clamp1((rig.eyes.left.gaze.x + rig.eyes.right.gaze.x) / 2);
+  const gy = clamp1((rig.eyes.left.gaze.y + rig.eyes.right.gaze.y) / 2);
+  return { x: gx * GLANCE_UNITS.x, y: gy * GLANCE_UNITS.y };
+}
 
 const clampDepth = (v: number): number =>
   Math.max(SMILE_DEPTH_RANGE[0], Math.min(SMILE_DEPTH_RANGE[1], v));
@@ -176,17 +196,7 @@ export function tracedEyePart(
   const art = TRACED_ART.eyes[side];
   const { sx, sy } = eyeScale(eye, rest);
   const clipId = `sunny-traced-eye-${uid}${side}${boil ?? ''}`;
-  // Gaze slides the pupil inside the opening, in the eye's own rest frame so
-  // "left" means left whatever the eye's tilt.
-  //
-  // The reference's pupils are drawn looking to Sunny's left (the viewer's
-  // right). Sliding them far the other way squeezes them against the rim, and
-  // redrawing them mirrored was tried and looked derpy to the owner, so a
-  // backward glance stops at `LOOK_BACK`. To look the other way, Sunny turns:
-  // the whole character is drawn mirrored (a scene's `flip`).
-  const gx = Math.max(LOOK_BACK, eye.gaze.x) * rest.width * 0.16;
-  // Up is the long way inside these tall eyes: a glance up travels further.
-  const gy = eye.gaze.y * rest.height * (eye.gaze.y < 0 ? 0.17 : 0.1);
+  // The pupil stays exactly where the reference draws it; see `glance`.
   const inner = boilPath(art.inner, boil, 0.2);
   return {
     transform: featureTransform(eye, rest, sx, sy),
@@ -195,7 +205,7 @@ export function tracedEyePart(
       `<path d="${boilPath(art.outer, boil, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
       `<path d="${inner}" fill="${paint.highlight}"/>`,
       `<g clip-path="url(#${clipId})">`,
-      `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n(gx)} ${n(gy)})"/>`,
+      `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd"/>`,
       `</g>`,
     ].join(''),
   };

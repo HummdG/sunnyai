@@ -266,7 +266,7 @@ export function ColoursScene(): React.JSX.Element {
       }
       sunny={{
         pose: 'hold',
-        play: 'gesture-nod',
+        play: 'fidget-look',
         props: [held('paintbrush', 66, -10, 28, 1.9)],
         expression: 'pondering',
       }}

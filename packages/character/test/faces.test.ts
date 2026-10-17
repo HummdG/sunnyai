@@ -10,6 +10,7 @@ import {
   withExpression,
 } from '../src/index.js';
 import {
+  glance,
   LOOK_BACK,
   SMILE_DEPTH_RANGE,
   tracedEyePart,
@@ -52,13 +53,27 @@ describe('faces', () => {
     }
   });
 
-  it('stops a backward glance before it squeezes the pupil against the rim', () => {
+  it('never moves the pupils: the eyes stay the reference drawing', () => {
+    const rest = tracedEyePart('left', defaultRig().eyes.left, PAINT, 'u').inner;
+    for (const [x, y] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0.6, 0.8],
+    ] as const) {
+      const rig = defaultRig();
+      rig.eyes.left.gaze = { x, y };
+      expect(tracedEyePart('left', rig.eyes.left, PAINT, 'u').inner).toBe(rest);
+    }
+  });
+
+  it('shows a look by moving the whole face toward it', () => {
     const rig = defaultRig();
-    rig.eyes.left.gaze = { x: LOOK_BACK, y: 0 };
-    const stop = tracedEyePart('left', rig.eyes.left, PAINT, 'u').inner;
-    rig.eyes.left.gaze = { x: -1, y: 0 };
-    expect(tracedEyePart('left', rig.eyes.left, PAINT, 'u').inner).toBe(stop);
-    expect(stop).not.toContain('scale(1 -1)');
+    rig.eyes.left.gaze = rig.eyes.right.gaze = { x: 1, y: -1 };
+    const g = glance(rig);
+    expect(g.x).toBeGreaterThan(0);
+    expect(g.y).toBeLessThan(0);
+    expect(glance(defaultRig())).toEqual({ x: 0, y: 0 });
   });
 
   it('looks only up, down and to his own side in every expression', () => {

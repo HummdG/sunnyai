@@ -347,15 +347,17 @@ const fidget = (
   },
 });
 
-/** Looking round: left, right, back -- is anyone there? */
+/** Looking round, side to side: left, right, back -- is anyone there? */
 const fidgetLook = fidget('fidget-look', 'minimal', 2600, (r, base, t) => {
   const w = envelope(t, 0.1, 0.15);
   const k = ease(t < 0.5 ? (t - 0.1) / 0.15 : (t - 0.5) / 0.15);
   const x = (t < 0.5 ? -k : -1 + 2 * k) * w;
   r.eyes.left.gaze = { x: x * 0.9, y: 0 };
   r.eyes.right.gaze = { x: x * 0.9, y: 0 };
-  r.faceTilt = base.faceTilt + x * 6;
-  r.rotation = base.rotation + x * 2;
+  // The eyes keep their drawing: the look is the whole face sliding one way
+  // and then the other (the renderer's glance), with the head going with it.
+  r.faceTilt = base.faceTilt + x * 8;
+  r.rotation = base.rotation + x * 3;
   r.limbs = blendLimbs(base.limbs, limbPose('hips'), w);
 });
 

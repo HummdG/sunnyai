@@ -1255,7 +1255,13 @@
     return `translate(${n2(now.x)} ${n2(now.y)}) rotate(${n2(now.rotation)}) scale(${n2(sx)} ${n2(sy)})`;
   }
   var SMILE_DEPTH_RANGE = [0.85, 1.12];
-  var LOOK_BACK = -0.25;
+  var GLANCE_UNITS = { x: 4.6, y: 4.2 };
+  function glance(rig) {
+    const clamp1 = (v) => Math.max(-1, Math.min(1, v));
+    const gx = clamp1((rig.eyes.left.gaze.x + rig.eyes.right.gaze.x) / 2);
+    const gy = clamp1((rig.eyes.left.gaze.y + rig.eyes.right.gaze.y) / 2);
+    return { x: gx * GLANCE_UNITS.x, y: gy * GLANCE_UNITS.y };
+  }
   var clampDepth = (v) => Math.max(SMILE_DEPTH_RANGE[0], Math.min(SMILE_DEPTH_RANGE[1], v));
   function eyeScale(eye2, rest) {
     const closed = Math.max(0, Math.min(1, eye2.closed));
@@ -1290,8 +1296,6 @@
     const art = TRACED_ART.eyes[side];
     const { sx, sy } = eyeScale(eye2, rest);
     const clipId = `sunny-traced-eye-${uid}${side}${boil2 ?? ""}`;
-    const gx = Math.max(LOOK_BACK, eye2.gaze.x) * rest.width * 0.16;
-    const gy = eye2.gaze.y * rest.height * (eye2.gaze.y < 0 ? 0.17 : 0.1);
     const inner = boilPath(art.inner, boil2, 0.2);
     return {
       transform: featureTransform(eye2, rest, sx, sy),
@@ -1300,7 +1304,7 @@
         `<path d="${boilPath(art.outer, boil2, 0.2)}" fill="${paint.ink}" fill-rule="evenodd"/>`,
         `<path d="${inner}" fill="${paint.highlight}"/>`,
         `<g clip-path="url(#${clipId})">`,
-        `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd" transform="translate(${n2(gx)} ${n2(gy)})"/>`,
+        `<path d="${art.pupil}" fill="${paint.ink}" fill-rule="evenodd"/>`,
         `</g>`
       ].join("")
     };
@@ -1647,6 +1651,11 @@
     plug: PLUG_ART,
     phone: PHONE_ART
   };
+  function faceTransform(rig) {
+    const g = glance(rig);
+    const shift = g.x || g.y ? `translate(${n3(g.x)} ${n3(g.y)}) ` : "";
+    return `${shift}rotate(${n3(rig.faceTilt)})`;
+  }
   var SAFE_PAINT = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z][a-zA-Z0-9-]{0,31}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\([#a-zA-Z0-9%\s.,/+-]*\)|var\(--[a-zA-Z0-9-]{1,32}\))$/;
   function safePaint(value, fallback) {
     return SAFE_PAINT.test(value) ? value : fallback;
@@ -1705,7 +1714,8 @@
       svgAttributes: `xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${n3(size)}" height="${n3(size)}" ${aria}${options.className ? ` class="${escapeXml(options.className)}"` : ""}`,
       label,
       root,
-      faceTransform: `rotate(${n3(rig.faceTilt)})`,
+      // A look the pupils cannot show moves the face toward it (traced-render.ts).
+      faceTransform: faceTransform(rig),
       under: [
         // Furniture goes under everything, legs included: Sunny's legs stretch
         // out *over* the front of the deckchair, as on the sheet. The chair is
@@ -2148,8 +2158,8 @@
     const x = (t < 0.5 ? -k : -1 + 2 * k) * w;
     r.eyes.left.gaze = { x: x * 0.9, y: 0 };
     r.eyes.right.gaze = { x: x * 0.9, y: 0 };
-    r.faceTilt = base2.faceTilt + x * 6;
-    r.rotation = base2.rotation + x * 2;
+    r.faceTilt = base2.faceTilt + x * 8;
+    r.rotation = base2.rotation + x * 3;
     r.limbs = blendLimbs(base2.limbs, limbPose("hips"), w);
   });
   var fidgetStretch = fidget("fidget-stretch", "balanced", 2400, (r, base2, t) => {

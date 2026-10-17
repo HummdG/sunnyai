@@ -238,7 +238,7 @@ export function SignpostScene(): React.JSX.Element {
       }
       sunny={{
         pose: 'rest',
-        play: 'gesture-nod',
+        play: 'fidget-look',
         look: { x: 0.8, y: 0.4 },
         expression: 'reassuring',
       }}

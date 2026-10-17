@@ -10,6 +10,7 @@ import { SUNNY_THEME } from './tokens.js';
 import { armParts, legMarkup, limbRayIndices } from './limbs.js';
 import { toViewBox } from './rig.js';
 import {
+  glance,
   tracedBody,
   tracedBrowPart,
   tracedEyePart,
@@ -703,6 +704,13 @@ export function smilePath(smile: SmileRig): string {
   return smoothPath(pts, 0.9);
 }
 
+/** The face group's transform: its glance (if any), then its tilt. */
+function faceTransform(rig: SunnyRig): string {
+  const g = glance(rig);
+  const shift = g.x || g.y ? `translate(${n(g.x)} ${n(g.y)}) ` : '';
+  return `${shift}rotate(${n(rig.faceTilt)})`;
+}
+
 // ─── renderer ────────────────────────────────────────────────────────────────
 
 export interface RenderOptions {
@@ -907,7 +915,8 @@ export function renderSunnyParts(rig: SunnyRig, options: RenderOptions = {}): Su
     svgAttributes: `xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${n(size)}" height="${n(size)}" ${aria}${options.className ? ` class="${escapeXml(options.className)}"` : ''}`,
     label,
     root,
-    faceTransform: `rotate(${n(rig.faceTilt)})`,
+    // A look the pupils cannot show moves the face toward it (traced-render.ts).
+    faceTransform: faceTransform(rig),
     under: [
       // Furniture goes under everything, legs included: Sunny's legs stretch
       // out *over* the front of the deckchair, as on the sheet. The chair is
