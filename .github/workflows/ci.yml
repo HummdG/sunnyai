@@ -18,7 +18,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '22'
+  # The version development and every test run use, and the one the container
+  # images run (apps/*/Dockerfile). Its npm (11) is the one that wrote
+  # package-lock.json; Node 22's npm 10 refuses that lockfile's optional peer
+  # entries, so `npm ci` would fail before any check ran.
+  NODE_VERSION: '24'
 
 jobs:
   verify:
@@ -227,3 +231,25 @@ jobs:
             exit 1
           fi
           echo "No credential-looking strings found."
+
+  # The two production images build. Not pushed: pushing needs a project, and
+  # the deploy scripts own that (README_DEPLOY.md). Building on every change is
+  # what keeps a Dockerfile from rotting between releases.
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: API image
+        run: docker build -f apps/api/Dockerfile -t sunny-api:ci .
+
+      - name: API image refuses to boot unconfigured in production
+        run: |
+          set -uo pipefail
+          out="$(docker run --rm sunny-api:ci 2>&1)"; code=$?
+          echo "$out"
+          [ "$code" -ne 0 ] && echo "$out" | grep -q 'SUNNY_STORE is not set'
+
+      - name: Website image
+        run: docker build -f apps/marketing/Dockerfile -t sunny-web:ci .

@@ -3,15 +3,15 @@
 # Deploy to staging. §13's `scripts/deploy-staging`.
 #
 # Idempotent by construction: it runs the same checks and builds the same
-# artefacts every time, and it does not mutate anything remote. Today it stops
-# at `deploy_infrastructure_boundary` with exit 3 and a list of what is missing
-# — see `README_DEPLOY.md`.
+# images every time, and it does not mutate anything remote. It stops at
+# `deploy_infrastructure_boundary` with exit 3, printing the push and deploy
+# commands, until a project has been provisioned — see `README_DEPLOY.md`.
 #
 # Usage:
 #   scripts/deploy-staging.sh [--allow-dirty]
 #
 # Exits 0 deployed, 1 the tree failed its own checks, 2 not run (missing tool),
-# 3 nothing to deploy onto.
+# 3 images built, nothing provisioned to deploy them onto.
 
 set -eu
 

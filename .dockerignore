@@ -1,0 +1,31 @@
+# What a container build never needs: installed and built output (each image
+# installs and builds its own), test and render output, local data, secrets,
+# and the large reference artwork and PDFs in the repo root.
+**/node_modules
+**/dist
+**/.next
+**/.next-*
+**/out
+**/.cache
+**/coverage
+**/test-results
+**/playwright-report
+**/.data*
+**/*.log
+**/.terraform
+**/*.tfstate*
+
+.git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+credentials.json
+
+*.pdf
+*.png
+!apps/marketing/public/**/*.png
+!apps/marketing/app/**/*.png
+!packages/**/*.png

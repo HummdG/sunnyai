@@ -22,3 +22,30 @@ api_min_instances = 0
 
 # The ceiling that protects the budget.
 api_max_instances = 4
+
+# The website and dashboard image (apps/marketing/Dockerfile). Its NEXT_PUBLIC_*
+# settings are compiled in at build time, so build it per environment.
+web_image = "europe-west2-docker.pkg.dev/your-gcp-project/sunny-staging/sunny-web:0.1.0"
+
+# Where the Firestore database lives. Permanent once created: decide before the
+# first apply.
+firestore_location = "europe-west2"
+
+# Public URLs, with no trailing slash. The Cloud Run URLs from the first apply
+# (`terraform output web_url` / `api_url`) until a domain is mapped.
+site_url     = "https://staging.example.com"
+api_base_url = ""
+
+# Who hears about it when the API, chat or the website stops answering.
+alert_email = "you@example.com"
+
+# Billing. Fill both Stripe secrets in Secret Manager first (see
+# `terraform output stripe_secret_ids`), then turn this on. Price ids are the
+# four monthly GBP prices: Base 199, Email 99, Voice 199, Full Suite 449.
+stripe_enabled = false
+stripe_price_ids = {
+  # base  = "price_..."
+  # email = "price_..."
+  # voice = "price_..."
+  # suite = "price_..."
+}

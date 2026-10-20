@@ -104,19 +104,27 @@ deploy_build_locally() {
   npm run verify || die 'npm run verify failed. Nothing is deployed from a tree that does not pass its own checks.'
   say '  format, lint, typecheck and unit/contract/integration tests all passed'
 
-  step 'Build'
-  npm run build:widget || die 'the widget bundle failed to build.'
-  say '  widget bundle built'
-  # The marketing site is a Next app with real source (`apps/marketing/app`), so
-  # it is built here rather than skipped: a deploy that does not build the thing
-  # it deploys is not a deploy. The check is for its config file, not for a
-  # `src/` directory, because a Next app keeps its routes in `app/`.
-  if [ -f apps/marketing/next.config.mjs ]; then
-    npm run build:marketing || die 'the marketing site failed to build.'
-    say '  marketing site built'
-  else
-    warn '  apps/marketing has no next.config.mjs, so the marketing site was not built.'
-  fi
+  step 'Build the images'
+  need docker 'The API and the website ship as container images.'
+  # Tagged with the commit, so a deployment names exactly what it runs and a
+  # rollback is a change of tag (README_DEPLOY.md).
+  DEPLOY_TAG="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
+  docker build -f apps/api/Dockerfile -t "sunny-api:$DEPLOY_TAG" . \
+    || die 'the API image failed to build.'
+  say "  sunny-api:$DEPLOY_TAG"
+  # The website's NEXT_PUBLIC_* settings are compiled into its pages, so they
+  # come from this shell's environment at build time (apps/marketing/Dockerfile).
+  for name in NEXT_PUBLIC_SUNNY_API_URL NEXT_PUBLIC_FIREBASE_API_KEY \
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN NEXT_PUBLIC_FIREBASE_PROJECT_ID; do
+    eval "value=\${$name:-}"
+    [ -n "$value" ] || warn "  $name is not set; the website image is built without it."
+  done
+  docker build -f apps/marketing/Dockerfile -t "sunny-web:$DEPLOY_TAG" \
+    --build-arg NEXT_PUBLIC_SUNNY_API_URL --build-arg NEXT_PUBLIC_SUNNY_WIDGET_ID \
+    --build-arg NEXT_PUBLIC_FIREBASE_API_KEY --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN \
+    --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID . \
+    || die 'the website image failed to build.'
+  say "  sunny-web:$DEPLOY_TAG"
 }
 
 # ── where the deploy actually stops, and why ─────────────────────────────────
@@ -127,47 +135,23 @@ deploy_build_locally() {
 deploy_infrastructure_boundary() {
   target="$1"
   step "Deploy to $target"
-  cat >&2 <<'BOUNDARY'
-x The artefacts are built, but there is nothing to deploy them onto.
+  cat >&2 <<BOUNDARY
+x The images are built (sunny-api:$DEPLOY_TAG, sunny-web:$DEPLOY_TAG), and
+  pushing them needs a provisioned project, which this script does not create.
 
-  Provisioning is Terraform's job and the configuration exists in
-  infrastructure/terraform (validated in CI, never applied). What is missing is
-  between the build and the deploy, in the order it has to happen:
+  The one step left is the first Terraform apply, against a real project and
+  with a state bucket (scripts/bootstrap-google-cloud.sh is the front door, and
+  it stops at its own confirmation). It has never been run. After it:
 
-  1. A container build.
-     There is no Dockerfile and no `build:api`: the API runs from TypeScript
-     sources through tsx, which is a development runner. Cloud Run needs an
-     image, and Terraform's Artifact Registry repository exists to hold one
-     nobody can build yet. This is the blocker; the three below are why the
-     answer is not to build one today and push it.
+    REPO=\$(terraform -chdir=infrastructure/terraform output -raw artifact_registry)
+    gcloud auth configure-docker "\${REPO%%/*}"
+    docker tag sunny-api:$DEPLOY_TAG "\$REPO/sunny-api:$DEPLOY_TAG" && docker push "\$REPO/sunny-api:$DEPLOY_TAG"
+    docker tag sunny-web:$DEPLOY_TAG "\$REPO/sunny-web:$DEPLOY_TAG" && docker push "\$REPO/sunny-web:$DEPLOY_TAG"
+    gcloud run deploy sunny-api-$target --image "\$REPO/sunny-api:$DEPLOY_TAG" --region <region>
+    gcloud run deploy sunny-web-$target --image "\$REPO/sunny-web:$DEPLOY_TAG" --region <region>
+    scripts/smoke-test.sh <api url>
 
-  2. A store that survives Cloud Run.
-     apps/api/src/store.ts writes conversations, leads and catalogues as files
-     under SUNNY_DATA_DIR. A Cloud Run instance's filesystem is per-instance and
-     ephemeral: two instances would hold two different sets of leads, and a
-     scale event would drop the lot. ADR-006 records the swap to Firestore as
-     the next step, and the Terraform configuration deliberately creates no
-     database until that decision is made. Deploying the file store would ship a
-     known data-loss bug.
-
-  3. Terraform has never been applied.
-     `terraform init`, `plan` and `apply` have not been run against any project,
-     and there is no state bucket: `versions.tf` commits no backend block on
-     purpose, so one is passed at init time. The first apply is unrehearsed, and
-     a first apply against a live project is not a thing to do in a deploy
-     script's critical path. scripts/bootstrap-google-cloud.sh is the front door
-     to it, and it stops at its own confirmation.
-
-  4. Hosting for the web apps.
-     apps/marketing is a real Next app and does build (this script builds it),
-     but there is no App Hosting backend and no firebase.json — and no decision
-     about whether App Hosting will run it at all, because the app pins Next
-     ^16.4.0 while the recorded capability finding for App Hosting names 15.2.x
-     as the active minor and documents no Next 16. The dashboard (P10) does not
-     exist, so it has no source to build either.
-
-  What has been done instead is recorded in docs/STATUS.md, and the runbook
-  that says what an operator will do once these exist is README_DEPLOY.md.
+  The full runbook is README_DEPLOY.md.
 BOUNDARY
   exit 3
 }

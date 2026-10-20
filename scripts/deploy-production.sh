@@ -12,14 +12,14 @@
 #     value is that production does not have to be where a rendering bug is
 #     found.
 #
-# It stops at the same infrastructure boundary staging does (exit 3): there is
-# nothing to deploy onto yet. See `README_DEPLOY.md`.
+# It stops at the same infrastructure boundary staging does (exit 3), with the
+# images built and the push and deploy commands printed. See `README_DEPLOY.md`.
 #
 # Usage:
 #   scripts/deploy-production.sh [--yes] [--allow-dirty] [--skip-e2e]
 #
 # Exits 0 deployed, 1 the tree failed its own checks, 2 not run (missing tool or
-# no confirmation), 3 nothing to deploy onto.
+# no confirmation), 3 images built, nothing provisioned to deploy them onto.
 
 set -eu
 

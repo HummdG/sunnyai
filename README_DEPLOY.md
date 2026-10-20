@@ -28,6 +28,14 @@ toolchain check, where it stops with exit 2 because **neither `gcloud` nor
 billing, plan and apply steps have never run, and no live project has been
 touched by any script here.
 
+**What has been run since (2026-10-20, D-54).** Both production images build and
+run here: the API image refuses to start unconfigured in production, serves
+`/healthz` with Terraform's settings, and passes **34/34** smoke checks while
+storing everything in the Firestore emulator; the website image serves every
+page and the widget. Terraform 1.16.5 formats, initialises without a backend and
+validates with the new database, website and monitoring resources. None of it
+has been pushed to or applied against a real project.
+
 ## The scripts
 
 | Script                              | What it does                                                                                                                                                                             | Exits         |
@@ -63,48 +71,37 @@ a single lead whose idempotency key it controls.
   changed. This is not an error; it is a script refusing to guess.
 - **3** — it stopped at the infrastructure boundary. See below.
 
-## What is missing
+## What is left
 
-Two things are written and unproven, and two do not exist. They are in the order
-they have to happen.
+The repository side is done (D-54):
 
-1. **A container build.** There is no `Dockerfile` and no `build:api`: the API
-   runs from TypeScript sources through `tsx`, which is a development runner.
-   Cloud Run needs an image, and Terraform's Artifact Registry repository exists
-   to hold one nothing can build yet. This is the blocker. The two below are why
-   the answer is not to write a Dockerfile today and push it.
-2. **A store that survives Cloud Run.** `apps/api/src/store.ts` writes
-   conversations, leads, catalogues and knowledge as files under
-   `SUNNY_DATA_DIR`. A Cloud Run instance's filesystem is per-instance and
-   ephemeral: two instances would hold two different sets of leads, and a scale
-   event would drop the lot. ADR-006 records the swap to Firestore as the next
-   step, and the Terraform configuration deliberately creates **no database**
-   until that decision is made. Deploying the file store would ship a known
-   data-loss bug.
-3. **Terraform applied.** The configuration is written, formatted and validated
-   in CI (`terraform fmt -check`, `init -backend=false`, `validate`) — but that
-   job is the only real check it has had. `plan` and `apply` have never run, and
-   there is no state bucket: `versions.tf` deliberately commits no backend block,
-   so one is passed at init time. A first apply against a live project is not a
-   thing to put in a deploy script's critical path, which is why
-   `bootstrap-google-cloud.sh` stops at its own confirmation and prints the
-   commands.
-4. **The hosting decision for the web apps.** `apps/marketing` is a real Next app
-   and it does build — `npm run build:marketing` compiles it to three static
-   pages and copies the widget bundle to `apps/marketing/public/widget/`. But it
-   pins **Next `^16.4.0`** (the build prints `Next.js 16.4.0`), while the recorded
-   capability finding for Firebase App Hosting names **15.2.x** as the active
-   supported minor with 13.5/14.2 in LTS and **no Next 16 documented**
-   (`docs/discovery-google-services.md`, `docs/architecture/adr-002-hosting.md`).
-   ADR-002 says in as many words that the App Hosting choice "should be re-opened
-   if the first Next.js app cannot be pinned to a supported minor" — that
-   condition is now met, and it is a decision to make, not a script to write
-   (D-37). The dashboard (P10) does not exist, so it has no source to build
-   either.
+- **Images.** `apps/api/Dockerfile` compiles the API and the workspace packages
+  it uses to JavaScript (`scripts/build-api.mjs`, which says why it does not
+  bundle) and runs it on plain `node`. `apps/marketing/Dockerfile` builds the
+  website and dashboard as a standalone Next server. Both run on Node 24, the
+  version every test runs on; CI builds both on every change.
+- **The store.** The API stores everything in Firestore (D-52), and Terraform
+  now creates the database (`infrastructure/terraform/firestore.tf`) and
+  configures the API for it.
+- **Website hosting.** Cloud Run, as its own service (`web.tf`), because Firebase
+  App Hosting documents no support for the Next 16 the app uses (ADR-002's own
+  condition for reopening the choice).
+- **Monitoring.** Uptime checks and alerts for the API, for chat being
+  available (the dead-model-key alarm) and for the website (`monitoring.tf`).
 
-What Terraform deliberately does not cover, and still has nobody reading it:
-monitoring and alerting. `/healthz` reports capability, and nothing consumes it,
-so a dead model key is a silent failure.
+What is left is outside the repository, and it is in this order:
+
+1. **A project and a first apply.** A GCP project with billing, a state bucket,
+   and `env/<env>.tfvars` (see `example.tfvars.example`). `plan` and `apply` have
+   never run, so the first one is a rehearsal: read the plan.
+2. **The secrets.** The Gemini key (`--set-gemini-key`), and for billing the two
+   Stripe secrets, then `stripe_enabled = true` and the four GBP price ids.
+3. **The images pushed** to the Artifact Registry repository Terraform creates,
+   and `api_image` / `web_image` naming them. `scripts/deploy-staging.sh` builds
+   them and prints the push and deploy commands.
+4. **The domain.** Mapping sunny.ai (and an API host) to the two services is not
+   in Terraform yet; until it is, `site_url` and `api_base_url` are the Cloud Run
+   URLs from the first apply.
 
 ## First run
 
@@ -175,41 +172,44 @@ was not reused, and because the same secret in staging and production is a secre
 that lets staging forge a production session. Rotating it invalidates every
 session already issued.
 
-### 4. Firestore — created by you, not by the script
+### 4. Firestore — created by Terraform
 
-```sh
-gcloud firestore databases create \
-  --project my-project --location europe-west2 --type firestore-native
-```
-
-This is printed, not run, and it is not in `main.tf` either. **A database's
-location is permanent**, and it is a decision about where an installer's visitors
-are rather than a resource a Terraform file should invent. The store swap itself
-(ADR-006) has not happened, so today this command creates a database the API does
-not use.
+`firestore.tf` creates one named database per environment (`sunny-staging`,
+`sunny-prod`), so the two can share a project without sharing data, in
+`firestore_location` (London, `europe-west2`, by default). **A database's
+location is permanent**: set `firestore_location` before the first apply, not
+after. Production gets delete protection, `deletion_policy = "ABANDON"` and
+point-in-time recovery. No composite indexes are needed (docs/firestore.md).
 
 ## Configuration and secrets
 
 Read once at boot from the environment (`apps/api/src/config.ts`; the table is
 ADR-002's):
 
-| Variable                                 | Default              | Purpose                                                            |
-| ---------------------------------------- | -------------------- | ------------------------------------------------------------------ |
-| `GEMINI_API_KEY`                         | unset                | its presence is what makes chat available at all                   |
-| `GEMINI_MODEL`                           | `gemini-3.8-flash`   | the default model                                                  |
-| `GEMINI_ESCALATION_MODEL`                | unset                | the escalation model (ADR-003)                                     |
-| `GOOGLE_CLOUD_LOCATION`                  | `global`             | stored on the Gemini config                                        |
-| `PORT` / `HOST`                          | `8787` / `127.0.0.1` | listener (Terraform sets `PORT=8080` on Cloud Run)                 |
-| `NODE_ENV`                               | `development`        | tightens CORS, logging, error detail (Terraform sets `production`) |
-| `SUNNY_DATA_DIR`                         | `.data`              | where conversations, leads and catalogues are written              |
-| `WIDGET_ALLOWED_ORIGINS`                 | empty                | comma list of origins allowed to open a session                    |
-| `SESSION_SECRET`                         | dev constant         | HMAC key for session tokens                                        |
-| `SUNNY_ADMIN_TOKEN`                      | unset                | `Authorization: Bearer` token for the admin routes                 |
-| `SUNNY_SANDBOX_TENANT`                   | unset                | serves the fictional sandbox installer; **refused in production**  |
-| `SUNNY_TRUST_PROXY`                      | unset                | hop count for the rate limiter (D-10)                              |
-| `SUNNY_RATE_LIMIT`, `SUNNY_RL_*`         | on, per-route limits | the rate limiter                                                   |
-| `LOG_LEVEL`                              | `info`               | Fastify log level                                                  |
-| `SUNSCAN_BASE_URL`, `SUNSCAN_URL_<SLUG>` | unset                | SunScan base URL (ADR-003, ADR-006)                                |
+| Variable                                                                 | Default              | Purpose                                                                           |
+| ------------------------------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`                                                         | unset                | its presence is what makes chat available at all                                  |
+| `GEMINI_MODEL`                                                           | `gemini-3.8-flash`   | the default model                                                                 |
+| `GEMINI_ESCALATION_MODEL`                                                | unset                | the escalation model (ADR-003)                                                    |
+| `GOOGLE_CLOUD_LOCATION`                                                  | `global`             | stored on the Gemini config                                                       |
+| `PORT` / `HOST`                                                          | `8787` / `127.0.0.1` | listener (Terraform sets `PORT=8080` on Cloud Run)                                |
+| `NODE_ENV`                                                               | `development`        | tightens CORS, logging, error detail (Terraform sets `production`)                |
+| `SUNNY_DATA_DIR`                                                         | `.data`              | where conversations, leads and catalogues are written                             |
+| `WIDGET_ALLOWED_ORIGINS`                                                 | empty                | comma list of origins allowed to open a session                                   |
+| `SESSION_SECRET`                                                         | dev constant         | HMAC key for session tokens                                                       |
+| `SUNNY_ADMIN_TOKEN`                                                      | unset                | `Authorization: Bearer` token for the admin routes                                |
+| `SUNNY_SANDBOX_TENANT`                                                   | unset                | serves the fictional sandbox installer; **refused in production**                 |
+| `SUNNY_TRUST_PROXY`                                                      | unset                | hop count for the rate limiter (D-10)                                             |
+| `SUNNY_RATE_LIMIT`, `SUNNY_RL_*`                                         | on, per-route limits | the rate limiter                                                                  |
+| `LOG_LEVEL`                                                              | `info`               | Fastify log level                                                                 |
+| `SUNSCAN_BASE_URL`, `SUNSCAN_URL_<SLUG>`                                 | unset                | SunScan base URL (ADR-003, ADR-006)                                               |
+| `SUNNY_STORE`                                                            | unset                | `firestore` in production (Terraform sets it); required there                     |
+| `GOOGLE_CLOUD_PROJECT`                                                   | unset                | the Firestore project (Terraform sets it)                                         |
+| `SUNNY_FIRESTORE_DATABASE`                                               | `(default)`          | the named database (Terraform sets `sunny-<env>`)                                 |
+| `FIREBASE_PROJECT_ID`                                                    | the GCP project      | whose ID tokens installer sign-in accepts                                         |
+| `SUNNY_DASHBOARD_URL`, `SUNNY_PUBLIC_API_URL`, `SUNNY_WIDGET_SCRIPT_URL` | development URLs     | links and install snippets (Terraform sets them from `site_url` / `api_base_url`) |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`                             | unset                | billing secrets (Secret Manager, once `stripe_enabled`)                           |
+| `STRIPE_PRICE_BASE` / `_EMAIL` / `_VOICE` / `_SUITE`                     | unset                | GBP price ids (`stripe_price_ids`)                                                |
 
 Two of these are gates rather than settings, and the API refuses to boot if they
 are wrong: `assertProductionReady()` **will not start in production** while
@@ -246,11 +246,13 @@ scripts/deploy-staging.sh --allow-dirty   # for a deliberate hotfix
 
 It requires a clean tree (a deploy ships a commit, and a tree that differs from
 its commit cannot be rolled back to), runs `npm run verify`, builds the widget
-bundle and the marketing site, and then stops at the boundary above with exit 3.
-Once the missing pieces exist, this is where an image build and a
-`gcloud run deploy --no-traffic` go — Terraform sets `ignore_changes` on the
-container image precisely so a deploy moves it and an apply does not move it
-back — followed by `scripts/smoke-test.sh` against the new revision. The smoke
+bundle, builds both images tagged with the commit (`sunny-api:<sha>`,
+`sunny-web:<sha>`; the website's `NEXT_PUBLIC_*` values come from the shell's
+environment), and then stops with exit 3, printing the push and
+`gcloud run deploy` commands for a provisioned project. Terraform sets
+`ignore_changes` on both container images precisely so a deploy moves them and
+an apply does not move them back. Then `scripts/smoke-test.sh` against the new
+revision. The smoke
 test runs _after_ a deploy, not before one, because it tests a deployment and this
 script has not made one.
 
@@ -392,9 +394,10 @@ yesterday's data into today's code is a data decision, not a code decision.
 SUNNY_GCP_PROJECT=my-project SUNNY_REGION=europe-west2 scripts/rollback.sh
 ```
 
-Today this finds no `sunny-api-<env>` service, prints the runbook below and exits 3. If it _does_ find one, it fails rather than pretending — this repository builds
-no image, so a previous revision's image is not something these scripts know how
-to produce, and that is a defect to fix rather than a state to work around.
+Today this finds no `sunny-api-<env>` service, prints the runbook below and exits 3.
+Images are tagged with the commit they were built from, so a previous
+revision's image is the previous commit's tag; the website (`sunny-web-<env>`)
+rolls back the same way as the API.
 
 Once the API is deployed, a rollback is a traffic move, not a rebuild:
 
@@ -427,14 +430,14 @@ down is an incident that happens twice.
 route, the test instructions, the cost position and the unresolved steps. Here is
 where each of those stands today, so the gap is visible rather than implied:
 
-| §13 step 7 item           | Today                                                                                                                                                                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Actual URLs               | None exist. Terraform's `api_url` output is the Cloud Run URL once applied; the App Hosting backend would print its host                                                                                                          |
-| Widget script URL         | `https://<web-host>/widget/sunny-widget.js` once hosted; `apps/marketing/public/widget/` locally                                                                                                                                  |
-| Admin login route         | **There is none.** Admin is `Authorization: Bearer <SUNNY_ADMIN_TOKEN>` on the admin routes; the dashboard (P10) that would hold a login does not exist                                                                           |
-| Test instructions         | `npm run verify`, `npm run test:e2e`, `scripts/smoke-test.sh`, `npm run verify:isolation` (above)                                                                                                                                 |
-| Costs and alerts          | Unset, and deliberately unset: §11 asks for thresholds measured from the first staging build, and there is no staging build. Any number set today would be invented. Billing → Budgets & alerts, on the project that runs the API |
-| Unresolved external steps | The four in [What is missing](#what-is-missing), plus the App Hosting / Next 16 decision, plus monitoring and alerting                                                                                                            |
+| §13 step 7 item           | Today                                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Actual URLs               | None exist yet. Terraform's `api_url` and `web_url` outputs are the Cloud Run URLs once applied                                                                                                         |
+| Widget script URL         | `https://<web-host>/widget/sunny-widget.js` once hosted; `apps/marketing/public/widget/` locally                                                                                                        |
+| Admin login route         | Installers sign in at `https://<web-host>/sign-in` (the dashboard is `/dashboard`). Operator admin is `Authorization: Bearer <SUNNY_ADMIN_TOKEN>` on the admin routes                                   |
+| Test instructions         | `npm run verify`, `npm run test:e2e`, `scripts/smoke-test.sh`, `npm run verify:isolation` (above)                                                                                                       |
+| Costs and alerts          | Uptime alerts are in Terraform (`monitoring.tf`, to `alert_email`). Budget alerts are still unset on purpose: §11 asks for thresholds measured from the first staging build. Billing → Budgets & alerts |
+| Unresolved external steps | The four in [What is left](#what-is-left): a project and first apply, the secrets, the images pushed, the domain                                                                                        |
 
 ### The two headers the widget's typeface needs
 
@@ -464,11 +467,12 @@ looks fine in the system stack, which is why there is no way to notice this from
 Nothing in this repository has cost anything, because nothing has been
 provisioned: no script here has been run with `--apply` and Terraform has never
 been applied. What will cost money once it is: Cloud Run request and instance
-time, Artifact Registry image storage, Firestore reads/writes and storage once
-the store moves, model calls, App Hosting builds, and Cloud Build minutes. What
+time for the API and the website, Artifact Registry image storage, Firestore
+reads/writes and storage, uptime checks beyond the free allowance, model calls,
+and Cloud Build minutes if images are built there. What
 will not, materially: Secret Manager's first few versions.
 
-`api_max_instances` defaults to 4 and `api_min_instances` to 0 — the ceiling that
+`api_max_instances` and `web_max_instances` default to 4 and the minimums to 0 — the ceiling that
 protects the budget and the scale-to-zero that keeps an idle environment cheap,
 both stated in `variables.tf` rather than discovered from a bill.
 
@@ -482,14 +486,16 @@ that build has not happened, so that step is open rather than answered.
 1. `scripts/bootstrap-google-cloud.sh` — read the output, change nothing.
 2. Create the Terraform state bucket by hand, and write
    `infrastructure/terraform/env/<env>.tfvars` from `example.tfvars.example`.
-3. `TF_STATE_BUCKET=... scripts/bootstrap-google-cloud.sh --project <id> --apply`,
-   then re-run with `--set-gemini-key`.
-4. Decide the Firestore location. Create the database when the store swap is
-   being done, not before.
-5. Do the four things in [What is missing](#what-is-missing): the container
-   build, the store swap, the first real apply, and the hosting decision.
-6. `scripts/deploy-staging.sh`, then `scripts/smoke-test.sh` against the new
-   revision.
+   Decide `firestore_location` now: it cannot change later.
+3. `scripts/deploy-staging.sh` to build both images, then push them to the
+   Artifact Registry repository and name them in `api_image` / `web_image`.
+4. `TF_STATE_BUCKET=... scripts/bootstrap-google-cloud.sh --project <id> --apply`,
+   then re-run with `--set-gemini-key`. Set `site_url` and `api_base_url` to the
+   Cloud Run URLs it prints (or your domain), and `alert_email`, and apply again.
+5. For billing: put the two Stripe secrets in Secret Manager, set
+   `stripe_enabled = true` and `stripe_price_ids`, and apply.
+6. `scripts/smoke-test.sh` against the API, and sign up an installer on the
+   website to check sign-in end to end.
 7. `npm run verify:isolation` against staging, with two installers you can tell
    apart.
 8. `scripts/deploy-production.sh --yes`, and then a real restore drill on staging

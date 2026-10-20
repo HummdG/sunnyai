@@ -286,28 +286,20 @@ cat <<MANUAL
     §11 asks for thresholds measured from the first staging build; there is no
     staging build yet, so any number set today would be invented.
 
-    The image. \`ignore_changes\` is set on the container image, so Terraform
-    deploys whatever \`api_image\` named and never moves it afterwards. There is no
-    Dockerfile in this repository yet, so there is no image to push.
+    The images. \`ignore_changes\` is set on both container images, so Terraform
+    deploys whatever \`api_image\` and \`web_image\` named and never moves them
+    afterwards: push both before the first apply (apps/api/Dockerfile and
+    apps/marketing/Dockerfile; scripts/deploy-staging.sh builds them).
 MANUAL
 
 step 'What is still missing'
 cat <<'MISSING'
-  A deployment needs these, and none is writable blind:
-
-    * a container build. There is no Dockerfile and no `build:api`: the API runs
-      from TypeScript sources through tsx, which is a development runner. The
-      Artifact Registry repository exists to hold an image nobody can build yet.
-    * a store that survives Cloud Run. apps/api/src/store.ts writes files under
-      SUNNY_DATA_DIR; a Cloud Run instance's filesystem is per-instance and
-      ephemeral, so two instances would hold two sets of leads. ADR-006 records
-      the swap to Firestore as the next step, and it is not done.
-    * hosting for the web apps. apps/marketing builds, but nothing underneath it
-      exists, and it pins Next ^16.4.0 while the recorded App Hosting capability
-      finding names 15.2.x — that is a decision, not a script (D-37).
-
-  scripts/deploy-staging.sh and scripts/deploy-production.sh stop at the same
-  boundary and list it there too. docs/STATUS.md carries what is done.
+  Nothing in the repository: both images build, the API stores everything in
+  the Firestore database this configuration creates, the website runs as its
+  own Cloud Run service, and uptime checks alert \`alert_email\`. What a first
+  apply still needs is outside it: a project, a state bucket, the Gemini key and
+  (for billing) the Stripe secrets in Secret Manager, and both images pushed.
+  README_DEPLOY.md is the runbook.
 MISSING
 
 say ''

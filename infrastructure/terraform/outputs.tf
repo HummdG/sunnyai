@@ -30,3 +30,21 @@ output "sunscan_tasks_queue" {
   description = "Cloud Tasks queue for SunScan assessments (used once api_base_url is set)."
   value       = google_cloud_tasks_queue.sunscan.id
 }
+
+output "web_url" {
+  description = "The website and dashboard's service URL, until a custom domain is mapped."
+  value       = google_cloud_run_v2_service.web.uri
+}
+
+output "firestore_database" {
+  description = "The environment's Firestore database (SUNNY_FIRESTORE_DATABASE)."
+  value       = google_firestore_database.sunny.name
+}
+
+output "stripe_secret_ids" {
+  description = "Secrets to fill out of band before setting stripe_enabled = true."
+  value = [
+    google_secret_manager_secret.stripe_secret_key.secret_id,
+    google_secret_manager_secret.stripe_webhook_secret.secret_id,
+  ]
+}

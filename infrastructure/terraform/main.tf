@@ -7,6 +7,9 @@ locals {
   # A stable suffix keeps two environments in one project from colliding.
   name_suffix = var.environment
   api_name    = "sunny-api-${local.name_suffix}"
+  web_name    = "sunny-web-${local.name_suffix}"
+  # One Firestore database per environment (firestore.tf).
+  firestore_database = "sunny-${local.name_suffix}"
   labels = {
     app         = "sunny"
     environment = var.environment
@@ -129,6 +132,78 @@ resource "google_cloud_run_v2_service" "api" {
         value = join(",", var.allowed_origins)
       }
 
+      # Cloud Run's address, not the API's own loopback default.
+      env {
+        name  = "HOST"
+        value = "0.0.0.0"
+      }
+
+      # The operational store (firestore.tf). Production refuses to boot without
+      # a store named explicitly, so this is not optional.
+      env {
+        name  = "SUNNY_STORE"
+        value = "firestore"
+      }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "SUNNY_FIRESTORE_DATABASE"
+        value = google_firestore_database.sunny.name
+      }
+
+      # Cloud Run's front end is one proxy hop. Without this every visitor
+      # shares one rate-limit bucket, keyed on the front end's address (D-10).
+      env {
+        name  = "SUNNY_TRUST_PROXY"
+        value = "1"
+      }
+
+      # Installer sign-in verifies Firebase ID tokens for this project.
+      env {
+        name  = "FIREBASE_PROJECT_ID"
+        value = var.firebase_project_id != "" ? var.firebase_project_id : var.project_id
+      }
+
+      # Public URLs, for install snippets and links in emails, once known.
+      dynamic "env" {
+        for_each = merge(
+          var.site_url == "" ? {} : {
+            SUNNY_DASHBOARD_URL     = var.site_url
+            SUNNY_WIDGET_SCRIPT_URL = "${var.site_url}/widget/sunny-widget.js"
+          },
+          var.api_base_url == "" ? {} : {
+            SUNNY_PUBLIC_API_URL = var.api_base_url
+          },
+          # Stripe price ids are identifiers, not secrets.
+          { for plan, id in var.stripe_price_ids : "STRIPE_PRICE_${upper(plan)}" => id },
+        )
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
+      # Billing's two secrets, once their values are in Secret Manager. Until
+      # `stripe_enabled` is set they are not referenced: Cloud Run refuses to
+      # deploy a revision whose secret has no version yet.
+      dynamic "env" {
+        for_each = var.stripe_enabled ? {
+          STRIPE_SECRET_KEY     = google_secret_manager_secret.stripe_secret_key.secret_id
+          STRIPE_WEBHOOK_SECRET = google_secret_manager_secret.stripe_webhook_secret.secret_id
+        } : {}
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
+        }
+      }
+
       env {
         name = "GEMINI_API_KEY"
         value_source {
@@ -230,6 +305,43 @@ resource "google_secret_manager_secret" "session_secret" {
   }
 
   depends_on = [google_project_service.secretmanager]
+}
+
+# Stripe's API key and webhook signing secret: created empty, filled out of
+# band like the Gemini key (README.md), never through Terraform state.
+resource "google_secret_manager_secret" "stripe_secret_key" {
+  project   = var.project_id
+  secret_id = "sunny-stripe-secret-key-${local.name_suffix}"
+  labels    = local.labels
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "google_secret_manager_secret" "stripe_webhook_secret" {
+  project   = var.project_id
+  secret_id = "sunny-stripe-webhook-secret-${local.name_suffix}"
+  labels    = local.labels
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "google_secret_manager_secret_iam_member" "api_reads_stripe" {
+  for_each = {
+    key     = google_secret_manager_secret.stripe_secret_key.secret_id
+    webhook = google_secret_manager_secret.stripe_webhook_secret.secret_id
+  }
+  project   = var.project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.api.email}"
 }
 
 resource "random_password" "session_secret" {

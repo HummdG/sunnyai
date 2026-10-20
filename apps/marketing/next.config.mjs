@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -5,6 +7,18 @@ const nextConfig = {
   // A separate output directory lets a test or review build run beside a
   // developer's (or the owner's) server without overwriting its `.next`.
   distDir: process.env.SUNNY_NEXT_DIST ?? '.next',
+
+  // The container build (apps/marketing/Dockerfile) asks for a standalone
+  // server: a `server.js` with only the files the pages trace to, so the image
+  // carries no workspace install. Traced from the repo root, because the
+  // `@sunny/*` packages the pages import live outside this folder. Local
+  // builds keep the default output, so `next start` works as it always has.
+  ...(process.env.SUNNY_NEXT_OUTPUT === 'standalone'
+    ? {
+        output: 'standalone',
+        outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
+      }
+    : {}),
 
   // The old "coming soon" sign-up page.
   async redirects() {

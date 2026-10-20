@@ -1,34 +1,38 @@
 # Infrastructure
 
-Terraform for the Sunny API on Google Cloud.
+Terraform for Sunny on Google Cloud: the API, the website and dashboard, their
+database and their monitoring.
 
-> **Status: written, never applied.** No GCP project has been provisioned, no
-> `terraform init`, `plan` or `apply` has been run against this configuration,
-> and no binary is installed in the development environment it was authored in.
-> The CI job runs `fmt -check` and `validate -backend=false`, and **that job is
-> the first real check this configuration has had**. Treat it as a description of
-> intent that compiles, not as infrastructure known to work.
+> **Status: written and validated, never applied.** No GCP project has been
+> provisioned and no `plan` or `apply` has run against this configuration. It
+> is checked by `fmt -check` and `validate -backend=false` (in CI, and locally
+> with Terraform 1.16.5 and google 6.50.0 on 2026-10-20). Treat it as a
+> description of intent that compiles, not as infrastructure known to work.
 
 ## What it creates
 
-| Resource                     | Why                                                                                |
-| ---------------------------- | ---------------------------------------------------------------------------------- |
-| Cloud Run v2 service         | Runs the API container. Stateless, so it scales horizontally with no coordination. |
-| Artifact Registry repository | Holds the API images.                                                              |
-| Service account              | The runtime identity. Least privilege: it can read two secrets and nothing else.   |
-| Secret Manager secrets       | One for the model credential, one for the session secret.                          |
-| `random_password`            | The session secret's value, generated per environment.                             |
+| Resource                         | Why                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Cloud Run service: API           | Runs `apps/api/Dockerfile`. Stateless, so it scales horizontally with no coordination.                 |
+| Cloud Run service: website       | Runs `apps/marketing/Dockerfile`: the site, sign-in and the dashboard (`web.tf`).                      |
+| Firestore database               | The operational store, one named database per environment (`firestore.tf`).                            |
+| Artifact Registry repository     | Holds both images.                                                                                     |
+| Service accounts                 | The API's (two secrets, Firestore, the SunScan bucket and queue) and the website's (no grants at all). |
+| Secret Manager secrets           | The model credential, the session secret, and Stripe's key and webhook secret.                         |
+| `random_password`                | The session secret's value, generated per environment.                                                 |
+| SunScan bucket and Cloud Tasks   | 3D model storage and the assessment queue (`sunscan.tf`).                                              |
+| Uptime checks and alert policies | API up, chat available, website up, alerting `alert_email` (`monitoring.tf`).                          |
 
-It does **not** create a database. The API currently persists to a file store
-(`apps/api/src/store.ts`); the managed database is a decision that has not been
-made, and inventing one here would be a decision made by a Terraform file rather
-than by a person. See `docs/architecture/adr-006-data-and-consent.md`.
+Not created: the custom domain mapping (until it exists, `site_url` and
+`api_base_url` are the Cloud Run URLs) and budget alerts (§11: thresholds come
+from the first staging build's measurements).
 
 ## No credential passes through state
 
 Terraform state is readable by anyone with access to the state bucket. A model
-credential written into it is a credential that leaked. So the key secret is
-created **empty** and its value is added out of band:
+credential written into it is a credential that leaked. So the key secret (and
+the two Stripe secrets) are created **empty** and their values are added out of
+band:
 
 ```bash
 printf '%s' "$GEMINI_API_KEY" | gcloud secrets versions add sunny-gemini-api-key \

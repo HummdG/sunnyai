@@ -3653,3 +3653,52 @@ visible rather than silent. Making the cards a `pointer-events: none` container 
 because the cards are the controls; a press that survives a re-render would have to be recovered on
 `pointerup` instead. Recorded rather than fixed, because nothing has reported it and the honest fix is a
 different shape from the one this entry made.
+
+## D-54. Both services ship as images, the website runs on Cloud Run, and Node 24 is the one version
+
+**Context.** The owner asked for the engineering left between the build and real users. D-37's deploy
+scripts stopped at four blockers: no container build, no store that survives Cloud Run, no hosting for
+the website, and Terraform never applied. D-52 made the Firestore store real but left the database out of
+Terraform. Nothing read `/healthz`, so a dead model key would be silent.
+
+**Decision.**
+
+- **The API image compiles, it does not bundle.** `scripts/build-api.mjs` compiles the API and the seven
+  workspace packages it imports to JavaScript file by file, into `dist/api/` with the repository's layout,
+  and rewrites their `exports` from `./src/*.ts` to `./src/*.js`. The proposal fonts, the demo price list
+  and the OSTN15 grid are all found by paths relative to their source files; a bundle would have broken
+  each of them silently, at the moment a customer asked for a quote. The image runs plain `node`, not
+  `tsx`. `apps/api/Dockerfile`.
+- **The website runs on Cloud Run, not Firebase App Hosting.** ADR-002 said to reopen the App Hosting
+  choice if the app could not be pinned to a supported Next minor; it is on Next 16, which App Hosting does
+  not document. A standalone Next server (`SUNNY_NEXT_OUTPUT=standalone`, opt-in so `next start` is
+  unchanged) in `apps/marketing/Dockerfile`, as its own service (`infrastructure/terraform/web.tf`) with an
+  identity that has no grants: it reaches data only through the API. `NEXT_PUBLIC_*` settings are build
+  arguments, because they are compiled into the pages.
+- **Terraform creates the database and configures the API for it.** `firestore.tf`: one named database per
+  environment (`sunny-<env>`), so staging and production can share a project without sharing data; delete
+  protection, `ABANDON` and point-in-time recovery in production; `roles/datastore.user` for the API. The
+  API now gets `SUNNY_STORE=firestore`, the project and database, `SUNNY_TRUST_PROXY=1` (Cloud Run's front
+  end is one hop, D-10), the Firebase project and its public URLs. Stripe's two secrets are created empty
+  and injected only when `stripe_enabled` is set, because Cloud Run refuses a revision whose secret has no
+  version.
+- **Monitoring reads `/healthz`.** `monitoring.tf`: uptime checks for the API (`$.ok`), for chat
+  (`$.capabilities.chat.available` -- the dead-key alarm) and for the website, each with an alert policy to
+  `alert_email`.
+- **Node 24 everywhere.** CI said Node 22, but development and every test run used Node 24, and Node 22's
+  npm 10 refuses this lockfile's optional peer entries (`npm ci` fails before any check runs; found by the
+  first container build). CI and both images now use Node 24, whose npm 11 wrote the lockfile. CI also
+  builds both images on every change and checks the API image refuses to boot unconfigured.
+
+**Verified.** The API image (494 MB) refuses to start in production with nothing set, naming all three
+missing settings; in production mode with Terraform's settings it serves `/healthz`; and against the
+Firestore emulator it passes **34/34** of `scripts/smoke-api.mjs` (sessions, leads, qualification,
+knowledge ingestion, tenant isolation), with `persistence.kind` reported as `firestore`. The OSTN15 grid,
+the demo price list and the PDF fonts load from the compiled tree. The website image (457 MB) serves every
+page, the widget bundle and the dashboard's sign-in redirect, and its home page renders with no failed
+request. Terraform 1.16.5 with google 6.50.0: `fmt` clean, `init -backend=false` and `validate` pass.
+
+**Open.** Nothing here has run against a real project: no `plan`, no `apply`, no push. That needs the
+owner's project, a state bucket, the Gemini key and the Stripe secrets, and is the only remaining step
+before a deploy (README_DEPLOY.md). The website's custom domain mapping is not in Terraform; until it is,
+`site_url` is the Cloud Run URL.

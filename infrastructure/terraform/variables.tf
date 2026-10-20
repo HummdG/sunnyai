@@ -86,3 +86,78 @@ variable "api_base_url" {
   type        = string
   default     = ""
 }
+
+variable "web_image" {
+  description = <<-EOT
+    Container image for the website and dashboard (apps/marketing/Dockerfile),
+    including a tag or digest. No default, for the same reason as api_image.
+  EOT
+  type        = string
+}
+
+variable "web_min_instances" {
+  description = "Minimum Cloud Run instances for the website. 0 scales to zero."
+  type        = number
+  default     = 0
+}
+
+variable "web_max_instances" {
+  description = "Ceiling on Cloud Run instances for the website."
+  type        = number
+  default     = 4
+}
+
+variable "firestore_location" {
+  description = <<-EOT
+    Where the Firestore database lives. Fixed once created: Firestore cannot move
+    a database. London by default, beside the services and inside the UK.
+  EOT
+  type        = string
+  default     = "europe-west2"
+}
+
+variable "site_url" {
+  description = <<-EOT
+    The website's public URL with no trailing slash (https://sunny.ai, or the
+    Cloud Run URL from a first apply). Used for the dashboard links and the
+    widget script URL in installers' install snippets. Empty leaves the API's
+    development defaults, which are wrong in production -- set it.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "firebase_project_id" {
+  description = "Firebase project whose ID tokens the API accepts. Empty means this GCP project."
+  type        = string
+  default     = ""
+}
+
+variable "stripe_enabled" {
+  description = <<-EOT
+    Inject the Stripe secrets into the API. Set to true only after both secrets
+    have a value in Secret Manager (README.md), or the deploy fails.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "stripe_price_ids" {
+  description = <<-EOT
+    Stripe price ids per package, keyed base, email, voice and suite: monthly
+    recurring prices in GBP, excluding VAT, matching apps/marketing/app/site.ts.
+  EOT
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for k in keys(var.stripe_price_ids) : contains(["base", "email", "voice", "suite"], k)])
+    error_message = "stripe_price_ids keys must be base, email, voice or suite."
+  }
+}
+
+variable "alert_email" {
+  description = "Where uptime alerts go (monitoring.tf). Empty means checks run but nobody is told."
+  type        = string
+  default     = ""
+}
