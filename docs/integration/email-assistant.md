@@ -1,6 +1,6 @@
 # Email Assistant add-on
 
-**Package:** + Email Assistant ($99/mo, Blueprint §5 Add-On 2, §6).
+**Package:** + Email Assistant (£99/mo, Blueprint §5 Add-On 2, §6).
 **Entitlement:** `email_assistant` (`hasEntitlement`, toggled by Stripe).
 **Code:** `apps/api/src/channels/email/**`, `apps/api/src/routes/email.ts`.
 **Tests:** `apps/api/test/email-*.test.ts`.

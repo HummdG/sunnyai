@@ -11,10 +11,10 @@ layer, not the product. This plan puts the functionality first.
 
 | Package               | Contents                                                                                              | Blueprint price | Entitlement key               |
 | --------------------- | ----------------------------------------------------------------------------------------------------- | --------------- | ----------------------------- |
-| **Base**              | Web chat widget, website + Google Drive knowledge base, lead capture, savings estimate, unified inbox | $199 / mo       | `web_chat`                    |
-| **+ Email Assistant** | Drafts grounded replies in the installer's Gmail/Outlook, attaches spec sheets, human approval        | +$99 / mo       | `email_assistant`             |
-| **+ Voice & Phone**   | Mic in the widget (web voice) + AI phone receptionist (inbound/outbound)                              | +$199 / mo      | `voice_widget`, `phone_agent` |
-| **Full Suite**        | All of the above                                                                                      | $449–499 / mo   | all                           |
+| **Base**              | Web chat widget, website + Google Drive knowledge base, lead capture, savings estimate, unified inbox | £199 / mo       | `web_chat`                    |
+| **+ Email Assistant** | Drafts grounded replies in the installer's Gmail/Outlook, attaches spec sheets, human approval        | +£99 / mo       | `email_assistant`             |
+| **+ Voice & Phone**   | Mic in the widget (web voice) + AI phone receptionist (inbound/outbound)                              | +£199 / mo      | `voice_widget`, `phone_agent` |
+| **Full Suite**        | All of the above                                                                                      | £449–499 / mo   | all                           |
 
 Entitlements live in `tenant_addons` and are switched by Stripe webhooks.
 Prices are configuration; the figures are the blueprint's and need owner sign-off.

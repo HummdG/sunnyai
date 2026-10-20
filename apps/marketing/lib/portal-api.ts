@@ -218,20 +218,20 @@ export const PLAN_LABELS: Record<
 > = {
   base: {
     name: 'Base',
-    price: '$199/mo',
+    price: '£199/mo',
     blurb: 'Web chat, website & Drive knowledge, lead capture',
   },
   email: {
     name: 'Email Assistant',
-    price: '+$99/mo',
+    price: '+£99/mo',
     blurb: 'Grounded reply drafts in your inbox',
   },
   voice: {
     name: 'Voice & Phone',
-    price: '+$199/mo',
+    price: '+£199/mo',
     blurb: 'Web voice and an AI phone receptionist',
   },
-  suite: { name: 'Full Suite', price: '$449/mo', blurb: 'Everything, on one knowledge base' },
+  suite: { name: 'Full Suite', price: '£449/mo', blurb: 'Everything, on one knowledge base' },
 };
 
 export const ADDON_LABELS: Record<AddonKey, string> = {

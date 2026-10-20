@@ -120,11 +120,13 @@ test('shows the configured plans, with the headline the plan requires', async ({
   );
 
   // Prices are configuration (plan §15, `apps/marketing/app/site.ts`); the page
-  // renders one card per configured plan, each with a monthly price.
+  // renders one card per configured plan, each with a monthly price in pounds:
+  // Sunny sells to UK installers.
   const plans = page.locator('#pricing .plan');
   await expect(plans).toHaveCount(4);
   for (const plan of await plans.all()) {
-    await expect(plan).toContainText(/\$\d+/);
+    await expect(plan).toContainText(/£\d+/);
+    await expect(plan).not.toContainText('$');
   }
 });
 

@@ -28,13 +28,13 @@ export interface Plan {
  * Packages and prices from the Blueprint (§6.3, "SaaS Pricing & Profit Margin
  * Summary"): the web chat is the base package and email and voice are add-ons.
  *
- * NEEDS OWNER CONFIRMATION: the blueprint quotes these in USD for a UK
- * installer. Confirm the currency (and whether to localise to GBP) and the
- * figures before launch. The Stripe price ids the portal charges against are
- * separate configuration (STRIPE_PRICE_* on the API).
+ * The owner confirmed the figures (2026-10-20) and that they are in pounds:
+ * Sunny sells to UK installers. The Stripe price ids the portal charges
+ * against are separate configuration (STRIPE_PRICE_* on the API), and must be
+ * created in GBP at the same amounts.
  */
-export const PRICING_IS_PLACEHOLDER = true;
-export const PRICING_CURRENCY = 'USD';
+export const PRICING_IS_PLACEHOLDER = false;
+export const PRICING_CURRENCY = 'GBP';
 
 export const PLANS: readonly Plan[] = [
   {
@@ -85,5 +85,5 @@ export const PLANS: readonly Plan[] = [
 ];
 
 export function formatPrice(monthly: number): string {
-  return `$${monthly.toLocaleString('en-US')}`;
+  return `£${monthly.toLocaleString('en-GB')}`;
 }

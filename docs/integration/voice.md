@@ -1,6 +1,6 @@
 # Voice & Phone add-on
 
-**Package:** + Voice & Phone (Blueprint §5 Add-On 1, §6.3: +$199/mo).
+**Package:** + Voice & Phone (Blueprint §5 Add-On 1, §6.3: +£199/mo).
 **Entitlements:** `voice_widget` (mic in the widget), `phone_agent` (AI phone
 receptionist). **Status (2026-10-12):** built and tested against fakes; **not
 yet run against a real Gemini Live session or a real Twilio number** — blocked
