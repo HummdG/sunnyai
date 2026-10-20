@@ -10,7 +10,7 @@ import './cameo.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Sunny.ai — Meet Sunny, your brightest employee',
+    default: 'Sunny.ai | Meet Sunny, your brightest employee',
     template: '%s · Sunny.ai',
   },
   description:

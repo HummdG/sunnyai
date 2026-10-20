@@ -87,7 +87,7 @@ function Team() {
               <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
                 {roles.map((r) => (
                   <option key={r} value={r}>
-                    {r} — {ROLE_HELP[r]}
+                    {r}: {ROLE_HELP[r]}
                   </option>
                 ))}
               </select>

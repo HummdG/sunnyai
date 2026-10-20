@@ -123,7 +123,7 @@ function OverviewPage() {
             <Stat label="Knowledge sources" value={overview.knowledge.sources} />
             <Stat
               label="Products"
-              value={catalogue?.products ?? '—'}
+              value={catalogue?.products ?? '–'}
               hint={
                 catalogue && catalogue.drafts > 0
                   ? `${catalogue.drafts} awaiting approval`

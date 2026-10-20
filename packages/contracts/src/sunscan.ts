@@ -101,7 +101,7 @@ export const sunscanSummarySchema = z.object({
     z.object({ id: z.string(), title: z.string(), licence: z.string(), attribution: z.string() }),
   ),
   /** Always present; every client shows it next to the numbers. */
-  label: z.literal('Indicative — subject to an on-site survey'),
+  label: z.literal('Indicative, subject to an on-site survey'),
 });
 export type SunScanSummary = z.infer<typeof sunscanSummarySchema>;
 

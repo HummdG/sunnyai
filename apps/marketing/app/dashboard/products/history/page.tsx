@@ -112,7 +112,7 @@ function History() {
                     </td>
                     <td>
                       {REASON[v.reason]}
-                      {v.note ? <span className="muted small"> — {v.note}</span> : null}
+                      {v.note ? <span className="muted small"> ({v.note})</span> : null}
                     </td>
                     <td>{v.productCount}</td>
                     <td className="hide-sm">{formatDate(v.publishedAt)}</td>

@@ -195,8 +195,8 @@ function Products() {
                 <strong>
                   {view.counts.drafts} product{view.counts.drafts === 1 ? '' : 's'} waiting for
                   approval
-                </strong>{' '}
-                — found on your website or in your Sheet. Nothing goes live until you approve it.
+                </strong>
+                , found on your website or in your Sheet. Nothing goes live until you approve it.
               </span>
               <Link className="button secondary" href="/dashboard/products/drafts">
                 Review drafts
@@ -227,7 +227,7 @@ function Products() {
                 <EmptyState
                   pose="shrug"
                   title="No products yet"
-                  say="I can’t recommend what I can’t see — show me your kit!"
+                  say="I can’t recommend what I can’t see. Show me your kit!"
                 >
                   Upload a price list or start from the example. Recommendations need a product
                   list, so until then Sunny can’t suggest or price a system.
@@ -368,7 +368,7 @@ function Products() {
                             )}
                           </td>
                           <td className="hide-sm">
-                            {p.warrantyYears === null ? '—' : `${p.warrantyYears} yrs`}
+                            {p.warrantyYears === null ? '–' : `${p.warrantyYears} yrs`}
                           </td>
                           <td className="hide-sm">
                             <SourceChip source={p.source} />

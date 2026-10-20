@@ -123,7 +123,7 @@ function Leads() {
                       {lead.email ? <div>{lead.email}</div> : null}
                       {lead.phone ? <div>{lead.phone}</div> : null}
                     </td>
-                    <td>{lead.postcode ?? '—'}</td>
+                    <td>{lead.postcode ?? '–'}</td>
                     <td>{lead.summary}</td>
                     <td>
                       {canEdit ? (

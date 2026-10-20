@@ -552,6 +552,19 @@
   max-width: 68ch;
 }
 
+/* Long documents (the privacy policy, the terms): headings that mark a
+   section rather than announce a scene. */
+.site .prose h2,
+.site .section .prose h2 {
+  font-size: clamp(1.45rem, 2.4vw, 1.9rem);
+  margin-top: var(--space-7);
+  margin-bottom: var(--space-2);
+}
+
+.site .prose h3 {
+  font-size: 1.15rem;
+}
+
 /* The model sheet on Meet Sunny: the pose library as an animator's sheet. */
 .site .model-sheet {
   background: var(--sheet);

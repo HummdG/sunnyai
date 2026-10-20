@@ -59,7 +59,7 @@ function roofSummary(): RoofAssessmentSummary {
     shadingFlags: ['shading-not-assessed'],
     confidence: { roof: 'measured' },
     reliable: true,
-    label: 'Indicative — subject to an on-site survey',
+    label: 'Indicative, subject to an on-site survey',
   };
 }
 

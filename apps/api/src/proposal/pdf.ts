@@ -325,7 +325,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
     body(
       `Thank you for asking ${installer.companyName} about solar for your home. This proposal ` +
         'sets out the system we recommend, the alternatives you were shown, what it should ' +
-        'generate and save, and the price — all based on the details you gave us and a 3D ' +
+        'generate and save, and the price. It is all based on the details you gave us and a 3D ' +
         'model of your roof. Every figure is an estimate until one of our team has surveyed ' +
         'your property.',
     );
@@ -336,7 +336,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
       [`${num(best.systemKwp, 2)} kWp`, 'System size'],
       [gbp(best.annualSavingsGbp), 'Estimated yearly bill savings'],
       [best.priceGbp !== null ? gbp(best.priceGbp) : 'On survey', 'System price'],
-      [best.paybackYears !== null ? `${num(best.paybackYears, 1)} yrs` : '—', 'Estimated payback'],
+      [best.paybackYears !== null ? `${num(best.paybackYears, 1)} yrs` : '–', 'Estimated payback'],
     ]);
     body(best.priceLabel, { align: 'center' });
 
@@ -346,18 +346,18 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
         ['Measured from open 3D and LiDAR data', ''],
         [
           ['Best-facing roof', roof.bestFacing ?? 'Not determined'],
-          ['Roof pitch', roof.pitchDeg !== null ? `About ${Math.round(roof.pitchDeg)}°` : '—'],
+          ['Roof pitch', roof.pitchDeg !== null ? `About ${Math.round(roof.pitchDeg)}°` : '–'],
           [
             'Usable roof area',
-            roof.usableRoofAreaM2 !== null ? `About ${num(roof.usableRoofAreaM2)} m²` : '—',
+            roof.usableRoofAreaM2 !== null ? `About ${num(roof.usableRoofAreaM2)} m²` : '–',
           ],
           [
             'Panels that should fit',
-            roof.estimatedMaxPanels !== null ? `Up to ${roof.estimatedMaxPanels}` : '—',
+            roof.estimatedMaxPanels !== null ? `Up to ${roof.estimatedMaxPanels}` : '–',
           ],
           [
             'Confidence',
-            roof.reliable ? (roof.label ?? 'Good') : `${roof.label ?? 'Low'} — confirmed at survey`,
+            roof.reliable ? (roof.label ?? 'Good') : `${roof.label ?? 'Low'}, confirmed at survey`,
           ],
         ],
         [1, 1.4],
@@ -373,13 +373,13 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
     [
       [
         'Solar panels',
-        `${best.panelCount} × ${best.panelType ?? 'solar panels'} — ${num(best.systemKwp, 2)} kWp in total`,
+        `${best.panelCount} × ${best.panelType ?? 'solar panels'}, ${num(best.systemKwp, 2)} kWp in total`,
       ],
       ...(best.inverterType ? [['Inverter', best.inverterType]] : []),
       [
         'Battery',
         best.batteryType
-          ? `${best.batteryType}${best.batteryCapacityKwh ? ` — ${num(best.batteryCapacityKwh, 1)} kWh` : ''}`
+          ? `${best.batteryType}${best.batteryCapacityKwh ? `, ${num(best.batteryCapacityKwh, 1)} kWh` : ''}`
           : 'None in this option',
       ],
       ['Estimated generation', `About ${num(Math.round(best.annualGenerationKwh))} kWh a year`],
@@ -423,7 +423,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
       [
         'Payback',
         ...quote.options.map((o) =>
-          o.paybackYears !== null ? `${num(o.paybackYears, 1)} years` : '—',
+          o.paybackYears !== null ? `${num(o.paybackYears, 1)} years` : '–',
         ),
       ],
       ['CO2 saved a year', ...quote.options.map((o) => `${num(o.co2TonnesPerYear, 2)} t`)],
@@ -434,7 +434,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
               ...quote.options.map((o) =>
                 o.sentinel
                   ? `${gbp(o.sentinel.annualSavingsGbp)} a year (+${num(o.sentinel.upliftPercent, o.sentinel.upliftPercent % 1 ? 1 : 0)}%)`
-                  : '—',
+                  : '–',
               ),
             ],
           ]
@@ -466,7 +466,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
       ['Installed capacity of the PV system', `${num(best.systemKwp, 2)} kWp`],
       ['Orientation of the PV system', `${Math.round(quote.basis.mcsOrientationDeg)}° from south`],
       ['Inclination of the system', `${Math.round(quote.basis.pitchDeg)}° from horizontal`],
-      ['Postcode region (MCS zone)', `${quote.basis.mcsZone} — ${quote.basis.regionName}`],
+      ['Postcode region (MCS zone)', `${quote.basis.mcsZone}: ${quote.basis.regionName}`],
     ],
     [1.6, 1],
   );
@@ -500,7 +500,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
       ],
       [
         'Grid independence (self-sufficiency)',
-        quote.basis.annualKwh > 0 ? pct(Math.min(1, selfKwh / quote.basis.annualKwh)) : '—',
+        quote.basis.annualKwh > 0 ? pct(Math.min(1, selfKwh / quote.basis.annualKwh)) : '–',
       ],
       ...(best.batteryCapacityKwh
         ? [['Battery storage', `${num(best.batteryCapacityKwh, 1)} kWh`]]
@@ -563,7 +563,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
     [
       quote.basis.annualKwh > 0
         ? pct(Math.min(1, best.annualGenerationKwh / quote.basis.annualKwh))
-        : '—',
+        : '–',
       'Of your yearly use, generated by solar',
     ],
   ]);
@@ -585,7 +585,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
   doc.addPage();
   heading('Quotation');
   body(
-    `${best.label} — ${best.panelCount} panels, ${num(best.systemKwp, 2)} kWp${best.batteryType ? `, ${best.batteryType}` : ''}.`,
+    `${best.label}: ${best.panelCount} panels, ${num(best.systemKwp, 2)} kWp${best.batteryType ? `, ${best.batteryType}` : ''}.`,
   );
   doc.moveDown(0.5);
   if (best.lineItems.length > 0) {

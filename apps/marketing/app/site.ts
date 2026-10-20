@@ -87,3 +87,19 @@ export const PLANS: readonly Plan[] = [
 export function formatPrice(monthly: number): string {
   return `£${monthly.toLocaleString('en-GB')}`;
 }
+
+/**
+ * Who runs Sunny, for the privacy policy and the terms. **Fill these in before
+ * launch:** the bracketed values are placeholders, and the legal pages print
+ * them as they are, so a missing detail shows rather than hiding.
+ */
+export const LEGAL = {
+  tradingName: 'Sunny.ai',
+  companyName: '[Registered company name]',
+  companyNumber: '[Company number]',
+  registeredAddress: '[Registered office address]',
+  contactEmail: '[Contact email address]',
+  icoNumber: '[ICO registration number]',
+  /** The date both pages say they were last updated. */
+  updated: '21 October 2026',
+} as const;

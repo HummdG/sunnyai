@@ -276,7 +276,7 @@ describe('the sentence a refusal becomes', () => {
     const verdict = validateAnswer('annual_kwh', '4200', { usage_source: 'household' });
     if (verdict.ok) throw new Error('unreachable');
     expect(explain(verdict)).toBe(
-      'that question is not asked, given an earlier answer — it needs usage_source to be one of bill_ocr, manual_kwh (it is "household")',
+      'that question is not asked, given an earlier answer: it needs usage_source to be one of bill_ocr, manual_kwh (it is "household")',
     );
   });
 });

@@ -132,7 +132,7 @@ export const SOURCE_LABEL: Record<Source, string> = {
 };
 
 export function price(p: Pick<Product, 'priceMinor' | 'currency'>): string {
-  if (p.priceMinor === null) return '—';
+  if (p.priceMinor === null) return '–';
   const value = p.priceMinor / 100;
   if (!p.currency) return value.toFixed(2);
   try {
@@ -157,7 +157,7 @@ export function rating(p: Pick<Product, 'powerW' | 'capacityWh'>): string {
     );
   }
   if (p.capacityWh !== null) parts.push(`${(p.capacityWh / 1000).toLocaleString('en-GB')} kWh`);
-  return parts.join(' · ') || '—';
+  return parts.join(' · ') || '–';
 }
 
 export function PriceStatusChip({ status }: { status: PriceStatus }) {

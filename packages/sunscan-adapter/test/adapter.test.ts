@@ -52,7 +52,7 @@ describe('the vendored engine, in replay mode (recorded open data, no network)',
     const s = outcome.summary;
     expect(s.reliable).toBe(true); // SunScanV2 A3: Forthlin fits reliably from LiDAR
     expect(s.confidence.roof).not.toBe('estimated');
-    expect(s.label).toBe('Indicative — subject to an on-site survey');
+    expect(s.label).toBe('Indicative, subject to an on-site survey');
     expect(s.sources.map((x) => x.id)).toContain('osm');
     expect(sunscanSummarySchema.safeParse(s).success).toBe(true);
   });
@@ -183,7 +183,7 @@ const fakeOutcome = (reliable: boolean): EngineOutcome => ({
     flags: reliable ? [] : ['fit-unreliable'],
     notes: [],
     sources: [],
-    label: 'Indicative — subject to an on-site survey',
+    label: 'Indicative, subject to an on-site survey',
   },
   specJson: '{"schema":"sunscan.house/1"}',
   glb: new Uint8Array([0x67, 0x6c, 0x54, 0x46]),

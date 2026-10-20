@@ -31,16 +31,16 @@ export interface QualityFacts {
 }
 
 const NOTES: Record<string, string> = {
-  'lidar-unavailable': 'No open LiDAR for this location — heights and roof are estimates from UK house-type priors.',
-  'fit-unreliable': 'The LiDAR roof fit is unreliable (complex or heritage roof outside the model library, or a footprint mismatch) — the roof shown is an approximation.',
-  'fit-failed': 'The LiDAR roof fit failed — the roof shown is an estimate.',
-  'registration-ambiguous': 'Footprint ↔ LiDAR alignment is ambiguous (typical of terraces) — only the well-constrained shift was applied.',
-  'registration-large-shift': 'The OSM outline needed a large shift (> 3 m) to match the LiDAR — please check the outline.',
+  'lidar-unavailable': 'No open LiDAR for this location, so heights and roof are estimates from UK house-type priors.',
+  'fit-unreliable': 'The LiDAR roof fit is unreliable (complex or heritage roof outside the model library, or a footprint mismatch), so the roof shown is an approximation.',
+  'fit-failed': 'The LiDAR roof fit failed, so the roof shown is an estimate.',
+  'registration-ambiguous': 'Footprint ↔ LiDAR alignment is ambiguous (typical of terraces), so only the well-constrained shift was applied.',
+  'registration-large-shift': 'The OSM outline needed a large shift (> 3 m) to match the LiDAR. Please check the outline.',
   'terrace-block': 'The OSM outline covers several dwellings (a terrace row or a block of flats); it is modelled as one block.',
   'footprint-from-overture': 'Footprint from Overture Maps (OSM had no outline here).',
   'footprint-user-drawn': 'Footprint drawn by the user.',
-  'target-ambiguous': 'Several buildings matched the address — please confirm the building on the map.',
-  'survey-old': 'The LiDAR survey is several years old — recent extensions may be missing.',
+  'target-ambiguous': 'Several buildings matched the address. Please confirm the building on the map.',
+  'survey-old': 'The LiDAR survey is several years old, so recent extensions may be missing.',
   'heritage-building': 'Listed / heritage building: roofs of this kind are often outside the model library.',
   'front-edge-guessed': 'No street or entrance data: the front of the house was guessed.',
   'lidar-partial-coverage': 'LiDAR covers only part of the area around the house.',
@@ -139,6 +139,6 @@ export function buildProvenance(p: ProvenanceFacts): SourceRecord[] {
     });
   }
   if (p.priorsUsed)
-    out.push({ id: 'sunscan-uk-priors', title: 'SunScan UK house-type priors (EHS, RdSAP, BS 5534; estimates)', licence: 'n/a', attribution: 'Estimated values — not measured' });
+    out.push({ id: 'sunscan-uk-priors', title: 'SunScan UK house-type priors (EHS, RdSAP, BS 5534; estimates)', licence: 'n/a', attribution: 'Estimated values, not measured' });
   return out;
 }

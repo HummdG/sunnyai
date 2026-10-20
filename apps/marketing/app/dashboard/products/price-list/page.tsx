@@ -47,7 +47,7 @@ function money(minor: number, currency: string): string {
 }
 
 function vatText(list: PriceListView): string {
-  if (list.vatRatePercent === null) return 'VAT rate not set — quotes say VAT is to be confirmed';
+  if (list.vatRatePercent === null) return 'VAT rate not set, so quotes say VAT is to be confirmed';
   const inc =
     list.pricesIncludeVat === null
       ? ''
@@ -271,7 +271,7 @@ function PriceList() {
                     ? 'Example price list (HSEnergy 2026)'
                     : `Preview: ${pending.fileName ?? 'price list'}`}{' '}
                   {pending.example ? (
-                    <Chip tone="orange">Example — edit before going live</Chip>
+                    <Chip tone="orange">Example: edit before going live</Chip>
                   ) : null}
                 </>
               }
@@ -333,7 +333,7 @@ function PriceList() {
                 <p className="muted small" style={{ margin: '12px 0' }}>
                   These are HSEnergy&apos;s real 2026 prices, included to show how a price list
                   works. Export it, change it to your own prices in a spreadsheet, and upload it
-                  again — or publish it as it is to try Sunny out.
+                  again. Or publish it as it is to try Sunny out.
                 </p>
               ) : null}
               {pending.issues.length > 0 ? (
@@ -432,7 +432,7 @@ function PriceList() {
                           <strong>v{h.version}</strong>{' '}
                           {h.version === page.version ? <Chip tone="ok">Live</Chip> : null}
                         </td>
-                        <td>{h.note ?? '—'}</td>
+                        <td>{h.note ?? '–'}</td>
                         <td>{h.itemCount} prices</td>
                         <td>{formatDate(h.publishedAt)}</td>
                         <td>

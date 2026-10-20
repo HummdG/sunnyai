@@ -113,7 +113,7 @@ function Billing() {
             <div className="grid stats">
               <div className="stat">
                 <span className="stat-value">
-                  {view.voice.minutesUsed === null ? '—' : view.voice.minutesUsed}
+                  {view.voice.minutesUsed === null ? '–' : view.voice.minutesUsed}
                   {view.voice.minutesQuota !== null ? (
                     <span className="muted" style={{ fontSize: '1rem' }}>
                       {' '}

@@ -199,7 +199,7 @@ const OUTCOME: EngineOutcome = {
     flags: [],
     notes: [],
     sources: [],
-    label: 'Indicative — subject to an on-site survey',
+    label: 'Indicative, subject to an on-site survey',
   },
   specJson: '{}',
   glb: new Uint8Array([103, 108, 84, 70]),

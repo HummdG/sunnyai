@@ -55,7 +55,7 @@ test('an empty catalogue offers the HSEnergy example, which goes live only when 
 
   await expect(page).toHaveURL(/\/dashboard\/products\/upload/);
   await expect(page.getByText('Example products (HSEnergy 2026)')).toBeVisible();
-  await expect(page.getByText('Example — edit before going live').first()).toBeVisible();
+  await expect(page.getByText('Example: edit before going live').first()).toBeVisible();
   await page.getByRole('button', { name: 'Publish 19 products' }).click();
 
   await expect(page).toHaveURL(/\/dashboard\/products$/);

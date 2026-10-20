@@ -1098,10 +1098,75 @@
 }
 
 .site .prose p,
-.site .prose ul {
+.site .prose ul,
+.site .prose ol {
   margin-top: var(--space-3);
   color: var(--sunny-muted-on-pale);
   font-size: 1.08rem;
+}
+
+.site .prose h3 {
+  font-size: 1.15rem;
+  margin-top: var(--space-5);
+}
+
+.site .prose li + li {
+  margin-top: var(--space-1);
+}
+
+/* The legal pages: the "last updated" line, and tables of cookies, providers
+   and retention periods (components/legal-table.tsx). */
+.site .prose .legal-meta {
+  font-size: 0.95rem;
+}
+
+.site .prose .legal-table {
+  width: 100%;
+  margin-top: var(--space-3);
+  border-collapse: collapse;
+  font-size: 0.98rem;
+  color: var(--sunny-muted-on-pale);
+}
+
+.site .prose .legal-table th,
+.site .prose .legal-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--sunny-ink) 15%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.site .prose .legal-table th {
+  color: var(--sunny-ink);
+}
+
+/* On a phone each row is a card and each cell names its column. */
+@media (max-width: 640px) {
+  .site .prose .legal-table thead {
+    display: none;
+  }
+
+  .site .prose .legal-table tr {
+    display: block;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--sunny-ink) 15%, transparent);
+  }
+
+  .site .prose .legal-table td {
+    display: block;
+    padding: var(--space-1) 0;
+    border: 0;
+  }
+
+  .site .prose .legal-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sunny-ink);
+  }
 }
 
 .site .shell-page {

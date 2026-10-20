@@ -112,7 +112,7 @@ export function SentinelCard({
       <p className="muted" style={{ marginBottom: 12 }}>
         Sentinel is an optional optimisation service you can offer: smarter battery charging, use
         and export. When it&apos;s on, each quote shows an <strong>indicative</strong> extra saving
-        beside every option — for example &ldquo;with Sentinel: about £1,050 a year&rdquo;. It never
+        beside every option, for example &ldquo;with Sentinel: about £1,050 a year&rdquo;. It never
         changes your prices, and quotes stay the same while it&apos;s off.
       </p>
       {on && sentinel && !editing ? (

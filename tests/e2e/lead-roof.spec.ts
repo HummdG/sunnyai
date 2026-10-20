@@ -106,6 +106,6 @@ test("the lead page draws the visitor's roof in 3D", async ({ page, request }) =
     .toBeGreaterThan(20);
 
   await expect(page.getByRole('list', { name: 'Roof planes' })).toBeVisible();
-  await expect(page.getByText(/Indicative — subject to an on-site survey/).first()).toBeVisible();
+  await expect(page.getByText(/Indicative, subject to an on-site survey/).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Download the 3D model (GLB)' })).toBeVisible();
 });

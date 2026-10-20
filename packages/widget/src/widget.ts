@@ -715,7 +715,7 @@ export class SunnyWidget {
       const where = summary.bestFacing ? `, best facing ${summary.bestFacing}` : '';
       const panels =
         summary.estimatedMaxPanels > 0
-          ? ` — room for up to ${summary.estimatedMaxPanels} panels (estimate)`
+          ? `, with room for up to ${summary.estimatedMaxPanels} panels (estimate)`
           : '';
       this.#lastRoof = { base, summary };
       const button = el('button', { type: 'button', text: 'See your roof in 3D' });
@@ -755,7 +755,7 @@ export class SunnyWidget {
         ...(o.aboveBudget ? ['Above the budget you mentioned'] : []),
         ...(o.roofLimited ? ['Limited by the space on your roof'] : []),
         ...(o.installerPriced && o.installerPriced.length > 0
-          ? [`Plus ${o.installerPriced.join(', ')} — priced by your installer`]
+          ? [`Plus ${o.installerPriced.join(', ')}, priced by your installer`]
           : []),
       ];
       return el('li', { class: `quote-option${o.isRecommended ? ' recommended' : ''}` }, [
@@ -837,13 +837,13 @@ export class SunnyWidget {
     this.#appendTurn(
       'assistant',
       roof
-        ? `Great choice — the ${chosen.option.label} package. Let's watch what it could save you, month by month, on your roof.`
-        : `Great choice — the ${chosen.option.label} package. In its first year it could save you about ${gbp(t.year1TotalGbp)}, and about ${gbp(t.twentyFiveYearTotalGbp)} over 25 years (indicative).`,
+        ? `Great choice: the ${chosen.option.label} package. Let's watch what it could save you, month by month, on your roof.`
+        : `Great choice: the ${chosen.option.label} package. In its first year it could save you about ${gbp(t.year1TotalGbp)}, and about ${gbp(t.twentyFiveYearTotalGbp)} over 25 years (indicative).`,
     );
     if (chosen.sentinelNote) this.#appendTurn('system', chosen.sentinelNote);
     this.#appendTurn(
       'assistant',
-      "When you're ready, I can arrange a free survey to confirm everything — just say \u201cbook a survey\u201d.",
+      "When you're ready, I can arrange a free survey to confirm everything. Just say \u201cbook a survey\u201d.",
     );
     if (roof) {
       await this.#openRoof(roof.base, roof.summary, {

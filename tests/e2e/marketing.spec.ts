@@ -149,6 +149,57 @@ test('every page in the site map renders with its own heading', async ({ page })
   }
 });
 
+// The owner's house style: no em dashes in anything a visitor reads.
+test('no page uses an em dash', async ({ page }) => {
+  for (const path of [
+    '/',
+    '/product',
+    '/meet-sunny',
+    '/how-it-works',
+    '/integrations',
+    '/pricing',
+    '/resources',
+    '/privacy',
+    '/terms',
+    '/sign-in',
+    '/sign-up',
+  ]) {
+    await page.goto(path);
+    const text = await page.evaluate(
+      () => `${document.title}
+${document.body.innerText}`,
+    );
+    expect(text.includes('—'), `${path} has an em dash`).toBe(false);
+  }
+});
+
+test('the privacy policy and terms are complete, accessible and fit a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [path, sections] of [
+    ['/privacy', 15],
+    ['/terms', 17],
+  ] as const) {
+    await page.goto(path);
+    // Every numbered section is there, and the contents list links to each.
+    await expect(page.locator('.prose h2[id]')).toHaveCount(sections);
+    for (const id of await page.locator('.prose h2[id]').evaluateAll((hs) => hs.map((h) => h.id))) {
+      await expect(page.locator(`.prose ol a[href="#${id}"]`), `${path}#${id}`).toHaveCount(1);
+    }
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, `${path} scrolls sideways`).toBeLessThanOrEqual(0);
+    const results = await new AxeBuilder({ page }).include('main').analyze();
+    const serious = results.violations.filter(
+      (v) => v.impact === 'serious' || v.impact === 'critical',
+    );
+    expect(
+      serious.map((v) => `${v.id}: ${v.help}`),
+      path,
+    ).toEqual([]);
+  }
+});
+
 test('the colour switcher re-themes the hero character', async ({ page }) => {
   await page.goto('/');
   await page.locator('#character').scrollIntoViewIfNeeded();

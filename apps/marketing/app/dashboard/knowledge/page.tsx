@@ -45,7 +45,7 @@ function SyncBar({
     <SunProgress
       value={progress.done}
       max={progress.total}
-      label={`${what === 'website' ? 'Reading your website' : 'Reading your folder'} — ${progress.done.toLocaleString('en-GB')} of ${plural(progress.total)}.`}
+      label={`${what === 'website' ? 'Reading your website' : 'Reading your folder'}: ${progress.done.toLocaleString('en-GB')} of ${plural(progress.total)}.`}
     />
   );
 }
@@ -234,8 +234,8 @@ function Knowledge() {
                         <Chip tone="orange">{kindLabel(warning.kind)}</Chip> {warning.text}
                         <span className="muted small">
                           {' '}
-                          — {warning.source}
-                          {warning.section ? `, ${warning.section}` : ''}
+                          ({warning.source}
+                          {warning.section ? `, ${warning.section}` : ''})
                         </span>
                       </span>
                     </li>

@@ -406,7 +406,7 @@ export function ModelSheet(): React.JSX.Element {
       aria-label="Sunny's model sheet: twelve expressions, from at rest to all in hand."
     >
       <header>
-        <span>SUNNY — Model sheet</span>
+        <span>SUNNY · Model sheet</span>
         <span>No. 1</span>
       </header>
       <ul>

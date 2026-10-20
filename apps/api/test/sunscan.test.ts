@@ -88,7 +88,7 @@ const outcome = (address: string): EngineOutcome => ({
     sources: [
       { id: 'osm', title: 'OpenStreetMap', licence: 'ODbL-1.0', attribution: '© OpenStreetMap' },
     ],
-    label: 'Indicative — subject to an on-site survey',
+    label: 'Indicative, subject to an on-site survey',
   },
   specJson: '{"schema":"sunscan.house/1","parts":[]}',
   glb: new TextEncoder().encode('glTF-fake-model'),
@@ -185,7 +185,7 @@ describe('SunScan routes', () => {
     const done = await untilFinal(visitor, started.id);
     expect(done.status).toBe('succeeded');
     expect(done.summary?.suitableRoofAreaM2).toBe(30);
-    expect(done.summary?.label).toBe('Indicative — subject to an on-site survey');
+    expect(done.summary?.label).toBe('Indicative, subject to an on-site survey');
     expect(done.modelUrl).toBe(`/v1/sunscan/assessments/${started.id}/model.glb`);
     // The public shape names neither the tenant nor the address target.
     expect(JSON.stringify(res.json())).not.toContain(TENANT_A);
@@ -297,7 +297,7 @@ describe('SunScan tools', () => {
     );
     expect(result.ok).toBe(true);
     expect(result.summary).toMatch(/21 m² usable/);
-    expect(result.summary).toMatch(/Indicative — subject to an on-site survey/);
+    expect(result.summary).toMatch(/Indicative, subject to an on-site survey/);
     // The full RoofAssessmentSummary the quote journey reads.
     const data = result.data as {
       assessmentId: string;

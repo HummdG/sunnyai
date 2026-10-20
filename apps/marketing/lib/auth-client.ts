@@ -109,7 +109,7 @@ async function postSession(body: Record<string, string>): Promise<void> {
 
 async function startSessionFor(user: User): Promise<void> {
   if (!user.emailVerified) {
-    throw new AuthProblem('unverified', 'Confirm your email address first — check your inbox.');
+    throw new AuthProblem('unverified', 'Confirm your email address first. Check your inbox.');
   }
   await postSession({ idToken: await user.getIdToken(true) });
 }

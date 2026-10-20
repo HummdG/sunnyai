@@ -46,7 +46,7 @@ export const ROOF_LAYOUT = {
   panelShortM: 1.134,
 } as const;
 
-export const INDICATIVE_LABEL = 'Indicative — subject to an on-site survey' as const;
+export const INDICATIVE_LABEL = 'Indicative, subject to an on-site survey' as const;
 
 export interface AssessmentSummary {
   address: string;

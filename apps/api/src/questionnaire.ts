@@ -458,7 +458,7 @@ export function explain(verdict: Extract<AnswerVerdict, { ok: false }>): string 
   if (verdict.allowed) return `${verdict.error}: ${verdict.allowed.join(', ')}`;
   if (verdict.known) return `${verdict.error}: ${verdict.known.join(', ')}`;
   if (verdict.expects) return `${verdict.error}: ${verdict.expects}`;
-  if (verdict.needs) return `${verdict.error} — it needs ${verdict.needs}`;
+  if (verdict.needs) return `${verdict.error}: it needs ${verdict.needs}`;
   return verdict.error;
 }
 

@@ -28,7 +28,7 @@ const STORIES = [
   {
     eyebrow: 'Always on',
     title: 'Answers, day and night',
-    body: 'Sunny answers questions about panels, batteries and the installation process from your own documents, in your tone, whenever visitors are browsing — including the ones who browse at 2am.',
+    body: 'Sunny answers questions about panels, batteries and the installation process from your own documents, in your tone, whenever visitors are browsing, including the ones who browse at 2am.',
     points: ['Grounded in your own documents', 'Your tone of voice', 'Never closes for the night'],
     scene: <NightShiftScene />,
   },
@@ -95,7 +95,7 @@ export default function Home(): JSX.Element {
             </p>
             <div className="actions">
               <Link className="button" href="/sign-up">
-                Get started — it&rsquo;s free to try
+                Get started: it&rsquo;s free to try
               </Link>
               <OpenChatButton className="button secondary">Chat with Sunny</OpenChatButton>
             </div>

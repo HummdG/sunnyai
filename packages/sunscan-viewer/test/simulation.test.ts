@@ -37,7 +37,7 @@ describe('the savings simulation script', () => {
 
   it('says what each month saved, in plain words and whole pounds', () => {
     const march = timeline.months[2]!;
-    expect(monthLine(march)).toBe(`March — your panels saved you about ${formatGbp(march.savingsGbp)}`);
+    expect(monthLine(march)).toBe(`March: your panels saved you about ${formatGbp(march.savingsGbp)}`);
     expect(formatGbp(1234.4)).toBe('£1,234');
     expect(formatGbp(-50)).toBe('−£50');
     expect(aboutGbp(24_337)).toBe('£24,300');

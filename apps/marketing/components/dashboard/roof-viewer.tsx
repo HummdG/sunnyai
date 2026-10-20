@@ -174,8 +174,8 @@ export function RoofViewer3D({
         </>
       ) : null}
       <p className="small muted">
-        {reliable ? '' : 'Low-confidence measurement — confirm on the survey. '}
-        {summary} Indicative — subject to an on-site survey.{' '}
+        {reliable ? '' : 'Low-confidence measurement: confirm it on the survey. '}
+        {summary} Indicative, subject to an on-site survey.{' '}
         <a href={`/api/portal${basePath}/model.glb`} download>
           Download the 3D model (GLB)
         </a>

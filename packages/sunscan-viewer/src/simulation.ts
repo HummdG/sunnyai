@@ -15,7 +15,7 @@ export interface SavingsTimelineLike {
   assumptions: { energyInflationRate: number; panelDegradationPerYear: number };
 }
 
-export const INDICATIVE_NOTE = 'Indicative — subject to an on-site survey';
+export const INDICATIVE_NOTE = 'Indicative, subject to an on-site survey';
 
 /** £1,234 (whole pounds; pence only under £100 per the brand guidelines, which the months never need). */
 export function formatGbp(value: number): string {
@@ -32,7 +32,7 @@ export function aboutGbp(value: number): string {
 const pct = (r: number) => `${Math.round(r * 1000) / 10}%`.replace('.0%', '%');
 
 export function monthLine(month: SavingsTimelineLike['months'][number]): string {
-  return `${month.monthName} — your panels saved you about ${formatGbp(month.savingsGbp)}`;
+  return `${month.monthName}: your panels saved you about ${formatGbp(month.savingsGbp)}`;
 }
 
 export function yearLine(t: SavingsTimelineLike): string {

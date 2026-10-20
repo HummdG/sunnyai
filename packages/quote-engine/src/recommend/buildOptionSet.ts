@@ -60,7 +60,7 @@ const BEST_SUITED: Record<PresetTier, string> = {
 const NEXT_STEP: Record<OptionKind, string> = {
   budget_fit: 'Book a free survey to confirm this is right for your home.',
   better_value: 'Book a free survey to lock in the detail.',
-  recommended: 'Book a free survey — recommended for the strongest return.',
+  recommended: 'Book a free survey: recommended for the strongest return.',
 };
 const KINDS_BY_PRICE: OptionKind[] = ['budget_fit', 'better_value', 'recommended'];
 

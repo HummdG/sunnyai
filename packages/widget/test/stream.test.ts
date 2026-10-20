@@ -72,7 +72,7 @@ describe('the widget’s own contract checks', () => {
         flags: [],
         notes: [],
         sources: [],
-        label: 'Indicative — subject to an on-site survey',
+        label: 'Indicative, subject to an on-site survey',
       },
     };
     expect(chatStreamEventSchema.safeParse(done).success).toBe(true);

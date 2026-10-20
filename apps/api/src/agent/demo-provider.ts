@@ -106,7 +106,7 @@ export class DemoProvider implements ChatProvider {
       const best = options.find((o) => o['recommended'] === true) ?? options[options.length - 1];
       const label = (best && str(best['label'])) || 'the recommended option';
       yield text(
-        `Here are three options for your home. I'd suggest ${label} — the details are on the ` +
+        `Here are three options for your home. I'd suggest ${label}. The details are on the ` +
           'cards. All figures are indicative and subject to an on-site survey. Would you like ' +
           'someone from the team to get in touch to book one?',
       );

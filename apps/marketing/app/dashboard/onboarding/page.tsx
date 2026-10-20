@@ -74,7 +74,7 @@ const GUIDE: Record<
   drive: {
     pose: 'idea',
     line: 'Got spec sheets or price lists in Google Drive? Share the folder and I’ll learn those too.',
-    quip: 'Viewer access is plenty — I only read.',
+    quip: 'Viewer access is plenty. I only read.',
   },
   customise: null,
   install: {
@@ -85,7 +85,7 @@ const GUIDE: Record<
   live: {
     pose: 'thumbsUp',
     line: 'Last thing: your phone number, for customers who need a person.',
-    quip: 'Nearly there — shades at the ready.',
+    quip: 'Nearly there. Shades at the ready!',
   },
 };
 

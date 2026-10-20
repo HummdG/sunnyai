@@ -37,7 +37,7 @@ function changes(draft: Draft): string[] {
     out.push(`Rating ${rating(current)} → ${rating(draft.product)}`);
   if (current.warrantyYears !== draft.product.warrantyYears) {
     out.push(
-      `Warranty ${current.warrantyYears ?? '—'} → ${draft.product.warrantyYears ?? '—'} yrs`,
+      `Warranty ${current.warrantyYears ?? '–'} → ${draft.product.warrantyYears ?? '–'} yrs`,
     );
   }
   return out;
@@ -214,7 +214,7 @@ function Drafts() {
                             <Chip tone="ok">New</Chip>
                           )}
                           {draft.extractor === 'gemini' ? (
-                            <Chip>Read by AI — check carefully</Chip>
+                            <Chip>Read by AI: check carefully</Chip>
                           ) : null}
                         </div>
                         <p className="draft-facts">

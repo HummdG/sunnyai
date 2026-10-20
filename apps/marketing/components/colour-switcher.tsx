@@ -50,9 +50,7 @@ export function ColourSwitcher(): React.JSX.Element {
           Your brand
         </label>
       </div>
-      <p className="switcher-note">
-        Try it — the assistant in the corner of this page changes too.
-      </p>
+      <p className="switcher-note">Try it: the assistant in the corner of this page changes too.</p>
     </div>
   );
 }

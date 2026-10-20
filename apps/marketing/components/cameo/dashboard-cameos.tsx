@@ -65,7 +65,7 @@ export function greetingFor(hour: number): Greeting {
     return {
       pose: 'wave',
       sequence: 'listening-perk',
-      say: 'Morning! Kettle’s on — here’s the overnight news.',
+      say: 'Morning! Kettle’s on. Here’s the overnight news.',
     };
   }
   if (hour >= 12 && hour < 17) {

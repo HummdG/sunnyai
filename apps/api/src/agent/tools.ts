@@ -780,7 +780,7 @@ const DEFINITIONS: ToolDefinition[] = [
           note: response.note,
         },
         summary: best
-          ? `${response.packages.length} option(s). Best: ${best.title} — ` +
+          ? `${response.packages.length} option(s). Best: ${best.title}: ` +
             `${money(best.totalMinor, best.currency) ?? 'one item has no price, so there is no total'}.`
           : response.note,
       };

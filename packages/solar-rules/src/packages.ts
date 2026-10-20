@@ -670,7 +670,7 @@ export function recommend(input: RecommendInput): RecommendationResponse {
     note = `The installer’s catalogue has no ${panels.length === 0 ? 'panels' : 'inverters'}, so no system can be priced from it.`;
   } else if (!hasSize) {
     note =
-      'Tell Sunny roughly how big a system you are considering — about 4 kW, or a number of panels — and options can be priced from the catalogue.';
+      'Tell Sunny roughly how big a system you are considering (about 4 kW, or a number of panels), and options can be priced from the catalogue.';
   } else if (requireBattery && batteries.length === 0) {
     note = 'No battery is in the installer’s catalogue, so no option with storage can be priced.';
   } else if (batteryBlocked && packages.length === 0) {

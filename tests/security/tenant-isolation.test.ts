@@ -301,7 +301,7 @@ const SWEEP_SUNSCAN_ENGINE: SunScanEngine = {
         flags: [],
         notes: [],
         sources: [],
-        label: 'Indicative — subject to an on-site survey',
+        label: 'Indicative, subject to an on-site survey',
       },
       specJson: '{"schema":"sunscan.house/1"}',
       glb: new Uint8Array([0x67, 0x6c, 0x54, 0x46]),

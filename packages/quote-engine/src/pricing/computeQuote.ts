@@ -362,12 +362,12 @@ export function computeQuote(config: SystemConfig, ctx: PricingContext): QuoteBr
       });
     } else {
       warnings.push(
-        `Trenching distance ${metres}m on ${surface} ground requires a bespoke quote — contact us.`,
+        `Trenching distance ${metres}m on ${surface} ground requires a bespoke quote. Please contact us.`,
       );
       lineItems.push({
         sku: `TRENCH-${surface.toUpperCase()}-BESPOKE`,
         category: 'trenching',
-        label: `${surface === 'soft' ? 'Soft' : 'Hard'} ground trenching (${metres}m) — bespoke`,
+        label: `${surface === 'soft' ? 'Soft' : 'Hard'} ground trenching (${metres}m), bespoke`,
         quantity: 1,
         unitGbp: 0,
         totalGbp: 0,

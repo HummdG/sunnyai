@@ -123,7 +123,7 @@ function Upload() {
             upload.example ? (
               <>
                 Example products (HSEnergy 2026){' '}
-                <Chip tone="orange">Example — edit before going live</Chip>
+                <Chip tone="orange">Example: edit before going live</Chip>
               </>
             ) : upload.fileName ? (
               `Preview: ${upload.fileName}`
@@ -209,7 +209,7 @@ function Upload() {
                         <span className="price">{price(p)}</span>{' '}
                         <PriceStatusChip status={p.priceStatus} />
                       </td>
-                      <td>{p.warrantyYears === null ? '—' : `${p.warrantyYears} yrs`}</td>
+                      <td>{p.warrantyYears === null ? '–' : `${p.warrantyYears} yrs`}</td>
                     </tr>
                   ))}
                 </tbody>

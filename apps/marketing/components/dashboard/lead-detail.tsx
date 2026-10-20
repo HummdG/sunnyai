@@ -152,11 +152,11 @@ export function LeadDetail({
         </div>
         <div>
           <dt>Contact</dt>
-          <dd>{[lead.email, lead.phone].filter(Boolean).join(' · ') || '—'}</dd>
+          <dd>{[lead.email, lead.phone].filter(Boolean).join(' · ') || '–'}</dd>
         </div>
         <div>
           <dt>Postcode</dt>
-          <dd>{lead.postcode ?? '—'}</dd>
+          <dd>{lead.postcode ?? '–'}</dd>
         </div>
       </dl>
       <p className="lead-summary">{lead.summary}</p>
@@ -220,8 +220,8 @@ export function LeadDetail({
                   <p className="small muted">
                     {quote.pricing?.priceStatus === 'verified'
                       ? 'From your price list'
-                      : 'Indicative'}{' '}
-                    — subject to a survey
+                      : 'Indicative'}
+                    , subject to a survey
                   </p>
                   <dl>
                     <dt>System</dt>
@@ -241,7 +241,7 @@ export function LeadDetail({
                     <dt>Payback</dt>
                     <dd>
                       {option.paybackYears === null
-                        ? '—'
+                        ? '–'
                         : `About ${Math.round(option.paybackYears)} years`}
                     </dd>
                   </dl>
@@ -311,8 +311,8 @@ export function LeadDetail({
           <>
             <p>
               About {Math.round(roof.assessment.usableRoofAreaM2 ?? 0)} m² usable
-              {roof.assessment.bestFacing ? `, best facing ${roof.assessment.bestFacing}` : ''} —
-              room for up to {roof.assessment.estimatedMaxPanels ?? '—'} panels (estimate).
+              {roof.assessment.bestFacing ? `, best facing ${roof.assessment.bestFacing}` : ''},
+              with room for up to {roof.assessment.estimatedMaxPanels ?? '–'} panels (estimate).
             </p>
             {roof.assessment.reliable === false ? (
               <p className="warning-note">
@@ -337,7 +337,7 @@ export function LeadDetail({
                 ))}
               </ul>
             ) : null}
-            <p className="small muted">Indicative — subject to an on-site survey.</p>
+            <p className="small muted">Indicative, subject to an on-site survey.</p>
             {roof.modelAvailable ? (
               show3d ? (
                 <RoofViewer3D

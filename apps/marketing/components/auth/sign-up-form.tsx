@@ -31,7 +31,7 @@ export function SignUpForm(): React.JSX.Element {
   return (
     <section aria-labelledby="auth-title">
       <AuthHeading
-        title="Get started — it’s free to try"
+        title="Get started: it’s free to try"
         lead="Create your account and Sunny will be answering your website visitors in about ten minutes."
       />
       {mode === 'loading' ? <p className="muted">Getting sign-up ready…</p> : null}

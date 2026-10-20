@@ -121,7 +121,7 @@ export function selectTarget(req: BuildModelRequest, buildings: BuildingsResult 
       // an OSM building cannot be found while OpenStreetMap (Overpass) is down: that is an outage, not a bad request
       const overpassDown = !!buildings && ref.startsWith('osm:') && !buildings.sources.some((x) => x.startsWith('overpass'));
       if (overpassDown) {
-        throw new PipelineError(502, 'upstream-error', `OpenStreetMap (Overpass) is unavailable, so building ${ref} could not be loaded — try again in a minute`);
+        throw new PipelineError(502, 'upstream-error', `OpenStreetMap (Overpass) is unavailable, so building ${ref} could not be loaded. Try again in a minute`);
       }
       throw new PipelineError(404, 'building-not-found', `building ${ref} not found near ${req.lat.toFixed(6)}, ${req.lon.toFixed(6)}`);
     }
@@ -147,7 +147,7 @@ export function selectTarget(req: BuildModelRequest, buildings: BuildingsResult 
       target = best?.b;
       how = 'nearest';
     }
-    if (!target) throw new PipelineError(422, 'no-building', `no building footprint at or near ${req.lat.toFixed(6)}, ${req.lon.toFixed(6)} — draw the outline on the map`);
+    if (!target) throw new PipelineError(422, 'no-building', `no building footprint at or near ${req.lat.toFixed(6)}, ${req.lon.toFixed(6)}. Draw the outline on the map`);
     if (how !== 'provider') warnings.push(`target chosen by ${how === 'contains' ? 'point-in-polygon' : 'proximity'} (no provider candidate)`);
   }
   const frame = frameAtCentroid(target.outer, target.holes);
