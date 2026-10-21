@@ -243,6 +243,14 @@ export default function PrivacyPage(): React.JSX.Element {
           <p>
             These are strictly necessary for a service you ask for, so they do not need consent.
           </p>
+          <h3 id="waitlist">If you join our waitlist</h3>
+          <p>
+            We keep your email address, your company name if you give it, when you joined, the
+            wording you agreed to and the website you joined from. We use them only to email you
+            when Sunny is ready for your business, with your consent, which you can withdraw at any
+            time by emailing {LEGAL.contactEmail}. We do not share the list with anyone. Your IP
+            address is used briefly to stop abuse of the form, and is not kept with your entry.
+          </p>
 
           <h2 id="lawful-bases">6. Our lawful bases</h2>
           <p>Where we are the controller, we rely on:</p>
@@ -356,6 +364,10 @@ export default function PrivacyPage(): React.JSX.Element {
               [
                 'Installer accounts and content',
                 'While the account is open, then deleted within 90 days of it closing',
+              ],
+              [
+                'Waitlist entries',
+                'Until we have invited you to sign up, or you ask to be removed',
               ],
               ['Billing records', 'Six years, as UK tax law requires'],
               ['Backups', 'Seven days, then overwritten'],

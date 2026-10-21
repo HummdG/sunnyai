@@ -79,7 +79,7 @@ export function VerifyEmail(): React.JSX.Element {
           className="button secondary"
           onClick={() => {
             setError(null);
-            resendVerification()
+            resendVerification(next)
               .then(() => setResent(true))
               .catch((failure: unknown) => setError(friendlyAuthError(failure)));
           }}

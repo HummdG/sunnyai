@@ -149,6 +149,35 @@ test('every page in the site map renders with its own heading', async ({ page })
   }
 });
 
+test('the waitlist form joins the real list, and only with consent', async ({ page }) => {
+  await page.goto('/#waitlist');
+  const section = page.locator('#waitlist');
+  await expect(section.getByRole('heading', { name: 'Save your place' })).toBeVisible();
+  await expect(section.locator('figure.scene')).toHaveCount(1);
+
+  const email = `e2e-${Date.now()}@example.com`;
+  await section.getByLabel('Work email').fill(email);
+  await section.getByLabel(/Company/).fill('E2E Solar');
+
+  // The browser holds the form until the box is ticked; nothing is sent.
+  const sent: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().endsWith('/v1/waitlist')) sent.push(r.method());
+  });
+  await section.getByRole('button', { name: 'Join the waitlist' }).click();
+  await expect(section.getByRole('checkbox')).toBeFocused();
+  expect(sent.filter((m) => m === 'POST')).toEqual([]);
+
+  await section.getByRole('checkbox').check();
+  const response = page.waitForResponse(
+    (r) => r.url().endsWith('/v1/waitlist') && r.request().method() === 'POST',
+  );
+  await section.getByRole('button', { name: 'Join the waitlist' }).click();
+  expect((await response).status()).toBe(200);
+  await expect(section.getByText('You’re on the list.')).toBeVisible();
+  await expect(section.getByText(email)).toBeVisible();
+});
+
 // The owner's house style: no em dashes in anything a visitor reads.
 test('no page uses an em dash', async ({ page }) => {
   for (const path of [

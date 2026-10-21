@@ -133,18 +133,45 @@ function continueUrl(path: string): string {
   return `${window.location.origin}${path}`;
 }
 
-export async function signUpWithPassword(email: string, password: string): Promise<void> {
+/**
+ * Where the verification email's link carries on to. The page the person was
+ * heading for travels inside it as `next`, so following the link from the
+ * email, in a new tab, still ends where they meant to go: an invited colleague
+ * back on their invitation rather than in the owner's setup wizard.
+ */
+function verifyContinueUrl(next: string): string {
+  return continueUrl(`/verify-email?done=1&next=${encodeURIComponent(next)}`);
+}
+
+/** The page a verification link should finish on: `next` if it is one of ours. */
+export function nextFromContinueUrl(continueUrlParam: string | null, fallback: string): string {
+  if (!continueUrlParam) return fallback;
+  try {
+    const url = new URL(continueUrlParam);
+    if (url.origin !== window.location.origin) return fallback;
+    const next = url.searchParams.get('next') ?? '';
+    return next.startsWith('/') && !next.startsWith('//') ? next : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+  next = '/dashboard/onboarding',
+): Promise<void> {
   const auth = await firebaseAuth();
   const { createUserWithEmailAndPassword, sendEmailVerification } = await import('firebase/auth');
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
-  await sendEmailVerification(user, { url: continueUrl('/verify-email?done=1') });
+  await sendEmailVerification(user, { url: verifyContinueUrl(next) });
 }
 
-export async function resendVerification(): Promise<void> {
+export async function resendVerification(next = '/dashboard/onboarding'): Promise<void> {
   const auth = await firebaseAuth();
   const { sendEmailVerification } = await import('firebase/auth');
   if (!auth.currentUser) throw new AuthProblem('signed-out', 'Sign in again to resend the email.');
-  await sendEmailVerification(auth.currentUser, { url: continueUrl('/verify-email?done=1') });
+  await sendEmailVerification(auth.currentUser, { url: verifyContinueUrl(next) });
 }
 
 /** After the verification link: refresh the account and start the session. */

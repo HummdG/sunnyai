@@ -307,6 +307,22 @@ response against the contract schema. It refuses to run against a non-loopback
 `SUNNY_SOURCE_ID` adds a second copy of the document rather than replacing it,
 which the script says when it finishes.
 
+### The waitlist
+
+The home page's waitlist form posts to `POST /v1/waitlist`, which in production
+accepts only the origins in `WIDGET_ALLOWED_ORIGINS`, so the website's own URL
+must be on that list. Entries are an email, an optional company name, the date
+and the consent wording's version. Read them, or remove someone who asks, with
+the admin token (both are recorded in the audit trail):
+
+```sh
+curl -H "Authorization: Bearer $SUNNY_ADMIN_TOKEN" https://<api-host>/v1/waitlist
+curl -X DELETE -H "Authorization: Bearer $SUNNY_ADMIN_TOKEN"   -H 'content-type: application/json' -d '{"email":"jo@example.com"}'   https://<api-host>/v1/waitlist
+```
+
+The privacy policy says entries are kept until the person is invited or asks to
+be removed, so remove people once they have been invited.
+
 ### The isolation sweep
 
 ```sh

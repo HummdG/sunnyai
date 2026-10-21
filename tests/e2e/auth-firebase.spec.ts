@@ -184,3 +184,24 @@ test('Google sign-in through the emulator, as a brand-new installer', async () =
   await expect(page).toHaveURL(/\/dashboard/);
   await expectSecureSession(page, context);
 });
+
+test('the email link returns someone to where they were going, not the setup wizard', async ({
+  browser,
+}) => {
+  // An invited colleague signs up from their invitation, and opens the email
+  // link in a new tab: they must land back on the invitation, not in the
+  // owner's onboarding. A public page stands in for the invitation here.
+  const fresh = await browser.newContext();
+  const tab = await fresh.newPage();
+  const email = `returning-${RUN}@brightside.test`;
+  await tab.goto(`${SITE}/sign-up?next=%2Fpricing`);
+  await tab.getByLabel('Work email').fill(email);
+  await tab.getByLabel('Choose a password', { exact: true }).fill('sunny-return-6650');
+  await tab.getByRole('button', { name: 'Create my account' }).click();
+  await expect(tab).toHaveURL(/\/verify-email\?.*next=%2Fpricing/);
+
+  const fromEmail = await fresh.newPage();
+  await fromEmail.goto(await actionLink(fromEmail, email, 'VERIFY_EMAIL'));
+  await expect(fromEmail).toHaveURL(`${SITE}/pricing`);
+  await fresh.close();
+});

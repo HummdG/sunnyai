@@ -13,8 +13,10 @@ import {
   QualifyScene,
   RecommendScene,
   TeachScene,
+  WaitlistScene,
   WelcomeScene,
 } from '../../components/scenes/home.js';
+import { WaitlistForm } from '../../components/waitlist-form.js';
 import { PUBLIC_ID } from '../config.js';
 
 const SNIPPET = `<script
@@ -207,6 +209,23 @@ export default function Home(): JSX.Element {
           <p className="more-link">
             <Link href="/pricing">Compare plans in detail →</Link>
           </p>
+        </div>
+      </section>
+
+      <section className="section" id="waitlist">
+        <div className="wrap story">
+          <div className="story-copy">
+            <span className="eyebrow">Waitlist</span>
+            <h2>Save your place</h2>
+            <p className="intro">
+              Sunny is opening to UK solar installers a few at a time, so every company gets a
+              proper welcome. Leave your email and we&rsquo;ll tell you when yours is ready.
+            </p>
+            <WaitlistForm />
+          </div>
+          <div className="story-art">
+            <WaitlistScene />
+          </div>
         </div>
       </section>
 

@@ -21,7 +21,13 @@ import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan
 import type { CatalogueState } from './catalogue/types.js';
 import type { QuoteRecord } from './journey/quote.js';
 import type { Tenant } from './tenants.js';
-import type { AuditEvent, IngestionJob, Product, RecommendationWant } from '@sunny/contracts';
+import type {
+  AuditEvent,
+  IngestionJob,
+  Product,
+  RecommendationWant,
+  WaitlistEntry,
+} from '@sunny/contracts';
 
 /**
  * The production store: Firestore, behind the same `Store` interface the file
@@ -995,5 +1001,33 @@ export class FirestoreStore implements Store {
       const current = snap.exists ? ((snap.data() as { at: number }).at ?? 0) : 0;
       transaction.set(ref, { email: email.toLowerCase(), at: Math.max(current, at) });
     });
+  }
+
+  async joinWaitlist(entry: WaitlistEntry): Promise<boolean> {
+    const row = { ...entry, email: entry.email.toLowerCase() };
+    try {
+      // `create` fails if the document exists: two submissions of one address
+      // in the same instant still make one entry, the first.
+      await this.#db.collection('waitlist').doc(docId('w', row.email)).create(row);
+      return true;
+    } catch (error) {
+      if ((error as { code?: number }).code === 6) return false; // ALREADY_EXISTS
+      throw error;
+    }
+  }
+
+  async listWaitlist(): Promise<WaitlistEntry[]> {
+    const snap = await this.#db.collection('waitlist').get();
+    return snap.docs
+      .map((doc) => doc.data() as WaitlistEntry)
+      .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+  }
+
+  async leaveWaitlist(email: string): Promise<boolean> {
+    const ref = this.#db.collection('waitlist').doc(docId('w', email.toLowerCase()));
+    const snap = await ref.get();
+    if (!snap.exists) return false;
+    await ref.delete();
+    return true;
   }
 }

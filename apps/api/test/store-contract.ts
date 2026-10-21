@@ -509,6 +509,39 @@ export function storeContract(
       expect((await store.health()).ok).toBe(true);
     });
 
+    // The waitlist is deployment-wide, so the addresses are unique per run
+    // rather than scoped by tenant: a shared emulator holds every run's rows.
+    it('keeps one waitlist entry per address, the first, and removes it on request', async () => {
+      const { store } = await harness();
+      const tag = Math.random().toString(36).slice(2, 10);
+      const first = `First.${tag}@Example.com`;
+      const second = `second.${tag}@example.com`;
+      const entry = (email: string, joinedAt: string, company: string | null) => ({
+        email,
+        company,
+        joinedAt,
+        consentVersion: '2026-10-21',
+        origin: 'https://sunny.ai',
+      });
+
+      expect(await store.joinWaitlist(entry(second, at(-1), null))).toBe(true);
+      expect(await store.joinWaitlist(entry(first, at(-2), 'Bright Roofs'))).toBe(true);
+      // The same address, differently cased: already listed, and the first entry kept.
+      expect(await store.joinWaitlist(entry(first.toUpperCase(), at(0), 'Other'))).toBe(false);
+
+      const mine = (await store.listWaitlist()).filter((e) => e.email.includes(tag));
+      expect(mine.map((e) => [e.email, e.company])).toEqual([
+        [first.toLowerCase(), 'Bright Roofs'],
+        [second, null],
+      ]);
+
+      expect(await store.leaveWaitlist(first)).toBe(true);
+      expect(await store.leaveWaitlist(first)).toBe(false);
+      expect(
+        (await store.listWaitlist()).filter((e) => e.email.includes(tag)).map((e) => e.email),
+      ).toEqual([second]);
+    });
+
     it('keeps SunScan assessments per tenant, the latest save of an id current', async () => {
       const { store, tenant } = await harness();
       const a = tenant('sunscan-a');

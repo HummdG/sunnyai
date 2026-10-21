@@ -321,4 +321,30 @@ export function SunriseScene(): React.JSX.Element {
   );
 }
 
+/** The waitlist: Sunny with the list, keeping a place for the next installer. */
+export function WaitlistScene(): React.JSX.Element {
+  return (
+    <Scene
+      width={520}
+      height={380}
+      label="Sunny holds up a clipboard with a list of names, smiling, with a sparkle beside it."
+      back={
+        <>
+          <Sunburst x={260} y={220} r={230} count={24} />
+          <Cloud x={36} y={60} s={0.7} />
+          <Ground y={344} width={520} bulge={6} />
+        </>
+      }
+      sunny={{
+        pose: 'hold',
+        play: 'listening-perk',
+        props: [held('clipboard', 66, -14, 8, 2), held('sparkle', -70, -78, 0, 1.4)],
+        expression: 'delighted',
+      }}
+      at={{ x: 140, y: 100 }}
+      size={240}
+    />
+  );
+}
+
 export { NightShiftScene, CorkboardScene as TeachScene } from './stories.js';

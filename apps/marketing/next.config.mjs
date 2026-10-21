@@ -75,6 +75,7 @@ const nextConfig = {
     '@sunny/ui',
     '@sunny/sunscan-viewer',
     '@sunny/sunscan-core',
+    '@sunny/contracts',
   ],
 
   /**

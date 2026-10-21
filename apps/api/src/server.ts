@@ -12,6 +12,10 @@ import {
   sessionRequestSchema,
   knowledgeSourceRequestSchema,
   STATUS_FOR_CODE,
+  WAITLIST_CONSENT_VERSION,
+  waitlistRemoveSchema,
+  waitlistRequestSchema,
+  type WaitlistResponse,
   type AuditAction,
   type AuditEventsResponse,
   type AuditOutcome,
@@ -921,6 +925,92 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       createdAt: result.lead.createdAt,
       duplicate: result.outcome === 'replayed',
     };
+  });
+
+  /**
+   * The home page's waitlist: an installer asking to hear when Sunny opens.
+   *
+   * Public, so it is guarded the way the other public writes are: limited per
+   * client address, and in production only Sunny's own sites may post (the
+   * platform list, `WIDGET_ALLOWED_ORIGINS`), not an installer's. Nothing is
+   * stored without the consent box, and the answer is the same whether the
+   * address was new or already listed, so the form cannot be used to find out
+   * who has joined.
+   */
+  app.post('/v1/waitlist', async (request, reply): Promise<WaitlistResponse> => {
+    // The leads limit, in a bucket of its own: the same kind of write (a durable
+    // row from an anonymous page), so the same allowance, but a busy waitlist
+    // must not use up a visitor's enquiries or the other way round.
+    enforceRateLimit(
+      request,
+      reply,
+      'waitlist',
+      clientAddress({
+        socketAddress: request.raw.socket.remoteAddress,
+        forwardedFor: request.headers['x-forwarded-for'],
+        trustedHops: config.rateLimit.trustProxyHops,
+      }),
+      config.rateLimit.rules.leads,
+    );
+
+    const origin = typeof request.headers.origin === 'string' ? request.headers.origin : null;
+    if (
+      config.nodeEnv === 'production' &&
+      (origin === null || !config.allowedOrigins.includes(origin))
+    ) {
+      throw new ApiError('forbidden', 'The waitlist can only be joined from the Sunny website.');
+    }
+
+    const body = waitlistRequestSchema.safeParse(request.body);
+    if (!body.success) throw badRequestFromZod(body.error);
+
+    await store.joinWaitlist({
+      email: body.data.email,
+      company: body.data.company || null,
+      joinedAt: new Date(now()).toISOString(),
+      consentVersion: WAITLIST_CONSENT_VERSION,
+      origin,
+    });
+    return { ok: true };
+  });
+
+  /** The operator reading the waitlist out, to invite people. Admin token. */
+  app.get('/v1/waitlist', async (request) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'The waitlist is not readable on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    const audit = auditChannel(request, 'waitlist.read', { kind: 'waitlist', id: null });
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      await audit('denied', { reason: 'bad_credential' });
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+    const entries = await store.listWaitlist();
+    // The count, not the addresses, for the same reason as the lead list.
+    await audit('permitted', { detail: { entries: entries.length } });
+    return { entries };
+  });
+
+  /** Someone asked to be taken off the waitlist. Admin token; the email in the body. */
+  app.delete('/v1/waitlist', async (request) => {
+    if (config.adminToken === null) {
+      throw new ApiError(
+        'not_enabled',
+        'The waitlist is not editable on this deployment (SUNNY_ADMIN_TOKEN is unset).',
+      );
+    }
+    const audit = auditChannel(request, 'waitlist.delete', { kind: 'waitlist', id: null });
+    if (!tokensMatch(bearer(request), config.adminToken)) {
+      await audit('denied', { reason: 'bad_credential' });
+      throw new ApiError('unauthorized', 'A valid admin token is required.');
+    }
+    const body = waitlistRemoveSchema.safeParse(request.body);
+    if (!body.success) throw badRequestFromZod(body.error);
+    const removed = await store.leaveWaitlist(body.data.email);
+    await audit('permitted', { detail: { removed } });
+    return { removed };
   });
 
   /**

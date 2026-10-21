@@ -11,6 +11,7 @@ import {
   finishVerification,
   friendlyAuthError,
   isMagicLink,
+  nextFromContinueUrl,
   rememberedLinkEmail,
   resetEmailFor,
 } from '../../lib/auth-client.js';
@@ -149,6 +150,7 @@ function FinishLink() {
 
 function ApplyCode({ code, mode }: { code: string; mode: string }) {
   const router = useRouter();
+  const continueUrlParam = useSearchParams().get('continueUrl');
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -156,11 +158,11 @@ function ApplyCode({ code, mode }: { code: string; mode: string }) {
       .then(async () => {
         setDone(true);
         if (mode === 'verifyEmail' && (await finishVerification().catch(() => false))) {
-          router.replace('/dashboard/onboarding');
+          router.replace(nextFromContinueUrl(continueUrlParam, '/dashboard/onboarding'));
         }
       })
       .catch((failure: unknown) => setError(friendlyAuthError(failure)));
-  }, [code, mode, router]);
+  }, [code, mode, router, continueUrlParam]);
   const title =
     mode === 'verifyEmail'
       ? 'Email confirmed'

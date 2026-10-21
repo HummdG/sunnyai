@@ -14,3 +14,4 @@ export * from './knowledge.js';
 export * from './audit.js';
 export * from './dashboard.js';
 export * from './sunscan.js';
+export * from './waitlist.js';

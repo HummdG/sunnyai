@@ -586,6 +586,30 @@ const ROUTES: RouteSpec[] = [
   },
   {
     method: 'POST',
+    pattern: '/v1/waitlist',
+    url: () => '/v1/waitlist',
+    // Public: the home page's form, before the person has any account. It writes
+    // only the address it is given, to a deployment-wide list no tenant can read.
+    kind: 'public',
+    payload: () => ({ email: 'sweep-waitlist@example.test', consent: true }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/waitlist',
+    url: () => '/v1/waitlist',
+    // Admin: everyone who asked to hear about Sunny, which no installer and no
+    // visitor may read.
+    kind: 'admin',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/waitlist',
+    url: () => '/v1/waitlist',
+    kind: 'admin',
+    payload: () => ({ email: 'sweep-waitlist@example.test' }),
+  },
+  {
+    method: 'POST',
     pattern: '/v1/knowledge/sources',
     url: () => '/v1/knowledge/sources',
     kind: 'admin',

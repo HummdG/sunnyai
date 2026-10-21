@@ -67,6 +67,10 @@ export const AUDIT_ACTIONS = [
    * `system` as the actor, since no person did it, with the counts in `detail`.
    */
   'retention.purge',
+  /** The waitlist read out by the operator. `GET /v1/waitlist`. */
+  'waitlist.read',
+  /** Someone removed from the waitlist, at their request. `DELETE /v1/waitlist`. */
+  'waitlist.delete',
   /**
    * The assistant invoked one of its tools that has an effect outside this
    * conversation.
@@ -160,6 +164,8 @@ export const AUDIT_TARGET_KINDS = [
   'knowledge_source',
   'ingestion_job',
   'lead_list',
+  /** The deployment-wide waitlist (`waitlist.ts`). `id` is always null. */
+  'waitlist',
   /** One conversation, identified by its session id. Erased whole, or purged. */
   'conversation',
   /** A tool in the closed `TOOL_NAMES` list; `id` is the tool's name. */

@@ -11,7 +11,8 @@ api_image = "europe-west2-docker.pkg.dev/your-gcp-project/sunny-staging/sunny-ap
 
 # Every origin that is allowed to open a widget session. The API refuses to boot
 # in production with this empty, so an incomplete list is a loud failure rather
-# than an open door.
+# than an open door. Include the website's own URL (site_url): its chat and its
+# waitlist form both call the API from there.
 allowed_origins = [
   "https://staging.example.com",
 ]

@@ -7,6 +7,7 @@ import type {
   LeadConsent,
   Product,
   RecommendationWant,
+  WaitlistEntry,
 } from '@sunny/contracts';
 
 import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
@@ -542,6 +543,16 @@ export interface Store {
    */
   getSessionEpoch(email: string): Promise<number>;
   revokeSessions(email: string, at: number): Promise<void>;
+  /**
+   * Add someone to the waitlist (`packages/contracts/src/waitlist.ts`), keyed by
+   * lowercased email. False when the address was already on it, in which case
+   * the first entry is kept: the date they first asked is the useful one.
+   */
+  joinWaitlist(entry: WaitlistEntry): Promise<boolean>;
+  /** Everyone on the waitlist, earliest first. */
+  listWaitlist(): Promise<WaitlistEntry[]>;
+  /** Remove one address. False when it was not on the list. */
+  leaveWaitlist(email: string): Promise<boolean>;
   /**
    * SunScan roof assessments (routes/sunscan.ts). Keyed by tenant and id: an id
    * from another installer is not found. The latest save of an id is current --
@@ -1577,6 +1588,36 @@ export class FileStore implements Store {
       const key = email.toLowerCase();
       all[key] = Math.max(all[key] ?? 0, at);
       await this.#writeJson(this.#sessionEpochFile, all);
+    });
+  }
+
+  get #waitlistFile(): string {
+    return join(this.#portalDir, 'waitlist.json');
+  }
+
+  joinWaitlist(entry: WaitlistEntry): Promise<boolean> {
+    const row = { ...entry, email: entry.email.toLowerCase() };
+    return this.#exclusively(async () => {
+      const all = await this.#readJson<WaitlistEntry[]>(this.#waitlistFile, []);
+      if (all.some((e) => e.email === row.email)) return false;
+      await this.#writeJson(this.#waitlistFile, [...all, row]);
+      return true;
+    });
+  }
+
+  async listWaitlist(): Promise<WaitlistEntry[]> {
+    const all = await this.#readJson<WaitlistEntry[]>(this.#waitlistFile, []);
+    return [...all].sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+  }
+
+  leaveWaitlist(email: string): Promise<boolean> {
+    const key = email.toLowerCase();
+    return this.#exclusively(async () => {
+      const all = await this.#readJson<WaitlistEntry[]>(this.#waitlistFile, []);
+      const rest = all.filter((e) => e.email !== key);
+      if (rest.length === all.length) return false;
+      await this.#writeJson(this.#waitlistFile, rest);
+      return true;
     });
   }
 }

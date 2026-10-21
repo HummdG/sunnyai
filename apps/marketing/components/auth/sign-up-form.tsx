@@ -47,7 +47,7 @@ export function SignUpForm(): React.JSX.Element {
               event.preventDefault();
               setBusy(true);
               setError(null);
-              signUpWithPassword(email, password)
+              signUpWithPassword(email, password, next)
                 .then(() =>
                   router.replace(
                     `/verify-email?email=${encodeURIComponent(email)}&sent=1&next=${encodeURIComponent(next)}`,
