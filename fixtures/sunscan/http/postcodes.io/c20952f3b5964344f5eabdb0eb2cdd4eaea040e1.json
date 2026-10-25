@@ -1,0 +1,16 @@
+{
+ "schema": "sunscan.http/1",
+ "provider": "postcodes.io",
+ "request": {
+  "method": "GET",
+  "url": "https://api.postcodes.io/postcodes/BN10%207SN"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "etag": "W/\"77a-a+wrxTXqt8gTqm8of0K+uxxHl4Y\""
+ },
+ "url": "https://api.postcodes.io/postcodes/BN10%207SN",
+ "fetchedAt": "2026-10-25T20:32:35.403Z",
+ "bytes": 1914
+}

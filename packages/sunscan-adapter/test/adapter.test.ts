@@ -117,6 +117,20 @@ describe('addresses recorded on the first live run (docs/integration/sunscan-liv
     expect(Math.round(s.usableRoofAreaM2)).toBe(60);
   }, 120_000);
 
+  it('finds the south slope a short map outline cut off (3A Downs Walk, Peacehaven)', async () => {
+    // The OSM outline stops about a metre inside the roof on the south side. Fitted inside it, the south slope
+    // came out at 63 degrees and the house had no usable roof; grown to the roof the LiDAR sees, it is a
+    // south-facing slope with room for panels.
+    const { summary: s } = await engine.assess({ address: '3A Downs Walk, Peacehaven BN10 7SN' });
+    expect(s.reliable).toBe(true);
+    expect(s.bestFacing).toBe('S');
+    const south = s.roofPlanes.find((p) => p.facing === 'S')!;
+    expect(south.suitable).toBe(true);
+    expect(south.pitchDeg).toBeLessThanOrEqual(50);
+    expect(s.usableRoofAreaM2).toBeGreaterThan(30);
+    expect(s.estimatedMaxPanels).toBeGreaterThanOrEqual(10);
+  }, 120_000);
+
   it('flags a London terrace it cannot fit reliably instead of claiming it (48 Doughty Street)', async () => {
     const { summary: s } = await engine.assess({ address: '48 Doughty Street, London WC1N 2LX' });
     expect(s.reliable).toBe(false);

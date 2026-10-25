@@ -7,6 +7,7 @@ import type { EdgeKind } from '../geometry/roof.js';
 import type { PolygonM, Vec2 } from '../geometry/geom.js';
 import { coregister } from './coregister.js';
 import { estimateGround } from './ground.js';
+import { growOutline } from './grow.js';
 import { DEFAULT_PIXELS, selectPixels, subsetPixels, type PixelSet } from './pixels.js';
 import { DEFAULT_LIBRARY, type LibraryOptions, type ModelDef, type PartGeom, makePartGeom, partLibrary } from './models.js';
 import { DEFAULT_FIT, type FitSettings, type Hyp, fitModel, selectHypotheses, singleHyp } from './select.js';
@@ -108,8 +109,12 @@ export function reconstruct(input: ReconstructInput): ReconstructOutput {
     shift: [shift[0], shift[1]], sigmaMajor: reg.sigmaMajor, sigmaMinor: reg.sigmaMinor, method: reg.method,
     ...(reg.flags.length ? { flag: reg.flags[0] } : {}),
   };
-  const T = translatePoly(tgt.poly, shift[0], shift[1]);
   const others = nbrs.map((n) => ({ ...n, poly: translatePoly(n.poly, shift[0], shift[1]) }));
+  // 2b. outline growth: a free edge the roof runs past (a stale or offset map outline) moves out to it, since
+  //     every model starts its eaves at one height and a slope cut short can only fit by turning too steep
+  const grown = growOutline(translatePoly(tgt.poly, shift[0], shift[1]), tgt.kinds, dsm, dtm, dsmLast, others.map((n) => n.poly));
+  if (grown.grown) flags.push('outline-grown');
+  const T = grown.poly;
   // 3. ground
   const gr = estimateGround(dtm, T, others.map((n) => n.poly));
   if (gr.mismatch) flags.push('ground-mismatch');
