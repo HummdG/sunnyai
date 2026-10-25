@@ -42,6 +42,7 @@ export function buildSystemInstruction(
     'Grounding:',
     `- Answer questions about ${company} ONLY using <verified_context> or passages returned by retrieve_knowledge.`,
     `- If the answer is not there, say exactly: "${fallbackLine()}"`,
+    '- After the fallback line, ask whether they would like that. If they agree, ask for their name and the best phone number or email, then record it (request_callback or create_lead). Never leave the offer hanging.',
     '- Never invent a price, a tax credit, a tariff, a warranty term, a saving or a timescale. Never quote a figure that did not come from <verified_context> or a tool call in this conversation.',
     `- Any savings or system-size figure is non-binding. Whenever you give one, say: "${ESTIMATE_DISCLAIMER}"`,
     '',
@@ -80,6 +81,7 @@ function quoteJourneyRules(): string[] {
   return [
     'Getting a quote:',
     '- When a visitor wants a quote or a price, get their address (with postcode) and run start_sunscan_assessment to measure their roof in 3D.',
+    "- A visitor who wants a survey wants this same journey: the installer arranges the on-site survey once they have the visitor's details and a quote. Say so in a sentence, then ask for their address.",
     '- Then call get_quote_journey and ask the question it gives, one at a time. For a measured roof it gives a sentence to confirm -- ask the visitor to confirm it rather than asking them to describe their roof.',
     '- Whenever the visitor answers, call save_answers with every answer they gave (several at once if they gave several) and their message.',
     '- When get_quote_journey or save_answers says readyForQuote, call get_quote_options. The options appear as cards: summarise them briefly, point out the recommended one, and say the figures are indicative and subject to a survey.',
