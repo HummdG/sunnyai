@@ -67,7 +67,7 @@ import { explain, nextQuestion, reconcile, validateAnswer } from './questionnair
 import { startRetention } from './retention.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
 import { newId, type DeletedConversation, type ModelCall, type Store } from './store.js';
-import type { TenantRegistry } from './tenants.js';
+import { DEMO_TENANT, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { FileVoiceUsage } from './channels/voice/usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
@@ -459,7 +459,18 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // production such a widget opens nowhere -- fail closed until the installer
     // registers their site in the portal.
     if (!tenant.domains || tenant.domains.length === 0) {
-      if (config.nodeEnv === 'production') {
+      // Sunny's own demo (the home page's "Chat with Sunny") is registered to
+      // the platform's own site: it opens where both the page and the browser
+      // say the visitor is on one of the platform's origins, and nowhere else.
+      const headerOrigin =
+        typeof request.headers.origin === 'string' ? request.headers.origin : null;
+      const onPlatformSite =
+        tenant.id === DEMO_TENANT.id &&
+        origin !== null &&
+        headerOrigin !== null &&
+        config.allowedOrigins.includes(origin) &&
+        config.allowedOrigins.includes(headerOrigin);
+      if (config.nodeEnv === 'production' && !onPlatformSite) {
         throw new ApiError(
           'forbidden',
           'This assistant has no registered website yet. Add your domain in the Sunny portal.',

@@ -660,7 +660,21 @@ describe('registered domains', () => {
 
   it('refuses, in production, a widget whose installer has registered no site', async () => {
     const cfg = config({ nodeEnv: 'production', allowedOrigins: ['https://northwind.example'] });
-    const app = await server({ cfg, tenants: [demo({ domains: [] })] });
+    const app = await server({ cfg, tenants: [demo({ id: 't_installer01', domains: [] })] });
     expect((await session(app)).statusCode).toBe(403);
+  });
+
+  it("opens Sunny's own demo, in production, on Sunny's own site and nowhere else", async () => {
+    const site = 'https://sunny.example';
+    const cfg = config({ nodeEnv: 'production', allowedOrigins: [site] });
+    const app = await server({ cfg, tenants: [demo({ domains: [] })] });
+    expect((await session(app, { origin: site }, { origin: site })).statusCode).toBe(200);
+    expect(
+      (await session(app, { origin: 'https://copycat.example' }, { origin: site })).statusCode,
+    ).toBe(403);
+    // The page may claim Sunny's site; the browser's Origin header must agree.
+    expect(
+      (await session(app, { origin: site }, { origin: 'https://copycat.example' })).statusCode,
+    ).toBe(403);
   });
 });
