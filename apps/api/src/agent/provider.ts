@@ -102,6 +102,10 @@ export interface GeminiProviderOptions {
  * a key exists -- an unconfigured deployment does not need the dependency
  * resolved at boot, and a missing key should not be able to crash startup.
  */
+/** The nudge for a model that has looked things up and said nothing. */
+const ANSWER_NOW =
+  'Answer the visitor now, in words, from what you have already found. Do not look anything else up.';
+
 /** Rounds of tool calls one turn may take before it stops asking the model. */
 const MAX_TOOL_ROUNDS = 4;
 
@@ -170,15 +174,18 @@ export class GeminiProvider implements ChatProvider {
     // round must answer in words.
     let spoke = false;
     let wordsOnly = false;
+    // A silent words-only round gets one plain nudge to answer (below).
+    let nudged = false;
 
     // A turn is a loop: the model may ask for tools, their results go back to
     // it, and it answers (or asks again). A turn that stopped after the first
     // call streamed nothing whenever the model looked something up first.
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    // One round more than MAX_TOOL_ROUNDS, for the nudge.
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
       // On the last round the model may not call tools: one still looking
       // things up when the rounds run out would otherwise end the turn without
       // a word.
-      const toolsOff = wordsOnly || round === MAX_TOOL_ROUNDS - 1;
+      const toolsOff = wordsOnly || round >= MAX_TOOL_ROUNDS - 1;
       const response = await ai.models.generateContentStream({
         model: this.model,
         contents,
@@ -199,10 +206,18 @@ export class GeminiProvider implements ChatProvider {
       const responses: Part[] = [];
       let roundInput = 0;
       let roundOutput = 0;
+      // why a round ended, kept for the log when it ends without a word
+      let finishReason: string | undefined;
+      const partKinds = new Set<string>();
 
       for await (const chunk of response) {
         if (request.signal?.aborted) return;
-        modelParts.push(...(chunk.candidates?.[0]?.content?.parts ?? []));
+        const candidate = chunk.candidates?.[0];
+        modelParts.push(...(candidate?.content?.parts ?? []));
+        finishReason = candidate?.finishReason ?? finishReason;
+        for (const part of candidate?.content?.parts ?? []) {
+          for (const key of Object.keys(part)) partKinds.add(key);
+        }
         const text = chunk.text;
         if (text) {
           spoke = true;
@@ -217,7 +232,10 @@ export class GeminiProvider implements ChatProvider {
 
         // Tool calls are surfaced as events *and* executed here, so the caller
         // sees the same `tool_started`/`tool_finished` pair the widget animates.
-        for (const call of chunk.functionCalls ?? []) {
+        // On a words-only round a call is not run: the model was told it could
+        // not make one (seen live: it made it anyway, and the turn ran out of
+        // rounds without a word).
+        for (const call of toolsOff ? [] : (chunk.functionCalls ?? [])) {
           const name = call.name;
           // A function call with no name cannot be matched to a declaration, so
           // it is dropped. There is no path that guesses which tool was meant.
@@ -248,11 +266,31 @@ export class GeminiProvider implements ChatProvider {
 
       inputTokens += roundInput;
       outputTokens += roundOutput;
+      if (responses.length === 0 && !spoke) {
+        console.warn(
+          JSON.stringify({
+            severity: 'WARNING',
+            message: 'model round ended without words',
+            model: this.model,
+            round,
+            toolsOff,
+            finishReason: finishReason ?? null,
+            parts: [...partKinds],
+            outputTokens: roundOutput,
+          }),
+        );
+      }
       if (responses.length === 0) {
         // Seen live: after its tools ran, the model sometimes stopped without a
         // word. It is asked once more with tools off; its empty turn is not
-        // replayed. Silence from a round that was already words-only is final.
-        if (spoke || toolsOff) break;
+        // replayed. A words-only round that is silent too gets one plain nudge,
+        // and after that the silence is final (the agent says the next step).
+        if (spoke) break;
+        if (toolsOff) {
+          if (nudged) break;
+          nudged = true;
+          contents.push({ role: 'user', parts: [{ text: ANSWER_NOW }] });
+        }
         wordsOnly = true;
         continue;
       }

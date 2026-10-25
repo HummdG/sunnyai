@@ -184,6 +184,23 @@ describe('GeminiProvider', () => {
     expect(offeredTools).toEqual([true, true, false]);
   });
 
+  it('ignores a lookup on a words-only round, and asks once more for the answer', async () => {
+    // Seen live: four knowledge lookups, the last one made on the round that
+    // forbids them, then nothing. That lookup is not run; the model is nudged
+    // to answer from what it found.
+    const lookup = [[{ functionCall: { name: 'retrieve_knowledge', args: {} } }]];
+    rounds = [lookup, lookup, lookup, lookup, [[{ text: 'Check the inverter display.' }]]];
+    const { out, execute } = await run();
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(out.filter((c) => c.type === 'text').map((c) => c.text)).toEqual([
+      'Check the inverter display.',
+    ]);
+    const last = calls.at(-1)!.at(-1)!;
+    expect(last.role).toBe('user');
+    expect(last.parts[0]!.text).toMatch(/answer the visitor now/i);
+    expect(offeredTools.slice(-2)).toEqual([false, false]);
+  });
+
   it('does not ask again once the model has said something', async () => {
     rounds = [[[{ text: 'Hello.' }]], [[{ text: 'never asked for' }]]];
     await run();
