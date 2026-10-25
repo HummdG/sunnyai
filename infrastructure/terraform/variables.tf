@@ -64,6 +64,21 @@ variable "gemini_api_key_secret" {
   default     = "sunny-gemini-api-key"
 }
 
+variable "gemini_surface" {
+  description = <<-EOT
+    How the API reaches the model: "developer-api" (the Gemini API, for a key
+    made in AI Studio) or "vertex" (Vertex AI, for a key allowed to call it).
+    A key bound to an account can be restricted to one of the two, not both.
+  EOT
+  type        = string
+  default     = "developer-api"
+
+  validation {
+    condition     = contains(["developer-api", "vertex"], var.gemini_surface)
+    error_message = "gemini_surface must be \"developer-api\" or \"vertex\"."
+  }
+}
+
 variable "cloud_run_invoker_members" {
   description = <<-EOT
     Identities allowed to invoke the API directly. Empty means the service is

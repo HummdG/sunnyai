@@ -17,7 +17,13 @@ import {
  * instance on development defaults refuses to start.
  */
 
-const MANAGED = ['GEMINI_API_KEY', 'GOOGLE_CLOUD_PROJECT', 'GOOGLE_CLOUD_LOCATION', 'GEMINI_MODEL'];
+const MANAGED = [
+  'GEMINI_API_KEY',
+  'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_CLOUD_LOCATION',
+  'GEMINI_MODEL',
+  'GEMINI_SURFACE',
+];
 
 afterEach(() => {
   for (const name of MANAGED) delete process.env[name];
@@ -60,6 +66,24 @@ describe('configuration', () => {
     expect(report.chat.modelVerified).toBe(false);
     expect(report.chat.reason).toContain('Vertex AI documentation');
     expect(report.chat.surface).toBe('developer-api');
+  });
+
+  it('uses the Developer API when told to, even with a project set for the database', () => {
+    // A Gemini API key (AI Studio) cannot call Vertex, and Firestore needs the
+    // project regardless, so the choice can be made explicitly.
+    process.env['GEMINI_API_KEY'] = 'k';
+    process.env['GOOGLE_CLOUD_PROJECT'] = 'sunny-prod';
+    process.env['GEMINI_SURFACE'] = 'developer-api';
+
+    const config = loadConfig();
+    expect(config.gemini?.surface).toBe('developer-api');
+    expect(config.gemini?.project).toBeUndefined();
+  });
+
+  it('refuses to guess at a surface it does not know', () => {
+    process.env['GEMINI_API_KEY'] = 'k';
+    process.env['GEMINI_SURFACE'] = 'vertexx';
+    expect(() => loadConfig()).toThrow(/GEMINI_SURFACE/);
   });
 
   it('leaves escalation unset rather than pinning a retiring model', () => {

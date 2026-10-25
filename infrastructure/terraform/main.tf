@@ -34,9 +34,8 @@ resource "google_project_service" "artifactregistry" {
   disable_on_destroy = false
 }
 
-# The model. With GOOGLE_CLOUD_PROJECT set (it is, for Firestore), the API
-# calls Gemini through Vertex AI, so the project needs it on and the model key
-# must be allowed to call it.
+# Vertex AI, for gemini_surface = "vertex". On regardless: it costs nothing
+# until called, and switching surface should not need a second apply.
 resource "google_project_service" "aiplatform" {
   project            = var.project_id
   service            = "aiplatform.googleapis.com"
@@ -208,6 +207,11 @@ resource "google_cloud_run_v2_service" "api" {
             }
           }
         }
+      }
+
+      env {
+        name  = "GEMINI_SURFACE"
+        value = var.gemini_surface
       }
 
       env {

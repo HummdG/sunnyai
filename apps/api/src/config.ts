@@ -232,9 +232,15 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
 
   // A project implies Vertex: that is the surface where a project is meaningful,
   // and the one whose identifiers were verified. Without one, an API key alone
-  // is the Developer API. The decision is made here, once, and carried on the
-  // config so the provider does not have to re-derive it.
-  const surface: ModelSurface = project ? 'vertex' : 'developer-api';
+  // is the Developer API. GEMINI_SURFACE overrides the inference, because a
+  // deployed API always has a project (Firestore needs it) and a Gemini API key
+  // from AI Studio cannot call Vertex. The decision is made here, once, and
+  // carried on the config so the provider does not have to re-derive it.
+  const surfaceRaw = env('GEMINI_SURFACE');
+  if (surfaceRaw !== undefined && surfaceRaw !== 'vertex' && surfaceRaw !== 'developer-api') {
+    throw new Error(`GEMINI_SURFACE must be "vertex" or "developer-api", not "${surfaceRaw}"`);
+  }
+  const surface: ModelSurface = surfaceRaw ?? (project ? 'vertex' : 'developer-api');
 
   const gemini: GeminiConfig | undefined = apiKey
     ? {
@@ -243,7 +249,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
         model: env('GEMINI_MODEL') ?? 'gemini-3.8-flash',
         escalationModel: env('GEMINI_ESCALATION_MODEL'),
         location: env('GOOGLE_CLOUD_LOCATION') ?? 'global',
-        project,
+        project: surface === 'vertex' ? project : undefined,
       }
     : undefined;
 
