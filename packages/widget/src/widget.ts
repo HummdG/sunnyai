@@ -1115,9 +1115,17 @@ export class SunnyWidget {
   #onStreamFinish(): void {
     const dots = this.#currentTurn?.querySelector('.typing');
     if (dots) dots.remove();
-    if (this.#currentTurn && this.#currentTurn.textContent?.trim() === '') {
-      this.#appendTurn('error', 'I did not get a reply. Please try asking again.');
+    const turn = this.#currentTurn;
+    if (turn && turn.textContent?.trim() === '') {
+      // No words. If the turn showed something else after its bubble (a roof,
+      // a quote), that was the reply; the empty bubble just goes.
+      const showedSomething = turn.nextElementSibling !== null;
+      turn.remove();
+      if (!showedSomething) {
+        this.#appendTurn('error', 'I did not get a reply. Please try asking again.');
+      }
     }
+    this.#currentTurn = null;
     this.#setPending(false);
     this.#suggestions.hidden = this.#log.childElementCount > 6;
   }

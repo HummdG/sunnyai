@@ -23,6 +23,8 @@ interface Content {
 }
 
 const calls: Content[][] = [];
+/** Whether each request let the model call tools. */
+const offeredTools: boolean[] = [];
 let rounds: Part[][][] = [];
 
 function chunk(parts: Part[]) {
@@ -37,10 +39,18 @@ function chunk(parts: Part[]) {
 }
 
 vi.mock('@google/genai', () => ({
+  FunctionCallingConfigMode: { NONE: 'NONE' },
   GoogleGenAI: class {
     models = {
-      generateContentStream: (request: { contents: Content[] }) => {
+      generateContentStream: (request: {
+        contents: Content[];
+        config: { tools?: unknown[]; toolConfig?: { functionCallingConfig?: { mode?: string } } };
+      }) => {
         calls.push(structuredClone(request.contents));
+        offeredTools.push(
+          (request.config.tools ?? []).length > 0 &&
+            request.config.toolConfig?.functionCallingConfig?.mode !== 'NONE',
+        );
         const round = rounds.shift() ?? [];
         // `for await` reads a plain array too, which is all the provider does.
         return Promise.resolve(round.map(chunk));
@@ -78,6 +88,7 @@ async function run(execute = vi.fn(() => Promise.resolve({ ok: true, note: 'foun
 
 beforeEach(() => {
   calls.length = 0;
+  offeredTools.length = 0;
   rounds = [];
 });
 
@@ -142,6 +153,20 @@ describe('GeminiProvider', () => {
     const { execute } = await run();
     expect(calls.length).toBeLessThanOrEqual(5);
     expect(execute.mock.calls.length).toBeLessThan(5);
+  });
+
+  it('forbids tool calls on the last round, so the turn ends in words', async () => {
+    // A model still calling tools when the rounds run out used to end the turn
+    // with nothing said. On the last request it may not call one: it can only
+    // answer.
+    const forever = [[{ functionCall: { name: 'retrieve_knowledge', args: {} } }]];
+    rounds = [forever, forever, forever, [[{ text: 'Here is what I found.' }]]];
+    const { out } = await run();
+    expect(offeredTools.at(-1)).toBe(false);
+    expect(offeredTools.slice(0, -1).every(Boolean)).toBe(true);
+    expect(out.filter((c) => c.type === 'text').map((c) => c.text)).toEqual([
+      'Here is what I found.',
+    ]);
   });
 
   it('tells the model when a tool failed, rather than hiding it', async () => {

@@ -133,7 +133,7 @@ export class GeminiProvider implements ChatProvider {
   }
 
   async *stream(request: ChatTurnRequest): AsyncIterable<ChatChunk> {
-    const { GoogleGenAI } = await import('@google/genai');
+    const { GoogleGenAI, FunctionCallingConfigMode } = await import('@google/genai');
     // The client is built for the surface the credentials describe. Passing an
     // API-key-only client a Vertex model identifier is not a degraded mode: the
     // request 404s. Vertex needs the project and location; the Developer API
@@ -171,6 +171,10 @@ export class GeminiProvider implements ChatProvider {
     // it, and it answers (or asks again). A turn that stopped after the first
     // call streamed nothing whenever the model looked something up first.
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      // On the last round the model may not call tools: one still looking
+      // things up when the rounds run out would otherwise end the turn without
+      // a word.
+      const lastRound = round === MAX_TOOL_ROUNDS - 1;
       const response = await ai.models.generateContentStream({
         model: this.model,
         contents,
@@ -178,6 +182,10 @@ export class GeminiProvider implements ChatProvider {
           systemInstruction: request.systemInstruction,
           maxOutputTokens: this.#maxOutputTokens,
           ...(functionDeclarations.length > 0 ? { tools: [{ functionDeclarations }] } : {}),
+          // Declared still (the turn so far calls them), but not callable.
+          ...(lastRound
+            ? { toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.NONE } } }
+            : {}),
         },
       });
 

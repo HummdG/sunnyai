@@ -5,6 +5,11 @@
 sunny-widget.js
 sunny-widget.js.map
 
+# The parts the widget loads on demand from beside itself: the 3D roof and
+# the voice call. Copied with the bundle, and as much a build artefact.
+sunny-roof.js
+sunny-voice.js
+
 # The typeface, copied in with the bundle (D-48). A build artefact like the two
 # above it: the canonical files are committed once, in `packages/ui/fonts/`.
 fonts/
