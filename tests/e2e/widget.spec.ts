@@ -551,3 +551,90 @@ test('docks the 3D roof in the conversation and grows the panel round it', async
   await expect(roof).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'See your roof in 3D' })).toBeVisible();
 });
+
+for (const [w, h] of [
+  [1280, 720],
+  [1440, 900],
+  [1920, 1080],
+  [390, 844],
+] as const) {
+  test(`keeps the message box and the conversation in view with the roof docked (${w}x${h})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.route('**/v1/chat/stream', (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: streamOf(
+          { type: 'message_started' },
+          {
+            type: 'sunscan',
+            assessmentId: 'ss_fit',
+            status: 'succeeded',
+            summary: {
+              address: '3A Downs Walk, Peacehaven BN10 7SN',
+              reliable: true,
+              label: 'Indicative, subject to an on-site survey',
+              usableRoofAreaM2: 52,
+              estimatedMaxPanels: 21,
+              bestFacing: 'S',
+              roofPlanes: [
+                {
+                  id: 0,
+                  facing: 'S',
+                  pitchDeg: 45,
+                  areaM2: 67,
+                  usableAreaM2: 52,
+                  maxPanels: 21,
+                  suitable: true,
+                },
+                {
+                  id: 1,
+                  facing: 'N',
+                  pitchDeg: 19,
+                  areaM2: 143,
+                  usableAreaM2: 0,
+                  maxPanels: 0,
+                  suitable: false,
+                },
+              ],
+            },
+          },
+          { type: 'text_delta', text: 'Your main roof faces south. Does that look right?' },
+          {
+            type: 'quick_replies',
+            questionId: 'roof_confirmed',
+            multi: false,
+            replies: [
+              { value: 'yes', label: 'Yes' },
+              { value: 'no', label: 'No' },
+            ],
+          },
+          { type: 'message_finished' },
+          { type: 'done', messageId: 'done' },
+        ),
+      }),
+    );
+    await page.route('**/v1/sunscan/assessments/**', (route) => route.fulfill({ status: 503 }));
+    await openWidget(page);
+    const panel = page.locator(HOST).locator(PANEL);
+    await panel.locator('.composer-input').fill('3A Downs Walk');
+    await panel.locator('.composer-input').press('Enter');
+    await expect(panel.getByRole('region', { name: /3D model of/ })).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Yes' })).toBeVisible();
+    // the panel has finished growing
+    await page.waitForTimeout(500);
+
+    const box = async (sel: string) => (await panel.locator(sel).first().boundingBox())!;
+    const p = (await panel.boundingBox())!;
+    for (const sel of ['.composer', '.footnote', '.suggestions']) {
+      const b = await box(sel);
+      expect(b.y, `${sel} top`).toBeGreaterThanOrEqual(p.y - 1);
+      expect(b.y + b.height, `${sel} bottom`).toBeLessThanOrEqual(p.y + p.height + 1);
+    }
+    expect(p.y, 'panel top').toBeGreaterThanOrEqual(0);
+    expect(p.y + p.height, 'panel bottom').toBeLessThanOrEqual(h);
+    expect((await box('.log')).height, 'conversation height').toBeGreaterThanOrEqual(150);
+  });
+}

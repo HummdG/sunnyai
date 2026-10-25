@@ -391,9 +391,18 @@ export function styles(): string {
   border-radius: 10px; border: 1px solid rgba(23,23,23,.2); }
 .quote-email label { font-size: 12px; color: #3a3a3a; }
 .quote-status { font-size: 11.5px; color: #3a3a3a; margin: 4px 4px 0; min-height: 1em; }
-.roof-dock { flex: 0 0 auto; border-bottom: 1px solid rgba(23,23,23,.08); background: var(--sunny-warm-white); }
+.roof-dock { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column;
+  border-bottom: 1px solid rgba(23,23,23,.08); background: var(--sunny-warm-white); }
+/* the roof gives way before the conversation does: at most a little under half
+   the panel, so the question, its answers and the message box always fit */
+.panel.roof-open .roof-dock { max-height: 46%; }
+/* and the transcript keeps enough room to read the question being asked */
+.panel.roof-open .log { min-height: 160px; }
+.roof-bar, .roof-controls, .roof-note { flex: 0 0 auto; }
+/* what the visitor types into never gives way */
+.composer, .suggestions, .footnote { flex: 0 0 auto; }
 .roof-dock[hidden] { display: none; }
-.roof-view { display: flex; flex-direction: column; font-size: 12.5px; }
+.roof-view { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; font-size: 12.5px; }
 .roof-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; background: var(--sunny-pale); }
 .roof-bar strong { flex: 1 1 auto; font-size: 13px; font-weight: 650; }
 .roof-bar button { border: 0; background: transparent; cursor: pointer; color: #3a3a3a; font: inherit;
@@ -401,7 +410,7 @@ export function styles(): string {
 .roof-bar button:hover { background: rgba(23,23,23,.06); }
 .roof-bar button:focus-visible { outline: 2px solid var(--sunny-accent); }
 .roof-close { font-size: 20px !important; line-height: 1; padding: 2px 8px !important; color: #5c5c5c !important; }
-.roof-stage { position: relative; height: clamp(200px, 38vh, 380px); }
+.roof-stage { position: relative; flex: 1 1 auto; min-height: 110px; height: clamp(180px, 34vh, 360px); }
 .roof-stage canvas { display: block; width: 100%; height: 100%; }
 .roof-status { padding: 14px; }
 /* sun and roof faces share one row under the model, so the conversation keeps the room */
@@ -572,7 +581,7 @@ export function styles(): string {
   }
   /* a phone has no room to grow into: the roof takes a third and the chat keeps the rest */
   .panel.roof-open:not(.roof-collapsed) { height: min(86vh, 760px); }
-  .roof-stage { height: 30vh; }
+  .roof-stage { height: 28vh; }
   .launcher { width: 60px; height: 60px; }
 }
 `;
