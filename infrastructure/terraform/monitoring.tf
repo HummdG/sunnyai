@@ -1,12 +1,15 @@
 # --- Monitoring: someone hears about it when Sunny stops working ------------------
-# The API reports what it can do at /healthz, and until now nothing read it, so a
+# The API reports what it can do at /health, and until now nothing read it, so a
 # revoked or exhausted model key was a silent failure: the widget would refuse
 # every chat while every request still answered 200. Three uptime checks, each
 # with an alert:
 #
-#   api-up     /healthz answers with "ok": true
-#   chat-on    /healthz reports chat.available: true -- the dead-key alarm
+#   api-up     /health answers with "ok": true
+#   chat-on    /health reports chat.available: true -- the dead-key alarm
 #   web-up     the website's home page answers
+#
+# Not /healthz: Cloud Run's front end answers any path ending in "z" itself,
+# so from outside it is always Google's 404.
 #
 # Alerts go to `alert_email`. With it empty the checks still run and show in the
 # console, but nobody is notified -- set it before launch.
@@ -41,7 +44,7 @@ resource "google_monitoring_uptime_check_config" "api_up" {
   period       = "60s"
 
   http_check {
-    path         = "/healthz"
+    path         = "/health"
     port         = 443
     use_ssl      = true
     validate_ssl = true
@@ -74,7 +77,7 @@ resource "google_monitoring_uptime_check_config" "chat_on" {
   period       = "300s"
 
   http_check {
-    path         = "/healthz"
+    path         = "/health"
     port         = 443
     use_ssl      = true
     validate_ssl = true
@@ -128,7 +131,7 @@ locals {
   uptime_alerts = {
     api_up = {
       check   = google_monitoring_uptime_check_config.api_up.uptime_check_id
-      summary = "The Sunny API is not answering /healthz. The widget cannot open a chat."
+      summary = "The Sunny API is not answering /health. The widget cannot open a chat."
     }
     chat_on = {
       check   = google_monitoring_uptime_check_config.chat_on.uptime_check_id

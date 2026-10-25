@@ -30,6 +30,7 @@ __pycache__/
 .terraform.lock.hcl
 terraform.tfvars
 *.auto.tfvars
+infrastructure/terraform/env/*.tfvars
 
 # Local secret material — never commit
 *.pem

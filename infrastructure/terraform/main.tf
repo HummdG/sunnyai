@@ -122,10 +122,7 @@ resource "google_cloud_run_v2_service" "api" {
         value = "production"
       }
 
-      env {
-        name  = "PORT"
-        value = "8080"
-      }
+      # No PORT: Cloud Run reserves it and sets it from container_port (8080).
 
       env {
         name  = "WIDGET_ALLOWED_ORIGINS"
@@ -227,6 +224,19 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
 
+      # The operator's key for the admin routes (the waitlist, catalogues, the
+      # demo seed). Generated per environment, like the session secret; read
+      # it with `gcloud secrets versions access latest --secret=<id>`.
+      env {
+        name = "SUNNY_ADMIN_TOKEN"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.admin_token.secret_id
+            version = "latest"
+          }
+        }
+      }
+
       # SunScan model files go to the private bucket (sunscan.tf): Cloud Run's
       # disk does not outlive an instance. The API reads them back through its
       # tenant-scoped routes; nothing in the bucket is public.
@@ -263,6 +273,8 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
 
+      # The probe reaches the container directly, so /healthz works here even
+      # though it never does from outside (monitoring.tf).
       startup_probe {
         http_get {
           path = "/healthz"
@@ -292,7 +304,16 @@ resource "google_cloud_run_v2_service" "api" {
     ignore_changes = [template[0].containers[0].image]
   }
 
-  depends_on = [google_project_service.run]
+  # A revision that starts before its secrets have a value, or before it may
+  # read them, fails to deploy: on a first apply, wait for both.
+  depends_on = [
+    google_project_service.run,
+    google_secret_manager_secret_version.session_secret,
+    google_secret_manager_secret_version.admin_token,
+    google_secret_manager_secret_iam_member.api_reads_key,
+    google_secret_manager_secret_iam_member.api_reads_session_secret,
+    google_secret_manager_secret_iam_member.api_reads_admin_token,
+  ]
 }
 
 resource "google_secret_manager_secret" "session_secret" {
@@ -357,6 +378,35 @@ resource "google_secret_manager_secret_version" "session_secret" {
 resource "google_secret_manager_secret_iam_member" "api_reads_session_secret" {
   project   = var.project_id
   secret_id = google_secret_manager_secret.session_secret.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.api.email}"
+}
+
+resource "google_secret_manager_secret" "admin_token" {
+  project   = var.project_id
+  secret_id = "sunny-admin-token-${local.name_suffix}"
+  labels    = local.labels
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "random_password" "admin_token" {
+  length  = 48
+  special = false
+}
+
+resource "google_secret_manager_secret_version" "admin_token" {
+  secret      = google_secret_manager_secret.admin_token.id
+  secret_data = random_password.admin_token.result
+}
+
+resource "google_secret_manager_secret_iam_member" "api_reads_admin_token" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.admin_token.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.api.email}"
 }

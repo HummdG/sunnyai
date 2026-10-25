@@ -21,6 +21,14 @@ output "gemini_api_key_secret_id" {
   value       = google_secret_manager_secret.gemini_api_key.secret_id
 }
 
+output "admin_token_secret_id" {
+  description = <<-EOT
+    Secret holding the operator's admin token (the waitlist and the other admin
+    routes). Read it with `gcloud secrets versions access latest --secret=<id>`.
+  EOT
+  value       = google_secret_manager_secret.admin_token.secret_id
+}
+
 output "sunscan_artefact_bucket" {
   description = "Private bucket holding SunScan 3D models (SUNSCAN_ARTEFACT_BUCKET)."
   value       = google_storage_bucket.sunscan_artefacts.name

@@ -439,6 +439,16 @@ describe('the vertical slice', () => {
     expect(health.json().capabilities.retention).toEqual({ windowDays: 730, sweeping: true });
   });
 
+  it('serves the same report at /health, which Cloud Run passes through', async () => {
+    const { app } = await h();
+    const [z, plain] = await Promise.all([
+      app.inject({ method: 'GET', url: '/healthz' }),
+      app.inject({ method: 'GET', url: '/health' }),
+    ]);
+    expect(plain.statusCode).toBe(200);
+    expect(plain.json()).toEqual(z.json());
+  });
+
   it('refuses a session token that was not issued here', async () => {
     const { app } = await h();
     const { sessionId } = await openSession(app);

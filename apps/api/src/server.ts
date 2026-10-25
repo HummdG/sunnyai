@@ -395,7 +395,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   // ─── health ────────────────────────────────────────────────────────────────
 
-  app.get('/healthz', async () => {
+  const health = async () => {
     const database = await store.health();
     const capabilities = capabilityReport(config);
     return {
@@ -405,7 +405,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       store: { kind: store.kind, ok: database.ok, detail: database.detail },
       checkedAt: new Date(now()).toISOString(),
     };
-  });
+  };
+  app.get('/healthz', health);
+  // The same report at a path Cloud Run passes through: its front end answers
+  // any path ending in "z" itself, so /healthz never reaches a deployed API.
+  app.get('/health', health);
 
   // ─── widget config and session ─────────────────────────────────────────────
 

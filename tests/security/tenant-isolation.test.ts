@@ -492,6 +492,12 @@ const ROUTES: RouteSpec[] = [
   },
   {
     method: 'GET',
+    pattern: '/health',
+    url: () => '/health',
+    kind: 'public',
+  },
+  {
+    method: 'GET',
     pattern: '/v1/widget/config/:publicId',
     url: (ids) => `/v1/widget/config/${ids.publicId}`,
     kind: 'public',

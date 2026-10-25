@@ -15,11 +15,15 @@ terraform {
     }
   }
 
-  # No backend block is committed. The state bucket is per-environment and
-  # naming it here would put one environment's bucket in every checkout. Pass it
-  # at init time instead:
+  # State lives in a GCS bucket, but the bucket is not named here: it is
+  # per-environment, and naming it would put one environment's bucket in every
+  # checkout. Pass it at init time instead:
   #
-  #   terraform init -backend-config=env/prod.backend.hcl
+  #   terraform init -backend-config="bucket=<state bucket>"   #     -backend-config="prefix=sunny/<env>"
+  #
+  # The block itself must exist: without it, Terraform ignores -backend-config
+  # with only a warning and keeps state in a local file.
   #
   # CI runs `init -backend=false` and validates only, so it never needs state.
+  backend "gcs" {}
 }

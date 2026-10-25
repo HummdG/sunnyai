@@ -71,8 +71,8 @@ async function main() {
   console.log(`smoke: ${base}\n`);
 
   // ── health ────────────────────────────────────────────────────────────────
-  const health = await call('/healthz');
-  check('GET /healthz is 200', health.status === 200, `got ${health.status}`);
+  const health = await call('/health');
+  check('GET /health is 200', health.status === 200, `got ${health.status}`);
   check('health report names its capabilities', Boolean(health.json?.capabilities));
   const chatAvailable = health.json?.capabilities?.chat?.available === true;
   console.log(`  ..   chat available: ${chatAvailable}`);

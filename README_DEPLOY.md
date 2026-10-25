@@ -192,7 +192,7 @@ ADR-002's):
 | `GEMINI_MODEL`                                                           | `gemini-3.8-flash`   | the default model                                                                 |
 | `GEMINI_ESCALATION_MODEL`                                                | unset                | the escalation model (ADR-003)                                                    |
 | `GOOGLE_CLOUD_LOCATION`                                                  | `global`             | stored on the Gemini config                                                       |
-| `PORT` / `HOST`                                                          | `8787` / `127.0.0.1` | listener (Terraform sets `PORT=8080` on Cloud Run)                                |
+| `PORT` / `HOST`                                                          | `8787` / `127.0.0.1` | listener (Cloud Run sets `PORT` from the container port, 8080)                    |
 | `NODE_ENV`                                                               | `development`        | tightens CORS, logging, error detail (Terraform sets `production`)                |
 | `SUNNY_DATA_DIR`                                                         | `.data`              | where conversations, leads and catalogues are written                             |
 | `WIDGET_ALLOWED_ORIGINS`                                                 | empty                | comma list of origins allowed to open a session                                   |
