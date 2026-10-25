@@ -166,6 +166,10 @@ export class GeminiProvider implements ChatProvider {
 
     let inputTokens = 0;
     let outputTokens = 0;
+    // Whether the visitor has been told anything yet, and whether the next
+    // round must answer in words.
+    let spoke = false;
+    let wordsOnly = false;
 
     // A turn is a loop: the model may ask for tools, their results go back to
     // it, and it answers (or asks again). A turn that stopped after the first
@@ -174,7 +178,7 @@ export class GeminiProvider implements ChatProvider {
       // On the last round the model may not call tools: one still looking
       // things up when the rounds run out would otherwise end the turn without
       // a word.
-      const lastRound = round === MAX_TOOL_ROUNDS - 1;
+      const toolsOff = wordsOnly || round === MAX_TOOL_ROUNDS - 1;
       const response = await ai.models.generateContentStream({
         model: this.model,
         contents,
@@ -183,7 +187,7 @@ export class GeminiProvider implements ChatProvider {
           maxOutputTokens: this.#maxOutputTokens,
           ...(functionDeclarations.length > 0 ? { tools: [{ functionDeclarations }] } : {}),
           // Declared still (the turn so far calls them), but not callable.
-          ...(lastRound
+          ...(toolsOff
             ? { toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.NONE } } }
             : {}),
         },
@@ -200,7 +204,10 @@ export class GeminiProvider implements ChatProvider {
         if (request.signal?.aborted) return;
         modelParts.push(...(chunk.candidates?.[0]?.content?.parts ?? []));
         const text = chunk.text;
-        if (text) yield { type: 'text', text };
+        if (text) {
+          spoke = true;
+          yield { type: 'text', text };
+        }
 
         const usage = chunk.usageMetadata;
         if (usage) {
@@ -241,7 +248,14 @@ export class GeminiProvider implements ChatProvider {
 
       inputTokens += roundInput;
       outputTokens += roundOutput;
-      if (responses.length === 0) break;
+      if (responses.length === 0) {
+        // Seen live: after its tools ran, the model sometimes stopped without a
+        // word. It is asked once more with tools off; its empty turn is not
+        // replayed. Silence from a round that was already words-only is final.
+        if (spoke || toolsOff) break;
+        wordsOnly = true;
+        continue;
+      }
       contents.push({ role: 'model', parts: modelParts }, { role: 'user', parts: responses });
     }
 

@@ -169,6 +169,27 @@ describe('GeminiProvider', () => {
     ]);
   });
 
+  it('asks once more, tools off, when the model stops without a word', async () => {
+    // Seen live: after its tools ran, the model sometimes ended the turn with
+    // no text at all, and the visitor saw nothing.
+    rounds = [
+      [[{ functionCall: { name: 'retrieve_knowledge', args: {} } }]],
+      [[{ text: '' }]],
+      [[{ text: 'Your roof faces south.' }]],
+    ];
+    const { out } = await run();
+    expect(out.filter((c) => c.type === 'text').map((c) => c.text)).toEqual([
+      'Your roof faces south.',
+    ]);
+    expect(offeredTools).toEqual([true, true, false]);
+  });
+
+  it('does not ask again once the model has said something', async () => {
+    rounds = [[[{ text: 'Hello.' }]], [[{ text: 'never asked for' }]]];
+    await run();
+    expect(calls).toHaveLength(1);
+  });
+
   it('tells the model when a tool failed, rather than hiding it', async () => {
     rounds = [
       [[{ functionCall: { name: 'retrieve_knowledge', args: {} } }]],
