@@ -113,6 +113,13 @@ export type TurnEvent =
     }
   | { type: 'quote'; messageId: string; quote: QuoteCard }
   | {
+      type: 'quick_replies';
+      messageId: string;
+      questionId: string | null;
+      multi: boolean;
+      replies: { value: string; label: string }[];
+    }
+  | {
       type: 'message_finished';
       messageId: string;
       usage?: { inputTokens: number; outputTokens: number };
@@ -431,6 +438,13 @@ function drain(events: ToolEvent[], messageId: string): TurnEvent[] {
       out.push({ type: 'sunscan', messageId, ...detail });
     } else if (event.kind === 'quote') {
       out.push({ type: 'quote', messageId, quote: event.detail['quote'] as QuoteCard });
+    } else if (event.kind === 'quick_replies') {
+      const detail = event.detail as {
+        questionId: string | null;
+        multi: boolean;
+        replies: { value: string; label: string }[];
+      };
+      out.push({ type: 'quick_replies', messageId, ...detail });
     } else if (event.kind === 'recommendation_ready') {
       out.push({
         type: 'recommendation_ready',

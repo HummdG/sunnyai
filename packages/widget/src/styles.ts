@@ -209,6 +209,16 @@ export function styles(): string {
   display: flex; flex-direction: column; overflow: hidden;
   border: 1px solid rgba(23, 23, 23, 0.08);
   transform-origin: bottom right;
+  /* Roof mode (below) grows the panel; the change answers the visitor's own
+     address, so it eases rather than jumps. */
+  transition: width 340ms cubic-bezier(.2, .8, .2, 1), height 340ms cubic-bezier(.2, .8, .2, 1);
+}
+/* Roof mode: the 3D roof docks at the top of the conversation and the panel
+   grows to give it room, so the visitor answers the survey looking at their
+   own roof. Collapsed, the roof is a strip and the panel is its usual size. */
+.panel.roof-open:not(.roof-collapsed) {
+  width: min(720px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
+  height: min(880px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
 }
 :host([data-position="bottom-left"]) .panel { transform-origin: bottom left; }
 :host([data-position="top-right"]) .panel { transform-origin: top right; }
@@ -340,7 +350,7 @@ export function styles(): string {
 /* ── suggestions and composer ───────────────────────────────────────────── */
 
 .sources { font-size: 11.5px; color: #5c5c5c; margin: -4px 0 8px 4px; }
-/* SunScan roof card, and the 3D view it opens over the panel (roof.ts). */
+/* SunScan roof card, and the 3D view it docks at the top of the panel (roof.ts). */
 .roof { margin: 4px 0 10px; padding: 10px 12px; border-radius: 14px; background: var(--sunny-pale);
   border: 1px solid var(--sunny-orange-soft); font-size: 13px; }
 .roof p { margin: 0 0 6px; }
@@ -381,21 +391,32 @@ export function styles(): string {
   border-radius: 10px; border: 1px solid rgba(23,23,23,.2); }
 .quote-email label { font-size: 12px; color: #3a3a3a; }
 .quote-status { font-size: 11.5px; color: #3a3a3a; margin: 4px 4px 0; min-height: 1em; }
-.roof-view { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 3; display: flex; flex-direction: column;
-  background: var(--sunny-warm-white); font-size: 12.5px; }
-.roof-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
-  background: var(--sunny-pale); }
-.roof-close { border: 0; background: transparent; font-size: 20px; cursor: pointer; color: #5c5c5c; }
-.roof-stage { position: relative; flex: 1 1 auto; min-height: 200px; }
+.roof-dock { flex: 0 0 auto; border-bottom: 1px solid rgba(23,23,23,.08); background: var(--sunny-warm-white); }
+.roof-dock[hidden] { display: none; }
+.roof-view { display: flex; flex-direction: column; font-size: 12.5px; }
+.roof-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; background: var(--sunny-pale); }
+.roof-bar strong { flex: 1 1 auto; font-size: 13px; font-weight: 650; }
+.roof-bar button { border: 0; background: transparent; cursor: pointer; color: #3a3a3a; font: inherit;
+  border-radius: 999px; padding: 4px 10px; }
+.roof-bar button:hover { background: rgba(23,23,23,.06); }
+.roof-bar button:focus-visible { outline: 2px solid var(--sunny-accent); }
+.roof-close { font-size: 20px !important; line-height: 1; padding: 2px 8px !important; color: #5c5c5c !important; }
+.roof-stage { position: relative; height: clamp(200px, 38vh, 380px); }
 .roof-stage canvas { display: block; width: 100%; height: 100%; }
 .roof-status { padding: 14px; }
-.roof-controls { padding: 6px 14px; }
-.roof-time { display: flex; gap: 8px; align-items: center; }
-.roof-time input { flex: 1; accent-color: var(--sunny-accent-ink); }
-.roof-planes { list-style: none; margin: 0; padding: 0 14px; display: flex; flex-wrap: wrap; gap: 4px; }
+/* sun and roof faces share one row under the model, so the conversation keeps the room */
+.roof-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 14px 0; }
+.roof-time { display: flex; gap: 8px; align-items: center; flex: 1 1 200px; min-width: 0; }
+.roof-time input { flex: 1; min-width: 80px; accent-color: var(--sunny-accent-ink); }
+.roof-planes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 .roof-planes button { font: inherit; font-size: 11.5px; border: 1px solid var(--sunny-orange-soft);
   background: #fff; border-radius: 999px; padding: 3px 8px; cursor: pointer; }
-.roof-note { margin: 6px 14px 10px; font-size: 11px; color: #5c5c5c; }
+.roof-note { margin: 4px 14px 8px; font-size: 11px; color: #5c5c5c; }
+.roof-view.collapsed .roof-stage, .roof-view.collapsed .roof-controls, .roof-view.collapsed .roof-note { display: none; }
+/* Quick replies: the answers to the question Sunny just asked, as buttons. */
+.suggestions.replies button[aria-pressed="true"] { background: var(--sunny-accent-ink); color: #fff; }
+.suggestions.replies .send-replies { background: var(--sunny-accent-ink); color: #fff; border-color: transparent; }
+.suggestions.replies .send-replies:disabled { opacity: .45; cursor: default; }
 .sources a { color: var(--sunny-accent-ink); }
 .composer .count { align-self: center; font-size: 11px; color: #5c5c5c; min-width: 0; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
@@ -543,10 +564,13 @@ export function styles(): string {
     --sunny-gutter-x: 12px;
     --sunny-gutter-y: 12px;
   }
-  .panel {
+  .panel, .panel.roof-open:not(.roof-collapsed) {
     width: calc(100vw - 24px - var(--sunny-safe-left) - var(--sunny-safe-right));
     height: min(70vh, 520px);
   }
+  /* a phone has no room to grow into: the roof takes a third and the chat keeps the rest */
+  .panel.roof-open:not(.roof-collapsed) { height: min(86vh, 760px); }
+  .roof-stage { height: 30vh; }
   .launcher { width: 60px; height: 60px; }
 }
 `;

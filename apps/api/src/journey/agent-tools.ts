@@ -79,6 +79,28 @@ function chatOptions(options: readonly string[] | null): readonly string[] | nul
   return options ? options.filter((o) => o !== 'bill_ocr') : null;
 }
 
+/**
+ * The question Sunny is about to ask, with its answers as buttons the visitor can tap (`replies` is empty for a
+ * question answered in their own words, which clears any buttons left from the last one). The last one a turn
+ * emits is the question it ends on.
+ */
+function offerReplies(
+  ctx: ToolContext,
+  questionId: string | null,
+  options: readonly string[] | null,
+  multi: boolean,
+): void {
+  const offered = chatOptions(options) ?? [];
+  ctx.events.push({
+    kind: 'quick_replies',
+    detail: {
+      questionId,
+      multi,
+      replies: offered.map((value) => ({ value, label: optionLabel(value) })),
+    },
+  });
+}
+
 /** Visitor-facing labels for the offered options, keyed by value. */
 function labelsFor(options: readonly string[] | null): Record<string, string> | null {
   const offered = chatOptions(options);
@@ -98,6 +120,7 @@ export const QUOTE_TOOLS = [
       const deps = depsFor(ctx);
       if (!deps) return NOT_ENABLED;
       const view = await journeyView(deps, ctx.tenant.id, ctx.sessionId);
+      offerReplies(ctx, view.nextQuestionId, view.canQuote ? null : view.options, view.multi);
       return {
         ok: true,
         data: {
@@ -166,6 +189,12 @@ export const QUOTE_TOOLS = [
         ...(message ? { text: message.slice(0, 500) } : {}),
       });
       mirror(ctx, result.answers);
+      offerReplies(
+        ctx,
+        result.journey.nextQuestionId,
+        result.journey.canQuote ? null : result.journey.options,
+        result.journey.multi,
+      );
       return {
         ok: result.rejected.length === 0,
         data: {

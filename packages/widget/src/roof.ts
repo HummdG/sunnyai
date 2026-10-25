@@ -13,10 +13,12 @@ export type { SavingsTimelineLike };
  * the size of the whole widget, and a visitor who never asks to see their roof
  * should never download them.
  *
- * It opens as an overlay inside the panel: the model with the roof planes the
- * summary called suitable highlighted, a time-of-day slider for the shadows, a
- * plane list that highlights one plane on hover or focus, and a text summary of
- * the same facts for anyone who cannot use the canvas.
+ * It docks at the top of the conversation, inside the panel, so the visitor
+ * keeps chatting (and answering the survey) with their roof in view: the model
+ * with the roof planes the summary called suitable highlighted, a time-of-day
+ * slider for the shadows, a plane list that highlights one plane on hover or
+ * focus, and a text summary of the same facts for anyone who cannot use the
+ * canvas. It can shrink to a strip and grow back.
  */
 
 export interface RoofPlaneLite {
@@ -42,6 +44,10 @@ export interface OpenRoofOptions {
     onComplete?: () => void;
   };
   onClose: () => void;
+  /** Shrunk to a strip, or grown back: the panel resizes to match. */
+  onCollapse?: (collapsed: boolean) => void;
+  /** Move focus into the view (when the visitor opened it, not when it opened by itself). */
+  focus?: boolean;
 }
 
 function node<K extends keyof HTMLElementTagNameMap>(
@@ -61,11 +67,23 @@ const hhmm = (m: number) =>
 export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Promise<() => void> {
   const overlay = node('div', {
     class: 'roof-view',
-    role: 'dialog',
+    role: 'region',
     'aria-label': `3D model of ${opts.address}`,
   });
   const bar = node('div', { class: 'roof-bar' });
   bar.append(node('strong', {}, 'Your roof in 3D'));
+  const shrink = node(
+    'button',
+    { type: 'button', class: 'roof-shrink', 'aria-expanded': 'true' },
+    'Shrink',
+  );
+  shrink.addEventListener('click', () => {
+    const collapsed = overlay.classList.toggle('collapsed');
+    shrink.textContent = collapsed ? 'Show roof' : 'Shrink';
+    shrink.setAttribute('aria-expanded', String(!collapsed));
+    opts.onCollapse?.(collapsed);
+  });
+  bar.append(shrink);
   const close = node(
     'button',
     { type: 'button', class: 'roof-close', 'aria-label': 'Close the 3D view' },
@@ -99,7 +117,7 @@ export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Pr
       opts.onClose();
     }
   });
-  close.focus();
+  if (opts.focus) close.focus();
 
   try {
     const response = await fetch(`${opts.apiUrl}${opts.specUrl}`, {

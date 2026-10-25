@@ -199,6 +199,18 @@ export const chatStreamEventSchema = z.discriminatedUnion('type', [
     ...base,
     quote: quoteCardSchema,
   }),
+  // The question the assistant ends its turn on, with its answers as buttons
+  // (from the quote journey's options, in the visitor's words). Empty replies
+  // clear the buttons: the question is answered in the visitor's own words.
+  z.object({
+    type: z.literal('quick_replies'),
+    ...base,
+    questionId: z.string().min(1).max(64).nullable(),
+    multi: z.boolean(),
+    replies: z
+      .array(z.object({ value: z.string().min(1).max(64), label: z.string().min(1).max(80) }))
+      .max(12),
+  }),
   // A turn can fail after the stream has already opened. The client needs to be
   // told in-band, because it can no longer rely on the HTTP status.
   z.object({

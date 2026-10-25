@@ -62,7 +62,8 @@ export interface ToolEvent {
     | 'recommendation_ready'
     | 'estimate_disclaimer'
     | 'sunscan'
-    | 'quote';
+    | 'quote'
+    | 'quick_replies';
   detail: Record<string, unknown>;
 }
 

@@ -438,3 +438,116 @@ test('still has the options after the panel is closed and opened again', async (
   await expect(panel.locator('[data-option-id]')).toHaveCount(2);
   await expect(panel.locator('.option-title').first()).toHaveText('9 panels with a 4 kW inverter');
 });
+
+const streamOf = (...events: Record<string, unknown>[]) =>
+  events.map((e) => `data: ${JSON.stringify({ messageId: 'm_e2e', ...e })}\n\n`).join('');
+
+test('offers the answers to Sunny’s question as buttons, and a tap sends one', async ({ page }) => {
+  const sent: string[] = [];
+  await page.route('**/v1/chat/stream', async (route) => {
+    sent.push((route.request().postDataJSON() as { text: string }).text);
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: streamOf(
+        { type: 'message_started' },
+        { type: 'text_delta', text: 'What kind of property is it?' },
+        {
+          type: 'quick_replies',
+          questionId: 'property_type',
+          multi: false,
+          replies: [
+            { value: 'detached', label: 'Detached' },
+            { value: 'semi', label: 'Semi-detached' },
+          ],
+        },
+        { type: 'message_finished' },
+        { type: 'done', messageId: 'done' },
+      ),
+    });
+  });
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  await panel.locator('.composer-input').fill('I want solar');
+  await panel.locator('.composer-send').click();
+
+  const answers = panel.getByRole('group', { name: 'Answers you can tap' });
+  await expect(answers.getByRole('button')).toHaveText(['Detached', 'Semi-detached']);
+  await answers.getByRole('button', { name: 'Semi-detached' }).click();
+  await expect.poll(() => sent).toEqual(['I want solar', 'Semi-detached']);
+});
+
+test('docks the 3D roof in the conversation and grows the panel round it', async ({ page }) => {
+  const summary = {
+    address: '3A Downs Walk, Peacehaven BN10 7SN',
+    postcode: 'BN10 7SN',
+    reliable: true,
+    label: 'Indicative, subject to an on-site survey',
+    usableRoofAreaM2: 52,
+    estimatedMaxPanels: 21,
+    bestFacing: 'S',
+    roofPlanes: [
+      {
+        id: 0,
+        facing: 'S',
+        pitchDeg: 45,
+        areaM2: 67,
+        usableAreaM2: 52,
+        maxPanels: 21,
+        suitable: true,
+      },
+      {
+        id: 1,
+        facing: 'N',
+        pitchDeg: 19,
+        areaM2: 143,
+        usableAreaM2: 0,
+        maxPanels: 0,
+        suitable: false,
+      },
+    ],
+  };
+  await page.route('**/v1/chat/stream', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: streamOf(
+        { type: 'message_started' },
+        { type: 'sunscan', assessmentId: 'ss_e2e', status: 'succeeded', summary },
+        { type: 'text_delta', text: 'Your main roof faces south. Does that look right?' },
+        { type: 'message_finished' },
+        { type: 'done', messageId: 'done' },
+      ),
+    }),
+  );
+  // the model itself is not under test here
+  await page.route('**/v1/sunscan/assessments/**', (route) => route.fulfill({ status: 503 }));
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  // layout width, not the on-screen box: the opening animation scales the panel
+  const width = () => panel.evaluate((e) => (e as HTMLElement).offsetWidth);
+  const before = await width();
+  // sent from the keyboard, so the message box has focus when the roof arrives
+  await panel.locator('.composer-input').fill('3A Downs Walk, BN10 7SN');
+  await panel.locator('.composer-input').press('Enter');
+
+  // it opens by itself, inside the conversation rather than over it
+  const roof = panel.getByRole('region', { name: /3D model of 3A Downs Walk/ });
+  await expect(roof).toBeVisible();
+  await expect(panel).toContainText('Does that look right?');
+  await expect(panel.locator('.composer-input')).toBeVisible();
+  // and opening by itself does not take the visitor's place in the message box
+  await expect(panel.locator('.composer-input')).toBeFocused();
+  await expect.poll(width).toBeGreaterThan(before + 100);
+
+  await roof.getByRole('button', { name: 'Shrink' }).click();
+  await expect(roof.getByRole('button', { name: 'Show roof' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await expect.poll(width).toBe(before);
+
+  await roof.getByRole('button', { name: 'Close the 3D view' }).click();
+  await expect(roof).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'See your roof in 3D' })).toBeVisible();
+});

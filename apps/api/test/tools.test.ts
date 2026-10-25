@@ -6,8 +6,10 @@ import { EMPTY_KNOWLEDGE } from '@sunny/knowledge';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
+import { fixturePricingSource } from '../src/journey/pricing.js';
+import { optionLabel } from '../src/questionnaire.js';
 import { FileStore } from '../src/store.js';
-import { TenantRegistry } from '../src/tenants.js';
+import { DEMO_TENANT, TenantRegistry } from '../src/tenants.js';
 import {
   BATTERY,
   DEMO_TENANT_ID,
@@ -461,5 +463,48 @@ describe('get_questionnaire and save_answer', () => {
     expect(result.data['removed']).toBeUndefined();
     // The bare confirmation, with no dangling clause about answers that stayed.
     expect(result.summary).toBe('Saved roof_direction = west.');
+  });
+});
+
+describe('quick replies for the survey', () => {
+  it('offers the next question’s answers as buttons, in the visitor’s words', async () => {
+    const { store } = await makeStore();
+    const events: ToolEvent[] = [];
+    const ctx: ToolContext = {
+      ...context(store, events),
+      quote: { pricing: fixturePricingSource([DEMO_TENANT.id]) },
+    };
+    await executeTool(
+      {
+        name: 'save_answers',
+        args: { answers: [{ questionId: 'address', value: '164 Norwich Drive, Norwich' }] },
+      },
+      ctx,
+    );
+    const replies = events.filter((e) => e.kind === 'quick_replies').at(-1);
+    expect(replies).toBeDefined();
+    const detail = replies!.detail as {
+      questionId: string;
+      multi: boolean;
+      replies: { value: string; label: string }[];
+    };
+    expect(detail.replies.length).toBeGreaterThan(1);
+    // labels are the questionnaire's visitor-facing words, never raw option ids
+    for (const r of detail.replies) expect(r.label).toBe(optionLabel(r.value));
+    expect(detail.replies.map((r) => r.value)).not.toContain('bill_ocr');
+  });
+
+  it('offers nothing for a question answered in the visitor’s own words', async () => {
+    const { store } = await makeStore();
+    const events: ToolEvent[] = [];
+    const ctx: ToolContext = {
+      ...context(store, events),
+      quote: { pricing: fixturePricingSource([DEMO_TENANT.id]) },
+    };
+    // the first question is the address, which has no options
+    await executeTool({ name: 'get_quote_journey', args: {} }, ctx);
+    expect(events.filter((e) => e.kind === 'quick_replies')).toEqual([
+      { kind: 'quick_replies', detail: { questionId: 'address', multi: false, replies: [] } },
+    ]);
   });
 });

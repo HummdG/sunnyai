@@ -103,6 +103,14 @@ export class SunnyWidget {
   #currentTurn: HTMLElement | null = null;
   /** Assessments whose 3D roof has already opened by itself. */
   readonly #roofsShown = new Set<string>();
+  /** Closes the docked 3D roof, when one is open. */
+  #closeRoof: (() => void) | null = null;
+  /** The answers to the question this turn ends on, shown as buttons when it finishes. */
+  #pendingReplies: Extract<ChatStreamEvent, { type: 'quick_replies' }> | null = null;
+  /** Whether the buttons under the conversation are answers rather than the starters. */
+  #repliesShown = false;
+  /** The installer's starter questions, put back when there is no question to answer. */
+  #starters: HTMLElement[] = [];
   #clientMessageId = '';
 
   /** The faces this instance put into the document, so `destroy` can take them out. */
@@ -119,6 +127,8 @@ export class SunnyWidget {
   #send!: HTMLButtonElement;
   #suggestions!: HTMLElement;
   #liveRegion!: HTMLElement;
+  /** Where the 3D roof docks: between the header and the conversation. */
+  #roofDock!: HTMLElement;
 
   /**
    * The option set already on screen, so an unchanged answer is not re-rendered.
@@ -202,6 +212,7 @@ export class SunnyWidget {
       tabindex: '0',
     });
     this.#suggestions = el('div', { class: 'suggestions' });
+    this.#roofDock = el('div', { class: 'roof-dock', hidden: true });
     this.#optionsHost = el('div', { class: 'options-host', hidden: true });
     this.#liveRegion = el('div', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
 
@@ -264,7 +275,15 @@ export class SunnyWidget {
     this.#panel = el(
       'div',
       { class: 'panel', role: 'dialog', 'aria-label': 'Solar assistant', hidden: true },
-      [header, this.#log, this.#optionsHost, this.#suggestions, composer, this.#liveRegion],
+      [
+        header,
+        this.#roofDock,
+        this.#log,
+        this.#optionsHost,
+        this.#suggestions,
+        composer,
+        this.#liveRegion,
+      ],
     );
     this.#panel.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') this.close();
@@ -357,16 +376,15 @@ export class SunnyWidget {
     });
     this.#animator.setBase({ ...defaultRig(), theme: themeFrom(accent) });
 
-    this.#suggestions.replaceChildren(
-      ...config.suggestions.map((text) => {
-        const button = el('button', { type: 'button', text });
-        button.addEventListener('click', () => {
-          this.#composer.value = text;
-          void this.#submit();
-        });
-        return button;
-      }),
-    );
+    this.#starters = config.suggestions.map((text) => {
+      const button = el('button', { type: 'button', text });
+      button.addEventListener('click', () => {
+        this.#composer.value = text;
+        void this.#submit();
+      });
+      return button;
+    });
+    this.#suggestions.replaceChildren(...this.#starters);
 
     const footnote = el('div', {
       class: 'footnote',
@@ -721,7 +739,7 @@ export class SunnyWidget {
           : '';
       this.#lastRoof = { base, summary };
       const button = el('button', { type: 'button', text: 'See your roof in 3D' });
-      button.addEventListener('click', () => void this.#openRoof(base, summary));
+      button.addEventListener('click', () => void this.#openRoof(base, summary, undefined, true));
       card.replaceChildren(
         el('p', {
           text: `${summary.reliable ? 'Your roof' : 'Your roof (low-confidence measurement)'}: about ${Math.round(summary.usableRoofAreaM2)} m² usable${where}${panels}.`,
@@ -927,17 +945,30 @@ export class SunnyWidget {
     card.replaceChildren(el('p', { text: message ?? 'The roof could not be measured this time.' }));
   }
 
+  /**
+   * Dock the 3D roof at the top of the conversation and grow the panel round it
+   * (roof mode). `focus` moves focus into it: when the visitor asked for it,
+   * not when it opened by itself mid-conversation.
+   */
   async #openRoof(
     base: string,
     summary: RoofSummary,
     simulation?: RoofModule.OpenRoofOptions['simulation'],
+    focus = false,
   ): Promise<void> {
     const dir = this.#options.fontDirectoryUrl;
     if (!dir) return;
     const roof = (await import(
       /* @vite-ignore */ new URL('sunny-roof.js', dir).href
     )) as typeof RoofModule;
-    await roof.openRoofView(this.#panel, {
+    this.#closeRoof?.();
+    this.#roofDock.replaceChildren();
+    this.#roofDock.hidden = false;
+    this.#panel.classList.remove('roof-collapsed');
+    this.#panel.classList.add('roof-open');
+    // the panel has grown, so the newest message is no longer at the bottom
+    window.setTimeout(() => this.#scrollToEnd(), 360);
+    const teardown = await roof.openRoofView(this.#roofDock, {
       apiUrl: this.#options.apiUrl,
       token: this.#sessionToken,
       specUrl: `${base}/spec.json`,
@@ -946,8 +977,87 @@ export class SunnyWidget {
       label: summary.label,
       reliable: summary.reliable,
       ...(simulation ? { simulation } : {}),
-      onClose: () => this.#composer.focus(),
+      focus,
+      onCollapse: (collapsed) => this.#panel.classList.toggle('roof-collapsed', collapsed),
+      onClose: () => {
+        this.#roofClosed();
+        this.#composer.focus();
+      },
     });
+    this.#closeRoof = () => {
+      teardown();
+      this.#roofClosed();
+    };
+  }
+
+  /** Back from roof mode: the dock empties and the panel eases back to its size. */
+  #roofClosed(): void {
+    this.#closeRoof = null;
+    this.#roofDock.hidden = true;
+    this.#roofDock.replaceChildren();
+    this.#panel.classList.remove('roof-open', 'roof-collapsed');
+  }
+
+  /**
+   * The buttons under the conversation: the answers to the question Sunny just
+   * asked when it has fixed ones, else the starters. One tap sends a single
+   * answer; a select-all question collects its picks and sends them together.
+   */
+  #showReplies(event: Extract<ChatStreamEvent, { type: 'quick_replies' }> | null): void {
+    if (!event || event.replies.length === 0) {
+      this.#repliesShown = false;
+      this.#suggestions.classList.remove('replies');
+      this.#suggestions.removeAttribute('role');
+      this.#suggestions.removeAttribute('aria-label');
+      this.#suggestions.replaceChildren(...this.#starters);
+      this.#suggestions.hidden = this.#log.childElementCount > 6;
+      return;
+    }
+    const sendText = (text: string) => {
+      this.#composer.value = text;
+      void this.#submit();
+    };
+    let buttons: HTMLElement[];
+    if (event.multi) {
+      const picked = new Set<string>();
+      const send = el('button', {
+        type: 'button',
+        class: 'send-replies',
+        text: 'Send',
+        disabled: true,
+      });
+      send.addEventListener('click', () =>
+        sendText(
+          event.replies
+            .filter((r) => picked.has(r.value))
+            .map((r) => r.label)
+            .join(', '),
+        ),
+      );
+      buttons = event.replies.map((r) => {
+        const b = el('button', { type: 'button', text: r.label, 'aria-pressed': 'false' });
+        b.addEventListener('click', () => {
+          if (picked.has(r.value)) picked.delete(r.value);
+          else picked.add(r.value);
+          b.setAttribute('aria-pressed', String(picked.has(r.value)));
+          send.disabled = picked.size === 0;
+        });
+        return b;
+      });
+      buttons.push(send);
+    } else {
+      buttons = event.replies.map((r) => {
+        const b = el('button', { type: 'button', text: r.label });
+        b.addEventListener('click', () => sendText(r.label));
+        return b;
+      });
+    }
+    this.#repliesShown = true;
+    this.#suggestions.classList.add('replies');
+    this.#suggestions.setAttribute('role', 'group');
+    this.#suggestions.setAttribute('aria-label', 'Answers you can tap');
+    this.#suggestions.replaceChildren(...buttons);
+    this.#suggestions.hidden = false;
   }
 
   #appendTurn(kind: 'user' | 'assistant' | 'system' | 'error', text: string): HTMLElement {
@@ -983,6 +1093,9 @@ export class SunnyWidget {
     this.#composer.value = '';
     this.#autoGrow();
     this.#setPending(true);
+    // the buttons belong to the question just answered
+    this.#pendingReplies = null;
+    if (this.#repliesShown) this.#suggestions.hidden = true;
     this.#appendTurn('user', text);
     this.#animator.dispatch({ type: 'turn_started' }, performance.now());
 
@@ -1056,6 +1169,10 @@ export class SunnyWidget {
       case 'quote':
         this.#showQuote(event.quote);
         break;
+      case 'quick_replies':
+        // shown when the turn finishes, under the question it ends on
+        this.#pendingReplies = event;
+        break;
       case 'escalation':
         this.#liveRegion.textContent = 'Your installer has been alerted.';
         break;
@@ -1127,7 +1244,8 @@ export class SunnyWidget {
     }
     this.#currentTurn = null;
     this.#setPending(false);
-    this.#suggestions.hidden = this.#log.childElementCount > 6;
+    this.#showReplies(this.#pendingReplies);
+    this.#pendingReplies = null;
   }
 
   /**

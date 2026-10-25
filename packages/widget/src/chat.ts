@@ -77,6 +77,21 @@ export function parseStreamEvent(value: unknown): ChatStreamEvent | null {
     case 'escalation':
       if (e['kind'] !== 'safety') return null;
       break;
+    case 'quick_replies': {
+      const replies = e['replies'];
+      if (
+        typeof e['multi'] !== 'boolean' ||
+        !Array.isArray(replies) ||
+        replies.length > 12 ||
+        !replies.every(
+          (r: Record<string, unknown>) =>
+            typeof r === 'object' && r !== null && isStr(r['value']) && isStr(r['label']),
+        )
+      ) {
+        return null;
+      }
+      break;
+    }
     case 'sunscan': {
       const summary = e['summary'];
       if (
