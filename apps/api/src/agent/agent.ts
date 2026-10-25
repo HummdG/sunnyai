@@ -87,6 +87,9 @@ export interface TurnInput {
   signal?: AbortSignal;
 }
 
+/** Said for a roof still being measured, when the model said nothing itself. */
+const MEASURING_LINE = 'I am measuring your roof now; it takes a moment.';
+
 /** A stream event, in the contract's vocabulary. */
 export type TurnEvent =
   | { type: 'message_started'; messageId: string }
@@ -204,6 +207,18 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
 
   let text = '';
   let usage: { inputTokens: number; outputTokens: number } | undefined;
+  // What the tools said comes next, for a turn the model ends without a word.
+  let nextAsk: string | null = null;
+  let measuring = false;
+  const noteForSilence = (tool: string, data: unknown) => {
+    const d = (data ?? {}) as Record<string, unknown>;
+    if ((tool === 'get_quote_journey' || tool === 'save_answers') && typeof d['ask'] === 'string') {
+      nextAsk = d['ask'];
+    }
+    if (tool === 'start_sunscan_assessment') {
+      measuring = d['status'] === 'queued' || d['status'] === 'running';
+    }
+  };
   const toolsUsed: string[] = [];
   // The channel's allowlist is the declared surface: a tool outside it is
   // neither offered to the model nor run if the model names it anyway.
@@ -253,6 +268,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
           return { ok: false, note: `${call.name} is not available on this channel.` };
         }
         const result = await executeTool(call, ctx);
+        noteForSilence(call.name, result.data);
         return { ok: result.ok, ...(result.data as object), note: result.summary };
       },
       ...(input.signal ? { signal: input.signal } : {}),
@@ -303,6 +319,16 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   if (rest !== '') {
     text += rest;
     yield { type: 'text_delta', messageId, text: rest };
+  }
+  // The model looked things up and then said nothing (seen live after a roof
+  // measurement): the turn says the next step itself, in the survey's own words,
+  // rather than leave the visitor with nothing to answer.
+  if (text.trim() === '') {
+    const fallback = [measuring ? MEASURING_LINE : '', nextAsk ?? ''].filter(Boolean).join(' ');
+    if (fallback !== '') {
+      text = fallback;
+      yield { type: 'text_delta', messageId, text: fallback };
+    }
   }
 
   // The channel's output policy, enforced on what is kept and handed on.

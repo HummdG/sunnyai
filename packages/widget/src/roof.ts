@@ -174,7 +174,8 @@ export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Pr
     { class: 'roof-note' },
     `${opts.reliable ? '' : 'Low-confidence measurement. '}Highlighted: planes facing east to west. ${opts.label}.`,
   );
-  overlay.append(controls, list, note);
+  controls.append(list);
+  overlay.append(controls, note);
 
   // A chosen package: its panels drop onto the best planes, then the months play.
   if (opts.simulation && viewer) {

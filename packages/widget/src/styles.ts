@@ -413,6 +413,8 @@ export function styles(): string {
   background: #fff; border-radius: 999px; padding: 3px 8px; cursor: pointer; }
 .roof-note { margin: 4px 14px 8px; font-size: 11px; color: #5c5c5c; }
 .roof-view.collapsed .roof-stage, .roof-view.collapsed .roof-controls, .roof-view.collapsed .roof-note { display: none; }
+/* while the roof is docked above, the card's own way to open it is not needed */
+.panel.roof-open .roof > button { display: none; }
 /* Quick replies: the answers to the question Sunny just asked, as buttons. */
 .suggestions.replies button[aria-pressed="true"] { background: var(--sunny-accent-ink); color: #fff; }
 .suggestions.replies .send-replies { background: var(--sunny-accent-ink); color: #fff; border-color: transparent; }

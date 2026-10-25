@@ -113,7 +113,8 @@ export const QUOTE_TOOLS = [
     description:
       'Where the visitor is in getting a quote, and the ONE question to ask next (with its ' +
       'exact wording -- for a measured roof, a sentence for the visitor to confirm). Ask that ' +
-      'question next, in your own warm words but without changing its meaning.',
+      'question next, in your own warm words but without changing its meaning. When it has ' +
+      'options, the visitor sees them as buttons under your message: do not list them.',
     parameters: { type: 'object', properties: {}, required: [] },
     required: [],
     async run(_args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {

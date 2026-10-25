@@ -178,6 +178,29 @@ describe('the vertical slice', () => {
     expect(response.body).not.toContain('googleapis');
   });
 
+  it('asks the next question itself when the model looks it up and then says nothing', async () => {
+    // Seen live: the tools ran (the survey's next question among them) and the
+    // model ended the turn without a word, leaving the visitor nothing to answer.
+    const provider = new ScriptedProvider(() => [
+      { type: 'tool_started', call: { name: 'get_quote_journey', args: {} } },
+    ]);
+    const { app } = await h(provider);
+    const { sessionId, token } = await openSession(app);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I want solar' },
+    });
+    const events = parseSse(response.body);
+    const said = events
+      .filter((e) => e['type'] === 'text_delta')
+      .map((e) => e['text'])
+      .join('');
+    expect(said).toBe('What is the address, including the postcode, you would like a quote for?');
+    expect(events.find((e) => e['type'] === 'message_finished')?.['text']).toBe(said);
+  });
+
   it('streams a reply and persists both halves of the turn', async () => {
     const provider = new ScriptedProvider(() => [
       { type: 'text', text: 'On a south-facing roof like yours, ' },
