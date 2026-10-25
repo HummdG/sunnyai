@@ -674,11 +674,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           yield frame(event as ChatStreamEvent);
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'The assistant failed.';
-        const code =
-          error instanceof ProviderUnavailableError || error instanceof NotEntitledError
-            ? 'not_enabled'
-            : 'upstream_failed';
+        // Our own refusals say what is off; anything else is a model service's
+        // error, which is for the log, not for a visitor's chat window.
+        const ours = error instanceof ProviderUnavailableError || error instanceof NotEntitledError;
+        const code = ours ? 'not_enabled' : 'upstream_failed';
+        const message = ours
+          ? error.message
+          : 'Sorry, I could not answer just then. Please try again in a moment.';
         request.log.error({ err: error }, 'chat turn failed');
         yield frame({ type: 'error', messageId: newId('msg'), code, message });
       } finally {

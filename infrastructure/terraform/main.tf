@@ -34,6 +34,15 @@ resource "google_project_service" "artifactregistry" {
   disable_on_destroy = false
 }
 
+# The model. With GOOGLE_CLOUD_PROJECT set (it is, for Firestore), the API
+# calls Gemini through Vertex AI, so the project needs it on and the model key
+# must be allowed to call it.
+resource "google_project_service" "aiplatform" {
+  project            = var.project_id
+  service            = "aiplatform.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_project_service" "secretmanager" {
   project            = var.project_id
   service            = "secretmanager.googleapis.com"

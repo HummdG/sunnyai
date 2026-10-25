@@ -156,6 +156,28 @@ describe('the vertical slice', () => {
     expect(response.body).not.toContain('demo-solar');
   });
 
+  it("shows a visitor a plain apology, never the model service's own error", async () => {
+    const raw =
+      '{"error":{"code":403,"message":"Requests to this API aiplatform.googleapis.com are blocked."}}';
+    const provider = new ScriptedProvider(() => {
+      throw new Error(raw);
+    });
+    const { app } = await h(provider);
+    const { sessionId, token } = await openSession(app);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/chat/stream',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId, clientMessageId: 'c1', text: 'How much could I save?' },
+    });
+    const failure = parseSse(response.body).find((e) => e['type'] === 'error');
+    expect(failure?.['code']).toBe('upstream_failed');
+    expect(failure?.['message']).toBe(
+      'Sorry, I could not answer just then. Please try again in a moment.',
+    );
+    expect(response.body).not.toContain('googleapis');
+  });
+
   it('streams a reply and persists both halves of the turn', async () => {
     const provider = new ScriptedProvider(() => [
       { type: 'text', text: 'On a south-facing roof like yours, ' },
