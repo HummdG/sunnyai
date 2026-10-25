@@ -1,3 +1,5 @@
+import type { Content, Part } from '@google/genai';
+
 import type { GeminiConfig } from '../config.js';
 
 /**
@@ -100,6 +102,24 @@ export interface GeminiProviderOptions {
  * a key exists -- an unconfigured deployment does not need the dependency
  * resolved at boot, and a missing key should not be able to crash startup.
  */
+/** Rounds of tool calls one turn may take before it stops asking the model. */
+const MAX_TOOL_ROUNDS = 4;
+
+function functionResponse(
+  id: string | undefined,
+  name: string,
+  response: Record<string, unknown>,
+): Part {
+  return { functionResponse: { ...(id ? { id } : {}), name, response } };
+}
+
+/** A function response must be an object; anything else is wrapped. */
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : { result: value };
+}
+
 export class GeminiProvider implements ChatProvider {
   readonly kind = 'gemini';
   readonly model: string;
@@ -130,7 +150,7 @@ export class GeminiProvider implements ChatProvider {
           })
         : new GoogleGenAI({ apiKey: this.#config.apiKey });
 
-    const contents = [
+    const contents: Content[] = [
       ...request.history.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.text }],
@@ -144,60 +164,77 @@ export class GeminiProvider implements ChatProvider {
       parameters: t.parameters,
     }));
 
-    const response = await ai.models.generateContentStream({
-      model: this.model,
-      contents,
-      config: {
-        systemInstruction: request.systemInstruction,
-        maxOutputTokens: this.#maxOutputTokens,
-        ...(functionDeclarations.length > 0 ? { tools: [{ functionDeclarations }] } : {}),
-      },
-    });
-
     let inputTokens = 0;
     let outputTokens = 0;
 
-    for await (const chunk of response) {
-      if (request.signal?.aborted) return;
-      const text = chunk.text;
-      if (text) yield { type: 'text', text };
+    // A turn is a loop: the model may ask for tools, their results go back to
+    // it, and it answers (or asks again). A turn that stopped after the first
+    // call streamed nothing whenever the model looked something up first.
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      const response = await ai.models.generateContentStream({
+        model: this.model,
+        contents,
+        config: {
+          systemInstruction: request.systemInstruction,
+          maxOutputTokens: this.#maxOutputTokens,
+          ...(functionDeclarations.length > 0 ? { tools: [{ functionDeclarations }] } : {}),
+        },
+      });
 
-      const usage = chunk.usageMetadata;
-      if (usage) {
-        inputTokens = usage.promptTokenCount ?? inputTokens;
-        outputTokens = usage.candidatesTokenCount ?? outputTokens;
-      }
+      // The model's turn as it sent it, parts and all: Gemini 3 refuses a
+      // replayed function call that has lost its thought signature.
+      const modelParts: Part[] = [];
+      const responses: Part[] = [];
+      let roundInput = 0;
+      let roundOutput = 0;
 
-      // Tool calls are surfaced as events *and* executed here, so the caller
-      // sees the same `tool_started`/`tool_finished` pair the widget animates.
-      for (const call of chunk.functionCalls ?? []) {
-        const name = call.name;
-        // A function call with no name cannot be matched to a declaration, so
-        // it is dropped. There is no path that guesses which tool was meant.
-        if (!name) continue;
-        const declaration = request.tools.find((t) => t.name === name);
-        if (!declaration) {
-          // The model named a tool this deployment did not offer. Refuse it
-          // loudly instead of executing whatever it asked for.
-          continue;
+      for await (const chunk of response) {
+        if (request.signal?.aborted) return;
+        modelParts.push(...(chunk.candidates?.[0]?.content?.parts ?? []));
+        const text = chunk.text;
+        if (text) yield { type: 'text', text };
+
+        const usage = chunk.usageMetadata;
+        if (usage) {
+          roundInput = usage.promptTokenCount ?? roundInput;
+          roundOutput = usage.candidatesTokenCount ?? roundOutput;
         }
-        const chatCall: ChatToolCall = {
-          name,
-          args: call.args ?? {},
-        };
-        yield { type: 'tool_started', call: chatCall };
-        try {
-          const result = await request.execute(chatCall);
-          yield { type: 'tool_finished', call: chatCall, ok: true, result };
-        } catch (error) {
-          yield {
-            type: 'tool_finished',
-            call: chatCall,
-            ok: false,
-            result: error instanceof Error ? error.message : String(error),
+
+        // Tool calls are surfaced as events *and* executed here, so the caller
+        // sees the same `tool_started`/`tool_finished` pair the widget animates.
+        for (const call of chunk.functionCalls ?? []) {
+          const name = call.name;
+          // A function call with no name cannot be matched to a declaration, so
+          // it is dropped. There is no path that guesses which tool was meant.
+          if (!name) continue;
+          const declaration = request.tools.find((t) => t.name === name);
+          // The model named a tool this deployment did not offer: refused, and
+          // the model is told so rather than left waiting for a result.
+          if (!declaration) {
+            responses.push(functionResponse(call.id, name, { ok: false, error: 'Unknown tool.' }));
+            continue;
+          }
+          const chatCall: ChatToolCall = {
+            name,
+            args: call.args ?? {},
           };
+          yield { type: 'tool_started', call: chatCall };
+          try {
+            const result = await request.execute(chatCall);
+            yield { type: 'tool_finished', call: chatCall, ok: true, result };
+            responses.push(functionResponse(call.id, name, asRecord(result)));
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            yield { type: 'tool_finished', call: chatCall, ok: false, result: message };
+            responses.push(functionResponse(call.id, name, { ok: false, error: message }));
+          }
         }
       }
+
+      inputTokens += roundInput;
+      outputTokens += roundOutput;
+      if (responses.length === 0) break;
+      contents.push({ role: 'model', parts: modelParts }, { role: 'user', parts: responses });
     }
 
     yield { type: 'usage', inputTokens, outputTokens };

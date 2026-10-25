@@ -295,6 +295,38 @@ test('acts out a text answer: thinks, looks it up, then speaks', async ({ page }
   expect(states.indexOf('speaking')).toBeGreaterThan(states.indexOf('thinking'));
 });
 
+test('a failed answer says so once, with no empty bubble left behind', async ({ page }) => {
+  const frame = (event: Record<string, unknown>): string =>
+    `data: ${JSON.stringify({ messageId: 'm_e2e', ...event })}
+
+`;
+  await page.route('**/v1/chat/stream', async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body:
+        frame({ type: 'message_started' }) +
+        frame({
+          type: 'error',
+          code: 'upstream_failed',
+          message: 'Sorry, I could not answer just then. Please try again in a moment.',
+        }) +
+        frame({ type: 'done', messageId: 'done' }),
+    });
+  });
+
+  await page.locator(HOST).locator(LAUNCHER).click();
+  const panel = page.locator(HOST).locator(PANEL);
+  await panel.locator('.composer-input').fill('Will solar save me money?');
+  await panel.locator('.composer-send').click();
+  await expect(panel.locator('.turn.error')).toHaveText(
+    'Sorry, I could not answer just then. Please try again in a moment.',
+  );
+  await expect(panel.locator('.composer-send')).toBeEnabled();
+  await expect(panel.locator('.turn.error')).toHaveCount(1);
+  await expect(panel.locator('.turn.assistant')).toHaveCount(1); // the greeting only
+});
+
 test('loads without console errors', async ({ page }) => {
   const errors = collectConsoleErrors(page);
   await page.goto('/');

@@ -1085,7 +1085,12 @@ export class SunnyWidget {
   #onStreamError(error: Error): void {
     const dots = this.#currentTurn?.querySelector('.typing');
     if (dots) dots.remove();
-    if (this.#currentTurn && this.#currentTurn.textContent === '') this.#currentTurn.remove();
+    if (this.#currentTurn && this.#currentTurn.textContent?.trim() === '') {
+      this.#currentTurn.remove();
+    }
+    // The turn is over: the finish that follows an error must not report it
+    // again as "no reply".
+    this.#currentTurn = null;
     this.#appendTurn('error', error.message);
     this.#animator.dispatch({ type: 'turn_failed' }, performance.now());
     this.#setPending(false);
