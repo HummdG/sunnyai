@@ -217,7 +217,7 @@ describe('email assistant, end to end with the demo knowledge base', () => {
     );
     expect(text).not.toMatch(/\[S\d+\]/);
     expect(text).toContain(EMAIL_DISCLAIMER_FOOTER);
-    expect(text).toContain('The Northwind Solar team');
+    expect(text).toContain('The Sunny.ai team');
     expect(result.attachments).toEqual(['1SupportKbFileId0.pdf']);
     expect(draft).toContain('Content-Type: application/pdf');
 

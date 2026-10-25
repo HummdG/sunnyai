@@ -322,6 +322,8 @@ test('a failed answer says so once, with no empty bubble left behind', async ({ 
   await expect(panel.locator('.turn.error')).toHaveText(
     'Sorry, I could not answer just then. Please try again in a moment.',
   );
+  // Ready for another go: the send button wakes up as soon as there is text.
+  await panel.locator('.composer-input').fill('And batteries?');
   await expect(panel.locator('.composer-send')).toBeEnabled();
   await expect(panel.locator('.turn.error')).toHaveCount(1);
   await expect(panel.locator('.turn.assistant')).toHaveCount(1); // the greeting only

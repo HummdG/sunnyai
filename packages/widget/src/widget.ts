@@ -101,6 +101,8 @@ export class SunnyWidget {
   #open = false;
   #pending = false;
   #currentTurn: HTMLElement | null = null;
+  /** Assessments whose 3D roof has already opened by itself. */
+  readonly #roofsShown = new Set<string>();
   #clientMessageId = '';
 
   /** The faces this instance put into the document, so `destroy` can take them out. */
@@ -728,6 +730,12 @@ export class SunnyWidget {
         button,
       );
       this.#animator.dispatch({ type: 'impress' }, performance.now());
+      // The 3D roof is the payoff of giving an address: show it as soon as it
+      // is ready, once per assessment (the button reopens it).
+      if (!this.#roofsShown.has(id)) {
+        this.#roofsShown.add(id);
+        void this.#openRoof(base, summary);
+      }
     }
     this.#scrollToEnd();
   }
@@ -1055,6 +1063,7 @@ export class SunnyWidget {
         this.#liveRegion.textContent = 'Reply finished.';
         break;
       case 'error':
+        this.#endFailedTurn();
         this.#appendTurn('error', event.message);
         break;
       default:
@@ -1082,15 +1091,22 @@ export class SunnyWidget {
     this.#scrollToEnd();
   }
 
-  #onStreamError(error: Error): void {
+  /**
+   * A turn that failed, by the server's word or the connection's: its empty
+   * reply bubble goes, and the finish that follows must not report the same
+   * failure again as "no reply".
+   */
+  #endFailedTurn(): void {
     const dots = this.#currentTurn?.querySelector('.typing');
     if (dots) dots.remove();
     if (this.#currentTurn && this.#currentTurn.textContent?.trim() === '') {
       this.#currentTurn.remove();
     }
-    // The turn is over: the finish that follows an error must not report it
-    // again as "no reply".
     this.#currentTurn = null;
+  }
+
+  #onStreamError(error: Error): void {
+    this.#endFailedTurn();
     this.#appendTurn('error', error.message);
     this.#animator.dispatch({ type: 'turn_failed' }, performance.now());
     this.#setPending(false);

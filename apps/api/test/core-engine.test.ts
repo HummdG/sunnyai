@@ -144,7 +144,7 @@ describe('the guardrail prompt', () => {
     expect(fallbackLine()).toBe(
       "I don't have that exact information on hand, but I can have one of our solar specialists reach out to you!",
     );
-    expect(instruction).toContain('customer assistant for Northwind Solar');
+    expect(instruction).toContain('customer assistant for Sunny.ai');
     expect(instruction).toMatch(/Never invent a price, a tax credit/);
     expect(instruction).toContain(ESTIMATE_DISCLAIMER);
   });
@@ -402,7 +402,7 @@ describe('customer support', () => {
       "I'm unable to help with this issue, please reach out on 0161 000 1111 (Mon-Fri 9-5) for further assistance.",
     );
     const none = supportLine(demo());
-    expect(none).toContain('contact Northwind Solar directly');
+    expect(none).toContain('contact Sunny.ai directly');
     expect(none).not.toMatch(/X{3,}/);
   });
 
@@ -417,7 +417,7 @@ describe('customer support', () => {
     );
     const out = streamed.join('') + guard.flush();
     expect(out).toBe('please reach out on 01234 567890 for further assistance');
-    expect(stripPlaceholders('call XXXX', demo())).toBe('call Northwind Solar directly');
+    expect(stripPlaceholders('call XXXX', demo())).toBe('call Sunny.ai directly');
   });
 
   it('never streams a placeholder to the visitor', async () => {
@@ -432,7 +432,7 @@ describe('customer support', () => {
       .map((e) => ('text' in e ? e.text : ''))
       .join('');
     expect(text).not.toMatch(/X{3,}/);
-    expect(text).toContain('Northwind Solar directly');
+    expect(text).toContain('Sunny.ai directly');
   });
 
   it('records whether a conversation is sales or support', async () => {

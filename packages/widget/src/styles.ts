@@ -193,7 +193,7 @@ export function styles(): string {
 /* ── the panel ──────────────────────────────────────────────────────────── */
 
 .panel {
-  width: min(384px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
+  width: min(440px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
   /* Taller than the conversation-only panel was. The options are a second
      surface inside the same frame, so the panel has to hold a transcript and a
      card list at once -- and a card that cannot be read without scrolling is a
@@ -202,7 +202,7 @@ export function styles(): string {
      The cutout is subtracted here as well as added to the gutters: a panel sized
      only against the viewport would put its last card under the home indicator
      on the one kind of screen that has one. */
-  height: min(640px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
+  height: min(760px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
   background: var(--sunny-warm-white);
   border-radius: var(--sunny-radius);
   box-shadow: var(--sunny-shadow);
