@@ -215,8 +215,9 @@ export function styles(): string {
 }
 /* Roof mode: the 3D roof docks at the top of the conversation and the panel
    grows to give it room, so the visitor answers the survey looking at their
-   own roof. Collapsed, the roof is a strip and the panel is its usual size. */
-.panel.roof-open:not(.roof-collapsed) {
+   own roof. As the conversation moves on the roof turns compact (below), and
+   the visitor makes it big again. */
+.panel.roof-open {
   width: min(720px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
   height: min(880px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
 }
@@ -393,11 +394,15 @@ export function styles(): string {
 .quote-status { font-size: 11.5px; color: #3a3a3a; margin: 4px 4px 0; min-height: 1em; }
 .roof-dock { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column;
   border-bottom: 1px solid rgba(23,23,23,.08); background: var(--sunny-warm-white); }
-/* the roof gives way before the conversation does: at most a little under half
+/* the roof gives way before the conversation does: at most a little over half
    the panel, so the question, its answers and the message box always fit */
-.panel.roof-open .roof-dock { max-height: 46%; }
-/* and the transcript keeps enough room to read the question being asked */
-.panel.roof-open .log { min-height: 160px; }
+.panel.roof-open .roof-dock { max-height: 56%; }
+/* and the transcript takes the room that is left, and scrolls: never less than
+   enough to read the question being asked */
+.panel.roof-open .log { flex: 1 1 0; min-height: 120px; }
+/* past the roof the conversation is under way: the starter questions step aside,
+   and only the answers to the question being asked show here */
+.panel.roof-open .suggestions:not(.replies) { display: none; }
 .roof-bar, .roof-controls, .roof-note { flex: 0 0 auto; }
 /* what the visitor types into never gives way */
 .composer, .suggestions, .footnote { flex: 0 0 auto; }
@@ -421,7 +426,11 @@ export function styles(): string {
 .roof-planes button { font: inherit; font-size: 11.5px; border: 1px solid var(--sunny-orange-soft);
   background: #fff; border-radius: 999px; padding: 3px 8px; cursor: pointer; }
 .roof-note { margin: 4px 14px 8px; font-size: 11px; color: #5c5c5c; }
-.roof-view.collapsed .roof-stage, .roof-view.collapsed .roof-controls, .roof-view.collapsed .roof-note { display: none; }
+.roof-stage { transition: height 320ms cubic-bezier(.2, .8, .2, 1); }
+/* compact: still the live model, as a strip; the sun and faces wait until it is big again */
+.roof-view.compact .roof-stage { height: 88px; min-height: 0; cursor: zoom-in; }
+.roof-view.compact .roof-controls, .roof-view.compact .roof-note { display: none; }
+.roof-bigger[hidden] { display: none; }
 /* while the roof is docked above, the card's own way to open it is not needed */
 .panel.roof-open .roof > button { display: none; }
 /* Quick replies: the answers to the question Sunny just asked, as buttons. */
@@ -559,7 +568,7 @@ export function styles(): string {
    pointed at. Applied by the widget adding an attribute, styled by the host's
    own stylesheet if it wants to; this is the fallback. */
 @media (prefers-reduced-motion: reduce) {
-  .launcher, .panel, .panel.opening, .panel.closing, .launcher.pop,
+  .launcher, .panel, .panel.opening, .panel.closing, .launcher.pop, .roof-stage,
   .panel.opening .header .avatar { animation: none !important;
     transition: none !important; }
   .panel.opening .header .avatar { opacity: 1; transform: none; }
@@ -575,12 +584,13 @@ export function styles(): string {
     --sunny-gutter-x: 12px;
     --sunny-gutter-y: 12px;
   }
-  .panel, .panel.roof-open:not(.roof-collapsed) {
+  .panel, .panel.roof-open {
     width: calc(100vw - 24px - var(--sunny-safe-left) - var(--sunny-safe-right));
     height: min(70vh, 520px);
   }
   /* a phone has no room to grow into: the roof takes a third and the chat keeps the rest */
-  .panel.roof-open:not(.roof-collapsed) { height: min(86vh, 760px); }
+  .panel.roof-open { height: min(86vh, 760px); }
+  .roof-view.compact .roof-stage { height: 72px; }
   .roof-stage { height: 28vh; }
   .launcher { width: 60px; height: 60px; }
 }

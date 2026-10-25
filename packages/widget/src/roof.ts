@@ -18,7 +18,8 @@ export type { SavingsTimelineLike };
  * with the roof planes the summary called suitable highlighted, a time-of-day
  * slider for the shadows, a plane list that highlights one plane on hover or
  * focus, and a text summary of the same facts for anyone who cannot use the
- * canvas. It can shrink to a strip and grow back.
+ * canvas. It turns compact as the conversation moves on, and the visitor makes
+ * it big again.
  */
 
 export interface RoofPlaneLite {
@@ -44,8 +45,6 @@ export interface OpenRoofOptions {
     onComplete?: () => void;
   };
   onClose: () => void;
-  /** Shrunk to a strip, or grown back: the panel resizes to match. */
-  onCollapse?: (collapsed: boolean) => void;
   /** Move focus into the view (when the visitor opened it, not when it opened by itself). */
   focus?: boolean;
 }
@@ -64,7 +63,16 @@ function node<K extends keyof HTMLElementTagNameMap>(
 const hhmm = (m: number) =>
   `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Promise<() => void> {
+/** The docked view, for the widget: close it, or make it compact as the conversation moves on. */
+export interface RoofViewHandle {
+  close: () => void;
+  setCompact: (compact: boolean) => void;
+}
+
+export async function openRoofView(
+  host: HTMLElement,
+  opts: OpenRoofOptions,
+): Promise<RoofViewHandle> {
   const overlay = node('div', {
     class: 'roof-view',
     role: 'region',
@@ -72,18 +80,19 @@ export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Pr
   });
   const bar = node('div', { class: 'roof-bar' });
   bar.append(node('strong', {}, 'Your roof in 3D'));
-  const shrink = node(
+  // Compact once the conversation moves on (the widget says when); the visitor
+  // makes it big again, here or by tapping the model.
+  const bigger = node(
     'button',
-    { type: 'button', class: 'roof-shrink', 'aria-expanded': 'true' },
-    'Shrink',
+    { type: 'button', class: 'roof-bigger', hidden: '' },
+    'Make bigger',
   );
-  shrink.addEventListener('click', () => {
-    const collapsed = overlay.classList.toggle('collapsed');
-    shrink.textContent = collapsed ? 'Show roof' : 'Shrink';
-    shrink.setAttribute('aria-expanded', String(!collapsed));
-    opts.onCollapse?.(collapsed);
-  });
-  bar.append(shrink);
+  const setCompact = (compact: boolean) => {
+    overlay.classList.toggle('compact', compact);
+    bigger.hidden = !compact;
+  };
+  bigger.addEventListener('click', () => setCompact(false));
+  bar.append(bigger);
   const close = node(
     'button',
     { type: 'button', class: 'roof-close', 'aria-label': 'Close the 3D view' },
@@ -91,6 +100,10 @@ export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Pr
   );
   bar.append(close);
   const stage = node('div', { class: 'roof-stage' });
+  // a tap on the compact model is the obvious way to ask for it bigger
+  stage.addEventListener('click', () => {
+    if (overlay.classList.contains('compact')) setCompact(false);
+  });
   const status = node('p', { class: 'roof-status', role: 'status' }, 'Loading the model…');
   stage.append(status);
   overlay.append(bar, stage);
@@ -134,7 +147,7 @@ export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Pr
     });
   } catch (error) {
     status.textContent = (error as Error).message;
-    return teardown;
+    return { close: teardown, setCompact };
   }
 
   // Time of day: the shadows move with the sun over the house.
@@ -194,5 +207,5 @@ export async function openRoofView(host: HTMLElement, opts: OpenRoofOptions): Pr
     if (reduced) begin();
     else simTimer = window.setTimeout(begin, Math.min(1600, placed.placed * 45 + 600));
   }
-  return teardown;
+  return { close: teardown, setCompact };
 }

@@ -477,7 +477,9 @@ test('offers the answers to Sunny’s question as buttons, and a tap sends one',
   await expect.poll(() => sent).toEqual(['I want solar', 'Semi-detached']);
 });
 
-test('docks the 3D roof in the conversation and grows the panel round it', async ({ page }) => {
+test('docks the 3D roof in the conversation, compact as it moves on, big again on request', async ({
+  page,
+}) => {
   const summary = {
     address: '3A Downs Walk, Peacehaven BN10 7SN',
     postcode: 'BN10 7SN',
@@ -507,17 +509,26 @@ test('docks the 3D roof in the conversation and grows the panel round it', async
       },
     ],
   };
+  let turns = 0;
   await page.route('**/v1/chat/stream', (route) =>
     route.fulfill({
       status: 200,
       headers: { 'content-type': 'text/event-stream' },
-      body: streamOf(
-        { type: 'message_started' },
-        { type: 'sunscan', assessmentId: 'ss_e2e', status: 'succeeded', summary },
-        { type: 'text_delta', text: 'Your main roof faces south. Does that look right?' },
-        { type: 'message_finished' },
-        { type: 'done', messageId: 'done' },
-      ),
+      body:
+        turns++ === 0
+          ? streamOf(
+              { type: 'message_started' },
+              { type: 'sunscan', assessmentId: 'ss_e2e', status: 'succeeded', summary },
+              { type: 'text_delta', text: 'Your main roof faces south. Does that look right?' },
+              { type: 'message_finished' },
+              { type: 'done', messageId: 'done' },
+            )
+          : streamOf(
+              { type: 'message_started' },
+              { type: 'text_delta', text: 'Is the roof shaded by trees or buildings?' },
+              { type: 'message_finished' },
+              { type: 'done', messageId: 'done' },
+            ),
     }),
   );
   // the model itself is not under test here
@@ -540,12 +551,26 @@ test('docks the 3D roof in the conversation and grows the panel round it', async
   await expect(panel.locator('.composer-input')).toBeFocused();
   await expect.poll(width).toBeGreaterThan(before + 100);
 
-  await roof.getByRole('button', { name: 'Shrink' }).click();
-  await expect(roof.getByRole('button', { name: 'Show roof' })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
-  await expect.poll(width).toBe(before);
+  const stageHeight = () =>
+    roof.locator('.roof-stage').evaluate((e) => (e as HTMLElement).offsetHeight);
+  // measured once the panel has finished growing round it
+  await page.waitForTimeout(450);
+  const big = await stageHeight();
+  await expect(roof.getByRole('button', { name: 'Make bigger' })).toBeHidden();
+
+  // the conversation moves on: the roof steps back to a strip, still in view
+  await panel.locator('.composer-input').fill('Yes');
+  await panel.locator('.composer-input').press('Enter');
+  await expect(panel).toContainText('Is the roof shaded');
+  await expect.poll(stageHeight).toBeLessThanOrEqual(90);
+  // compact is a real step down, even on a laptop screen
+  expect(big).toBeGreaterThan(140);
+  await expect(roof).toBeVisible();
+
+  // and the visitor asks for it big again
+  await roof.getByRole('button', { name: 'Make bigger' }).click();
+  await expect.poll(stageHeight).toBeGreaterThan(140);
+  await expect(roof.getByRole('button', { name: 'Make bigger' })).toBeHidden();
 
   await roof.getByRole('button', { name: 'Close the 3D view' }).click();
   await expect(roof).toHaveCount(0);
@@ -635,6 +660,6 @@ for (const [w, h] of [
     }
     expect(p.y, 'panel top').toBeGreaterThanOrEqual(0);
     expect(p.y + p.height, 'panel bottom').toBeLessThanOrEqual(h);
-    expect((await box('.log')).height, 'conversation height').toBeGreaterThanOrEqual(150);
+    expect((await box('.log')).height, 'conversation height').toBeGreaterThanOrEqual(115);
   });
 }

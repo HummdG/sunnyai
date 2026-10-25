@@ -105,6 +105,8 @@ export class SunnyWidget {
   readonly #roofsShown = new Set<string>();
   /** Closes the docked 3D roof, when one is open. */
   #closeRoof: (() => void) | null = null;
+  /** Makes the docked roof compact (as the conversation moves on) or big again. */
+  #compactRoof: ((compact: boolean) => void) | null = null;
   /** The answers to the question this turn ends on, shown as buttons when it finishes. */
   #pendingReplies: Extract<ChatStreamEvent, { type: 'quick_replies' }> | null = null;
   /** Whether the buttons under the conversation are answers rather than the starters. */
@@ -964,11 +966,10 @@ export class SunnyWidget {
     this.#closeRoof?.();
     this.#roofDock.replaceChildren();
     this.#roofDock.hidden = false;
-    this.#panel.classList.remove('roof-collapsed');
     this.#panel.classList.add('roof-open');
     // the panel has grown, so the newest message is no longer at the bottom
     window.setTimeout(() => this.#scrollToEnd(), 360);
-    const teardown = await roof.openRoofView(this.#roofDock, {
+    const view = await roof.openRoofView(this.#roofDock, {
       apiUrl: this.#options.apiUrl,
       token: this.#sessionToken,
       specUrl: `${base}/spec.json`,
@@ -978,24 +979,25 @@ export class SunnyWidget {
       reliable: summary.reliable,
       ...(simulation ? { simulation } : {}),
       focus,
-      onCollapse: (collapsed) => this.#panel.classList.toggle('roof-collapsed', collapsed),
       onClose: () => {
         this.#roofClosed();
         this.#composer.focus();
       },
     });
     this.#closeRoof = () => {
-      teardown();
+      view.close();
       this.#roofClosed();
     };
+    this.#compactRoof = view.setCompact;
   }
 
   /** Back from roof mode: the dock empties and the panel eases back to its size. */
   #roofClosed(): void {
     this.#closeRoof = null;
+    this.#compactRoof = null;
     this.#roofDock.hidden = true;
     this.#roofDock.replaceChildren();
-    this.#panel.classList.remove('roof-open', 'roof-collapsed');
+    this.#panel.classList.remove('roof-open');
   }
 
   /**
@@ -1095,6 +1097,8 @@ export class SunnyWidget {
     this.#setPending(true);
     // the buttons belong to the question just answered
     this.#pendingReplies = null;
+    // the conversation is moving on: the roof steps back to give it the room
+    this.#compactRoof?.(true);
     if (this.#repliesShown) this.#suggestions.hidden = true;
     this.#appendTurn('user', text);
     this.#animator.dispatch({ type: 'turn_started' }, performance.now());
