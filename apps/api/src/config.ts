@@ -24,7 +24,8 @@ import type { RateLimitRule } from './ratelimit.js';
 export type ModelSurface = 'vertex' | 'developer-api';
 
 export interface GeminiConfig {
-  apiKey: string;
+  /** Absent on Vertex when the deployment's own Google identity is used. */
+  apiKey: string | undefined;
   surface: ModelSurface;
   /** Fast, GA, and the model the widget uses for ordinary turns. */
   model: string;
@@ -242,16 +243,21 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
   }
   const surface: ModelSurface = surfaceRaw ?? (project ? 'vertex' : 'developer-api');
 
-  const gemini: GeminiConfig | undefined = apiKey
-    ? {
-        apiKey,
-        surface,
-        model: env('GEMINI_MODEL') ?? 'gemini-3.8-flash',
-        escalationModel: env('GEMINI_ESCALATION_MODEL'),
-        location: env('GOOGLE_CLOUD_LOCATION') ?? 'global',
-        project: surface === 'vertex' ? project : undefined,
-      }
-    : undefined;
+  // Chat is on with a key, or, when told to use Vertex, with a project to bill:
+  // Vertex accepts the deployment's own Google identity, so it needs no key
+  // (and no prepaid Gemini API credit; it bills the project's account).
+  const keylessVertex = surfaceRaw === 'vertex' && project !== undefined;
+  const gemini: GeminiConfig | undefined =
+    apiKey !== undefined || keylessVertex
+      ? {
+          apiKey,
+          surface,
+          model: env('GEMINI_MODEL') ?? 'gemini-3.8-flash',
+          escalationModel: env('GEMINI_ESCALATION_MODEL'),
+          location: env('GOOGLE_CLOUD_LOCATION') ?? 'global',
+          project: surface === 'vertex' ? project : undefined,
+        }
+      : undefined;
 
   const origins = env('WIDGET_ALLOWED_ORIGINS');
 

@@ -121,7 +121,9 @@ export class GeminiProvider implements ChatProvider {
     const ai =
       this.#config.surface === 'vertex'
         ? new GoogleGenAI({
-            apiKey: this.#config.apiKey,
+            // Without a key, the client uses the deployment's own identity
+            // (Application Default Credentials: Cloud Run's service account).
+            ...(this.#config.apiKey ? { apiKey: this.#config.apiKey } : {}),
             vertexai: true,
             project: this.#config.project,
             location: this.#config.location,

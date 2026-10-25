@@ -190,7 +190,7 @@ ADR-002's):
 | ------------------------------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------- |
 | `GEMINI_API_KEY`                                                         | unset                | its presence is what makes chat available at all                                  |
 | `GEMINI_MODEL`                                                           | `gemini-3.8-flash`   | the default model                                                                 |
-| `GEMINI_SURFACE`                                                         | inferred             | `developer-api` (Gemini API key) or `vertex`; Terraform sets it                   |
+| `GEMINI_SURFACE`                                                         | inferred             | `vertex` (no key, bills the project) or `developer-api` (Gemini API key)          |
 | `GEMINI_ESCALATION_MODEL`                                                | unset                | the escalation model (ADR-003)                                                    |
 | `GOOGLE_CLOUD_LOCATION`                                                  | `global`             | stored on the Gemini config                                                       |
 | `PORT` / `HOST`                                                          | `8787` / `127.0.0.1` | listener (Cloud Run sets `PORT` from the container port, 8080)                    |

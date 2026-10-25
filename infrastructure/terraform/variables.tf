@@ -66,12 +66,13 @@ variable "gemini_api_key_secret" {
 
 variable "gemini_surface" {
   description = <<-EOT
-    How the API reaches the model: "developer-api" (the Gemini API, for a key
-    made in AI Studio) or "vertex" (Vertex AI, for a key allowed to call it).
-    A key bound to an account can be restricted to one of the two, not both.
+    How the API reaches the model. "vertex" (the default): Vertex AI, called as
+    the API's own service account and billed to this project's account, with no
+    key. "developer-api": the Gemini API, with the key in Secret Manager, which
+    on a new account needs prepaid credit.
   EOT
   type        = string
-  default     = "developer-api"
+  default     = "vertex"
 
   validation {
     condition     = contains(["developer-api", "vertex"], var.gemini_surface)

@@ -42,6 +42,13 @@ resource "google_project_service" "aiplatform" {
   disable_on_destroy = false
 }
 
+# The API calls the model on Vertex as itself, and only that.
+resource "google_project_iam_member" "api_uses_vertex" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.api.email}"
+}
+
 resource "google_project_service" "secretmanager" {
   project            = var.project_id
   service            = "secretmanager.googleapis.com"
@@ -214,12 +221,19 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.gemini_surface
       }
 
-      env {
-        name = "GEMINI_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.gemini_api_key.secret_id
-            version = "latest"
+      # The model key is only for the Gemini API. On Vertex the API uses its own
+      # identity (roles/aiplatform.user below) and bills this project, so the
+      # key is not mounted: knowledge embeddings and catalogue extraction, which
+      # call the Gemini API with it, fall back to keyword search and manual entry.
+      dynamic "env" {
+        for_each = var.gemini_surface == "developer-api" ? [1] : []
+        content {
+          name = "GEMINI_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.gemini_api_key.secret_id
+              version = "latest"
+            }
           }
         }
       }

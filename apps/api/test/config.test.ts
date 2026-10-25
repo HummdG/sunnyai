@@ -80,6 +80,31 @@ describe('configuration', () => {
     expect(config.gemini?.project).toBeUndefined();
   });
 
+  it('on Vertex, needs no key: the deployment uses its own Google identity', () => {
+    delete process.env['GEMINI_API_KEY'];
+    process.env['GOOGLE_CLOUD_PROJECT'] = 'sunny-prod';
+    process.env['GEMINI_SURFACE'] = 'vertex';
+
+    const config = loadConfig();
+    expect(config.gemini?.surface).toBe('vertex');
+    expect(config.gemini?.apiKey).toBeUndefined();
+    expect(config.gemini?.project).toBe('sunny-prod');
+    expect(capabilityReport(config).chat.available).toBe(true);
+  });
+
+  it('does not turn chat on from a project alone, without being told to use Vertex', () => {
+    delete process.env['GEMINI_API_KEY'];
+    process.env['GOOGLE_CLOUD_PROJECT'] = 'sunny-prod';
+    expect(loadConfig().gemini).toBeUndefined();
+  });
+
+  it('cannot use Vertex without a project to bill', () => {
+    delete process.env['GEMINI_API_KEY'];
+    delete process.env['GOOGLE_CLOUD_PROJECT'];
+    process.env['GEMINI_SURFACE'] = 'vertex';
+    expect(loadConfig().gemini).toBeUndefined();
+  });
+
   it('refuses to guess at a surface it does not know', () => {
     process.env['GEMINI_API_KEY'] = 'k';
     process.env['GEMINI_SURFACE'] = 'vertexx';
