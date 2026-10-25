@@ -347,9 +347,11 @@ than the absence of the data.
 §12 requires that the demo data be clearly separate from production, and it is,
 in three layers:
 
-1. **The demo tenant** is `t_demo0001` / `w_demo000001` ("Northwind Solar"), a
-   fictional installer. Its catalogue and knowledge are `fixtures/demo-catalogue.csv`
-   and `fixtures/demo-knowledge.md`, both marked DEMO DATA.
+1. **The demo tenant** is `t_demo0001` / `w_demo000001` ("Sunny.ai"), the chat on
+   Sunny's own home page. Its catalogue and knowledge are `fixtures/demo-catalogue.csv`
+   and `fixtures/demo-knowledge.md` (written for a fictional installer, Northwind
+   Solar), both marked DEMO DATA. The tenant is written to the store only when it
+   is missing, so renaming it in code does not rename a deployment's stored copy.
 2. **The sandbox tenant** `t_sandbox001` / `w_sandbox0001` ("Southgate Solar") is
    served **only** when `SUNNY_SANDBOX_TENANT=1`, and `assertProductionReady()`
    refuses to boot in production with it set. It exists so the isolation sweep has
