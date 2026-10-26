@@ -240,9 +240,20 @@ function unpricedOptions(answers: QuoteAnswers): {
     standard: 'Mid-sized system',
     premium: 'Larger system',
   } as const;
-  const options = (['essential', 'standard', 'premium'] as const).map((tier) => {
+  // Each size is at least two panels up on the one before, room permitting:
+  // a modest home's use otherwise put the smaller and mid-sized systems at the
+  // same four-panel floor, two identical cards under different names.
+  let previous = 0;
+  const tiers = (['essential', 'standard', 'premium'] as const).map((tier) => {
     const target = (annualKwh * TIER_DEMAND_FACTOR[tier]) / KWH_PER_KWP_UK;
-    const count = Math.max(4, Math.min(roofMax, Math.round(target / panelKw)));
+    const wanted = Math.max(4, Math.round(target / panelKw), previous + 2);
+    previous = Math.min(roofMax, wanted);
+    return { tier, count: previous };
+  });
+  // a roof too small for three sizes: the smaller one goes rather than repeat
+  // the mid-sized one (the larger one still differs by its battery)
+  const distinct = tiers.filter((t) => !(t.tier === 'essential' && t.count === tiers[1]!.count));
+  const options = distinct.map(({ tier, count }) => {
     const r = runSolarCalculations(count, DEFAULT_PANEL, irradiance, annualKwh, importPence, {
       ...DEFAULT_ASSUMPTIONS,
       roofPitchDeg: answers.roof.pitchDeg,

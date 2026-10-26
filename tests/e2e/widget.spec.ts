@@ -663,3 +663,91 @@ for (const [w, h] of [
     expect((await box('.log')).height, 'conversation height').toBeGreaterThanOrEqual(115);
   });
 }
+
+const QUOTE = {
+  quoteId: 'q_e2e',
+  priced: false,
+  disclaimer: 'Indicative and non-binding: a specialist confirms everything at a survey.',
+  options: [
+    ['essential', 'Smaller system', false, 4, 1585, 253, null],
+    ['standard', 'Mid-sized system', true, 6, 2380, 341, null],
+    ['premium', 'Larger system', false, 8, 3170, 512, 'Battery (to be specified)'],
+  ].map(([id, label, isRecommended, panelCount, kwh, savings, batteryType]) => ({
+    id,
+    label,
+    isRecommended,
+    headline: 'Sized to your electricity use',
+    panelCount,
+    systemKwp: (panelCount as number) * 0.43,
+    batteryType,
+    batteryCapacityKwh: batteryType ? 5 : 0,
+    priceGbp: null,
+    priceLabel: 'Price to be confirmed by a specialist',
+    annualGenerationKwh: kwh,
+    annualSavingsGbp: savings,
+    paybackYears: null,
+  })),
+};
+
+for (const [w, h] of [
+  [1440, 900],
+  [390, 844],
+] as const) {
+  test(`sets the quote options out with the best one in the middle (${w}x${h})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.route('**/v1/chat/stream', (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: streamOf(
+          { type: 'message_started' },
+          { type: 'text_delta', text: 'Here are three options for your home.' },
+          { type: 'quote', quote: QUOTE },
+          { type: 'message_finished' },
+          { type: 'done', messageId: 'done' },
+        ),
+      }),
+    );
+    await openWidget(page);
+    const panel = page.locator(HOST).locator(PANEL);
+    await panel.locator('.composer-input').fill('Show me my options');
+    await panel.locator('.composer-send').click();
+
+    const options = panel.getByRole('list', { name: 'Your quote options' });
+    const cards = options.locator(':scope > li');
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(1)).toContainText('Best for you');
+    await expect(cards.nth(1)).toContainText('Mid-sized system');
+    await expect(cards.locator('svg.quote-art')).toHaveCount(3);
+    await page.waitForTimeout(500); // the panel finishes widening
+    const list = (await options.boundingBox())!;
+    const boxes = await Promise.all(
+      [0, 1, 2].map(async (i) => (await cards.nth(i).boundingBox())!),
+    );
+    if (w > 900) {
+      // three across, in a panel that grew to hold them
+      expect((await panel.boundingBox())!.width).toBeGreaterThan(800);
+      expect(boxes[0]!.x).toBeLessThan(boxes[1]!.x);
+      expect(boxes[1]!.x).toBeLessThan(boxes[2]!.x);
+      expect(boxes[2]!.x + boxes[2]!.width).toBeLessThanOrEqual(list.x + list.width + 1);
+      await expect(panel.locator('.quote-dots')).toBeHidden();
+    } else {
+      // a row to swipe, opening on the best one with its neighbours peeking in
+      const centre = boxes[1]!.x + boxes[1]!.width / 2;
+      expect(Math.abs(centre - (list.x + list.width / 2))).toBeLessThan(4);
+      await expect(panel.locator('.quote-dots')).toBeVisible();
+      await panel.getByRole('button', { name: 'Show the Larger system' }).click();
+      await expect
+        .poll(async () => {
+          const b = (await cards.nth(2).boundingBox())!;
+          return Math.abs(b.x + b.width / 2 - (list.x + list.width / 2));
+        })
+        .toBeLessThan(4);
+    }
+    if (process.env.SUNNY_SHOTS) {
+      await panel.screenshot({ path: `${process.env.SUNNY_SHOTS}/quote-${w}.png` });
+    }
+  });
+}

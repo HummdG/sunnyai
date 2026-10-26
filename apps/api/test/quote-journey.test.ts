@@ -367,6 +367,25 @@ describe('the quote', () => {
     }
     expect(quote.warnings.join(' ')).toMatch(/specialist will price/);
   });
+
+  it('without a price list, a modest home still gets three different sizes', () => {
+    // Live: a low bill put the smaller and mid-sized systems both at four panels.
+    const roof = mapRoof(summary(), PANEL);
+    const qa = quoteAnswers({ ...complete(roof), monthly_cost: '40' }, roof, null)!;
+    const quote = buildQuote({
+      id: 'q3',
+      tenantId: 't',
+      sessionId: 's',
+      createdAt: '2026-10-26T00:00:00Z',
+      answers: qa,
+      roof,
+      pricing: null,
+    });
+    const counts = quote.options.map((o) => o.panelCount);
+    expect(counts).toHaveLength(3);
+    expect(counts[1]!).toBeGreaterThan(counts[0]!);
+    expect(counts[2]!).toBeGreaterThan(counts[1]!);
+  });
 });
 
 // ─── routes ──────────────────────────────────────────────────────────────────

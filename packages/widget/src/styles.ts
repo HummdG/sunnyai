@@ -221,6 +221,10 @@ export function styles(): string {
   width: min(720px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
   height: min(880px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
 }
+.panel.quote-wide {
+  width: min(940px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
+  height: min(880px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
+}
 :host([data-position="bottom-left"]) .panel { transform-origin: bottom left; }
 :host([data-position="top-right"]) .panel { transform-origin: top right; }
 :host([data-position="top-left"]) .panel { transform-origin: top left; }
@@ -329,7 +333,7 @@ export function styles(): string {
 }
 .log:focus-visible { outline: 2px solid var(--sunny-accent); outline-offset: -4px; }
 
-.turn { max-width: 86%; padding: 9px 12px; border-radius: 14px; font-size: 14px;
+.turn { max-width: min(86%, 560px); padding: 9px 12px; border-radius: 14px; font-size: 14px;
   white-space: pre-wrap; overflow-wrap: anywhere; }
 .turn.user { align-self: flex-end; background: var(--sunny-accent-ink); color: #fff;
   border-bottom-right-radius: 5px; }
@@ -359,28 +363,55 @@ export function styles(): string {
 .roof button { font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 999px; padding: 6px 12px;
   border: 0; background: var(--sunny-accent-ink); color: #fff; }
 .panel { position: relative; }
-/* Quote journey: three option cards and the quote's own disclaimer. */
-.quote { margin: 4px 0 10px; }
-.quote-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.quote-option { position: relative; padding: 10px 12px; border-radius: 14px; background: #fff;
-  border: 1px solid rgba(23,23,23,.1); font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
-.quote-option.recommended { border: 2px solid var(--sunny-accent-ink); background: var(--sunny-pale); }
-.quote-badge { align-self: flex-start; font-size: 11px; font-weight: 650; color: #fff;
-  background: var(--sunny-accent-ink); border-radius: 999px; padding: 2px 8px; margin-bottom: 2px; }
-.quote-name { font-size: 14px; }
-.quote-price { font-size: 18px; font-weight: 700; }
-.quote-price-label { font-size: 11px; color: #5c5c5c; }
-.quote-headline { margin: 4px 0 2px; color: #3a3a3a; }
-.quote-facts { margin: 0; padding-left: 16px; color: #3a3a3a; }
+/* Quote options: three across, the best lifted in the middle; a swipe row when narrow. */
+.quote { margin: 4px 0 10px; container-type: inline-size; }
+.quote-options { list-style: none; margin: 0; padding: 24px 2px 4px; display: grid;
+  grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; gap: 12px;
+  align-items: stretch; }
+.quote-option { position: relative; padding: 12px 14px 14px; border-radius: 16px; background: #fff;
+  border: 1px solid rgba(23,23,23,.1); font-size: 13px; display: flex; flex-direction: column;
+  align-items: center; text-align: center; gap: 4px; min-width: 0;
+  transition: box-shadow 200ms ease, transform 200ms ease; }
+.quote-option.recommended { border: 2px solid var(--sunny-accent-ink); background: var(--sunny-pale);
+  transform: translateY(-10px); box-shadow: 0 10px 24px rgba(23,23,23,.12); }
+.quote-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-size: 11px; font-weight: 650; color: #fff; background: var(--sunny-accent-ink);
+  border-radius: 999px; padding: 3px 10px; }
+.quote-art { display: block; width: 100%; max-width: 190px; height: auto; aspect-ratio: 160 / 100; margin: 4px 0 2px; }
+.quote-name { font-size: 14px; font-weight: 650; }
+.quote-hero { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.quote-figure { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.quote-figure-label { font-size: 11.5px; color: #5c5c5c; }
+.quote-stats { list-style: none; margin: 8px 0 2px; padding: 8px 0 0; width: 100%;
+  border-top: 1px dashed rgba(23,23,23,.18); display: flex; justify-content: space-around; gap: 6px; }
+.quote-stats li { display: flex; flex-direction: column; font-size: 11px; color: #5c5c5c; line-height: 1.25; }
+.quote-stats b { font-size: 14px; color: var(--sunny-ink); }
 .quote-note { margin: 4px 0 0; font-size: 11.5px; color: #8a3b00; }
-.quote-disclaimer { font-size: 11px; color: #5c5c5c; margin: 6px 4px 0; }
-.quote-choose { align-self: flex-start; margin-top: 6px; font: inherit; font-size: 12.5px; font-weight: 650;
-  cursor: pointer; border-radius: 999px; padding: 6px 12px; min-height: 32px;
+.quote-disclaimer { font-size: 11px; color: #5c5c5c; margin: 10px 4px 0; text-align: center; }
+.quote-choose { align-self: stretch; margin-top: auto; font: inherit; font-size: 13px; font-weight: 650;
+  cursor: pointer; border-radius: 999px; padding: 7px 12px; min-height: 36px;
   border: 1px solid var(--sunny-accent-ink); background: #fff; color: var(--sunny-accent-ink); }
-.quote-choose:hover { background: var(--sunny-pale); }
+.quote-stats + .quote-choose, .quote-note + .quote-choose { margin-top: 10px; }
+.quote-option.recommended .quote-choose { background: var(--sunny-accent-ink); color: #fff; }
+.quote-choose:hover { filter: brightness(.96); }
 .quote-choose:focus-visible { outline: 3px solid var(--sunny-accent); outline-offset: 2px; }
 .quote-option.chosen { border: 2px solid var(--sunny-accent-ink); box-shadow: 0 0 0 3px var(--sunny-pale); }
 .quote-option.chosen .quote-choose { background: var(--sunny-accent-ink); color: #fff; }
+.quote-dots { display: none; justify-content: center; gap: 2px; margin-top: 2px; }
+.quote-dots button { width: 24px; height: 24px; border: 0; padding: 0; background: transparent; cursor: pointer;
+  display: grid; place-items: center; border-radius: 50%; }
+.quote-dots button::before { content: ""; width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(23,23,23,.22); transition: background 160ms, transform 160ms; }
+.quote-dots button[aria-current="true"]::before { background: var(--sunny-accent-ink); transform: scale(1.25); }
+.quote-dots button:focus-visible { outline: 2px solid var(--sunny-accent); }
+@container (max-width: 579px) {
+  .quote-options { display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    padding: 16px 12cqw 6px; gap: 10px; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .quote-options::-webkit-scrollbar { display: none; }
+  .quote-option { flex: 0 0 76cqw; scroll-snap-align: center; }
+  .quote-option.recommended { transform: none; box-shadow: 0 6px 16px rgba(23,23,23,.1); }
+  .quote-dots { display: flex; }
+}
 .quote-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 4px 0; }
 .quote-actions button { font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 999px;
   padding: 7px 12px; min-height: 32px; border: 1px solid var(--sunny-accent-ink);
@@ -568,7 +599,7 @@ export function styles(): string {
    pointed at. Applied by the widget adding an attribute, styled by the host's
    own stylesheet if it wants to; this is the fallback. */
 @media (prefers-reduced-motion: reduce) {
-  .launcher, .panel, .panel.opening, .panel.closing, .launcher.pop, .roof-stage,
+  .launcher, .panel, .panel.opening, .panel.closing, .launcher.pop, .roof-stage, .quote-option,
   .panel.opening .header .avatar { animation: none !important;
     transition: none !important; }
   .panel.opening .header .avatar { opacity: 1; transform: none; }
@@ -584,12 +615,12 @@ export function styles(): string {
     --sunny-gutter-x: 12px;
     --sunny-gutter-y: 12px;
   }
-  .panel, .panel.roof-open {
+  .panel, .panel.roof-open, .panel.quote-wide {
     width: calc(100vw - 24px - var(--sunny-safe-left) - var(--sunny-safe-right));
     height: min(70vh, 520px);
   }
   /* a phone has no room to grow into: the roof takes a third and the chat keeps the rest */
-  .panel.roof-open { height: min(86vh, 760px); }
+  .panel.roof-open, .panel.quote-wide { height: min(86vh, 760px); }
   .roof-view.compact .roof-stage { height: 72px; }
   .roof-stage { height: 28vh; }
   .launcher { width: 60px; height: 60px; }

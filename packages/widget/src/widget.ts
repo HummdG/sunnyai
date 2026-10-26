@@ -20,6 +20,7 @@ import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el } from './dom.js';
+import { optionArt } from './quote-art.js';
 import type * as RoofModule from './roof.js';
 import type * as VoiceModule from './voice.js';
 import { declareFontFaces, preloadFontFaces, releaseFontFaces } from './fonts.js';
@@ -768,52 +769,112 @@ export class SunnyWidget {
    */
   #showQuote(quote: QuoteCard): void {
     const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
-    const cards = quote.options.map((o) => {
-      const facts = [
-        `${o.panelCount} panels · ${o.systemKwp.toFixed(1)} kWp`,
-        o.batteryType ? `Battery: ${o.batteryType}` : 'No battery',
-        `About ${Math.round(o.annualGenerationKwh).toLocaleString('en-GB')} kWh a year`,
-        `Saves about ${gbp(o.annualSavingsGbp)} a year`,
-        ...(o.paybackYears !== null ? [`Pays back in about ${o.paybackYears} years`] : []),
-        ...(o.sentinel
-          ? [`With Sentinel optimisation: about ${gbp(o.sentinel.annualSavingsGbp)} a year`]
-          : []),
+    // Smallest to largest, with the recommended one in the middle: the eye
+    // lands there first, and the other two read as "less" and "more".
+    const bySize = [...quote.options].sort(
+      (a, b) => a.panelCount - b.panelCount || a.batteryCapacityKwh - b.batteryCapacityKwh,
+    );
+    const best = bySize.find((o) => o.isRecommended);
+    const rest = bySize.filter((o) => o !== best);
+    const ordered = best ? [...rest.slice(0, 1), best, ...rest.slice(1)] : bySize;
+
+    const stat = (value: string, label: string) =>
+      el('li', {}, [el('b', { text: value }), el('span', { text: label })]);
+    const cards = ordered.map((o) => {
+      const priced = o.priceGbp !== null;
+      const stats = [
+        stat(String(o.panelCount), 'panels'),
+        priced
+          ? stat(gbp(o.annualSavingsGbp), 'saved a year')
+          : stat(Math.round(o.annualGenerationKwh).toLocaleString('en-GB'), 'kWh a year'),
+        ...(o.batteryType
+          ? [stat(o.batteryCapacityKwh > 0 ? `${o.batteryCapacityKwh} kWh` : 'Yes', 'battery')]
+          : o.paybackYears !== null
+            ? [stat(`${o.paybackYears} yrs`, 'to pay back')]
+            : []),
       ];
       const notes = [
-        ...(o.aboveBudget ? ['Above the budget you mentioned'] : []),
-        ...(o.roofLimited ? ['Limited by the space on your roof'] : []),
+        ...(o.aboveBudget ? ['Over your budget'] : []),
+        ...(o.roofLimited ? ['Fills your roof'] : []),
+        ...(o.sentinel ? [`${gbp(o.sentinel.annualSavingsGbp)} a year with Sentinel`] : []),
         ...(o.installerPriced && o.installerPriced.length > 0
           ? [`Plus ${o.installerPriced.join(', ')}, priced by your installer`]
           : []),
       ];
       return el('li', { class: `quote-option${o.isRecommended ? ' recommended' : ''}` }, [
         ...(o.isRecommended ? [el('span', { class: 'quote-badge', text: 'Best for you' })] : []),
+        optionArt(bySize.indexOf(o), o.batteryType !== null),
         el('strong', { class: 'quote-name', text: o.label }),
-        el('span', {
-          class: 'quote-price',
-          text: o.priceGbp !== null ? gbp(o.priceGbp) : 'Price on survey',
-        }),
-        el('span', { class: 'quote-price-label', text: o.priceLabel }),
-        el('p', { class: 'quote-headline', text: o.headline }),
-        el(
-          'ul',
-          { class: 'quote-facts' },
-          facts.map((f) => el('li', { text: f })),
-        ),
-        ...notes.map((n) => el('p', { class: 'quote-note', text: n })),
+        // the one number to read: the price when there is one, else what it saves
+        el('p', { class: 'quote-hero' }, [
+          el('span', {
+            class: 'quote-figure',
+            text: gbp(priced ? o.priceGbp! : o.annualSavingsGbp),
+          }),
+          el('span', {
+            class: 'quote-figure-label',
+            text: priced ? o.priceLabel : 'saved a year',
+          }),
+        ]),
+        el('ul', { class: 'quote-stats' }, stats),
+        ...(notes.length > 0 ? [el('p', { class: 'quote-note', text: notes.join(' · ') })] : []),
         this.#chooseButton(quote.quoteId, o.id, o.label),
       ]);
     });
+
+    const list = el('ul', { class: 'quote-options', 'aria-label': 'Your quote options' }, cards);
+    // On a narrow panel the options are a row to swipe through; the dots say
+    // where you are and take you to the others.
+    const dots = el('div', { class: 'quote-dots' });
+    const dotButtons = ordered.map((o, i) => {
+      const dot = el('button', { type: 'button', 'aria-label': `Show the ${o.label}` });
+      dot.addEventListener('click', () => centre(i, true));
+      return dot;
+    });
+    dots.append(...dotButtons);
+    const centre = (i: number, smooth = false) => {
+      const card = cards[i];
+      if (!card) return;
+      const left = card.offsetLeft - (list.clientWidth - card.offsetWidth) / 2;
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      list.scrollTo({ left, behavior: smooth && !reduced ? 'smooth' : 'auto' });
+    };
+    const markDot = () => {
+      const mid = list.scrollLeft + list.clientWidth / 2;
+      let near = 0;
+      cards.forEach((card, i) => {
+        const d = (c: HTMLElement) => Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
+        if (d(card) < d(cards[near]!)) near = i;
+      });
+      dotButtons.forEach((dot, i) => dot.setAttribute('aria-current', String(i === near)));
+    };
+    list.addEventListener('scroll', markDot, { passive: true });
+
+    const unpriced = quote.options.every((o) => o.priceGbp === null);
     this.#log.append(
       el('div', { class: 'quote', 'data-id': quote.quoteId }, [
-        el('ul', { class: 'quote-options', 'aria-label': 'Your quote options' }, cards),
-        el('p', { class: 'quote-disclaimer', text: quote.disclaimer }),
+        list,
+        dots,
+        el('p', {
+          class: 'quote-disclaimer',
+          text: unpriced
+            ? `Prices are set after a free survey. ${quote.disclaimer}`
+            : quote.disclaimer,
+        }),
         ...this.#quoteActions(quote),
       ]),
     );
+    // The options want width: the panel widens to set them side by side.
+    this.#panel.classList.add('quote-wide');
+    const settle = () => {
+      centre(best ? ordered.indexOf(best) : 0);
+      markDot();
+      this.#scrollToEnd();
+    };
+    requestAnimationFrame(settle);
+    window.setTimeout(settle, 380);
     this.#animator.dispatch({ type: 'celebrate' }, performance.now());
     this.#liveRegion.textContent = `${quote.options.length} quote options shown.`;
-    this.#scrollToEnd();
   }
 
   /** "Choose this package" on one option card. */
@@ -822,7 +883,7 @@ export class SunnyWidget {
       type: 'button',
       class: 'quote-choose',
       'data-option': optionId,
-      text: 'Choose this package',
+      text: 'Choose',
       'aria-label': `Choose the ${label} package`,
     });
     button.addEventListener('click', () => void this.#choose(quoteId, optionId, button));
@@ -854,7 +915,7 @@ export class SunnyWidget {
     const quoteEl = button.closest('.quote');
     for (const b of quoteEl?.querySelectorAll<HTMLButtonElement>('.quote-choose') ?? []) {
       const mine = b === button;
-      b.textContent = mine ? 'Your choice ✓' : 'Choose this instead';
+      b.textContent = mine ? 'Chosen ✓' : 'Choose';
       b.closest('.quote-option')?.classList.toggle('chosen', mine);
       b.setAttribute('aria-pressed', String(mine));
     }
