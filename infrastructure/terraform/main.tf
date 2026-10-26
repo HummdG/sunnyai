@@ -216,6 +216,34 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
 
+      # The Email Assistant's Gmail connection (email.tf), once switched on.
+      dynamic "env" {
+        for_each = var.gmail_enabled ? {
+          GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
+          SUNNY_GMAIL_PUSH_TOPIC = google_pubsub_topic.gmail.id
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.gmail_enabled ? {
+          GOOGLE_OAUTH_CLIENT_SECRET = google_secret_manager_secret.google_oauth_client_secret.secret_id
+          SUNNY_EMAIL_TOKEN_KEY      = google_secret_manager_secret.email_token_key.secret_id
+          SUNNY_GMAIL_PUSH_TOKEN     = google_secret_manager_secret.gmail_push_token.secret_id
+        } : {}
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
+        }
+      }
+
       env {
         name  = "GEMINI_SURFACE"
         value = var.gemini_surface

@@ -31,6 +31,10 @@ interface EmailState {
 /** What the OAuth callback says when it sends the installer back here. */
 const CALLBACK_TEXT: Record<string, { ok: boolean; text: string }> = {
   connected: { ok: true, text: 'Your inbox is connected.' },
+  connected_not_watching: {
+    ok: false,
+    text: 'Your inbox is connected, but Sunny could not start watching it for new mail. Disconnect and connect again.',
+  },
   denied: { ok: false, text: 'The connection was cancelled.' },
   invalid_state: { ok: false, text: 'That sign-in link expired. Please try again.' },
   not_enabled: { ok: false, text: 'The Email Assistant is not part of your package.' },

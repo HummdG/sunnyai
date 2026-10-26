@@ -449,6 +449,8 @@ describe('the installer’s email settings', () => {
       tokenRef: `email-state:${entitled.id}`,
     });
     expect(JSON.stringify(tenants.byId(entitled.id))).not.toContain('rt-secret');
+    // connecting Gmail starts the watch, so new mail reaches Sunny with no further step
+    expect(await state.tenantForMailbox('help@northwind.example')).toBe(entitled.id);
   });
 
   it('starts a Gmail watch for a connected mailbox', async () => {

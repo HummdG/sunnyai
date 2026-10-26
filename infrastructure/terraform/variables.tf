@@ -177,3 +177,23 @@ variable "alert_email" {
   type        = string
   default     = ""
 }
+
+variable "google_oauth_client_id" {
+  description = "The Google OAuth client id for connecting an installer's Gmail (email.tf). An identifier, not a secret."
+  type        = string
+  default     = ""
+}
+
+variable "gmail_enabled" {
+  description = <<-EOT
+    Mount the Gmail settings into the API (email.tf). Set to true only once the
+    OAuth client secret has a value in Secret Manager, or the deploy fails.
+  EOT
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.gmail_enabled || var.google_oauth_client_id != ""
+    error_message = "gmail_enabled needs google_oauth_client_id."
+  }
+}

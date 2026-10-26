@@ -433,7 +433,7 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
         scopes: grant.scopes,
         connectedAt: new Date(now()).toISOString(),
       });
-      await tenants.save({
+      const saved = await tenants.save({
         ...tenant,
         config: {
           ...tenant.config,
@@ -445,6 +445,15 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
           },
         },
       });
+      // A connected Gmail is watched at once: without the watch, no new mail
+      // ever reaches Sunny, and the dashboard had no other way to start one.
+      if (state.provider === 'gmail' && config.gmailPush) {
+        try {
+          await startWatch(saved);
+        } catch {
+          return back('email=connected_not_watching');
+        }
+      }
       return back('email=connected');
     },
   );
@@ -466,40 +475,42 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
     },
   );
 
+  /** Ask Gmail to tell the push topic about new mail in the tenant's connected mailbox. */
+  async function startWatch(tenant: Tenant) {
+    if (!config.gmailPush) {
+      throw new ApiError('not_enabled', 'Gmail push is not configured on this deployment.');
+    }
+    const state = await getState();
+    const token = await state.getToken(tenant.id);
+    if (token?.provider !== 'gmail' || !config.google || !config.tokenKey) {
+      throw new ApiError('bad_request', 'Connect a Gmail mailbox first.');
+    }
+    const gmail =
+      (overrides.mailbox ? await overrides.mailbox(tenant) : null) ??
+      new GmailClient(
+        refreshingToken(
+          'gmail',
+          config.google,
+          decryptSecret(config.tokenKey, token.ciphertext),
+          fetchImpl,
+        ),
+        fetchImpl,
+      );
+    if (!gmail.watch || !gmail.profile)
+      throw new ApiError('bad_request', 'This mailbox cannot be watched.');
+    const profile = await gmail.profile();
+    const watch = await gmail.watch(config.gmailPush.topic);
+    await state.putWatch(tenant.id, {
+      mailbox: profile.emailAddress,
+      historyId: watch.historyId,
+      expiration: watch.expiration,
+    });
+    return { watching: profile.emailAddress.toLowerCase(), expiration: watch.expiration };
+  }
+
   app.post<{ Params: { tenantId: string } }>(
     '/v1/portal/tenants/:tenantId/email/watch',
-    async (request) => {
-      const tenant = await member(request, 'admin');
-      if (!config.gmailPush) {
-        throw new ApiError('not_enabled', 'Gmail push is not configured on this deployment.');
-      }
-      const state = await getState();
-      const token = await state.getToken(tenant.id);
-      if (token?.provider !== 'gmail' || !config.google || !config.tokenKey) {
-        throw new ApiError('bad_request', 'Connect a Gmail mailbox first.');
-      }
-      const gmail =
-        (overrides.mailbox ? await overrides.mailbox(tenant) : null) ??
-        new GmailClient(
-          refreshingToken(
-            'gmail',
-            config.google,
-            decryptSecret(config.tokenKey, token.ciphertext),
-            fetchImpl,
-          ),
-          fetchImpl,
-        );
-      if (!gmail.watch || !gmail.profile)
-        throw new ApiError('bad_request', 'This mailbox cannot be watched.');
-      const profile = await gmail.profile();
-      const watch = await gmail.watch(config.gmailPush.topic);
-      await state.putWatch(tenant.id, {
-        mailbox: profile.emailAddress,
-        historyId: watch.historyId,
-        expiration: watch.expiration,
-      });
-      return { watching: profile.emailAddress.toLowerCase(), expiration: watch.expiration };
-    },
+    async (request) => startWatch(await member(request, 'admin')),
   );
 
   app.get<{ Params: { tenantId: string; sessionId: string } }>(
