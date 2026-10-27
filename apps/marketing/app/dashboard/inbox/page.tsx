@@ -34,9 +34,18 @@ function query(filter: Filter): string {
 
 /**
  * The draft Sunny wrote for an email conversation, and why it is waiting for
- * a person (from the Email Assistant, routes/email.ts).
+ * a person (from the Email Assistant, routes/email.ts). On a website chat it is
+ * the follow-up email to a visitor who left their address; most chats have none.
  */
-function EmailDraft({ tenantId, sessionId }: { tenantId: string; sessionId: string }) {
+function EmailDraft({
+  tenantId,
+  sessionId,
+  followUp = false,
+}: {
+  tenantId: string;
+  sessionId: string;
+  followUp?: boolean;
+}) {
   const [thread, setThread] = useState<EmailThread | null | 'none'>(null);
   useEffect(() => {
     setThread(null);
@@ -50,7 +59,14 @@ function EmailDraft({ tenantId, sessionId }: { tenantId: string; sessionId: stri
   return (
     <section aria-labelledby="draft-title" style={{ marginTop: 18 }}>
       <h3 id="draft-title" style={{ fontSize: '1rem', marginBottom: 8 }}>
-        {sent ? 'Reply sent' : 'Draft reply'} · {thread.subject}
+        {sent
+          ? followUp
+            ? 'Follow-up sent'
+            : 'Reply sent'
+          : followUp
+            ? 'Follow-up email draft'
+            : 'Draft reply'}{' '}
+        · {thread.subject}
       </h3>
       {thread.notes.length > 0 ? (
         <ul className="warning-list" style={{ marginBottom: 10 }}>
@@ -214,8 +230,12 @@ function Inbox() {
                   </div>
                 ))}
               </div>
-              {detail.channel === 'email' ? (
-                <EmailDraft tenantId={tenant.id} sessionId={detail.sessionId} />
+              {detail.channel === 'email' || detail.channel === 'chat' ? (
+                <EmailDraft
+                  tenantId={tenant.id}
+                  sessionId={detail.sessionId}
+                  followUp={detail.channel === 'chat'}
+                />
               ) : null}
               {Object.keys(detail.answers).length > 0 ? (
                 <>

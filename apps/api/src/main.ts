@@ -67,7 +67,23 @@ async function main(): Promise<void> {
     console.warn(
       '[demo] SUNNY_DEMO_ASSISTANT=1: chat is answered by a SCRIPTED demo assistant, not a model.',
     );
-  const app = buildServer({ config, store, tenants, ...(provider ? { provider } : {}) });
+  // Demo chat: the website widget only is answered by the scripted assistant
+  // (instant, and still the real roof, questionnaire and prices), while email
+  // keeps the model. Set on a staging deployment for a live demo; it is a
+  // deliberate, visible switch, so it is allowed wherever it is set.
+  const demoChat = ['1', 'true'].includes(process.env['SUNNY_DEMO_CHAT'] ?? '');
+  const chatProvider = demoChat
+    ? new (await import('./agent/demo-provider.js')).DemoProvider()
+    : undefined;
+  if (chatProvider)
+    console.warn('[demo] SUNNY_DEMO_CHAT=1: the website chat is SCRIPTED; email uses the model.');
+  const app = buildServer({
+    config,
+    store,
+    tenants,
+    ...(provider ? { provider } : {}),
+    ...(chatProvider ? { chatProvider } : {}),
+  });
 
   const capabilities = capabilityReport(config);
   await app.listen({ port: config.port, host: config.host });

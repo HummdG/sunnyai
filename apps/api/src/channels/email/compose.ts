@@ -14,6 +14,8 @@ export interface ComposeInput {
   /** The sender's display name, untrusted. */
   senderName: string | null;
   sources: ReadonlyArray<{ title: string; url: string | null }>;
+  /** Who replies are signed as (the Email Assistant's "Sign replies as"); the company's team otherwise. */
+  signatureName?: string;
 }
 
 /** Only a plausible first name from an untrusted display name; otherwise none. */
@@ -50,7 +52,9 @@ export function composeReply(input: ComposeInput): string {
     lines.push('', 'Further information:');
     for (const source of links.slice(0, 5)) lines.push(`- ${source.title}: ${source.url}`);
   }
-  if (!signedOff) lines.push('', 'Kind regards,', `The ${input.companyName} team`);
+  if (!signedOff) {
+    lines.push('', 'Kind regards,', input.signatureName?.trim() || `The ${input.companyName} team`);
+  }
   lines.push('', '--', EMAIL_DISCLAIMER_FOOTER);
   body = lines.join('\n');
   return body;

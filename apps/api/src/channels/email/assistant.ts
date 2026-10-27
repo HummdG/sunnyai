@@ -258,6 +258,9 @@ export class EmailAssistant {
       companyName: tenant.config.companyName,
       senderName: email.from.name,
       sources,
+      ...(tenant.config.email?.signatureName
+        ? { signatureName: tenant.config.email.signatureName }
+        : {}),
     });
     const { latest } = splitQuoted(email.text);
     const confidence = escalated

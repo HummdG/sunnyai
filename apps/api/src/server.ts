@@ -67,12 +67,12 @@ import { explain, nextQuestion, reconcile, validateAnswer } from './questionnair
 import { startRetention } from './retention.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
 import { newId, type DeletedConversation, type ModelCall, type Store } from './store.js';
-import { DEMO_TENANT, type TenantRegistry } from './tenants.js';
+import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { FileVoiceUsage } from './channels/voice/usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
-import { registerEmailRoutes, type EmailOverrides } from './routes/email.js';
+import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
 import type { SunScanService } from '@sunny/sunscan-adapter';
 import { registerVoiceRoutes, type VoiceRouteDeps } from './routes/voice.js';
 import {
@@ -108,6 +108,12 @@ export interface ServerDeps {
   sunscanTaskVerifier?: ((token: string) => Promise<boolean>) | null;
   /** Defaults to the unconfigured provider when no key is set. */
   provider?: ChatProvider;
+  /**
+   * The website chat's assistant, when it differs from the one email and voice
+   * use: the scripted demo (SUNNY_DEMO_CHAT) answers the widget instantly while
+   * email replies keep the model.
+   */
+  chatProvider?: ChatProvider;
   /** Injected so tests can drive the clock and read bucket counts. */
   rateLimiter?: RateLimiter;
   now?: () => number;
@@ -547,6 +553,31 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     };
   });
 
+  // The Email Assistant's hooks, set where its routes are registered (below).
+  // Read at request time, so the chat route can be declared first.
+  let emailHooks: EmailHooks | null = null;
+
+  /**
+   * Draft the follow-up email for website leads, at most `waitMs` long: the
+   * chat holds its closing frame for it, so a slow mailbox costs the visitor a
+   * moment, never the turn. The draft carries on if the wait runs out.
+   */
+  async function followUpLeads(
+    tenant: Tenant,
+    leadIds: readonly string[],
+    latestMessage: string | undefined,
+    waitMs: number,
+  ): Promise<void> {
+    const hooks = emailHooks;
+    if (!hooks || leadIds.length === 0) return;
+    const leads = (await store.listLeads(tenant.id)).filter((l) => leadIds.includes(l.id));
+    // One email per conversation (followup.ts): the newest lead has the best details.
+    const lead = leads.at(-1);
+    if (!lead) return;
+    const work = hooks.followUpLead(tenant, lead, latestMessage);
+    await Promise.race([work, new Promise((resolve) => setTimeout(resolve, waitMs))]);
+  }
+
   // ─── chat ──────────────────────────────────────────────────────────────────
 
   app.post('/v1/chat/stream', async (request, reply) => {
@@ -593,7 +624,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       throw new ApiError('not_enabled', new NotEntitledError('chat').message);
     }
 
-    const chat = await getProvider();
+    const chat = deps.chatProvider ?? (await getProvider());
     // A safety concern is answered by the server without a model, so it is
     // answered even on a deployment with no model configured.
     const safety = detectSafetyConcern(body.data.text);
@@ -645,6 +676,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
     async function* frames(): AsyncGenerator<string> {
       const frame = (event: ChatStreamEvent): string => `data: ${JSON.stringify(event)}\n\n`;
+      const savedLeads: string[] = [];
       try {
         // Loaded inside the stream rather than before it, so a store that cannot
         // be read produces the same `error` frame as any other turn failure
@@ -671,8 +703,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           signal: abort.signal,
         })) {
           if (abort.signal.aborted) break;
+          if (event.type === 'lead_saved') savedLeads.push(event.leadId);
           yield frame(event as ChatStreamEvent);
         }
+        // A visitor who left their email gets a follow-up drafted for the
+        // installer (the Email Assistant add-on), before the stream closes so
+        // the work runs while the request still has its CPU.
+        await followUpLeads(tenantSnapshot, savedLeads, userText, 12_000).catch((error: unknown) =>
+          request.log.error({ err: error }, 'lead follow-up failed'),
+        );
       } catch (error) {
         // Our own refusals say what is off; anything else is a model service's
         // error, which is for the log, not for a visitor's chat window.
@@ -936,6 +975,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // cheapest place to say so. The body repeats the first answer -- same
     // `leadId`, same `createdAt` -- so a caller that reads only the body cannot
     // tell the two apart, which is what makes a blind retry safe.
+    if (result.outcome === 'created') {
+      await followUpLeads(tenant, [result.lead.id], undefined, 8_000).catch((error: unknown) =>
+        request.log.error({ err: error }, 'lead follow-up failed'),
+      );
+    }
+
     reply.code(result.outcome === 'created' ? 201 : 200);
     return {
       leadId: result.lead.id,
@@ -1990,7 +2035,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   // The Email Assistant add-on (routes/email.ts).
-  registerEmailRoutes(app, {
+  emailHooks = registerEmailRoutes(app, {
     store,
     tenants,
     portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),

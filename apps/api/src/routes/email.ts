@@ -17,6 +17,7 @@ import {
   FileEmailState,
   GmailClient,
   inboundToken,
+  LeadFollowUp,
   loadEmailConfig,
   mailboxFromState,
   parseMultipartFields,
@@ -38,7 +39,7 @@ import {
   type MailProvider,
 } from '../channels/email/index.js';
 import type { FirestoreConfig } from '../config.js';
-import type { MemberRole, Store } from '../store.js';
+import type { LeadRecord, MemberRole, Store } from '../store.js';
 import type { EmailChannelConfig, Tenant, TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
 
@@ -51,6 +52,9 @@ import type { PortalConfig } from './portal-config.js';
  *   POST /v1/webhooks/gmail-push?token=…            Gmail watch notifications (Pub/Sub)
  *   GET  /v1/email/oauth/callback                   mailbox connection (OAuth)
  *   /v1/portal/tenants/:tenantId/email/…            the installer's settings
+ *
+ * It also hands back the follow-up drafter for website leads (followup.ts),
+ * which the chat and lead routes call when a visitor leaves their email.
  *
  * The tenant is always decided by the route -- the receiving address, the
  * secret URL, or the watched mailbox -- and never by anything an email says.
@@ -84,7 +88,17 @@ export interface EmailRouteDeps {
 /** Inbound bodies are capped: an email with a larger body is not a person writing. */
 const INBOUND_BODY_LIMIT = 10 * 1024 * 1024;
 
-export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps): void {
+/** What the rest of the server may ask of the email add-on. */
+export interface EmailHooks {
+  /**
+   * Draft the follow-up email for a website lead. Resolves when it is drafted
+   * (or skipped); never rejects, because a lead is saved whether or not its
+   * email could be written.
+   */
+  followUpLead(tenant: Tenant, lead: LeadRecord, latestMessage?: string): Promise<void>;
+}
+
+export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps): EmailHooks {
   const { store, tenants, now } = deps;
   const overrides = deps.overrides ?? {};
   const fetchImpl = overrides.fetch ?? fetch;
@@ -145,6 +159,18 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
   })();
   // A rejected promise nobody awaited yet would be reported as unhandled.
   assistantPromise.catch(() => undefined);
+
+  const followUpPromise = (async () => {
+    const state = await getState();
+    return new LeadFollowUp({
+      store,
+      state,
+      mailbox: overrides.mailbox ?? mailboxFromState(state, config, fetchImpl),
+      provider: deps.getProvider,
+      now,
+    });
+  })();
+  followUpPromise.catch(() => undefined);
 
   async function handle(tenant: Tenant, email: InboundEmail): Promise<EmailResult> {
     const assistant = await assistantPromise;
@@ -522,6 +548,17 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
       return link;
     },
   );
+
+  return {
+    async followUpLead(tenant, lead, latestMessage) {
+      try {
+        const followUp = await followUpPromise;
+        await followUp.draft({ tenant, lead, ...(latestMessage ? { latestMessage } : {}) });
+      } catch (error) {
+        app.log.error({ err: error, leadId: lead.id }, 'lead follow-up email failed');
+      }
+    },
+  };
 }
 
 const PROVIDERS: readonly EmailChannelConfig['provider'][] = ['gmail', 'outlook', 'forwarding'];
