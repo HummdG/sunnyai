@@ -205,7 +205,7 @@ export async function openRoofView(
       });
     };
     if (reduced) begin();
-    else simTimer = window.setTimeout(begin, Math.min(1600, placed.placed * 45 + 600));
+    else simTimer = window.setTimeout(begin, Math.min(2400, placed.placed * 75 + 900));
   }
   return { close: teardown, setCompact };
 }

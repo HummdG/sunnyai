@@ -87,7 +87,7 @@ export function summaryRows(t: SavingsTimelineLike): { month: string; saved: str
 /** When each step starts, in ms from the beginning. */
 export function stepTimes(t: SavingsTimelineLike, monthMs: number): { start: number; end: number }[] {
   const months = t.months.length;
-  const yearMs = 2600;
+  const yearMs = 3600;
   return simulationScript(t).map((step, i) => {
     if (step.kind === 'month') return { start: i * monthMs, end: (i + 1) * monthMs };
     if (step.kind === 'year') return { start: months * monthMs, end: months * monthMs + yearMs };
@@ -106,7 +106,7 @@ export interface SavingsOverlayDeps {
 }
 
 export interface SavingsSimulationOptions {
-  /** Milliseconds per month (default 1200). */
+  /** Milliseconds per month (default 1800). */
   monthMs?: number;
   reducedMotion?: boolean;
   autoplay?: boolean;
@@ -135,12 +135,12 @@ const CSS = `
 .sv-sim__coin svg{width:46px;height:46px;filter:drop-shadow(0 4px 6px rgba(23,23,23,.25));transform:scale(var(--s,1));transform-origin:50% 100%}
 .sv-sim__bubble{white-space:normal;text-align:center;width:max-content;background:#fffcf8;border:2px solid #171717;border-radius:14px;padding:6px 10px;font-size:13px;font-weight:600;position:relative}
 .sv-sim__bubble::after{content:"";position:absolute;left:50%;bottom:-8px;width:12px;height:12px;background:#fffcf8;border-right:2px solid #171717;border-bottom:2px solid #171717;transform:translateX(-50%) rotate(45deg)}
-.sv-sim__coin.is-popping{animation:sv-pop 1s cubic-bezier(.34,1.56,.64,1) both}
+.sv-sim__coin.is-popping{animation:sv-pop var(--pop,1.5s) cubic-bezier(.34,1.56,.64,1) both}
 @keyframes sv-pop{0%{opacity:0;transform:translate(-50%,-80%) scale(.4)}18%{opacity:1;transform:translate(-50%,-100%) scale(1.06)}28%{transform:translate(-50%,-100%) scale(1)}80%{opacity:1;transform:translate(-50%,-108%) scale(1)}100%{opacity:0;transform:translate(-50%,-114%) scale(1)}}
 .sv-sim__dots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px}
 .sv-sim__dots i{width:8px;height:8px;border-radius:50%;background:rgba(23,23,23,.18);transition:background .16s,transform .16s}
 .sv-sim__dots i.is-on{background:#ff7900;transform:scale(1.25)}
-.sv-sim__card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88%,360px);background:#fffcf8;border:2px solid #171717;border-radius:22px;padding:18px 20px;text-align:center;box-shadow:0 24px 60px rgba(23,23,23,.14);pointer-events:auto;animation:sv-card .42s cubic-bezier(.34,1.56,.64,1) both}
+.sv-sim__card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88%,360px);max-height:calc(100% - 24px);overflow:auto;overscroll-behavior:contain;background:#fffcf8;border:2px solid #171717;border-radius:22px;padding:18px 20px;text-align:center;box-shadow:0 24px 60px rgba(23,23,23,.14);pointer-events:auto;animation:sv-card .42s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes sv-card{from{opacity:0;transform:translate(-50%,-44%) scale(.96)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 .sv-sim__card h3{margin:0 0 6px;font-size:20px;font-weight:800;letter-spacing:-.02em}
 .sv-sim__card p{margin:4px 0;font-size:14px;line-height:1.5}
@@ -180,7 +180,7 @@ export function createSavingsOverlay(
   opts: SavingsSimulationOptions = {},
 ): SavingsSimulationHandle {
   const doc = host.ownerDocument;
-  const monthMs = Math.max(300, opts.monthMs ?? 1200);
+  const monthMs = Math.max(300, opts.monthMs ?? 1800);
   const script = simulationScript(timeline);
   const times = stepTimes(timeline, monthMs);
   if (doc.defaultView && getComputedStyle(host).position === 'static') host.style.position = 'relative';
@@ -201,6 +201,8 @@ export function createSavingsOverlay(
   const bubble = el(doc, 'div', 'sv-sim__bubble');
   coin.append(bubble, coinArt);
   coin.style.opacity = '0';
+  // the pop lasts most of the month, so a slower month is a slower coin rather than a gap
+  coin.style.setProperty('--pop', `${Math.round(monthMs * 0.85)}ms`);
   const dots = el(doc, 'div', 'sv-sim__dots');
   dots.setAttribute('aria-hidden', 'true');
   const dotEls = timeline.months.map(() => el(doc, 'i'));
@@ -212,7 +214,10 @@ export function createSavingsOverlay(
   pauseBtn.type = 'button';
   const skipBtn = el(doc, 'button', undefined, 'Skip to totals');
   skipBtn.type = 'button';
-  controls.append(pauseBtn, skipBtn);
+  // Replay stays put through the whole run and after it, so the visitor can always start it over.
+  const replayCtl = el(doc, 'button', undefined, 'Replay');
+  replayCtl.type = 'button';
+  controls.append(pauseBtn, skipBtn, replayCtl);
   let card: HTMLElement | null = null;
   root.append(style, total, coin, dots, controls, live);
   host.append(root);
@@ -382,6 +387,7 @@ export function createSavingsOverlay(
   };
   pauseBtn.addEventListener('click', () => (state === 'paused' ? handle.resume() : handle.pause()));
   skipBtn.addEventListener('click', () => handle.skip());
+  replayCtl.addEventListener('click', () => handle.replay());
 
   if (opts.reducedMotion) {
     // No animation: the month table and both totals at once.

@@ -91,7 +91,8 @@ export function mountRoofViewer(host: HTMLElement, opts: RoofViewerOptions): Roo
   const spec = opts.spec;
   const { mesh } = synthesize(spec);
   const viewer = new Viewer(host, { onWarning: (m) => opts.onWarning?.(m) }, corePalette());
-  viewer.setToggles({ interior: false, floors: false, stairs: false, evidence: false });
+  // The roof is the point: no windows or doors on the walls, nothing inside.
+  viewer.setToggles({ openings: false, interior: false, floors: false, stairs: false, evidence: false });
   viewer.setModel(spec, mesh, { resetCamera: true });
   if (opts.reducedMotion) viewer.controls.enableDamping = false;
 
@@ -144,13 +145,13 @@ export function mountRoofViewer(host: HTMLElement, opts: RoofViewerOptions): Roo
       viewer.requestRender();
       return result;
     }
-    // Staggered drop-in: each panel lands in 380 ms, 45 ms after the one before.
+    // Staggered drop-in: each panel lands in 560 ms, 75 ms after the one before.
     const start = performance.now();
     const step = (now: number) => {
       const t = now - start;
-      objects.setProgress((i) => (t - i * 45) / 380);
+      objects.setProgress((i) => (t - i * 75) / 560);
       viewer.requestRender();
-      if (t < (n - 1) * 45 + 400) dropRaf = requestAnimationFrame(step);
+      if (t < (n - 1) * 75 + 580) dropRaf = requestAnimationFrame(step);
     };
     objects.setProgress(() => 0);
     dropRaf = requestAnimationFrame(step);

@@ -295,6 +295,38 @@ test('acts out a text answer: thinks, looks it up, then speaks', async ({ page }
   expect(states.indexOf('speaking')).toBeGreaterThan(states.indexOf('thinking'));
 });
 
+test('shows a Markdown reply formatted: a list, bold, and no citation markers', async ({
+  page,
+}) => {
+  const frame = (event: Record<string, unknown>): string =>
+    `data: ${JSON.stringify({ messageId: 'm_e2e', ...event })}\n\n`;
+  await page.route('**/v1/chat/stream', async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body:
+        frame({ type: 'message_started' }) +
+        frame({ type: 'text_delta', text: 'Here is how I can help you:\n* **Measure your ' }) +
+        frame({ type: 'text_delta', text: 'roof:** from map data [S2, S3].\n' }) +
+        frame({ type: 'text_delta', text: '* **Arrange a survey:** with the installer [S3].' }) +
+        frame({ type: 'message_finished' }),
+    });
+  });
+
+  await page.locator(HOST).locator(LAUNCHER).click();
+  const panel = page.locator(HOST).locator(PANEL);
+  await panel.locator('.composer-input').fill('How can you help?');
+  await panel.locator('.composer-send').click();
+
+  const reply = panel.locator('.turn.assistant').last();
+  await expect(reply.locator('li')).toHaveCount(2);
+  await expect(reply.locator('li').first().locator('strong')).toHaveText('Measure your roof:');
+  await expect(reply).toContainText('Here is how I can help you:');
+  await expect(reply).not.toContainText('**');
+  await expect(reply).not.toContainText('[S');
+  await expect(reply).not.toContainText('* ');
+});
+
 test('a failed answer says so once, with no empty bubble left behind', async ({ page }) => {
   const frame = (event: Record<string, unknown>): string =>
     `data: ${JSON.stringify({ messageId: 'm_e2e', ...event })}

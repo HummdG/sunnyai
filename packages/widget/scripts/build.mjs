@@ -84,7 +84,9 @@ const options = {
   logLevel: 'info',
 };
 
-const SIZE_BUDGET_BYTES = 60 * 1024;
+// 61 kB since formatted replies (src/rich.ts, 2026-10-27): the widget sat at
+// exactly 60.0 kB and the formatter is ~0.5 kB. Win it back, then lower this.
+const SIZE_BUDGET_BYTES = 61 * 1024;
 
 async function run() {
   copyFonts();

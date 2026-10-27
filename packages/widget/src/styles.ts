@@ -339,6 +339,15 @@ export function styles(): string {
   border-bottom-right-radius: 5px; }
 .turn.assistant { align-self: flex-start; background: #fff;
   border: 1px solid rgba(23,23,23,.08); border-bottom-left-radius: 5px; }
+/* replies are formatted (rich.ts): paragraphs and lists set the spacing, not line breaks */
+.turn.assistant { white-space: normal; line-height: 1.5; }
+.turn.assistant p { margin: 0; }
+.turn.assistant p + p, .turn.assistant p + ul, .turn.assistant p + ol,
+.turn.assistant ul + p, .turn.assistant ol + p { margin-top: 8px; }
+.turn.assistant ul, .turn.assistant ol { margin: 6px 0 0; padding-left: 20px; }
+.turn.assistant li + li { margin-top: 4px; }
+.turn.assistant li::marker { color: var(--sunny-accent-ink); }
+.turn.assistant strong { font-weight: 700; }
 .turn.system { align-self: center; font-size: 12.5px; color: var(--sunny-muted);
   background: transparent; text-align: center; max-width: 100%; }
 .turn.error { align-self: stretch; max-width: 100%; font-size: 13px;
@@ -382,6 +391,7 @@ export function styles(): string {
 .quote-hero { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
 .quote-figure { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
 .quote-figure-label { font-size: 11.5px; color: #5c5c5c; }
+.quote-hero.unpriced .quote-figure { font-size: 17px; line-height: 1.2; }
 .quote-stats { list-style: none; margin: 8px 0 2px; padding: 8px 0 0; width: 100%;
   border-top: 1px dashed rgba(23,23,23,.18); display: flex; justify-content: space-around; gap: 6px; }
 .quote-stats li { display: flex; flex-direction: column; font-size: 11px; color: #5c5c5c; line-height: 1.25; }

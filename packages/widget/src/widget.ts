@@ -21,6 +21,7 @@ import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el } from './dom.js';
 import { optionArt } from './quote-art.js';
+import { renderRich } from './rich.js';
 import type * as RoofModule from './roof.js';
 import type * as VoiceModule from './voice.js';
 import { declareFontFaces, preloadFontFaces, releaseFontFaces } from './fonts.js';
@@ -102,6 +103,8 @@ export class SunnyWidget {
   #open = false;
   #pending = false;
   #currentTurn: HTMLElement | null = null;
+  /** The raw reply behind each streamed assistant bubble (it shows formatted). */
+  #replyText = new WeakMap<HTMLElement, string>();
   /** Assessments whose 3D roof has already opened by itself. */
   readonly #roofsShown = new Set<string>();
   /** Closes the docked 3D roof, when one is open. */
@@ -784,9 +787,7 @@ export class SunnyWidget {
       const priced = o.priceGbp !== null;
       const stats = [
         stat(String(o.panelCount), 'panels'),
-        priced
-          ? stat(gbp(o.annualSavingsGbp), 'saved a year')
-          : stat(Math.round(o.annualGenerationKwh).toLocaleString('en-GB'), 'kWh a year'),
+        stat(gbp(o.annualSavingsGbp), 'saved a year'),
         ...(o.batteryType
           ? [stat(o.batteryCapacityKwh > 0 ? `${o.batteryCapacityKwh} kWh` : 'Yes', 'battery')]
           : o.paybackYears !== null
@@ -805,15 +806,16 @@ export class SunnyWidget {
         ...(o.isRecommended ? [el('span', { class: 'quote-badge', text: 'Best for you' })] : []),
         optionArt(bySize.indexOf(o), o.batteryType !== null),
         el('strong', { class: 'quote-name', text: o.label }),
-        // the one number to read: the price when there is one, else what it saves
-        el('p', { class: 'quote-hero' }, [
+        // every card leads with its price: the installer's figure, or that the
+        // survey sets it (never a made-up number)
+        el('p', { class: `quote-hero${priced ? '' : ' unpriced'}` }, [
           el('span', {
             class: 'quote-figure',
-            text: gbp(priced ? o.priceGbp! : o.annualSavingsGbp),
+            text: priced ? gbp(o.priceGbp!) : 'Priced at your survey',
           }),
           el('span', {
             class: 'quote-figure-label',
-            text: priced ? o.priceLabel : 'saved a year',
+            text: priced ? o.priceLabel : 'Free, no obligation',
           }),
         ]),
         el('ul', { class: 'quote-stats' }, stats),
@@ -1024,6 +1026,11 @@ export class SunnyWidget {
     const roof = (await import(
       /* @vite-ignore */ new URL('sunny-roof.js', dir).href
     )) as typeof RoofModule;
+    // A roof that opens by itself while the docked one is compact (the
+    // conversation has moved on) stays compact: a re-measure or a late result
+    // must not take the panel back from the question being answered.
+    const stayCompact =
+      !focus && !simulation && this.#roofDock.querySelector('.roof-view.compact') !== null;
     this.#closeRoof?.();
     this.#roofDock.replaceChildren();
     this.#roofDock.hidden = false;
@@ -1050,6 +1057,7 @@ export class SunnyWidget {
       this.#roofClosed();
     };
     this.#compactRoof = view.setCompact;
+    if (stayCompact) view.setCompact(true);
   }
 
   /** Back from roof mode: the dock empties and the panel eases back to its size. */
@@ -1125,6 +1133,7 @@ export class SunnyWidget {
 
   #appendTurn(kind: 'user' | 'assistant' | 'system' | 'error', text: string): HTMLElement {
     const turn = el('div', { class: `turn ${kind}`, text });
+    if (kind === 'assistant' && text !== '') renderRich(turn, text);
     this.#log.append(turn);
     this.#scrollToEnd();
     return turn;
@@ -1198,9 +1207,11 @@ export class SunnyWidget {
     switch (event.type) {
       case 'text_delta': {
         if (!this.#currentTurn) this.#currentTurn = this.#appendTurn('assistant', '');
-        const dots = this.#currentTurn.querySelector('.typing');
-        if (dots) dots.remove();
-        this.#currentTurn.textContent += event.text;
+        // The reply so far, kept beside the bubble: the bubble shows it
+        // formatted, so its own text is no longer the raw Markdown.
+        const so = (this.#replyText.get(this.#currentTurn) ?? '') + event.text;
+        this.#replyText.set(this.#currentTurn, so);
+        renderRich(this.#currentTurn, so);
         this.#scrollToEnd();
         break;
       }
