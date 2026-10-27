@@ -5,7 +5,7 @@ import { CtaBand, PageIntro, PricingCards } from '../../../components/blocks.js'
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'Simple monthly plans for solar installers of every size.',
+  description: 'Plans for solar installers of every size. Contact sales for a price.',
 };
 
 const FAQ = [
@@ -22,8 +22,8 @@ const FAQ = [
     a: 'No. Visitors simply chat with Sunny on your website.',
   },
   {
-    q: 'Do prices include VAT?',
-    a: 'Prices are shown excluding VAT, which is added at checkout where it applies.',
+    q: 'How much does it cost?',
+    a: 'Contact sales and we will put together a price for the plan that suits your team.',
   },
 ] as const;
 

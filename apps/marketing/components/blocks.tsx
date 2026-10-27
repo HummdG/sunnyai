@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { formatPrice, PLANS } from '../app/site.js';
+import { CONTACT_SALES_HREF, formatPrice, PLANS, SHOW_PLAN_PRICES } from '../app/site.js';
 
 import { Icon } from './icons.js';
 import { SunriseScene } from './scenes/home.js';
@@ -67,18 +67,27 @@ export function PricingCards(): React.JSX.Element {
         <li className={`card plan${plan.highlighted ? ' highlighted' : ''}`} key={plan.name}>
           {plan.highlighted ? <span className="plan-badge">Most popular</span> : null}
           <h3>{plan.name}</h3>
-          <p className="plan-price">
-            <strong>{formatPrice(plan.monthly)}</strong>
-            <span>/month</span>
-          </p>
+          {SHOW_PLAN_PRICES ? (
+            <p className="plan-price">
+              <strong>{formatPrice(plan.monthly)}</strong>
+              <span>/month</span>
+            </p>
+          ) : (
+            <p className="plan-price plan-price-contact">
+              <strong>Contact sales</strong>
+            </p>
+          )}
           <p className="plan-summary">{plan.summary}</p>
           <ul className="plan-features">
             {plan.features.map((feature) => (
               <li key={feature}>{feature}</li>
             ))}
           </ul>
-          <Link className={`button${plan.highlighted ? '' : ' secondary'}`} href="/sign-up">
-            Choose {plan.name}
+          <Link
+            className={`button${plan.highlighted ? '' : ' secondary'}`}
+            href={SHOW_PLAN_PRICES ? '/sign-up' : CONTACT_SALES_HREF}
+          >
+            {SHOW_PLAN_PRICES ? `Choose ${plan.name}` : 'Contact sales'}
           </Link>
         </li>
       ))}

@@ -1326,3 +1326,7 @@
     animation: none;
   }
 }
+
+.site .plan-price-contact strong {
+  font-size: 1.8rem;
+}

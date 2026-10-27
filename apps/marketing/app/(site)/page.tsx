@@ -201,9 +201,9 @@ export default function Home(): JSX.Element {
       <section className="section tinted" id="pricing">
         <div className="wrap">
           <span className="eyebrow">Pricing</span>
-          <h2>Simple monthly plans</h2>
+          <h2>Plans for every installer</h2>
           <p className="intro">
-            Every plan includes the full Sunny character and assistant. Prices exclude VAT.
+            Every plan includes the full Sunny character and assistant. Contact sales for a price.
           </p>
           <PricingCards />
           <p className="more-link">

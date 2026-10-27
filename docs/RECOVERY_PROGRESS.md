@@ -92,3 +92,14 @@ npm run dev:marketing                    # http://localhost:4176
 
 - **Pricing** — the marketing plans show placeholder prices.
 - **A Gemini API key** in `.env` to try real chat.
+
+## Status at hand-off (2026-10-14)
+
+Build complete on branch `recovery/sunny-ai-rebuild` (not pushed). The owner
+chose to stop here pending accounts. **Blocked on the owner:** live checks
+against Gemini (chat, embeddings, Live voice), Firebase Auth, Stripe (test
+mode), Google Drive/Gmail OAuth, Postmark and Twilio. Each integration is
+built and tested against fakes or emulators; setup steps are in
+`docs/integration/*.md`. Add keys to `.env` (never committed) and run the
+checks per provider. Also open: package prices/currency and each installer's
+support phone number.

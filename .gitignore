@@ -67,3 +67,6 @@ apps/character-lab/public/reference.png
 
 # Firebase emulator logs
 firebase-debug*.log
+
+# Claude Code personal settings
+.claude/settings.local.json

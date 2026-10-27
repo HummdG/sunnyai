@@ -36,6 +36,16 @@ export interface Plan {
 export const PRICING_IS_PLACEHOLDER = false;
 export const PRICING_CURRENCY = 'GBP';
 
+/**
+ * Whether the site prints the monthly prices. Off for now (owner, 2026-10-27):
+ * each plan says "Contact sales" instead. The figures below stay, so turning
+ * them back on is this one line.
+ */
+export const SHOW_PLAN_PRICES = false;
+
+/** Where "Contact sales" goes until there is a sales inbox: the waitlist form. */
+export const CONTACT_SALES_HREF = '/#waitlist';
+
 export const PLANS: readonly Plan[] = [
   {
     name: 'Base',
