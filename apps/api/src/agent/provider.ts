@@ -124,6 +124,43 @@ function asRecord(value: unknown): Record<string, unknown> {
     : { result: value };
 }
 
+/**
+ * Whether a model call failed because the service was busy: Vertex's shared
+ * capacity answers 429 RESOURCE_EXHAUSTED (and sometimes 503) under load, and
+ * the same request a moment later usually goes through.
+ */
+export function isBusyError(error: unknown): boolean {
+  const e = error as { status?: unknown; code?: unknown; message?: unknown } | null;
+  const status = Number(e?.status ?? e?.code);
+  if (status === 429 || status === 503) return true;
+  const message = typeof e?.message === 'string' ? e.message : String(error);
+  return /\b(429|503)\b|RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded/i.test(message);
+}
+
+/** Waits before each retry of a busy model call (three tries after the first). */
+export const BUSY_RETRY_DELAYS_MS = [800, 2000, 4000];
+
+/**
+ * Run a model call, retrying it while the service says it is busy. Only the
+ * call that opens a stream is retried, before anything has been streamed, so a
+ * retry never repeats words or tool calls the visitor has already seen.
+ */
+export async function withBusyRetry<T>(
+  call: () => Promise<T>,
+  signal?: AbortSignal,
+  delays: readonly number[] = BUSY_RETRY_DELAYS_MS,
+): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await call();
+    } catch (error) {
+      const delay = delays[attempt];
+      if (delay === undefined || !isBusyError(error) || signal?.aborted) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
 export class GeminiProvider implements ChatProvider {
   readonly kind = 'gemini';
   readonly model: string;
@@ -186,19 +223,25 @@ export class GeminiProvider implements ChatProvider {
       // things up when the rounds run out would otherwise end the turn without
       // a word.
       const toolsOff = wordsOnly || round >= MAX_TOOL_ROUNDS - 1;
-      const response = await ai.models.generateContentStream({
-        model: this.model,
-        contents,
-        config: {
-          systemInstruction: request.systemInstruction,
-          maxOutputTokens: this.#maxOutputTokens,
-          ...(functionDeclarations.length > 0 ? { tools: [{ functionDeclarations }] } : {}),
-          // Declared still (the turn so far calls them), but not callable.
-          ...(toolsOff
-            ? { toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.NONE } } }
-            : {}),
-        },
-      });
+      const response = await withBusyRetry(
+        () =>
+          ai.models.generateContentStream({
+            model: this.model,
+            contents,
+            config: {
+              systemInstruction: request.systemInstruction,
+              maxOutputTokens: this.#maxOutputTokens,
+              ...(functionDeclarations.length > 0 ? { tools: [{ functionDeclarations }] } : {}),
+              // Declared still (the turn so far calls them), but not callable.
+              ...(toolsOff
+                ? {
+                    toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.NONE } },
+                  }
+                : {}),
+            },
+          }),
+        request.signal,
+      );
 
       // The model's turn as it sent it, parts and all: Gemini 3 refuses a
       // replayed function call that has lost its thought signature.
