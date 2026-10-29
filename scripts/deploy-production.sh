@@ -56,7 +56,10 @@ elif [ "${CI:-}" = "" ]; then
   # free. Saying that here is cheaper than the EADDRINUSE it would otherwise
   # fail with.
   say '  (needs ports 4173-4176, 4180 and 8787 free; see playwright.config.ts)'
-  npx playwright test || die 'the end-to-end suite failed. Production is not the place to find out.'
+  # The website's Firebase settings in this shell are for the image build. The
+  # suite's own build must not see them, or its sign-ups go to the real
+  # project instead of the emulator.
+  env -u NEXT_PUBLIC_FIREBASE_API_KEY -u NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN     -u NEXT_PUBLIC_FIREBASE_PROJECT_ID npx playwright test || die 'the end-to-end suite failed. Production is not the place to find out.'
 else
   npm run test:e2e || die 'the end-to-end suite failed.'
 fi

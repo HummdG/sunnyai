@@ -1,6 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+import { SHOW_PLAN_PRICES } from '../../apps/marketing/app/site';
+
 /**
  * The marketing site, tested as a product surface rather than as a host fixture.
  *
@@ -131,12 +133,13 @@ test('shows the configured plans, with the headline the plan requires', async ({
   );
 
   // Prices are configuration (plan §15, `apps/marketing/app/site.ts`); the page
-  // renders one card per configured plan, each with a monthly price in pounds:
-  // Sunny sells to UK installers.
+  // renders one card per configured plan, each with a monthly price in pounds
+  // (Sunny sells to UK installers), or "Contact sales" while prices are hidden.
   const plans = page.locator('#pricing .plan');
   await expect(plans).toHaveCount(4);
   for (const plan of await plans.all()) {
-    await expect(plan).toContainText(/£\d+/);
+    if (SHOW_PLAN_PRICES) await expect(plan).toContainText(/£\d+/);
+    else await expect(plan).toContainText('Contact sales');
     await expect(plan).not.toContainText('$');
   }
 });
