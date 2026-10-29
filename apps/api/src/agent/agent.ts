@@ -254,7 +254,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       systemInstruction: buildSystemInstruction(input.tenant, channel, ctx.knowledge.sourceCount),
       // Earlier visitor turns are wrapped too: an instruction smuggled into
       // message one is as untrusted as one in the current message.
-      history: input.history.map((t) => ({
+      history: modelWindow(input.history).map((t) => ({
         role: t.role,
         text: t.role === 'user' ? userQuery(t.text) : t.text,
       })),
@@ -490,6 +490,23 @@ function drain(events: ToolEvent[], messageId: string): TurnEvent[] {
  * re-ask a visitor something they already told us -- the failure that most
  * reliably makes an assistant feel stupid.
  */
+/**
+ * How many earlier turns the model is sent.
+ *
+ * Every earlier turn is resent on every turn, so an uncapped transcript makes
+ * each answer slower and dearer than the last. What the visitor has told us
+ * survives the window as the standing answers; the window keeps the thread.
+ */
+export const MODEL_HISTORY_TURNS = 30;
+
+/** The recent turns, opening on a visitor turn so the model never starts mid-reply. */
+function modelWindow(history: ConversationTurn[]): ConversationTurn[] {
+  if (history.length <= MODEL_HISTORY_TURNS) return history;
+  const recent = history.slice(-MODEL_HISTORY_TURNS);
+  const first = recent.findIndex((turn) => turn.role === 'user');
+  return first === -1 ? recent : recent.slice(first);
+}
+
 function answersFromHistory(history: ConversationTurn[]): Record<string, string> {
   const answers: Record<string, string> = {};
   for (const turn of history) {

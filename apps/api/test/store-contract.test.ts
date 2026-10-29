@@ -1,5 +1,5 @@
-import { Firestore } from '@google-cloud/firestore';
-import { describe, expect, it } from 'vitest';
+import { DocumentReference, Firestore, Transaction } from '@google-cloud/firestore';
+import { describe, expect, it, vi } from 'vitest';
 
 import { FirestoreStore } from '../src/firestore-store.js';
 import { fileStoreHarness, storeContract } from './store-contract.js';
@@ -120,6 +120,84 @@ if (EMULATOR) {
         .collection('turns')
         .get();
       expect(turns.empty).toBe(true);
+      await harness.cleanup();
+    });
+
+    it('appends a turn and merges answers without reading the earlier turns', async () => {
+      // A turn is two to four writes, and each one re-reading the whole
+      // transcript makes a conversation's cost grow with the square of its
+      // length. Every read inside the transaction must be a single document.
+      const harness = firestoreHarness();
+      const t = harness.tenant('point-reads');
+      const turn = (n: number) => ({
+        role: 'user' as const,
+        text: `turn ${n}`,
+        at: new Date().toISOString(),
+      });
+      for (let n = 0; n < 3; n++) await harness.store.appendTurn(t, 's1', turn(n));
+
+      const reads = vi.spyOn(Transaction.prototype, 'get');
+      try {
+        await harness.store.appendTurn(t, 's1', { ...turn(3), clientMessageId: 'm4' });
+        await harness.store.appendTurn(t, 's1', turn(4));
+        await harness.store.mergeAnswers(t, 's1', { roof: 'pitched' });
+        expect(reads).toHaveBeenCalled();
+        for (const [target] of reads.mock.calls) expect(target).toBeInstanceOf(DocumentReference);
+      } finally {
+        reads.mockRestore();
+      }
+      const read = await harness.store.getConversation(t, 's1');
+      expect(read?.turns.map((row) => row.text)).toEqual([
+        'turn 0',
+        'turn 1',
+        'turn 2',
+        'turn 3',
+        'turn 4',
+      ]);
+      expect(Object.keys(read!).some((key) => key.startsWith('_'))).toBe(false);
+      await harness.cleanup();
+    });
+
+    it('continues a conversation written before turns were counted, once', async () => {
+      // `seedConversation` writes the shape this store wrote before: a
+      // conversation with no turn counter, and a turn under a random id. Both
+      // the order and a retried message id must still be honoured.
+      const harness = firestoreHarness();
+      const t = harness.tenant('legacy');
+      await harness.seedConversation(t, 's_old', new Date().toISOString());
+      await adminClient()
+        .collection('tenants')
+        .doc(encodeURIComponent(t))
+        .collection('conversations')
+        .doc(`s_${encodeURIComponent('s_old')}`)
+        .collection('turns')
+        .doc('turn_legacy')
+        .set({
+          role: 'user',
+          text: 'retried',
+          at: new Date().toISOString(),
+          clientMessageId: 'old-key',
+          _seq: 2,
+        });
+
+      const again = await harness.store.appendTurn(t, 's_old', {
+        role: 'user',
+        text: 'retried',
+        at: new Date().toISOString(),
+        clientMessageId: 'old-key',
+      });
+      expect(again.appended).toBe(false);
+      await harness.store.appendTurn(t, 's_old', {
+        role: 'assistant',
+        text: 'next',
+        at: new Date().toISOString(),
+      });
+      const read = await harness.store.getConversation(t, 's_old');
+      expect(read?.turns.map((row) => row.text)).toEqual([
+        'from before the window',
+        'retried',
+        'next',
+      ]);
       await harness.cleanup();
     });
 

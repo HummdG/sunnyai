@@ -13,7 +13,8 @@ import {
 import type { Embedder } from './ingest/embeddings.js';
 import { embeddingKey } from './ingest/sync.js';
 import type { KnowledgeSyncStore } from './ingest/sync-store.js';
-import type { KnowledgeSourceRecord, Store } from './store.js';
+import { knowledgeFingerprint } from './store.js';
+import type { KnowledgeFingerprint, KnowledgeSourceRecord, Store } from './store.js';
 
 /**
  * Turning a tenant's stored documents into the index a turn searches.
@@ -30,9 +31,23 @@ import type { KnowledgeSourceRecord, Store } from './store.js';
  * ever has. Scoring is not cached: it is built per lookup, from chunks already in
  * memory, and a stale *ranking* is the one kind of staleness a key on the source
  * list would not catch.
+ *
+ * The per-turn check reads fingerprints (`Store.listKnowledgeFingerprints`), not
+ * the documents: a digest of every field a chunk is built from, so it is still
+ * the content that decides, at the cost of a few bytes per source instead of
+ * the whole text. The full read happens only when a fingerprint moved.
+ *
+ * At most `maxTenants` indexes stay resident, least recently used dropped first,
+ * because every installer whose widget is busy would otherwise hold its whole
+ * knowledge base in one instance's memory for as long as the process lives.
  */
-export function createKnowledgeLoader(store: Store) {
-  const cache = new Map<string, { built: KnowledgeSourceRecord[]; index: KnowledgeIndex }>();
+export const KNOWLEDGE_CACHE_TENANTS = 200;
+
+export function createKnowledgeLoader(store: Store, options: { maxTenants?: number } = {}) {
+  const maxTenants = options.maxTenants ?? KNOWLEDGE_CACHE_TENANTS;
+  // A Map iterates in insertion order, so re-inserting on every hit makes the
+  // first key the least recently used.
+  const cache = new Map<string, { prints: KnowledgeFingerprint[]; index: KnowledgeIndex }>();
 
   function toDocument(source: KnowledgeSourceRecord): KnowledgeDocument {
     return {
@@ -44,9 +59,22 @@ export function createKnowledgeLoader(store: Store) {
     };
   }
 
+  function remember(
+    tenantId: string,
+    entry: { prints: KnowledgeFingerprint[]; index: KnowledgeIndex },
+  ) {
+    cache.delete(tenantId);
+    cache.set(tenantId, entry);
+    while (cache.size > maxTenants) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
+  }
+
   return async function loadKnowledgeIndex(tenantId: string): Promise<KnowledgeIndex> {
-    const sources = await store.listKnowledgeSources(tenantId);
-    if (sources.length === 0) {
+    const prints = await store.listKnowledgeFingerprints(tenantId);
+    if (prints.length === 0) {
       // Dropped rather than left to expire: an installer who deletes their last
       // document should not leave two megabytes of it resident, and there is
       // nothing correct left for the cache to say.
@@ -55,14 +83,31 @@ export function createKnowledgeLoader(store: Store) {
     }
 
     const cached = cache.get(tenantId);
-    if (cached && unchanged(cached.built, sources)) return cached.index;
+    if (cached && unchanged(cached.prints, prints)) {
+      remember(tenantId, cached);
+      return cached.index;
+    }
 
+    // The fingerprints kept are computed from the sources actually read, so an
+    // edit landing between the two reads is caught on the next turn rather
+    // than cached under the old fingerprint.
+    const sources = await store.listKnowledgeSources(tenantId);
+    if (sources.length === 0) {
+      cache.delete(tenantId);
+      return EMPTY_KNOWLEDGE;
+    }
     const index: KnowledgeIndex = {
       sourceCount: sources.length,
       chunks: chunkDocuments(sources.map(toDocument)),
     };
     INDEX_TENANT.set(index, tenantId);
-    cache.set(tenantId, { built: sources.map((source) => ({ ...source })), index });
+    remember(tenantId, {
+      prints: sources.map((source) => ({
+        id: source.id,
+        fingerprint: knowledgeFingerprint(source),
+      })),
+      index,
+    });
     return index;
   };
 }
@@ -84,40 +129,22 @@ export function tenantOfIndex(index: KnowledgeIndex): string | null {
 }
 
 /**
- * Whether the cached index was built from exactly these documents.
- *
- * Compared on the documents themselves rather than on a timestamp, which is the
- * obvious cheaper key and is wrong in one case that matters: two writes to the
- * same document within a single clock tick, where the second edit carries the
- * first's `updatedAt` and the cache would then serve the replaced text for as
- * long as the process lives. There is no timestamp resolution fine enough to
- * make that impossible, so the key is the content.
- *
- * Every field a chunk is derived from is compared, which is what makes a rename
- * or a version bump visible even when the body is untouched -- the citation a
- * passage carries is assembled from the title, the url and the version, so a
- * change to any of them has to rebuild. Field-by-field rather than by joining
- * the text into one string, because joining copies both megabytes on every turn
- * while comparing two identical strings does not.
- *
- * A field added to `KnowledgeSourceRecord` later must be added here too, or an
- * edit to *only* that field will not be reflected. That is the one maintenance
- * hazard in this file and it is why the list is spelled out rather than derived.
+ * Whether the cached index was built from exactly these documents: the same
+ * sources in the same order, each with the same fingerprint. A fingerprint the
+ * store could not supply is never "the same".
  */
 function unchanged(
-  built: readonly KnowledgeSourceRecord[],
-  sources: readonly KnowledgeSourceRecord[],
+  built: readonly KnowledgeFingerprint[],
+  current: readonly KnowledgeFingerprint[],
 ): boolean {
-  if (built.length !== sources.length) return false;
-  return sources.every((source, at) => {
+  if (built.length !== current.length) return false;
+  return current.every((print, at) => {
     const before = built[at];
     return (
       before !== undefined &&
-      before.id === source.id &&
-      before.version === source.version &&
-      before.title === source.title &&
-      before.url === source.url &&
-      before.text === source.text
+      print.fingerprint !== null &&
+      before.id === print.id &&
+      before.fingerprint === print.fingerprint
     );
   });
 }
@@ -166,6 +193,26 @@ export interface KnowledgeRetrieverDeps {
   syncStore?: KnowledgeSyncStore | null;
   embedder?: Embedder | null;
   rerank?: Rerank | null;
+  /** Unix ms; for the vector refresh interval. */
+  now?: () => number;
+}
+
+/**
+ * How long a search trusts that a chunk without a vector still has none.
+ *
+ * Vectors are keyed by content, so one that was found never goes stale; only
+ * the misses need looking up again, because the sync embeds a document after
+ * it lands and a turn can arrive in between. Rechecking them on every search is
+ * the per-turn read this cache exists to remove.
+ */
+export const EMBEDDING_REFRESH_MS = 60_000;
+
+interface IndexVectors {
+  model: string;
+  /** By chunk id. */
+  vectors: Map<string, number[]>;
+  /** When the store was last asked for the chunks still missing. */
+  checkedAt: number;
 }
 
 /**
@@ -183,6 +230,42 @@ export interface KnowledgeRetrieverDeps {
 export function createKnowledgeRetriever(deps: KnowledgeRetrieverDeps) {
   const loader = deps.loader ?? createKnowledgeLoader(deps.store);
   const queryCache = new Map<string, number[]>();
+  const now = deps.now ?? Date.now;
+  // Keyed on the index object, which the loader replaces whenever a document
+  // changes: an edited knowledge base starts a fresh entry, and the old one is
+  // collected with the index it belonged to.
+  const indexVectors = new WeakMap<KnowledgeIndex, IndexVectors>();
+
+  /** The index's vectors, fetching only what is missing and only when due. */
+  async function vectorsOf(
+    tenantId: string,
+    index: KnowledgeIndex,
+    embedder: Embedder,
+    syncStore: KnowledgeSyncStore,
+  ): Promise<Map<string, number[]>> {
+    let entry = indexVectors.get(index);
+    if (entry && entry.model !== embedder.model) entry = undefined;
+    const due =
+      !entry ||
+      (entry.vectors.size < index.chunks.length && now() - entry.checkedAt >= EMBEDDING_REFRESH_MS);
+    if (!due) return entry!.vectors;
+
+    const vectors = entry?.vectors ?? new Map<string, number[]>();
+    const missing = index.chunks
+      .filter((chunk) => !vectors.has(chunk.id))
+      .map((chunk) => ({ id: chunk.id, key: embeddingKey(embedder.model, chunk) }));
+    const found = await syncStore.getEmbeddings(
+      tenantId,
+      embedder.model,
+      missing.map((m) => m.key),
+    );
+    for (const { id, key } of missing) {
+      const v = found.get(key);
+      if (v) vectors.set(id, v);
+    }
+    indexVectors.set(index, { model: embedder.model, vectors, checkedAt: now() });
+    return vectors;
+  }
 
   /** The tenant's cached passage vectors and the query's, or nothing (lexical). */
   async function vectorsFor(
@@ -194,21 +277,8 @@ export function createKnowledgeRetriever(deps: KnowledgeRetrieverDeps) {
     if (!tenantId || !embedder || !deps.syncStore || query.trim() === '')
       return { queryVector: null };
     try {
-      const keyed = index.chunks.map((chunk) => ({
-        id: chunk.id,
-        key: embeddingKey(embedder.model, chunk),
-      }));
-      const cached = await deps.syncStore.getEmbeddings(
-        tenantId,
-        embedder.model,
-        keyed.map((k) => k.key),
-      );
-      if (cached.size === 0) return { queryVector: null };
-      const vectors = new Map<string, number[]>();
-      for (const { id, key } of keyed) {
-        const v = cached.get(key);
-        if (v) vectors.set(id, v);
-      }
+      const vectors = await vectorsOf(tenantId, index, embedder, deps.syncStore);
+      if (vectors.size === 0) return { queryVector: null };
       const cacheKey = `${embedder.model}\u0000${query}`;
       const queryVector = queryCache.get(cacheKey) ?? (await embedder.embedQuery(query));
       if (queryCache.size > 500) queryCache.clear();

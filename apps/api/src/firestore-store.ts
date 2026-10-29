@@ -2,12 +2,13 @@ import { Firestore } from '@google-cloud/firestore';
 
 import type { DocumentReference } from '@google-cloud/firestore';
 
-import { newId, sameSubmission } from './store.js';
+import { knowledgeFingerprint, newId, sameSubmission } from './store.js';
 import type {
   AppendResult,
   Conversation,
   ConversationTurn,
   DeletedConversation,
+  KnowledgeFingerprint,
   KnowledgeSourceRecord,
   LeadRecord,
   LeadResult,
@@ -140,6 +141,10 @@ function docId(prefix: string, key: string): string {
 /** The store's own fields, which are never part of a record handed back. */
 const SEQ = '_seq';
 const ORD = '_ord';
+/** On a conversation: the highest `_seq` its turns have, so an append need not read them. */
+const TURNS = '_turns';
+/** On a knowledge source: `knowledgeFingerprint` of it, so a turn can check freshness without the text. */
+const FP = '_fp';
 
 /** A turn as it is stored: the contract's shape plus the ordering field. */
 type StoredTurn = ConversationTurn & { [SEQ]?: number };
@@ -155,9 +160,10 @@ type Ordered<T> = T & { [ORD]?: number };
  * their own shape, are what would notice.
  */
 function stripStoreFields<T extends object>(row: T): Omit<T, typeof SEQ | typeof ORD> {
-  const { [SEQ]: _seq, [ORD]: _ord, ...rest } = row as Record<string, unknown>;
+  const { [SEQ]: _seq, [ORD]: _ord, [FP]: _fp, ...rest } = row as Record<string, unknown>;
   void _seq;
   void _ord;
+  void _fp;
   return rest as Omit<T, typeof SEQ | typeof ORD>;
 }
 
@@ -179,6 +185,13 @@ function instant(value: unknown): number | null {
   if (typeof value !== 'string') return null;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+/** A stored conversation document with the turn counter taken off. */
+function withoutCounter(data: Record<string, unknown>): Omit<Conversation, 'turns'> {
+  const { [TURNS]: _turns, ...rest } = data;
+  void _turns;
+  return rest as unknown as Omit<Conversation, 'turns'>;
 }
 
 /** A conversation's turns in the order they were appended, store fields removed. */
@@ -241,7 +254,7 @@ export class FirestoreStore implements Store {
   }
 
   #toConversation(data: Record<string, unknown>, turns: ConversationTurn[]): Conversation {
-    return { ...(data as unknown as Conversation), turns };
+    return { ...withoutCounter(data), turns };
   }
 
   async getConversation(tenantId: string, sessionId: string): Promise<Conversation | null> {
@@ -252,26 +265,21 @@ export class FirestoreStore implements Store {
   }
 
   /**
-   * Append one turn, once.
+   * Append one turn, once, reading only single documents.
    *
-   * The transaction is doing three jobs at once and all three are needed:
+   *   - **Idempotency.** A turn with a `clientMessageId` is stored under an id
+   *     derived from it, so a retried POST is a point read of the row that would
+   *     be its duplicate. Inside the transaction, so two retries arriving
+   *     together are serialised and the second finds the first's row.
+   *   - **The next `_seq`.** Kept on the conversation as `_turns` and moved in
+   *     the same transaction as the turn it numbers.
+   *   - **No transcript in the answer.** Reading every turn to hand back a
+   *     record no caller used made each append cost the length of the
+   *     conversation; `getConversation` is the read for the transcript.
    *
-   *   - **Idempotency.** The check is the file store's, against the turns that
-   *     are actually there: a retried POST carrying a `clientMessageId` already
-   *     on the conversation changes nothing. Reading the query and writing the
-   *     conversation inside one transaction is what makes that check hold under
-   *     concurrency -- two retries arriving together both read the same turns and
-   *     both write the same conversation document, so Firestore makes one of them
-   *     retry and see the other's turn.
-   *   - **The next `_seq`.** Taken from the maximum already stored rather than
-   *     from a counter the conversation would have to keep consistent with its
-   *     own turns.
-   *   - **The whole record in the answer.** The interface returns the conversation
-   *     as it now stands, so the turns are read in full on every append. That is
-   *     a read that grows with the conversation; it is what the interface asks
-   *     for, and the alternative -- returning a partial record that every caller
-   *     has to know not to trust -- would be a contract change, not an
-   *     optimisation.
+   * A conversation written before `_turns` existed is read the old way, once:
+   * its turns give the next `_seq` and are checked for the retried id, and the
+   * write that follows stores the counter, so the next append is a point read.
    */
   async appendTurn(
     tenantId: string,
@@ -280,41 +288,32 @@ export class FirestoreStore implements Store {
   ): Promise<AppendResult> {
     const conversationRef = this.#conversationRef(tenantId, sessionId);
     const turns = conversationRef.collection('turns');
+    const turnRef =
+      turn.clientMessageId !== undefined
+        ? turns.doc(docId('m', turn.clientMessageId))
+        : turns.doc(newId('turn'));
 
     return await this.#db.runTransaction<AppendResult>(async (transaction) => {
-      const [snapshot, turnDocs] = await Promise.all([
+      const [snapshot, duplicate] = await Promise.all([
         transaction.get(conversationRef),
-        transaction.get(turns),
+        turn.clientMessageId !== undefined ? transaction.get(turnRef) : Promise.resolve(null),
       ]);
-      // Read as the stored record -- no `turns` -- so that writing it back cannot
-      // put a permanently empty `turns` field beside the subcollection that holds
-      // the real ones.
-      const existing = snapshot.exists
-        ? (snapshot.data() as unknown as Omit<Conversation, 'turns'>)
-        : null;
+      const data = snapshot.exists ? (snapshot.data() ?? {}) : null;
+      const existing = data ? withoutCounter(data) : null;
 
-      const stored = turnDocs.docs.map((doc) => doc.data() as StoredTurn);
-      if (
-        // `existing` is part of the condition rather than assumed: the transcript
-        // returned below is built from it, and the two documents are written by
-        // the same transaction, so a stored turn with nothing above it is a state
-        // this store cannot produce.
-        existing &&
-        turn.clientMessageId !== undefined &&
-        stored.some((row) => row.clientMessageId === turn.clientMessageId)
-      ) {
-        // The transcript is returned here for the same reason every other path
-        // returns it: a caller reads `conversation.turns` without asking which
-        // branch produced it. Returning the stored record instead handed back a
-        // conversation whose `turns` were missing by construction -- the field is
-        // not on the document, it *is* the subcollection.
-        return {
-          conversation: { ...existing, turns: orderedTurns(stored) },
-          appended: false,
-        };
+      const counter: unknown = data?.[TURNS];
+      let lastSeq = typeof counter === 'number' ? counter : null;
+      let retried = Boolean(existing && duplicate?.exists);
+      if (existing && lastSeq === null) {
+        const stored = (await transaction.get(turns)).docs.map((doc) => doc.data() as StoredTurn);
+        lastSeq = stored.reduce((max, row) => Math.max(max, row[SEQ] ?? 0), 0);
+        retried ||=
+          turn.clientMessageId !== undefined &&
+          stored.some((row) => row.clientMessageId === turn.clientMessageId);
       }
+      if (existing && retried) return { conversation: existing, appended: false };
 
-      const nextSeq = stored.reduce((max, row) => Math.max(max, row[SEQ] ?? 0), 0) + 1;
+      const nextSeq = (lastSeq ?? 0) + 1;
       const now = new Date().toISOString();
       const conversation: Omit<Conversation, 'turns'> = existing
         ? { ...existing, updatedAt: now }
@@ -325,12 +324,10 @@ export class FirestoreStore implements Store {
             createdAt: now,
             updatedAt: now,
           };
-      // `turn` last so a stored field can never be overwritten by a caller's.
-      transaction.set(turns.doc(newId('turn')), { ...turn, [SEQ]: nextSeq });
-      transaction.set(conversationRef, conversation);
-
-      const all = orderedTurns([...stored, { ...turn, [SEQ]: nextSeq }]);
-      return { conversation: { ...conversation, turns: all }, appended: true };
+      // `turn` first so a stored field can never be overwritten by a caller's.
+      transaction.set(turnRef, { ...turn, [SEQ]: nextSeq });
+      transaction.set(conversationRef, { ...conversation, [TURNS]: nextSeq });
+      return { conversation, appended: true };
     });
   }
 
@@ -342,24 +339,21 @@ export class FirestoreStore implements Store {
    * simply *absent* from the new map would be left standing rather than deleted.
    * A correction that dropped a dependent answer would then appear to have
    * worked while the old answer stayed on the record. Writing the record whole
-   * is also what the file store does.
+   * is also what the file store does. The turn counter rides along untouched.
    */
   async mergeAnswers(
     tenantId: string,
     sessionId: string,
     answers: Record<string, string>,
     remove?: readonly string[],
-  ): Promise<Conversation> {
+  ): Promise<Omit<Conversation, 'turns'>> {
     const conversationRef = this.#conversationRef(tenantId, sessionId);
 
-    return await this.#db.runTransaction<Conversation>(async (transaction) => {
-      const [snapshot, turnDocs] = await Promise.all([
-        transaction.get(conversationRef),
-        transaction.get(conversationRef.collection('turns')),
-      ]);
-      const existing = snapshot.exists
-        ? (snapshot.data() as unknown as Omit<Conversation, 'turns'>)
-        : null;
+    return await this.#db.runTransaction<Omit<Conversation, 'turns'>>(async (transaction) => {
+      const snapshot = await transaction.get(conversationRef);
+      const data = snapshot.exists ? (snapshot.data() ?? {}) : null;
+      const existing = data ? withoutCounter(data) : null;
+      const counter: unknown = data?.[TURNS];
 
       const merged = { ...existing?.answers, ...answers };
       for (const key of remove ?? []) delete merged[key];
@@ -375,14 +369,11 @@ export class FirestoreStore implements Store {
             createdAt: now,
             updatedAt: now,
           };
-      transaction.set(conversationRef, conversation);
-      // The answer to the caller carries the transcript, as the interface says it
-      // does and as the file store's does: a store that returned a conversation
-      // with its turns quietly missing would be a caller's bug waiting to happen.
-      return {
-        ...conversation,
-        turns: orderedTurns(turnDocs.docs.map((doc) => doc.data() as StoredTurn)),
-      };
+      transaction.set(
+        conversationRef,
+        typeof counter === 'number' ? { ...conversation, [TURNS]: counter } : conversation,
+      );
+      return conversation;
     });
   }
 
@@ -697,6 +688,22 @@ export class FirestoreStore implements Store {
       .map((row) => stripStoreFields(row) as KnowledgeSourceRecord);
   }
 
+  /**
+   * Fingerprints only: a projection, so the documents' text never leaves
+   * Firestore. A row written before `_fp` existed reports null, which the
+   * loader reads as "changed" and answers with a full read.
+   */
+  async listKnowledgeFingerprints(tenantId: string): Promise<KnowledgeFingerprint[]> {
+    const snap = await this.#tenantDoc(tenantId)
+      .collection('knowledge')
+      .select('id', ORD, FP)
+      .get();
+    return snap.docs
+      .map((doc) => doc.data() as { id: string; [ORD]?: number; [FP]?: string })
+      .sort((a, b) => (a[ORD] ?? 0) - (b[ORD] ?? 0))
+      .map((row) => ({ id: row.id, fingerprint: row[FP] ?? null }));
+  }
+
   async getKnowledgeSource(
     tenantId: string,
     sourceId: string,
@@ -720,7 +727,9 @@ export class FirestoreStore implements Store {
     const existing = await this.listKnowledgeSources(source.tenantId);
     const at = existing.findIndex((row) => row.id === source.id);
     const position = at === -1 ? existing.length + 1 : at + 1;
-    await collection.doc(docId('k', source.id)).set({ ...source, [ORD]: position });
+    await collection
+      .doc(docId('k', source.id))
+      .set({ ...source, [ORD]: position, [FP]: knowledgeFingerprint(source) });
     const next =
       at === -1 ? [...existing, source] : existing.map((row, i) => (i === at ? source : row));
     return next.map((row) => ({ ...row }));

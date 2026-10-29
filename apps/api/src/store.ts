@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -226,6 +227,30 @@ export type LeadStatus = (typeof LEAD_STATUSES)[number];
  * the document that can disagree with the first. Deriving them on read is what
  * makes "the index reflects the stored document" true by construction.
  */
+export interface KnowledgeFingerprint {
+  id: string;
+  fingerprint: string | null;
+}
+
+/**
+ * A digest of every field a knowledge chunk is built from.
+ *
+ * The content rather than a timestamp, because two edits in one clock tick
+ * share an `updatedAt` and a cache keyed on it would serve the replaced text.
+ * A field that feeds the chunks or their citations must be added here, or an
+ * edit to only that field will not rebuild the index.
+ */
+export function knowledgeFingerprint(
+  source: Pick<KnowledgeSourceRecord, 'id' | 'version' | 'title' | 'url' | 'text'>,
+): string {
+  const hash = createHash('sha256');
+  for (const field of [source.id, source.version, source.title, source.url ?? '', source.text]) {
+    // Length-prefixed, so no two different records can join into the same input.
+    hash.update(`${field.length}:`).update(field);
+  }
+  return hash.digest('base64url');
+}
+
 export interface KnowledgeSourceRecord {
   id: string;
   tenantId: string;
@@ -292,7 +317,8 @@ export interface LeadResult {
 }
 
 export interface AppendResult {
-  conversation: Conversation;
+  /** The conversation record without its transcript; `getConversation` reads that. */
+  conversation: Omit<Conversation, 'turns'>;
   /** False when the turn was already present and nothing was written. */
   appended: boolean;
 }
@@ -338,9 +364,9 @@ export interface Store {
    * conversation if this is the first thing that has happened in it.
    *
    * A merge rather than a replace: the qualification route knows about one
-   * answer and must not blank the rest. Returns the conversation as it now
-   * stands, so a caller can report what is still outstanding without a second
-   * read that could race.
+   * answer and must not blank the rest. Returns the conversation record as it
+   * now stands (without the transcript), so a caller can report what is still
+   * outstanding without a second read that could race.
    *
    * `remove` is the correction's other half. When a visitor changes an answer,
    * the answers that depended on it may no longer apply, and a merge alone can
@@ -354,7 +380,7 @@ export interface Store {
     sessionId: string,
     answers: Record<string, string>,
     remove?: readonly string[],
-  ): Promise<Conversation>;
+  ): Promise<Omit<Conversation, 'turns'>>;
   /**
    * File a lead, once.
    *
@@ -472,6 +498,18 @@ export interface Store {
    * another installer's warranty terms in a customer's transcript.
    */
   listKnowledgeSources(tenantId: string): Promise<KnowledgeSourceRecord[]>;
+  /**
+   * This tenant's documents as fingerprints, in `listKnowledgeSources` order and
+   * without their text.
+   *
+   * The chat turn's freshness check: every turn asks whether the index in memory
+   * is still the one the store holds, and answering that by reading every
+   * document's full text is a per-turn cost that grows with the knowledge base.
+   * A fingerprint is `knowledgeFingerprint` of the record. Null means the store
+   * cannot say (a row written before fingerprints were kept), which a caller must
+   * treat as "changed", never as "same".
+   */
+  listKnowledgeFingerprints(tenantId: string): Promise<KnowledgeFingerprint[]>;
   getKnowledgeSource(tenantId: string, sourceId: string): Promise<KnowledgeSourceRecord | null>;
   /**
    * Create or replace one source, by id.
@@ -627,6 +665,7 @@ export class FileStore implements Store {
   #products = new Map<string, Product[]>();
   /** Loaded per tenant, on first read, for the same reason. */
   #knowledge = new Map<string, KnowledgeSourceRecord[]>();
+  #fingerprints = new WeakMap<KnowledgeSourceRecord, string>();
   #jobs: IngestionJob[] = [];
   /**
    * The in-flight or finished load, rather than a `#loaded` boolean.
@@ -1125,13 +1164,30 @@ export class FileStore implements Store {
     }
   }
 
-  async listKnowledgeSources(tenantId: string): Promise<KnowledgeSourceRecord[]> {
+  async #knowledgeSources(tenantId: string): Promise<readonly KnowledgeSourceRecord[]> {
     await this.#ensure();
     const cached = this.#knowledge.get(tenantId);
-    if (cached) return [...cached];
+    if (cached) return cached;
     const loaded = await this.#readKnowledgeSources(tenantId);
     this.#knowledge.set(tenantId, loaded);
-    return [...loaded];
+    return loaded;
+  }
+
+  async listKnowledgeSources(tenantId: string): Promise<KnowledgeSourceRecord[]> {
+    return [...(await this.#knowledgeSources(tenantId))];
+  }
+
+  async listKnowledgeFingerprints(tenantId: string): Promise<KnowledgeFingerprint[]> {
+    return (await this.#knowledgeSources(tenantId)).map((source) => {
+      // Memoised per record object: rows are replaced, never mutated, so a
+      // record seen before has the fingerprint it had then.
+      let fingerprint = this.#fingerprints.get(source);
+      if (fingerprint === undefined) {
+        fingerprint = knowledgeFingerprint(source);
+        this.#fingerprints.set(source, fingerprint);
+      }
+      return { id: source.id, fingerprint };
+    });
   }
 
   async getKnowledgeSource(

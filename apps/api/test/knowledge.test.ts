@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { KnowledgeJobResponse, KnowledgeSourceResponse } from '@sunny/contracts';
 
@@ -518,6 +518,38 @@ describe('retrieval over an installer’s documents', () => {
     const after = await load('t_demo0001');
     expect(after.sourceCount).toBe(0);
     expect(after.chunks).toEqual([]);
+  });
+
+  it('does not re-read the documents on a turn where nothing changed', async () => {
+    // Every chat turn calls the loader. Reading every document's full text just
+    // to learn it is the text already in memory is the per-turn cost that grows
+    // with the knowledge base, so an unchanged turn reads fingerprints only.
+    const target = await store();
+    const load = createKnowledgeLoader(target);
+    await ingest(target, 't_demo0001', WARRANTY_PAGE);
+    const reads = vi.spyOn(target, 'listKnowledgeSources');
+
+    const first = await load('t_demo0001');
+    const second = await load('t_demo0001');
+
+    expect(second).toBe(first);
+    expect(reads).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a bounded number of tenants resident', async () => {
+    const target = await store();
+    const load = createKnowledgeLoader(target, { maxTenants: 2 });
+    for (const tenant of ['t_one', 't_two', 't_three']) await ingest(target, tenant, WARRANTY_PAGE);
+
+    const one = await load('t_one');
+    await load('t_two');
+    await load('t_three');
+
+    // The least recently used tenant was dropped, so its index is rebuilt; the
+    // most recent ones are served from memory.
+    expect(await load('t_one')).not.toBe(one);
+    const three = await load('t_three');
+    expect(await load('t_three')).toBe(three);
   });
 });
 

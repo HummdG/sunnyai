@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { FileStore } from '../src/store.js';
+import { FileStore, knowledgeFingerprint } from '../src/store.js';
 import type { Store, Conversation, KnowledgeSourceRecord, LeadRecord } from '../src/store.js';
 import { productSchema } from '@sunny/contracts';
 import type { AuditEvent, IngestionJob, Product } from '@sunny/contracts';
@@ -232,7 +232,7 @@ export function storeContract(
       await store.appendTurn(t, 's1', turn);
       const again = await store.appendTurn(t, 's1', turn);
       expect(again.appended).toBe(false);
-      expect(again.conversation.turns).toHaveLength(1);
+      expect((await store.getConversation(t, 's1'))?.turns).toHaveLength(1);
     });
 
     it('merges answers into the standing map and removes the keys a correction drops', async () => {
@@ -242,7 +242,7 @@ export function storeContract(
       const merged = await store.mergeAnswers(t, 's1', { roof: 'pitched', battery: 'yes' });
       expect(merged.answers).toEqual({ roof: 'pitched', battery: 'yes' });
       // The transcript survives an amendment to the answers.
-      expect(merged.turns).toHaveLength(1);
+      expect((await store.getConversation(t, 's1'))?.turns).toHaveLength(1);
 
       const corrected = await store.mergeAnswers(t, 's1', { roof: 'flat' }, ['battery']);
       expect(corrected.answers).toEqual({ roof: 'flat' });
@@ -253,7 +253,7 @@ export function storeContract(
       const { store, tenant } = await harness();
       const t = tenant('answers-first');
       const created = await store.mergeAnswers(t, 's_form', { timescale: 'soon' });
-      expect(created.turns).toEqual([]);
+      expect((await store.getConversation(t, 's_form'))?.turns).toEqual([]);
       expect(created.sessionId).toBe('s_form');
       expect((await store.getConversation(t, 's_form'))?.answers).toEqual({ timescale: 'soon' });
     });
@@ -454,6 +454,35 @@ export function storeContract(
       expect((await store.listKnowledgeSources(t)).map((row) => row.id)).toEqual(['k2']);
     });
 
+    it("fingerprints a tenant's knowledge sources in list order, without their text", async () => {
+      const { store, tenant } = await harness();
+      const t = tenant('prints');
+      expect(await store.listKnowledgeFingerprints(t)).toEqual([]);
+      await store.putKnowledgeSource(source(t, 'k1'));
+      await store.putKnowledgeSource(source(t, 'k2', { text: 'Batteries are ten years.' }));
+
+      const sources = await store.listKnowledgeSources(t);
+      expect(await store.listKnowledgeFingerprints(t)).toEqual(
+        sources.map((row) => ({ id: row.id, fingerprint: knowledgeFingerprint(row) })),
+      );
+      // The fingerprint is the store's bookkeeping, not part of the record.
+      for (const row of sources)
+        expect(Object.keys(row).some((key) => key.startsWith('_'))).toBe(false);
+      expect(
+        Object.keys((await store.getKnowledgeSource(t, 'k1'))!).some((key) => key.startsWith('_')),
+      ).toBe(false);
+
+      // An edit in place moves that source's fingerprint and no other.
+      const before = await store.listKnowledgeFingerprints(t);
+      await store.putKnowledgeSource(source(t, 'k1', { title: 'Warranty terms' }));
+      const after = await store.listKnowledgeFingerprints(t);
+      expect(after.map((row) => row.id)).toEqual(['k1', 'k2']);
+      expect(after[0]?.fingerprint).not.toBe(before[0]?.fingerprint);
+      expect(after[1]?.fingerprint).toBe(before[1]?.fingerprint);
+
+      expect(await store.listKnowledgeFingerprints(tenant('prints-other'))).toEqual([]);
+    });
+
     it('keeps an ingestion job readable by the tenant that ran it, and not by another', async () => {
       const { store, tenant } = await harness();
       const mine = tenant('jobs-mine');
@@ -521,7 +550,7 @@ export function storeContract(
         company,
         joinedAt,
         consentVersion: '2026-10-21',
-        origin: 'https://sunny.ai',
+        origin: 'https://heysunny.co.uk',
       });
 
       expect(await store.joinWaitlist(entry(second, at(-1), null))).toBe(true);

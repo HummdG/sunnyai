@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   IngestionJob,
@@ -30,7 +30,13 @@ import {
 } from '../src/ingest/fetcher.js';
 import { parseRobots } from '../src/ingest/robots.js';
 import { MemoryKnowledgeSyncStore } from '../src/ingest/sync-store.js';
-import { createKnowledgeLoader, tenantOfIndex } from '../src/knowledge.js';
+import { embeddingKey } from '../src/ingest/sync.js';
+import {
+  createKnowledgeLoader,
+  createKnowledgeRetriever,
+  EMBEDDING_REFRESH_MS,
+  tenantOfIndex,
+} from '../src/knowledge.js';
 import { createKnowledgePipeline } from '../src/routes/knowledge-ingest.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
@@ -671,6 +677,80 @@ describe('hybrid retrieval', () => {
     // An index nobody loaded has no tenant: it is searched lexically, never with
     // another tenant's vectors.
     expect(tenantOfIndex({ sourceCount: index.sourceCount, chunks: index.chunks })).toBeNull();
+  });
+});
+
+describe('vectors on the chat path', () => {
+  async function oneDocument() {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-vectors-'));
+    dirs.push(dir);
+    const store = new FileStore(dir);
+    await store.putKnowledgeSource({
+      id: 'ks_prices',
+      tenantId: DEMO_TENANT.id,
+      title: 'Price list',
+      url: null,
+      version: '1',
+      text: [
+        '# Prices',
+        'The Family package is £13,900 including VAT.',
+        '# Batteries',
+        'We fit the Powerwall 3 storage unit.',
+      ].join(String.fromCharCode(10, 10)),
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const loader = createKnowledgeLoader(store);
+    const index = await loader(DEMO_TENANT.id);
+    return { store, loader, index, syncStore: new MemoryKnowledgeSyncStore() };
+  }
+
+  function embedAll(
+    syncStore: MemoryKnowledgeSyncStore,
+    chunks: Awaited<ReturnType<typeof oneDocument>>['index']['chunks'],
+  ) {
+    return syncStore.putEmbeddings(
+      DEMO_TENANT.id,
+      fakeEmbedder.model,
+      chunks.map((chunk) => ({
+        key: embeddingKey(fakeEmbedder.model, chunk),
+        vector: vectorise(chunk.text),
+      })),
+    );
+  }
+
+  it("reads an index's vectors once, not on every search", async () => {
+    const { store, loader, index, syncStore } = await oneDocument();
+    await embedAll(syncStore, index.chunks);
+    const reads = vi.spyOn(syncStore, 'getEmbeddings');
+    const retrieve = createKnowledgeRetriever({ store, loader, syncStore, embedder: fakeEmbedder });
+
+    await retrieve.passageSearch(index, 'battery storage', 3);
+    await retrieve.passageSearch(index, 'what does it cost', 3);
+
+    expect(reads).toHaveBeenCalledTimes(1);
+  });
+
+  it('picks up vectors that arrive after the first search, once the refresh interval passes', async () => {
+    const { store, loader, index, syncStore } = await oneDocument();
+    let clock = 1_000_000;
+    const retrieve = createKnowledgeRetriever({
+      store,
+      loader,
+      syncStore,
+      embedder: fakeEmbedder,
+      now: () => clock,
+    });
+    expect((await retrieve.retrieveKnowledge(DEMO_TENANT.id, 'cost')).mode).toBe('lexical');
+
+    // The sync embeds after the document lands, so a turn can arrive first.
+    await embedAll(syncStore, index.chunks);
+    const reads = vi.spyOn(syncStore, 'getEmbeddings');
+    expect((await retrieve.retrieveKnowledge(DEMO_TENANT.id, 'cost')).mode).toBe('lexical');
+    expect(reads).not.toHaveBeenCalled();
+
+    clock += EMBEDDING_REFRESH_MS;
+    expect((await retrieve.retrieveKnowledge(DEMO_TENANT.id, 'cost')).mode).toBe('hybrid');
   });
 });
 
