@@ -77,8 +77,7 @@ tariff, which is what the quote options weigh up.
 
 ## Selling electricity back: the Smart Export Guarantee
 
-The Smart Export Guarantee (SEG) has applied in Great Britain since January
-2020. Electricity suppliers with 150,000 or more domestic customers must offer a
+The Smart Export Guarantee (SEG) has applied in Great Britain since January 2020. Electricity suppliers with 150,000 or more domestic customers must offer a
 tariff that pays you for the electricity you export. The rate is set by each
 supplier and must always be above zero. To qualify, the system must normally be
 installed by an MCS-certified installer, and the export is measured by a smart
