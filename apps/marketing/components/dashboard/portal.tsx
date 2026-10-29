@@ -173,7 +173,7 @@ export function PortalShell({ children, bare = false }: { children: ReactNode; b
                 alt=""
               />
               <div>
-                <strong>Sunny.ai</strong>
+                <strong>Sunny</strong>
                 <span className="brand-tenant">{tenant.companyName}</span>
               </div>
               <button

@@ -134,7 +134,7 @@ variable "firestore_location" {
 
 variable "site_url" {
   description = <<-EOT
-    The website's public URL with no trailing slash (https://sunny.ai, or the
+    The website's public URL with no trailing slash (https://heysunny.co.uk, or the
     Cloud Run URL from a first apply). Used for the dashboard links and the
     widget script URL in installers' install snippets. Empty leaves the API's
     development defaults, which are wrong in production -- set it.
@@ -196,4 +196,36 @@ variable "gmail_enabled" {
     condition     = !var.gmail_enabled || var.google_oauth_client_id != ""
     error_message = "gmail_enabled needs google_oauth_client_id."
   }
+}
+
+variable "web_domains" {
+  description = <<-EOT
+    Hostnames the website answers on, main one first (e.g. ["heysunny.co.uk"]).
+    Empty (the default) creates no load balancer, and the environment stays on
+    its run.app URLs. See domain.tf.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "web_redirect_domains" {
+  description = "Hostnames redirected to the first of web_domains, e.g. [\"www.heysunny.co.uk\"]."
+  type        = list(string)
+  default     = []
+}
+
+variable "api_domains" {
+  description = <<-EOT
+    Hostnames the API answers on (e.g. ["api.heysunny.co.uk"]). Used only when
+    web_domains is set. Set api_base_url to match, or the widget and the email
+    links keep pointing at the run.app URL.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "api_env" {
+  description = "Extra plain environment variables for the API, such as GEMINI_MODEL or the SUNNY_RL_* rate limits. Not for secrets."
+  type        = map(string)
+  default     = {}
 }

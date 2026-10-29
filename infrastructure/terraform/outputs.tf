@@ -40,7 +40,7 @@ output "sunscan_tasks_queue" {
 }
 
 output "web_url" {
-  description = "The website and dashboard's service URL, until a custom domain is mapped."
+  description = "The website and dashboard's run.app URL. It keeps working after the custom domain is on."
   value       = google_cloud_run_v2_service.web.uri
 }
 
@@ -55,4 +55,21 @@ output "stripe_secret_ids" {
     google_secret_manager_secret.stripe_secret_key.secret_id,
     google_secret_manager_secret.stripe_webhook_secret.secret_id,
   ]
+}
+
+output "edge_ip_address" {
+  description = "Point an A record for every custom hostname at this address. Null without web_domains."
+  value       = local.domain_enabled ? google_compute_global_address.edge[0].address : null
+}
+
+output "dns_records" {
+  description = "The DNS records to create at the domain registrar."
+  value = local.domain_enabled ? [
+    for host in local.all_domains : "${host}  A  ${google_compute_global_address.edge[0].address}"
+  ] : []
+}
+
+output "certificate_name" {
+  description = "Managed certificate; `gcloud compute ssl-certificates describe <name> --global` shows whether it is ACTIVE yet."
+  value       = local.domain_enabled ? google_compute_managed_ssl_certificate.edge[0].name : null
 }

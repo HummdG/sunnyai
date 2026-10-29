@@ -2,7 +2,7 @@
   "name": "@sunny/marketing",
   "version": "0.1.0",
   "private": true,
-  "description": "Sunny.ai public marketing site",
+  "description": "Sunny public marketing site",
   "type": "module",
   "scripts": {
     "prepare-widget": "node scripts/copy-widget.mjs",

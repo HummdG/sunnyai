@@ -18,9 +18,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }):
         Skip to content
       </a>
       <main className="auth-main" id="main">
-        <Link className="auth-brand" href="/" aria-label="Sunny.ai home">
+        <Link className="auth-brand" href="/" aria-label="Sunny home">
           <img src="/brand/sunny-logo-64.png" width={36} height={36} alt="" />
-          <span>Sunny.ai</span>
+          <span>Sunny</span>
         </Link>
         <div className="auth-form">{children}</div>
         <p className="auth-legal small muted">

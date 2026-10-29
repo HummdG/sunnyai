@@ -394,7 +394,7 @@ describe('proposal routes', () => {
 
     const email = mailer.sent[0]!;
     expect(email.to).toBe('sam@example.com');
-    expect(email.fromName).toBe('Brightside Solar via Sunny.ai');
+    expect(email.fromName).toBe('Brightside Solar via Sunny');
     expect(email.subject).toMatch(/Brightside Solar/);
     expect(email.text).toMatch(/indicative and non-binding/);
     expect(email.attachment.data.subarray(0, 5).toString()).toBe('%PDF-');

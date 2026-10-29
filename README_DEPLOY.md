@@ -1,4 +1,4 @@
-# Deploying Sunny.ai
+# Deploying Sunny
 
 The runbook for §13 of `SUNNY_AI_IMPLEMENTATION_PLAN.md`: what the scripts in
 `scripts/` do, what they refuse to do, and what has to exist before any of this
@@ -99,9 +99,15 @@ What is left is outside the repository, and it is in this order:
 3. **The images pushed** to the Artifact Registry repository Terraform creates,
    and `api_image` / `web_image` naming them. `scripts/deploy-staging.sh` builds
    them and prints the push and deploy commands.
-4. **The domain.** Mapping sunny.ai (and an API host) to the two services is not
-   in Terraform yet; until it is, `site_url` and `api_base_url` are the Cloud Run
-   URLs from the first apply.
+4. **The domain.** `infrastructure/terraform/domain.tf` puts a load balancer
+   with a Google-managed certificate in front of both services once
+   `web_domains` is set. Production is heysunny.co.uk (www redirects to it) and
+   api.heysunny.co.uk; staging is staging.heysunny.co.uk and
+   api-staging.heysunny.co.uk. After the apply, add the `dns_records` output at
+   the registrar, wait for the certificate to show ACTIVE, then point `site_url`
+   and `api_base_url` at the new hostnames. Add the hostnames to Firebase Auth's
+   authorized domains and to the Gmail OAuth client's redirect URIs as well:
+   neither is in Terraform.
 
 ## First run
 
@@ -347,7 +353,7 @@ than the absence of the data.
 §12 requires that the demo data be clearly separate from production, and it is,
 in three layers:
 
-1. **The demo tenant** is `t_demo0001` / `w_demo000001` ("Sunny.ai"), the chat on
+1. **The demo tenant** is `t_demo0001` / `w_demo000001` ("Sunny"), the chat on
    Sunny's own home page. Its catalogue and knowledge are `fixtures/demo-catalogue.csv`
    and `fixtures/demo-knowledge.md` (written for a fictional installer, Northwind
    Solar), both marked DEMO DATA. The tenant is written to the store only when it

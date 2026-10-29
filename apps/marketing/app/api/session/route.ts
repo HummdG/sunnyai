@@ -54,7 +54,7 @@ async function callApi(path: string, body: unknown): Promise<Response> {
   } catch {
     return new Response(
       JSON.stringify({
-        error: { message: 'The Sunny.ai service is not reachable. Try again in a moment.' },
+        error: { message: 'The Sunny service is not reachable. Try again in a moment.' },
       }),
       { status: 503, headers: { 'content-type': 'application/json' } },
     );

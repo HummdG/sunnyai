@@ -190,6 +190,9 @@ resource "google_cloud_run_v2_service" "api" {
           },
           # Stripe price ids are identifiers, not secrets.
           { for plan, id in var.stripe_price_ids : "STRIPE_PRICE_${upper(plan)}" => id },
+          # Tuning per environment (model, rate limits), so a value set here is
+          # not lost the way one set with `gcloud run services update` is.
+          var.api_env,
         )
         content {
           name  = env.key

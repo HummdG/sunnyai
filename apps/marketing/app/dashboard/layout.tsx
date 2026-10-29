@@ -4,7 +4,7 @@ import '../dashboard.css';
 import '../dashboard-v2.css';
 
 export const metadata: Metadata = {
-  title: { default: 'Dashboard', template: '%s · Sunny.ai dashboard' },
+  title: { default: 'Dashboard', template: '%s · Sunny dashboard' },
   description:
     'Manage your Sunny assistant: inbox, leads, knowledge, products, add-ons and billing.',
   robots: { index: false, follow: false },

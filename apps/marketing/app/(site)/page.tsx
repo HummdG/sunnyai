@@ -20,7 +20,7 @@ import { WaitlistForm } from '../../components/waitlist-form.js';
 import { PUBLIC_ID } from '../config.js';
 
 const SNIPPET = `<script
-  src="https://cdn.sunny.ai/sunny-widget.js"
+  src="https://heysunny.co.uk/widget/sunny-widget.js"
   data-widget-id="${PUBLIC_ID}"
   async
 ></script>`;

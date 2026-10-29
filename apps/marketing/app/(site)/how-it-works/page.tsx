@@ -49,7 +49,7 @@ const VISIT = [
 ] as const;
 
 const SNIPPET = `<script
-  src="https://cdn.sunny.ai/sunny-widget.js"
+  src="https://heysunny.co.uk/widget/sunny-widget.js"
   data-widget-id="${PUBLIC_ID}"
   async
 ></script>`;

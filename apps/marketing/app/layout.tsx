@@ -10,8 +10,8 @@ import './cameo.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Sunny.ai | Meet Sunny, your brightest employee',
-    template: '%s · Sunny.ai',
+    default: 'Meet Sunny, your brightest employee',
+    template: '%s · Sunny',
   },
   description:
     'Sunny is a friendly AI assistant for solar installers. It answers visitor questions from your own documents, qualifies enquiries and hands you ready-to-call leads.',

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   } catch {
     return NextResponse.json(
-      { error: { message: 'The Sunny.ai service is not reachable.' } },
+      { error: { message: 'The Sunny service is not reachable.' } },
       { status: 503 },
     );
   }

@@ -135,7 +135,7 @@ const DEMO_TENANT: Tenant = {
   sunscanUrl: null,
   config: {
     publicId: 'w_demo000001',
-    companyName: 'Sunny.ai',
+    companyName: 'Sunny',
     tagline: 'Ask me anything about solar for your home',
     primaryColor: '#FF7900',
     position: 'bottom-right',

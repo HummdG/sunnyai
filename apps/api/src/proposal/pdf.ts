@@ -9,7 +9,7 @@ import type { QuoteOptionView, QuoteRecord } from '../journey/quote.js';
  * The customer proposal: a PDF of a stored quote, modelled on the installer's
  * own proposal format (a real one -- `Proposal_164_Norwich_Drive.pdf` -- was
  * the reference) and branded as the INSTALLER: their name, colour and contact
- * details. Sunny.ai appears only as a small "Prepared with" line.
+ * details. Sunny appears only as a small "Prepared with" line.
  *
  * Every figure comes from the stored quote and the ported SunScan engine; a
  * section we have no data for is left out rather than filled in. The document
@@ -111,7 +111,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
     info: {
       Title: `Solar proposal for ${forWhom}`,
       Author: installer.companyName,
-      Creator: 'Sunny.ai',
+      Creator: 'Sunny',
     },
   });
   doc.registerFont('regular', `${FONT_DIR}PlusJakartaSans-Regular.ttf`);
@@ -691,7 +691,7 @@ export async function renderProposal(input: ProposalInput): Promise<Buffer> {
         { width: width * 0.6, lineBreak: false },
       );
     doc.text(
-      `Page ${i - range.start + 1} of ${range.count} · Prepared with Sunny.ai`,
+      `Page ${i - range.start + 1} of ${range.count} · Prepared with Sunny`,
       left + width * 0.5,
       footY,
       { width: width * 0.5, align: 'right', lineBreak: false },

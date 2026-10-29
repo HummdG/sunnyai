@@ -11,9 +11,9 @@
 
 export interface ProposalEmail {
   to: string;
-  /** Replies go to the installer, never to Sunny.ai. */
+  /** Replies go to the installer, never to Sunny. */
   replyTo: string | null;
-  /** Shown as the sender's name ("Brightside Solar via Sunny.ai"). */
+  /** Shown as the sender's name ("Brightside Solar via Sunny"). */
   fromName: string;
   subject: string;
   text: string;

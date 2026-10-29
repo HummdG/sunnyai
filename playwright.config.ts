@@ -149,7 +149,7 @@ export default defineConfig({
       timeout: 240_000,
     },
     {
-      // The Sunny.ai app -- the website, the sign-in pages and the installer
+      // The Sunny app -- the website, the sign-in pages and the installer
       // dashboard at /dashboard -- as a production build like the fixture above.
       //
       // It is a product surface rather than a host fixture, but it is started

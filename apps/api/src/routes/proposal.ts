@@ -132,7 +132,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     await deps.mailer.send({
       to: body.data.email,
       replyTo: contact?.email ?? null,
-      fromName: `${company} via Sunny.ai`,
+      fromName: `${company} via Sunny`,
       subject: `Your solar quote from ${company}`,
       text: [
         'Hello,',

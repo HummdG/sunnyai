@@ -23,7 +23,8 @@ export interface FetchedPage {
 
 export type Fetcher = (url: string) => Promise<FetchedPage>;
 
-export const USER_AGENT = 'SunnyBot/1.0 (+https://sunny.ai/bot; knowledge sync for the site owner)';
+export const USER_AGENT =
+  'SunnyBot/1.0 (+https://heysunny.co.uk/bot; knowledge sync for the site owner)';
 
 const MAX_BYTES = 3 * 1024 * 1024;
 

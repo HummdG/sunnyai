@@ -6,12 +6,12 @@ import { HeaderAccount } from './account-links.js';
 import { MobileMenu } from './mobile-menu.js';
 import { stillRig } from './scenes/still.js';
 
-/** The logo is the reference artwork itself (sunny.png); the product is Sunny.ai. */
+/** The logo is the reference artwork itself (sunny.png); the product is Sunny. */
 function Brand(): React.JSX.Element {
   return (
-    <Link className="brand" href="/" aria-label="Sunny.ai home">
+    <Link className="brand" href="/" aria-label="Sunny home">
       <img src="/brand/sunny-logo-128.png" width={36} height={36} alt="" />
-      Sunny.ai
+      Sunny
     </Link>
   );
 }
@@ -97,7 +97,7 @@ export function SiteFooter(): React.JSX.Element {
         ))}
       </div>
       <div className="wrap footer-base">
-        <span>© {new Date().getFullYear()} Sunny.ai. Made for UK solar installers.</span>
+        <span>© {new Date().getFullYear()} Sunny. Made for UK solar installers.</span>
       </div>
     </footer>
   );

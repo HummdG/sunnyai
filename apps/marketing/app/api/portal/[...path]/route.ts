@@ -48,7 +48,7 @@ async function forward(request: NextRequest, context: Context): Promise<NextResp
     });
   } catch {
     return NextResponse.json(
-      { error: { message: 'The Sunny.ai service is not reachable. Try again in a moment.' } },
+      { error: { message: 'The Sunny service is not reachable. Try again in a moment.' } },
       { status: 503 },
     );
   }

@@ -2,7 +2,7 @@
   "name": "@sunny/contracts",
   "version": "0.1.0",
   "private": true,
-  "description": "Shared schemas and generated types for the Sunny.ai API",
+  "description": "Shared schemas and generated types for the Sunny API",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {

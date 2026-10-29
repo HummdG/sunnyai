@@ -2,7 +2,7 @@
   "name": "sunny-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Sunny.ai \u00e2\u20ac\u201d multi-tenant AI assistant platform for solar installers",
+  "description": "Sunny: multi-tenant AI assistant platform for solar installers",
   "type": "module",
   "engines": {
     "node": ">=22"

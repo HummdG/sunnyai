@@ -5,7 +5,7 @@ import { SignInForm } from '../../../components/auth/sign-in-form.js';
 
 export const metadata: Metadata = {
   title: 'Sign in',
-  description: 'Sign in to your Sunny.ai dashboard.',
+  description: 'Sign in to your Sunny dashboard.',
   robots: { index: false },
 };
 

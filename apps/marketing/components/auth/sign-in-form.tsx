@@ -40,7 +40,7 @@ export function SignInForm(): React.JSX.Element {
     <section aria-labelledby="auth-title">
       <AuthHeading
         title="Welcome back"
-        lead="Sign in to your Sunny.ai dashboard: conversations, leads and everything Sunny knows."
+        lead="Sign in to your Sunny dashboard: conversations, leads and everything Sunny knows."
       />
       {params.get('reset') ? (
         <FormNote>Password changed. Sign in with your new one.</FormNote>
@@ -120,7 +120,7 @@ export function SignInForm(): React.JSX.Element {
       ) : null}
 
       <p className="auth-switch">
-        New to Sunny.ai? <Link href={`/sign-up?next=${encodeURIComponent(next)}`}>Get started</Link>
+        New to Sunny? <Link href={`/sign-up?next=${encodeURIComponent(next)}`}>Get started</Link>
       </p>
     </section>
   );

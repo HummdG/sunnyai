@@ -2028,7 +2028,10 @@ describe('data isolation', () => {
     // internally, and with it a target.
     expect(config.body).not.toContain(RIVAL.id);
     expect(config.body).not.toContain(DEMO_TENANT.id);
-    expect(config.body).not.toContain(DEMO_TENANT.config.companyName);
+    // The demo tenant's tagline rather than its name: the demo tenant is called
+    // "Sunny", which is also the assistant's own name in every greeting.
+    expect(config.body).not.toContain(DEMO_TENANT.publicId);
+    expect(config.body).not.toContain(DEMO_TENANT.config.tagline);
     expect(config.body).toContain(RIVAL.config.companyName);
   });
 });

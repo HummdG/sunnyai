@@ -15,7 +15,7 @@ export interface EmailAddonConfig {
   webhookSecret: string;
   /** Basic-auth credentials on the shared inbound route (Postmark / SendGrid). */
   inboundBasic: { user: string; password: string } | null;
-  /** Domain inbound addresses live on, e.g. `inbound.sunny.ai` (`<tenant>@domain`). */
+  /** Domain inbound addresses live on, e.g. `inbound.heysunny.co.uk` (`<tenant>@domain`). */
   inboundDomain: string | null;
   gmailPush: { topic: string; token: string } | null;
   /** Where the OAuth flow returns and the dashboard lives. */

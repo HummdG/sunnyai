@@ -104,7 +104,7 @@ export function formatPrice(monthly: number): string {
  * them as they are, so a missing detail shows rather than hiding.
  */
 export const LEGAL = {
-  tradingName: 'Sunny.ai',
+  tradingName: 'Sunny',
   companyName: '[Registered company name]',
   companyNumber: '[Company number]',
   registeredAddress: '[Registered office address]',

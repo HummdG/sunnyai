@@ -42,7 +42,7 @@ export function ProductScene(): React.JSX.Element {
       back={
         <>
           <Sunburst x={430} y={300} r={240} count={24} />
-          <BrowserFrame x={30} y={40} w={360} h={300} url="dashboard.sunny.ai">
+          <BrowserFrame x={30} y={40} w={360} h={300} url="heysunny.co.uk/dashboard">
             <text
               x={20}
               y={34}

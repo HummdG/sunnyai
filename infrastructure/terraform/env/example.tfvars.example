@@ -37,6 +37,13 @@ firestore_location = "europe-west2"
 site_url     = "https://staging.example.com"
 api_base_url = ""
 
+# A custom domain (domain.tf): leave these out to stay on run.app URLs. With
+# them, the apply prints `dns_records` to add at the registrar, and site_url /
+# api_base_url above should name these hostnames once the certificate is ACTIVE.
+# web_domains          = ["heysunny.co.uk"]
+# web_redirect_domains = ["www.heysunny.co.uk"]
+# api_domains          = ["api.heysunny.co.uk"]
+
 # Who hears about it when the API, chat or the website stops answering.
 alert_email = "you@example.com"
 

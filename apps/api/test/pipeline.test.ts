@@ -149,7 +149,7 @@ describe('the vertical slice', () => {
     const response = await app.inject({ method: 'GET', url: '/v1/widget/config/w_demo000001' });
     expect(response.statusCode).toBe(200);
     const config = response.json();
-    expect(config.companyName).toBe('Sunny.ai');
+    expect(config.companyName).toBe('Sunny');
     expect(config.primaryColor).toMatch(/^#[0-9a-f]{6}$/i);
     // The tenant's internal identity must not be discoverable from the page.
     expect(response.body).not.toContain('t_demo0001');
