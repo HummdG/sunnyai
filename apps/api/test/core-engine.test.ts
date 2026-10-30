@@ -708,3 +708,70 @@ describe('registered domains', () => {
     ).toBe(403);
   });
 });
+
+// ─── retries: one message, one answer ────────────────────────────────────────
+
+describe('a retried message', () => {
+  const textOf = (events: TurnEvent[]) =>
+    events
+      .filter((e) => e.type === 'text_delta')
+      .map((e) => ('text' in e ? e.text : ''))
+      .join('');
+
+  it('replays the stored answer instead of asking the model again', async () => {
+    const store = await tempStore();
+    const provider = new ScriptedProvider(() => [{ type: 'text', text: 'About £400 a year.' }]);
+    await collect(turn(provider, store, 'How much could I save?', { clientMessageId: 'c1' }));
+    const first = await store.getConversation(demo().id, 'sess_core');
+    expect(first!.turns).toHaveLength(2);
+
+    // The widget lost the stream and sent the same message again.
+    const events = await collect(
+      turn(new ForbiddenProvider(), store, 'How much could I save?', {
+        clientMessageId: 'c1',
+        history: first!.turns,
+      }),
+    );
+    expect(textOf(events)).toBe('About £400 a year.');
+    expect(events.at(-1)).toMatchObject({ type: 'message_finished', text: 'About £400 a year.' });
+    const after = await store.getConversation(demo().id, 'sess_core');
+    expect(after!.turns).toHaveLength(2);
+  });
+
+  it('answers when the first attempt stored the question but never replied', async () => {
+    const store = await tempStore();
+    // A turn that failed after the visitor's words were written.
+    await store.appendTurn(demo().id, 'sess_core', {
+      role: 'user',
+      text: 'How much could I save?',
+      at: new Date().toISOString(),
+      clientMessageId: 'c1',
+    });
+    const before = await store.getConversation(demo().id, 'sess_core');
+    const provider = new ScriptedProvider(() => [{ type: 'text', text: 'About £400 a year.' }]);
+    const events = await collect(
+      turn(provider, store, 'How much could I save?', {
+        clientMessageId: 'c1',
+        history: before!.turns,
+      }),
+    );
+    expect(textOf(events)).toBe('About £400 a year.');
+    const after = await store.getConversation(demo().id, 'sess_core');
+    expect(after!.turns.map((t) => t.role)).toEqual(['user', 'assistant']);
+  });
+
+  it('replays a safety answer with its escalation, still without the model', async () => {
+    const store = await tempStore();
+    const message = 'there is smoke coming out of the inverter';
+    await collect(turn(new ForbiddenProvider(), store, message, { clientMessageId: 'c1' }));
+    const first = await store.getConversation(demo().id, 'sess_core');
+    const events = await collect(
+      turn(new ForbiddenProvider(), store, message, {
+        clientMessageId: 'c1',
+        history: first!.turns,
+      }),
+    );
+    expect(events.some((e) => e.type === 'escalation')).toBe(true);
+    expect((await store.getConversation(demo().id, 'sess_core'))!.turns).toHaveLength(2);
+  });
+});

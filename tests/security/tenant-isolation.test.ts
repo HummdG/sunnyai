@@ -2136,14 +2136,18 @@ describe('knowledge scoping', () => {
    * read this way because the provider is called once per turn and each caller
    * reads it before the next turn starts.
    */
+  let turns = 0;
   async function shownTo(ids: Ids): Promise<string> {
+    // A fresh message id per turn, as the widget sends: the same id again is a
+    // retry, which replays the stored answer and never reaches the provider.
+    turns += 1;
     const response = await server.inject({
       method: 'POST',
       url: '/v1/chat/stream',
       headers: { authorization: `Bearer ${tokenFor(ids)}` },
       payload: {
         sessionId: ids.sessionId,
-        clientMessageId: 'sec-knowledge',
+        clientMessageId: `sec-knowledge-${turns}`,
         text: 'What does the warranty cover?',
       },
     });

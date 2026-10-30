@@ -148,6 +148,19 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   const messageId = newId('msg');
   yield { type: 'message_started', messageId };
 
+  // A retry of a message that was already answered -- the widget lost the
+  // stream and sent it again. The store keeps the visitor's turn once by its
+  // `clientMessageId`, but the answer has no such key, so running the turn again
+  // would ask the model a second time and file a second reply. The answer
+  // already given is replayed instead, and nothing is written.
+  const answered = answerTo(input.history, input.clientMessageId);
+  if (answered) {
+    yield { type: 'text_delta', messageId, text: answered.text };
+    if (answered.escalation) yield { type: 'escalation', messageId, kind: answered.escalation };
+    yield { type: 'message_finished', messageId, text: answered.text, tools: answered.tools ?? [] };
+    return;
+  }
+
   const intent = classifyIntent(input.message);
 
   // Safety triage, before the model (support knowledge base §13). The reply is
@@ -500,6 +513,25 @@ function drain(events: ToolEvent[], messageId: string): TurnEvent[] {
 export const MODEL_HISTORY_TURNS = 30;
 
 /** The recent turns, opening on a visitor turn so the model never starts mid-reply. */
+/**
+ * The assistant turn that answered the visitor turn stored under
+ * `clientMessageId`, or null when there is none -- including when the visitor's
+ * words were stored but the turn failed before an answer was, in which case the
+ * retry should run the turn for real.
+ */
+export function answerTo(
+  history: readonly ConversationTurn[],
+  clientMessageId: string | undefined,
+): ConversationTurn | null {
+  if (!clientMessageId) return null;
+  const asked = history.findIndex(
+    (t) => t.role === 'user' && t.clientMessageId === clientMessageId,
+  );
+  if (asked === -1) return null;
+  const next = history[asked + 1];
+  return next?.role === 'assistant' ? next : null;
+}
+
 function modelWindow(history: ConversationTurn[]): ConversationTurn[] {
   if (history.length <= MODEL_HISTORY_TURNS) return history;
   const recent = history.slice(-MODEL_HISTORY_TURNS);
