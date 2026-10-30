@@ -216,8 +216,21 @@
   font-weight: 750;
   margin-bottom: 14px;
 }
+.dash .card p + .actions {
+  margin-top: 14px;
+}
+
+/* Top-level blocks stack 18px apart, whatever they are: a card, a grid, or a
+   form that wraps a card. Grids space their own children with `gap`, so a
+   card inside one carries no margin (it would push it below its neighbour). */
+.dash .content > * + *,
 .dash .card + .card {
   margin-top: 18px;
+}
+.dash .content > .page-header,
+.dash .grid > *,
+.dash .grid > .card + .card {
+  margin-top: 0;
 }
 
 .dash .stat {
@@ -312,8 +325,48 @@
   min-height: 90px;
   resize: vertical;
 }
+.dash .field > * {
+  min-width: 0;
+}
 .dash .field.compact {
   margin: 0;
+}
+
+/* Password input with its Show / Hide button (shared with the sign-in pages). */
+.dash .password-row {
+  display: flex;
+  gap: 8px;
+}
+.dash .password-row input {
+  flex: 1;
+  min-width: 0;
+}
+.dash .password-toggle {
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid rgba(23, 23, 23, 0.16);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--sunny-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dash .password-toggle:hover {
+  border-color: var(--sunny-accent-ink);
+}
+
+/* Inline "email, role, button" form on the Team page. */
+.dash .invite-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px 18px;
+  align-items: end;
+}
+@media (max-width: 720px) {
+  .dash .invite-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .dash .field input[type='color'] {
   padding: 2px;
@@ -684,11 +737,6 @@
   border-radius: var(--radius-lg);
   padding: 14px 18px;
   margin-bottom: 18px;
-}
-
-.dash .grid.stats + .card,
-.dash .card + .grid {
-  margin-top: 18px;
 }
 
 .dash .empty {

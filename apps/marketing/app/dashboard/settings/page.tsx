@@ -107,7 +107,7 @@ function Settings() {
           <CopyButton text={tenant.installSnippet} label="Copy snippet" />
         </div>
       </Card>
-      <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0 }}>
+      <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, marginInline: 0, minWidth: 0 }}>
         <Section title="Company and customer help">
           <form
             onSubmit={(event: FormEvent) => {

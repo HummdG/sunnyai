@@ -68,11 +68,7 @@ function Team() {
       <ErrorNote error={error} />
       {canManage ? (
         <Card title="Add a colleague">
-          <form
-            onSubmit={(event) => void invite(event)}
-            className="grid two"
-            style={{ alignItems: 'end' }}
-          >
+          <form onSubmit={(event) => void invite(event)} className="invite-form">
             <label className="field compact">
               <span>Email</span>
               <input
@@ -116,50 +112,52 @@ function Team() {
         {members === null ? (
           <SkeletonRows rows={4} />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Email</th>
-                <th scope="col">Role</th>
-                <th scope="col">Status</th>
-                {canManage ? (
-                  <th scope="col">
-                    <span className="muted">Actions</span>
-                  </th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((member) => (
-                <tr key={member.email}>
-                  <td>{member.email}</td>
-                  <td>{member.role}</td>
-                  <td>
-                    {member.joined ? (
-                      <Chip tone="ok">Joined</Chip>
-                    ) : (
-                      <Chip tone="orange">Invited</Chip>
-                    )}
-                  </td>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Email</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Status</th>
                   {canManage ? (
-                    <td>
-                      {member.email !== me.user.email ? (
-                        <button
-                          className="link-button"
-                          type="button"
-                          onClick={() => void remove(member.email)}
-                        >
-                          Remove
-                        </button>
-                      ) : (
-                        <span className="muted small">You</span>
-                      )}
-                    </td>
+                    <th scope="col">
+                      <span className="muted">Actions</span>
+                    </th>
                   ) : null}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {members.map((member) => (
+                  <tr key={member.email}>
+                    <td>{member.email}</td>
+                    <td>{member.role}</td>
+                    <td>
+                      {member.joined ? (
+                        <Chip tone="ok">Joined</Chip>
+                      ) : (
+                        <Chip tone="orange">Invited</Chip>
+                      )}
+                    </td>
+                    {canManage ? (
+                      <td>
+                        {member.email !== me.user.email ? (
+                          <button
+                            className="link-button"
+                            type="button"
+                            onClick={() => void remove(member.email)}
+                          >
+                            Remove
+                          </button>
+                        ) : (
+                          <span className="muted small">You</span>
+                        )}
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
     </>
