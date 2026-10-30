@@ -33,8 +33,10 @@
 const base = (process.argv[2] ?? process.env.BASE ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
 const expectChat = process.env.SMOKE_EXPECT_CHAT === '1';
 
-const PUBLIC_ID = process.env.SMOKE_PUBLIC_ID ?? 'w_demo000001';
-const ORIGIN = process.env.SMOKE_ORIGIN ?? 'http://localhost:4173';
+// `||`, not `??`: smoke-test.sh always passes these, as an empty string when
+// unset, and an empty widget id asks for `/v1/widget/config/` (a 400).
+const PUBLIC_ID = process.env.SMOKE_PUBLIC_ID || 'w_demo000001';
+const ORIGIN = process.env.SMOKE_ORIGIN || 'http://localhost:4173';
 
 // Read here rather than beside the admin section it serves, because the lead
 // list is an admin route and the lead check below runs long before that section
