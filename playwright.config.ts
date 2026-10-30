@@ -81,6 +81,8 @@ export default defineConfig({
         // website at /dashboard: dev sign-in, and a webhook secret and price ids
         // so billing can be driven by signed events.
         SUNNY_DEV_AUTH: '1',
+        // The staff dashboard's one staff member (tests/e2e/admin.spec.ts).
+        SUNNY_STAFF_EMAILS: 'staff@sunny-e2e.test',
         SUNNY_DASHBOARD_URL: `http://localhost:${MARKETING_PORT}`,
         STRIPE_WEBHOOK_SECRET: E2E_STRIPE_WEBHOOK_SECRET,
         STRIPE_PRICE_BASE: 'price_e2e_base',

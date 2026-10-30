@@ -172,6 +172,24 @@ variable "stripe_price_ids" {
   }
 }
 
+variable "staff_emails" {
+  description = "Sunny staff who may open the staff dashboard (/admin), by the email they sign in with. Empty switches the dashboard off."
+  type        = list(string)
+  default     = []
+}
+
+variable "ops_billing_table" {
+  description = "The billing export table (project.dataset.gcp_billing_export_resource_v1_...), once Google has created it (ops.tf). Empty leaves the Costs page without GCP spend."
+  type        = string
+  default     = ""
+}
+
+variable "ops_monthly_budget" {
+  description = "This environment's monthly GCP budget, in the billing currency. The staff dashboard warns when the forecast passes it. Zero means no budget."
+  type        = number
+  default     = 0
+}
+
 variable "alert_email" {
   description = "Where uptime alerts go (monitoring.tf). Empty means checks run but nobody is told."
   type        = string

@@ -18,6 +18,12 @@ const PATHS: Record<string, string> = {
   billing: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 10h18M7 15h4',
   team: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2.5 19c.6-2.8 2.8-4.5 5.5-4.5s4.9 1.7 5.5 4.5M13.5 15c.8-.4 1.6-.5 2.5-.5 2.7 0 4.9 1.7 5.5 4.5',
   account: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20c.9-3.5 3.9-5.5 7.5-5.5s6.6 2 7.5 5.5',
+  // The staff dashboard's own pages.
+  usage: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  health: 'M3 12h4l2-5 4 10 2-5h6',
+  costs:
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15 8.5c-.6-.9-1.7-1.5-3-1.5-1.9 0-3 1-3 2.3 0 3.2 6 1.8 6 5 0 1.4-1.3 2.7-3.2 2.7-1.4 0-2.6-.6-3.3-1.6M12 5v2M12 17v2',
+  errors: 'M12 4 2.5 20h19zM12 10v4M12 17h.01',
 };
 
 export function NavIcon({ name }: { name: string }): React.JSX.Element {

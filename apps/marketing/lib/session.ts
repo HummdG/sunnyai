@@ -75,5 +75,8 @@ export function sameOrigin(request: Request): boolean {
   }
 }
 
-/** Only these API areas are reachable through the dashboard proxy. */
-export const PROXY_PREFIXES = ['v1/portal/', 'v1/sunscan/'] as const;
+/**
+ * Only these API areas are reachable through the dashboard proxy. `v1/admin/`
+ * is the staff dashboard; the API refuses it to anyone not on its staff list.
+ */
+export const PROXY_PREFIXES = ['v1/portal/', 'v1/sunscan/', 'v1/admin/'] as const;

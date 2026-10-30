@@ -34,7 +34,9 @@ import { newId, type Store } from './store.js';
 export interface AuditEntry {
   /** The tenant the act was against, or null when none could be named. */
   tenantId: string | null;
-  actor: 'admin' | 'system';
+  actor: 'admin' | 'system' | 'staff';
+  /** The staff member's uid. Only `staff` names a person; see `AUDIT_ACTOR_KINDS`. */
+  actorId?: string | null;
   action: AuditAction;
   target: AuditTarget;
   outcome: AuditOutcome;
@@ -64,9 +66,9 @@ export function createAuditor({ store, now, onFailure }: AuditorOptions): Audito
       const event: AuditEvent = {
         id: newId('aud'),
         tenantId: entry.tenantId,
-        // `id` is always null for now: the admin token is deployment-wide and the
-        // assistant is not a person. See `AUDIT_ACTOR_KINDS`.
-        actor: { kind: entry.actor, id: null },
+        // Null for `admin` and `system`: the admin token is deployment-wide and
+        // the assistant is not a person. See `AUDIT_ACTOR_KINDS`.
+        actor: { kind: entry.actor, id: entry.actor === 'staff' ? (entry.actorId ?? null) : null },
         action: entry.action,
         target: entry.target,
         outcome: entry.outcome,

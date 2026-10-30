@@ -44,6 +44,12 @@ api_base_url = ""
 # web_redirect_domains = ["www.heysunny.co.uk"]
 # api_domains          = ["api.heysunny.co.uk"]
 
+# The staff dashboard (/admin): Sunny's own people, by sign-in email.
+# staff_emails = ["you@example.com"]
+# Once the billing export exists (ops.tf, README_DEPLOY.md):
+# ops_billing_table  = "your-gcp-project.billing_export_staging.gcp_billing_export_resource_v1_XXXXXX"
+# ops_monthly_budget = 150
+
 # Who hears about it when the API, chat or the website stops answering.
 alert_email = "you@example.com"
 

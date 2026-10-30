@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, sessionExpiry } from './lib/session.js';
 
 /**
- * The dashboard is for signed-in installers. A request without a live session
+ * The dashboard is for signed-in installers, and `/admin` for signed-in staff. A request without a live session
  * cookie goes to the sign-in page, which brings the person back afterwards.
  * (The API still checks the session and the person's role on every call; this
  * only keeps signed-out visitors from loading an empty dashboard.)
@@ -18,5 +18,5 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/dashboard'],
+  matcher: ['/dashboard/:path*', '/dashboard', '/admin/:path*', '/admin'],
 };

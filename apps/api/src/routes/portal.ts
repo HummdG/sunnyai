@@ -36,6 +36,7 @@ import { JOURNEY_KEYS } from '../journey/journey.js';
 import { ONBOARDING_STEPS, type Tenant, type TenantRegistry } from '../tenants.js';
 import type { VoiceUsageLedger } from '../channels/voice/usage.js';
 import type { PortalConfig } from './portal-config.js';
+import { isStaff } from './admin.js';
 
 /**
  * The installer portal API (Blueprint §3.1, §5; plan §6.3–6.4).
@@ -453,6 +454,9 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
     const memberships = identity.email ? await store.listMembershipsByEmail(identity.email) : [];
     return {
       user: { uid: identity.uid, email: identity.email },
+      // Whether to show the way into the staff dashboard. The admin routes
+      // check the list again themselves; this only decides a link.
+      staff: isStaff(portal, identity.email),
       tenants: memberships
         .map((m) => {
           const tenant = tenants.byId(m.tenantId);

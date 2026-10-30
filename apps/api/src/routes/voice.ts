@@ -45,6 +45,7 @@ import {
   type VoiceUsageLedger,
 } from '../channels/voice/usage.js';
 import { FirestoreStore } from '../firestore-store.js';
+import { instrumentVoiceUsage, type Telemetry } from '../ops/telemetry.js';
 import { hasEntitlement, type AddonKey } from '../entitlements.js';
 import { verifySessionToken } from '../sessions.js';
 import type { Store } from '../store.js';
@@ -77,6 +78,8 @@ export interface VoiceRouteDeps {
   /** The Live API connector; the real Gemini one when absent and a key is set. */
   connector?: LiveConnector;
   usage?: VoiceUsageLedger;
+  /** Counts sessions and minutes for the staff dashboard (ops/telemetry.ts). */
+  telemetry?: Telemetry;
   /** Concurrency leases; shared across instances on the Firestore store. */
   slots?: VoiceSlots;
   fetch?: Fetch;
@@ -133,7 +136,9 @@ export function registerVoiceRoutes(app: FastifyInstance, deps: VoiceRouteDeps):
   // On the Firestore store, minutes and concurrency are shared state across
   // every API instance; otherwise (development, one instance) they are local.
   const db = deps.store instanceof FirestoreStore ? deps.store.firestore : null;
-  const usage = deps.usage ?? (db ? new FirestoreVoiceUsage(db) : new FileVoiceUsage(deps.dataDir));
+  const ledger =
+    deps.usage ?? (db ? new FirestoreVoiceUsage(db) : new FileVoiceUsage(deps.dataDir));
+  const usage = deps.telemetry ? instrumentVoiceUsage(ledger, deps.telemetry) : ledger;
   const slots = deps.slots ?? (db ? new FirestoreVoiceSlots(db, now) : new MemoryVoiceSlots(now));
   const leases = new Map<string, { lease: VoiceLease; beat: ReturnType<typeof setInterval> }>();
 

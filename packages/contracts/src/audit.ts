@@ -82,6 +82,15 @@ export const AUDIT_ACTIONS = [
    * that do not.
    */
   'agent.tool.invoke',
+  /**
+   * A member of Sunny's staff opened one installer's operations drill-down in
+   * the staff dashboard. `GET /v1/admin/tenants/:tenantId`.
+   *
+   * Only the drill-down: the dashboard's platform-wide pages refresh every
+   * minute and show counts, and recording each refresh would bury the reads
+   * that look at one installer in particular.
+   */
+  'ops.tenant.read',
 ] as const;
 
 export const auditActionSchema = z.enum(AUDIT_ACTIONS);
@@ -145,6 +154,11 @@ export const AUDIT_ACTOR_KINDS = [
   'admin',
   /** The assistant itself, for a tool it chose to invoke. */
   'system',
+  /**
+   * A member of Sunny's staff, signed in. Unlike the admin token this names a
+   * person, so `id` is their sign-in uid (never their email: see `detail`).
+   */
+  'staff',
 ] as const;
 export const auditActorSchema = z.object({
   kind: z.enum(AUDIT_ACTOR_KINDS),
@@ -170,6 +184,8 @@ export const AUDIT_TARGET_KINDS = [
   'conversation',
   /** A tool in the closed `TOOL_NAMES` list; `id` is the tool's name. */
   'tool',
+  /** An installer as a whole; `id` is null and the event's `tenantId` names it. */
+  'tenant',
 ] as const;
 export const auditTargetSchema = z.object({
   kind: z.enum(AUDIT_TARGET_KINDS),

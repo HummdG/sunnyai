@@ -14,6 +14,7 @@ import type { PlanKey } from '../entitlements.js';
  *   STRIPE_SECRET_KEY                Stripe API key (test or live)
  *   STRIPE_WEBHOOK_SECRET            `whsec_...` for /v1/billing/webhook
  *   STRIPE_PRICE_BASE / _EMAIL / _VOICE / _SUITE   price ids per package
+ *   SUNNY_STAFF_EMAILS               comma-separated Sunny staff, who may open /admin
  */
 export interface StripeConfig {
   secretKey: string | null;
@@ -31,6 +32,28 @@ export interface PortalConfig {
   publicApiUrl: string;
   dashboardUrl: string;
   stripe: StripeConfig;
+  /**
+   * Sunny's own people, by verified email, lowercased: who may read the staff
+   * dashboard (`routes/admin.ts`). Empty or absent switches it off. A person is
+   * staff by being signed in as one of these addresses, never by a claim the
+   * browser sends, so removing an address takes effect on their next request.
+   */
+  staffEmails?: readonly string[];
+}
+
+/** `SUNNY_STAFF_EMAILS`, parsed. A malformed entry is a startup error, not a silent skip. */
+export function parseStaffEmails(raw: string | null): string[] {
+  if (raw === null) return [];
+  const emails = raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e !== '');
+  for (const email of emails) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error(`SUNNY_STAFF_EMAILS has an entry that is not an email address: "${email}"`);
+    }
+  }
+  return emails;
 }
 
 export function loadPortalConfig(
@@ -67,5 +90,6 @@ export function loadPortalConfig(
       webhookSecret: value('STRIPE_WEBHOOK_SECRET'),
       prices,
     },
+    staffEmails: parseStaffEmails(value('SUNNY_STAFF_EMAILS')),
   };
 }

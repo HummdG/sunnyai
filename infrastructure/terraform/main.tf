@@ -197,6 +197,14 @@ resource "google_cloud_run_v2_service" "api" {
           },
           # Stripe price ids are identifiers, not secrets.
           { for plan, id in var.stripe_price_ids : "STRIPE_PRICE_${upper(plan)}" => id },
+          # The staff dashboard (ops.tf): who may open it, which services it
+          # charts, where the billing export is, and the budget it warns against.
+          {
+            SUNNY_STAFF_EMAILS     = join(",", var.staff_emails)
+            OPS_CLOUD_RUN_SERVICES = "${local.api_name},${local.web_name}"
+          },
+          var.ops_billing_table == "" ? {} : { OPS_BILLING_TABLE = var.ops_billing_table },
+          var.ops_monthly_budget > 0 ? { OPS_MONTHLY_BUDGET = tostring(var.ops_monthly_budget) } : {},
           # Tuning per environment (model, rate limits), so a value set here is
           # not lost the way one set with `gcloud run services update` is.
           var.api_env,

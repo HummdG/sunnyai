@@ -91,6 +91,11 @@ import {
   type KnowledgePipelineOptions,
 } from './routes/knowledge-ingest.js';
 import { loadPortalConfig, type PortalConfig } from './routes/portal-config.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import { FirestoreStore } from './firestore-store.js';
+import { FileOpsLedger, FirestoreOpsLedger, type OpsLedger } from './ops/ledger.js';
+import { createTelemetry, instrumentStore, loggerHooks } from './ops/telemetry.js';
+import { createOpsSources, loadOpsConfig, type OpsSources } from './ops/sources.js';
 
 export interface ServerDeps {
   config: ServerConfig;
@@ -138,6 +143,13 @@ export interface ServerDeps {
   proposalMailer?: ProposalMailer | null;
   /** The quote journey's pricing (tests); defaults to the demo fixture. */
   quotePricing?: PricingSource;
+  /**
+   * Where operations telemetry is counted (ops/ledger.ts). Defaults to Firestore
+   * on the Firestore store and a file under `dataDir` otherwise.
+   */
+  opsLedger?: OpsLedger;
+  /** The staff dashboard's outside sources (ops/sources.ts); read from the environment when absent. */
+  opsSources?: OpsSources;
 }
 
 const SSE_HEADERS: Readonly<Record<string, string>> = {
@@ -162,8 +174,24 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_DASHBOARD_DAYS = 30;
 
 export function buildServer(deps: ServerDeps): FastifyInstance {
-  const { config, store, tenants } = deps;
+  const { config, tenants } = deps;
   const now = deps.now ?? (() => Date.now());
+  // Operations telemetry for the staff dashboard (ops/telemetry.ts). Everything
+  // below is handed the instrumented store, so a turn, lead or job written by
+  // any route or add-on is counted without that route knowing.
+  const opsLedger =
+    deps.opsLedger ??
+    (deps.store instanceof FirestoreStore
+      ? new FirestoreOpsLedger(deps.store.firestore)
+      : new FileOpsLedger(config.dataDir));
+  const telemetry = createTelemetry({
+    ledger: opsLedger,
+    now,
+    // Warn, not error: an error line would itself be counted as an error, and
+    // a ledger that is down would then report itself in a loop.
+    onFailure: (error) => app.log.warn({ err: error }, 'ops telemetry flush failed'),
+  });
+  const store = instrumentStore(deps.store, telemetry);
   // Where the quote journey prices from: each installer's published price list
   // (catalogue, WS7). No published list → sizes and savings without prices.
   const quotePricing = deps.quotePricing ?? catalogueBackedPricing(store);
@@ -232,6 +260,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
             // Never log a query string or a header wholesale: a widget session
             // token is a bearer credential and would end up in the log sink.
             redact: ['req.headers.authorization', 'req.headers.cookie'],
+            // Error lines are copied into ops telemetry as well as written.
+            hooks: loggerHooks(telemetry),
           },
     disableRequestLogging: config.nodeEnv === 'test',
     requestIdHeader: 'x-request-id',
@@ -1963,8 +1993,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     onFailure: (error) => app.log.error({ err: error }, 'retention sweep failed'),
   });
-  app.addHook('onClose', () => {
+  app.addHook('onClose', async () => {
     retention.stop();
+    await telemetry.stop();
   });
 
   // SunScan roof assessments (routes/sunscan.ts).
@@ -2009,6 +2040,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     dataDir: config.dataDir,
     adminToken: config.adminToken,
     auditor,
+    telemetry,
     ...deps.voice,
   });
 
@@ -2022,6 +2054,24 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     knowledgeSync: deps.knowledgeSync ?? knowledgePipeline.connector,
     voiceUsage: deps.voice?.usage ?? new FileVoiceUsage(config.dataDir),
     sunscan,
+  });
+
+  // The staff dashboard: platform usage, health and cost (routes/admin.ts).
+  const adminPortal = deps.portal ?? loadPortalConfig(process.env, config.nodeEnv);
+  registerAdminRoutes(app, {
+    store,
+    tenants,
+    portal: adminPortal,
+    sessionSecret: config.sessionSecret,
+    now,
+    ledger: opsLedger,
+    sources:
+      deps.opsSources ??
+      createOpsSources({
+        config: loadOpsConfig(process.env, (deps.portal ?? adminPortal).stripe),
+        now,
+      }),
+    auditor,
   });
 
   // The installer's product catalogue in the portal (routes/catalogue-portal.ts).

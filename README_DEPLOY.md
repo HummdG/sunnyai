@@ -330,6 +330,37 @@ curl -X DELETE -H "Authorization: Bearer $SUNNY_ADMIN_TOKEN"   -H 'content-type:
 The privacy policy says entries are kept until the person is invited or asks to
 be removed, so remove people once they have been invited.
 
+### The staff dashboard
+
+`/admin` on the website shows the whole platform: usage per day and per installer,
+errors the API logged, live Cloud Run health, issues worth a look, and what the
+platform actually costs against what it earns. Only people listed in
+`staff_emails` (Terraform; `SUNNY_STAFF_EMAILS` on the API) can open it. They sign
+in like anyone else, and everyone else gets a 404.
+
+Usage and errors work as soon as the API runs. The other panels each need one
+thing:
+
+- **Health:** nothing more. `ops.tf` grants the API's service account
+  `monitoring.viewer`, and the services to chart are set for you.
+- **Google Cloud spend:** the billing export, switched on by hand once per billing
+  account (Terraform cannot do it):
+  1. Apply Terraform. This creates the `billing_export_<environment>` dataset.
+  2. In the console, go to _Billing_, then _Billing export_, then _BigQuery export_.
+     Choose _Detailed usage cost_ and point it at that dataset.
+  3. Wait for Google to create `gcp_billing_export_resource_v1_<ACCOUNT>`. This
+     takes a few hours, and the data runs about a day behind.
+  4. Set `ops_billing_table = "<project>.<dataset>.<table>"`, optionally set
+     `ops_monthly_budget`, and apply again.
+
+  The queries filter on this environment's project, so staging and production
+  can share one billing account.
+
+- **Twilio, Postmark, Stripe:** read with the credentials the API already has.
+  Postmark has no billing API, so set `OPS_POSTMARK_PRICE_PER_1K` (through
+  `api_env`, in the revenue currency) to see a cost worked out from your plan
+  rate.
+
 ### The isolation sweep
 
 ```sh

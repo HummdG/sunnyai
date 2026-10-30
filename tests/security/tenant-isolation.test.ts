@@ -134,6 +134,8 @@ const EMAIL_WEBHOOK_SECRET = 'email-webhook-security-sweep';
 const OWNER_EMAIL = 'owner@demo.sweep.test';
 const VIEWER_EMAIL = 'viewer@demo.sweep.test';
 const RIVAL_OWNER_EMAIL = 'owner@rival.sweep.test';
+/** Sunny's own staff: on `SUNNY_STAFF_EMAILS`, and a member of no installer. */
+const STAFF_EMAIL = 'dev@sunny.sweep.test';
 
 const PORTAL: PortalConfig = {
   devAuth: true,
@@ -144,6 +146,7 @@ const PORTAL: PortalConfig = {
   publicApiUrl: PUBLIC_BASE_URL,
   dashboardUrl: 'http://localhost:4176',
   stripe: { secretKey: null, webhookSecret: STRIPE_WEBHOOK_SECRET, prices: {} },
+  staffEmails: [STAFF_EMAIL],
 };
 
 /** Every crawl answers 404: the sweep is about who may start one, not what it finds. */
@@ -342,6 +345,7 @@ const CREDENTIALS = [
   'owner',
   'viewer',
   'installerForeign',
+  'staff',
 ] as const;
 
 type Credential = (typeof CREDENTIALS)[number];
@@ -387,6 +391,10 @@ function attempt(credential: Credential): { token: string | undefined; ids: Ids 
     case 'installerForeign':
       // The rival's owner asking for the demo installer's portal by its id.
       return { token: issueDevToken(SECRET, RIVAL_OWNER_EMAIL, NOW), ids: DEMO };
+    case 'staff':
+      // Signed in like an installer, but a member of nothing: staff reach the
+      // staff dashboard and no installer's portal.
+      return { token: issueDevToken(SECRET, STAFF_EMAIL, NOW), ids: DEMO };
   }
 }
 
@@ -447,8 +455,11 @@ interface RouteSpec {
    *   `refuses`. What a *valid* secret may reach is tested case by case below.
    * - `custom`: the sign-in exchanges and invitations, whose credential lives
    *   in the body; each has dedicated cases below instead of the matrix.
+   * - `staff`: the staff dashboard (routes/admin.ts). Only a signed-in person on
+   *   the staff list; an installer, however senior, gets `not_found`.
    */
-  kind: 'public' | 'visitor' | 'admin' | 'installer' | 'installerAny' | 'secret' | 'custom';
+  kind:
+    'public' | 'visitor' | 'admin' | 'installer' | 'installerAny' | 'secret' | 'custom' | 'staff';
   /** The least role an `installer` route needs. */
   minRole?: MemberRole;
   /** What every sweep credential gets from a `secret` route. */
@@ -761,6 +772,19 @@ const ROUTES: RouteSpec[] = [
     kind: 'custom',
   },
   { method: 'GET', pattern: '/v1/portal/me', url: () => '/v1/portal/me', kind: 'installerAny' },
+  // ─── the staff dashboard (routes/admin.ts) ───────────────────────────────
+  { method: 'GET', pattern: '/v1/admin/overview', url: () => '/v1/admin/overview', kind: 'staff' },
+  { method: 'GET', pattern: '/v1/admin/usage', url: () => '/v1/admin/usage', kind: 'staff' },
+  { method: 'GET', pattern: '/v1/admin/tenants', url: () => '/v1/admin/tenants', kind: 'staff' },
+  {
+    method: 'GET',
+    pattern: '/v1/admin/tenants/:tenantId',
+    url: (ids) => `/v1/admin/tenants/${ids.tenantId}`,
+    kind: 'staff',
+  },
+  { method: 'GET', pattern: '/v1/admin/errors', url: () => '/v1/admin/errors', kind: 'staff' },
+  { method: 'GET', pattern: '/v1/admin/health', url: () => '/v1/admin/health', kind: 'staff' },
+  { method: 'GET', pattern: '/v1/admin/costs', url: () => '/v1/admin/costs', kind: 'staff' },
   {
     method: 'POST',
     pattern: '/v1/portal/tenants',
@@ -1515,12 +1539,21 @@ function expected(
   if (route.kind === 'public') return 'allow';
   if (route.kind === 'secret') return route.refuses ?? 'unauthorized';
 
+  // Everyone signed in to the website: installers, and staff (who sign in the
+  // same way and are simply a member of no installer).
   const installer =
-    credential === 'owner' || credential === 'viewer' || credential === 'installerForeign';
+    credential === 'owner' ||
+    credential === 'viewer' ||
+    credential === 'installerForeign' ||
+    credential === 'staff';
+  if (route.kind === 'staff') {
+    if (credential === 'staff') return 'allow';
+    return installer ? 'not_found' : 'unauthorized';
+  }
   if (route.kind === 'installerAny') return installer ? 'allow' : 'unauthorized';
   if (route.kind === 'installer') {
     if (!installer) return 'unauthorized';
-    if (credential === 'installerForeign') return 'not_found';
+    if (credential === 'installerForeign' || credential === 'staff') return 'not_found';
     const role: MemberRole = credential === 'owner' ? 'owner' : 'viewer';
     return roleAtLeast(role, route.minRole ?? 'viewer') ? 'allow' : 'forbidden';
   }

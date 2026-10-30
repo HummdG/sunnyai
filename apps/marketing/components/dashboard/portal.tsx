@@ -13,6 +13,8 @@ import { ToastProvider } from './toast.js';
 
 interface Me {
   user: { uid: string; email: string | null };
+  /** On the staff list: the sidebar offers the staff dashboard. */
+  staff?: boolean;
   tenants: Array<{ id: string; companyName: string; role: TenantView['role'] }>;
 }
 
@@ -228,6 +230,11 @@ export function PortalShell({ children, bare = false }: { children: ReactNode; b
                 </label>
               ) : null}
               <span className="muted small">{me.user.email}</span>
+              {me.staff ? (
+                <Link className="link-button" href="/admin">
+                  Staff dashboard
+                </Link>
+              ) : null}
               <button
                 type="button"
                 className="link-button"
