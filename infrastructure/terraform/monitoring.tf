@@ -21,8 +21,10 @@ resource "google_project_service" "monitoring" {
 }
 
 locals {
-  api_host = trimprefix(google_cloud_run_v2_service.api.uri, "https://")
-  web_host = trimprefix(google_cloud_run_v2_service.web.uri, "https://")
+  # The domain once the services accept only the load balancer (armor.tf);
+  # the run.app address would be refused.
+  api_host = local.api_behind_edge ? var.api_domains[0] : trimprefix(google_cloud_run_v2_service.api.uri, "https://")
+  web_host = local.web_behind_edge ? var.web_domains[0] : trimprefix(google_cloud_run_v2_service.web.uri, "https://")
 }
 
 resource "google_monitoring_notification_channel" "email" {
@@ -38,7 +40,12 @@ resource "google_monitoring_notification_channel" "email" {
 }
 
 resource "google_monitoring_uptime_check_config" "api_up" {
-  project      = var.project_id
+  project = var.project_id
+  # A changed host replaces the check; the alert policy has to move to the
+  # new one before the old can be deleted.
+  lifecycle {
+    create_before_destroy = true
+  }
   display_name = "sunny-${local.name_suffix} api-up"
   timeout      = "10s"
   period       = "60s"
@@ -71,7 +78,12 @@ resource "google_monitoring_uptime_check_config" "api_up" {
 }
 
 resource "google_monitoring_uptime_check_config" "chat_on" {
-  project      = var.project_id
+  project = var.project_id
+  # A changed host replaces the check; the alert policy has to move to the
+  # new one before the old can be deleted.
+  lifecycle {
+    create_before_destroy = true
+  }
   display_name = "sunny-${local.name_suffix} chat-on"
   timeout      = "10s"
   period       = "300s"
@@ -104,7 +116,12 @@ resource "google_monitoring_uptime_check_config" "chat_on" {
 }
 
 resource "google_monitoring_uptime_check_config" "web_up" {
-  project      = var.project_id
+  project = var.project_id
+  # A changed host replaces the check; the alert policy has to move to the
+  # new one before the old can be deleted.
+  lifecycle {
+    create_before_destroy = true
+  }
   display_name = "sunny-${local.name_suffix} web-up"
   timeout      = "10s"
   period       = "60s"

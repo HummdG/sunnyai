@@ -25,6 +25,9 @@ resource "google_cloud_run_v2_service" "web" {
 
   deletion_protection = var.environment == "prod"
 
+  # Behind the load balancer only, once the site's URL is on the domain (armor.tf).
+  ingress = local.web_behind_edge ? "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" : "INGRESS_TRAFFIC_ALL"
+
   template {
     service_account = google_service_account.web.email
 
@@ -45,6 +48,16 @@ resource "google_cloud_run_v2_service" "web" {
       env {
         name  = "SUNNY_API_URL"
         value = var.api_base_url != "" ? var.api_base_url : google_cloud_run_v2_service.api.uri
+      }
+
+      # Lets the API's edge policy tell this server's calls from a visitor's
+      # (armor.tf). Not a credential: it only skips the per-address count.
+      dynamic "env" {
+        for_each = local.api_behind_edge ? [1] : []
+        content {
+          name  = "SUNNY_EDGE_KEY"
+          value = random_password.edge_key[0].result
+        }
       }
 
       resources {

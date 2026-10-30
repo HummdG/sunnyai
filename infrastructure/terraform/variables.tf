@@ -229,3 +229,15 @@ variable "api_env" {
   type        = map(string)
   default     = {}
 }
+
+variable "edge_rate_limits" {
+  description = "Requests per minute one address may send before Cloud Armor answers 429 (armor.tf). Five times this bans the address for ten minutes."
+  type = object({
+    api_per_minute = number
+    web_per_minute = number
+  })
+  default = {
+    api_per_minute = 300
+    web_per_minute = 600
+  }
+}

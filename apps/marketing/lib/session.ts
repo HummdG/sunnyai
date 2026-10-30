@@ -25,6 +25,21 @@ export function apiUrl(): string {
   ).replace(/\/+$/, '');
 }
 
+/**
+ * The header that tells the load balancer a request is this website's server
+ * calling the API, not a visitor. Every installer's dashboard traffic leaves
+ * Cloud Run from the same few addresses, so the per-address rate limit at the
+ * edge (infrastructure/terraform/armor.tf) would otherwise count all of them
+ * as one visitor. The key is set by Terraform as `SUNNY_EDGE_KEY`.
+ */
+export const EDGE_KEY_HEADER = 'x-sunny-edge-key';
+
+/** Headers for a call to the API: `headers`, plus the edge key where one is set. */
+export function apiHeaders(headers: Record<string, string>): Record<string, string> {
+  const key = process.env['SUNNY_EDGE_KEY'];
+  return key ? { ...headers, [EDGE_KEY_HEADER]: key } : headers;
+}
+
 export function secureCookies(): boolean {
   return process.env['NODE_ENV'] === 'production';
 }

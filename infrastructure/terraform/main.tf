@@ -117,6 +117,10 @@ resource "google_cloud_run_v2_service" "api" {
   # accidental delete of a live widget endpoint should take more than one key.
   deletion_protection = var.environment == "prod"
 
+  # Behind the load balancer only, once the API's URL is on the domain, so its
+  # Cloud Armor policy cannot be gone around (armor.tf).
+  ingress = local.api_behind_edge ? "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" : "INGRESS_TRAFFIC_ALL"
+
   template {
     service_account = google_service_account.api.email
 
@@ -165,11 +169,14 @@ resource "google_cloud_run_v2_service" "api" {
         value = google_firestore_database.sunny.name
       }
 
-      # Cloud Run's front end is one proxy hop. Without this every visitor
-      # shares one rate-limit bucket, keyed on the front end's address (D-10).
+      # Proxy hops between the visitor and this process, each of which appends
+      # to X-Forwarded-For. Cloud Run's front end on its own is one; behind the
+      # load balancer the balancer adds its address after the visitor's, so it
+      # is two. Too few and every visitor shares one rate-limit bucket keyed on
+      # the balancer (measured on staging, 2026-10-30; D-10).
       env {
         name  = "SUNNY_TRUST_PROXY"
-        value = "1"
+        value = local.api_behind_edge ? "2" : "1"
       }
 
       # Installer sign-in verifies Firebase ID tokens for this project.

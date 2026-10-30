@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { apiUrl, sameOrigin } from '../../../lib/session.js';
+import { apiHeaders, apiUrl, sameOrigin } from '../../../lib/session.js';
 import { clearSession, withSession } from '../../../lib/session-cookies.js';
 
 /**
@@ -47,7 +47,7 @@ async function callApi(path: string, body: unknown): Promise<Response> {
   try {
     return await fetch(`${apiUrl()}${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: apiHeaders({ 'content-type': 'application/json' }),
       body: JSON.stringify(body),
       cache: 'no-store',
     });

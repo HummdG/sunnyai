@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import {
+  apiHeaders,
   apiUrl,
   CSRF_HEADER,
   PROXY_PREFIXES,
@@ -42,7 +43,7 @@ async function forward(request: NextRequest, context: Context): Promise<NextResp
   try {
     response = await fetch(`${apiUrl()}/${target}${request.nextUrl.search}`, {
       method,
-      headers,
+      headers: apiHeaders(headers),
       ...(method === 'GET' || method === 'HEAD' ? {} : { body: await request.arrayBuffer() }),
       cache: 'no-store',
     });

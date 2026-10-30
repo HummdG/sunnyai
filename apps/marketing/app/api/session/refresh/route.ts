@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { apiUrl, sameOrigin, SESSION_COOKIE } from '../../../../lib/session.js';
+import { apiHeaders, apiUrl, sameOrigin, SESSION_COOKIE } from '../../../../lib/session.js';
 import { clearSession, withSession } from '../../../../lib/session-cookies.js';
 
 /**
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     response = await fetch(`${apiUrl()}/v1/portal/session/refresh`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}` },
+      headers: apiHeaders({ authorization: `Bearer ${token}` }),
       cache: 'no-store',
     });
   } catch {

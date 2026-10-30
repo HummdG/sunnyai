@@ -73,6 +73,7 @@ resource "google_compute_backend_service" "web" {
   name                  = "sunny-web-backend-${local.name_suffix}"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTPS"
+  security_policy       = google_compute_security_policy.web[0].id
 
   backend {
     group = google_compute_region_network_endpoint_group.web[0].id
@@ -85,6 +86,7 @@ resource "google_compute_backend_service" "api" {
   name                  = "sunny-api-backend-${local.name_suffix}"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTPS"
+  security_policy       = google_compute_security_policy.api[0].id
   # No timeout_sec: a serverless backend refuses one, and Cloud Run's own
   # request timeout is what bounds a streamed (SSE) chat answer.
 
