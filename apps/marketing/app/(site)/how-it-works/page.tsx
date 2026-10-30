@@ -4,11 +4,13 @@ import { CtaBand, PageIntro } from '../../../components/blocks.js';
 import { HowItWorksScene, SETUP_PANELS, VISIT_PANELS } from '../../../components/scenes/pages.js';
 import { Storyboard } from '../../../components/scenes/storyboard.js';
 import { PUBLIC_ID } from '../../config.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'How it works',
   description: 'From one line of code to qualified solar leads.',
-};
+  path: '/how-it-works',
+});
 
 const SETUP = [
   {

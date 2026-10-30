@@ -4,12 +4,14 @@ import { PrivacyScene } from '../../../components/scenes/pages.js';
 import { PageIntro } from '../../../components/blocks.js';
 import { LegalTable } from '../../../components/legal-table.js';
 import { LEGAL } from '../../site.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Privacy policy',
   description:
     'How Sunny handles the personal information of website visitors, callers and installers.',
-};
+  path: '/privacy',
+});
 
 const CONTENTS = [
   ['who-we-are', 'Who we are'],

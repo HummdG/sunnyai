@@ -3,11 +3,13 @@ import Link from 'next/link';
 
 import { ResourcesScene } from '../../../components/scenes/pages.js';
 import { CtaBand, PageIntro } from '../../../components/blocks.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Resources',
   description: 'Guides and answers for installers getting started with Sunny.',
-};
+  path: '/resources',
+});
 
 const GUIDES = [
   {

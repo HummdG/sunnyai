@@ -2,6 +2,7 @@
 #
 #   docker build -f apps/marketing/Dockerfile -t sunny-web \
 #     --build-arg NEXT_PUBLIC_SUNNY_API_URL=https://api.example \
+#     --build-arg NEXT_PUBLIC_SITE_URL=https://www.example \
 #     --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=... \
 #     --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=... \
 #     --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=... .
@@ -25,6 +26,9 @@ COPY . .
 RUN npm ci --no-audit --no-fund
 
 ARG NEXT_PUBLIC_SUNNY_API_URL
+# The site's own address, for share links and canonical URLs. Unset means
+# production (heysunny.co.uk); any other value also keeps search engines out.
+ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_SUNNY_WIDGET_ID
 ARG NEXT_PUBLIC_FIREBASE_API_KEY
 ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN

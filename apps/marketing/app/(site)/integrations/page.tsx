@@ -3,11 +3,13 @@ import type { Metadata } from 'next';
 import { IntegrationsScene } from '../../../components/scenes/pages.js';
 import { CtaBand, PageIntro } from '../../../components/blocks.js';
 import { Icon } from '../../../components/icons.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Integrations',
   description: 'Sunny works with the website and tools you already have.',
-};
+  path: '/integrations',
+});
 
 interface Integration {
   icon: string;

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { JSX } from 'react';
 
@@ -18,6 +19,40 @@ import {
 } from '../../components/scenes/home.js';
 import { WaitlistForm } from '../../components/waitlist-form.js';
 import { PUBLIC_ID } from '../config.js';
+import { HOME_DESCRIPTION, HOME_TITLE, pageMetadata, SITE_NAME, SITE_URL } from '../seo.js';
+
+export const metadata: Metadata = {
+  ...pageMetadata({ title: HOME_TITLE, description: HOME_DESCRIPTION, path: '/' }),
+  // The home page's title is the whole title, not "… · Sunny".
+  title: { absolute: HOME_TITLE },
+};
+
+/** Who is behind the site, for search engines (schema.org JSON-LD). */
+const STRUCTURED_DATA = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: SITE_NAME,
+      url: `${SITE_URL}/`,
+      logo: `${SITE_URL}/icon.png`,
+    },
+    {
+      '@type': 'WebSite',
+      name: SITE_NAME,
+      url: `${SITE_URL}/`,
+      inLanguage: 'en-GB',
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: SITE_NAME,
+      url: `${SITE_URL}/`,
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      description: HOME_DESCRIPTION,
+    },
+  ],
+});
 
 const SNIPPET = `<script
   src="https://heysunny.co.uk/widget/sunny-widget.js"
@@ -82,6 +117,11 @@ const STEPS = [
 export default function Home(): JSX.Element {
   return (
     <main id="main">
+      <script
+        type="application/ld+json"
+        // A fixed string built above from constants, not from any visitor input.
+        dangerouslySetInnerHTML={{ __html: STRUCTURED_DATA }}
+      />
       <section className="hero" id="top">
         <div className="wrap hero-grid">
           <div className="hero-copy">

@@ -2,11 +2,13 @@ import type { Metadata } from 'next';
 
 import { PricingScene } from '../../../components/scenes/pages.js';
 import { CtaBand, PageIntro, PricingCards } from '../../../components/blocks.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Pricing',
   description: 'Plans for solar installers of every size. Contact sales for a price.',
-};
+  path: '/pricing',
+});
 
 const FAQ = [
   {

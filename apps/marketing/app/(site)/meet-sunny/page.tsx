@@ -4,12 +4,14 @@ import { CtaBand, PageIntro } from '../../../components/blocks.js';
 import { ColourSwitcher } from '../../../components/colour-switcher.js';
 import { LazyGallery } from '../../../components/lazy-gallery.js';
 import { ModelSheet, SpotlightScene } from '../../../components/scenes/pages.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Meet Sunny',
   description:
     'Meet the character behind the assistant: cheerful, confident and a little bit cheeky.',
-};
+  path: '/meet-sunny',
+});
 
 const TRAITS = [
   {

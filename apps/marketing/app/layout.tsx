@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 
 // The design tokens first, then the page's own styles, which consume them.
@@ -8,13 +8,21 @@ import '@sunny/ui/tokens.css';
 import './base.css';
 import './cameo.css';
 
+import { HOME_DESCRIPTION, HOME_TITLE, isIndexable, pageMetadata, SITE_URL } from './seo.js';
+
 export const metadata: Metadata = {
-  title: {
-    default: 'Meet Sunny, your brightest employee',
-    template: '%s · Sunny',
-  },
-  description:
-    'Sunny is a friendly AI assistant for solar installers. It answers visitor questions from your own documents, qualifies enquiries and hands you ready-to-call leads.',
+  ...pageMetadata({ title: HOME_TITLE, description: HOME_DESCRIPTION, path: '/' }),
+  // Every relative URL below (canonical, og:url, the share image) is made
+  // absolute against this, so a preview never points at localhost.
+  metadataBase: new URL(SITE_URL),
+  title: { default: HOME_TITLE, template: '%s · Sunny' },
+  applicationName: 'Sunny',
+  // Staging and any other non-production build stay out of search results.
+  ...(isIndexable(SITE_URL) ? {} : { robots: { index: false, follow: false } }),
+};
+
+export const viewport: Viewport = {
+  themeColor: '#ff7900',
 };
 
 /**

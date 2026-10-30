@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { TermsScene } from '../../../components/scenes/pages.js';
 import { PageIntro } from '../../../components/blocks.js';
 import { LEGAL } from '../../site.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Terms of service',
   description: 'The terms on which solar installers use Sunny, including how we process data.',
-};
+  path: '/terms',
+});
 
 const CONTENTS = [
   ['about', 'About these terms'],

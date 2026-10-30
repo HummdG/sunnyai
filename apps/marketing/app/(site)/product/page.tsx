@@ -2,12 +2,14 @@ import type { Metadata } from 'next';
 
 import { ProductScene } from '../../../components/scenes/pages.js';
 import { CtaBand, FeatureGrid, PageIntro } from '../../../components/blocks.js';
+import { pageMetadata } from '../../seo.js';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Product',
   description:
     'What Sunny does for solar installers: grounded answers, qualification, recommendations and leads.',
-};
+  path: '/product',
+});
 
 const CONVERSATION = [
   {

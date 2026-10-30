@@ -121,6 +121,7 @@ deploy_build_locally() {
   done
   docker build -f apps/marketing/Dockerfile -t "sunny-web:$DEPLOY_TAG" \
     --build-arg NEXT_PUBLIC_SUNNY_API_URL --build-arg NEXT_PUBLIC_SUNNY_WIDGET_ID \
+    --build-arg NEXT_PUBLIC_SITE_URL \
     --build-arg NEXT_PUBLIC_FIREBASE_API_KEY --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN \
     --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID . \
     || die 'the website image failed to build.'
