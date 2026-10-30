@@ -374,7 +374,9 @@ async function main() {
     const after = await call('/v1/conversation', { headers: { authorization: `Bearer ${token}` } });
     check(
       'a retried message does not duplicate the transcript',
-      (after.json?.turns?.length ?? 0) === before + 2,
+      // A retry of a message already answered replays the answer and writes
+      // nothing, so the transcript keeps exactly the turns it had.
+      (after.json?.turns?.length ?? 0) === before,
       `went from ${before} to ${after.json?.turns?.length}`,
     );
   }
