@@ -16,6 +16,12 @@ const OUTSIDER = `installer-${Date.now().toString(36)}@brightside.test`;
 
 test.describe.configure({ mode: 'serial' });
 
+// Pages fade their content in (dash-page-in), and the admin pages' figures only
+// arrive with their fetch, so axe could otherwise measure text mid-fade and
+// report a contrast the settled page does not have. Reduced motion takes every
+// animation to 1ms (packages/ui/src/tokens.css), so what is checked is what stays.
+test.use({ reducedMotion: 'reduce' });
+
 /** Ask for a staff page signed out, sign in, and land back on it. */
 async function signInTo(page: Page, path: string, email: string): Promise<void> {
   await page.goto(`${SITE}${path}`);
