@@ -1014,3 +1014,59 @@
     display: none;
   }
 }
+
+/* ── install guide: one tab per website platform ────────────────────────── */
+
+.dash .install-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 16px;
+}
+.dash .install-tabs [role='tab'] {
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.9rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  cursor: pointer;
+  color: var(--muted-text);
+}
+.dash .install-tabs [role='tab'][aria-selected='true'] {
+  background: var(--sunny-ink);
+  border-color: var(--sunny-ink);
+  color: #fff;
+}
+.dash .install-panel:focus-visible {
+  border-radius: var(--radius-md);
+}
+.dash .install-steps {
+  margin: 0 0 16px;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 6px;
+}
+.dash .install-code {
+  margin-bottom: 16px;
+}
+.dash .install-code-label {
+  margin: 0 0 6px;
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+.dash .install-code .actions {
+  margin-top: 8px;
+}
+.dash .install-notes {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 6px;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+}
+.dash .install-guide {
+  margin-bottom: 20px;
+}

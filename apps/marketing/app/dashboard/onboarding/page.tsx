@@ -11,7 +11,8 @@ import {
 } from '../../../components/dashboard/portal.js';
 import { SunnyCameo } from '../../../components/cameo/sunny-cameo.js';
 import { StudioForm } from '../../../components/dashboard/studio-form.js';
-import { CopyButton, SunnyLoading, SunProgress } from '../../../components/dashboard/kit.js';
+import { InstallGuide } from '../../../components/dashboard/install-guide.js';
+import { SunnyLoading, SunProgress } from '../../../components/dashboard/kit.js';
 import type { LimbPoseName } from '@sunny/character';
 import { Card, ErrorNote, errorText } from '../../../components/dashboard/ui.js';
 import {
@@ -328,16 +329,12 @@ function Wizard() {
     return (
       <Frame step="install">
         <Card title="Add Sunny to your website">
-          <p className="muted card-lead">
-            Paste this just before <code>&lt;/body&gt;</code> on every page, or in your site
-            builder&apos;s &ldquo;custom code&rdquo; setting. It works with WordPress, Wix,
-            Squarespace and any HTML site.
-          </p>
-          <pre className="snippet" aria-label="Install snippet">
-            {tenant.installSnippet}
-          </pre>
+          <InstallGuide
+            snippet={tenant.installSnippet}
+            domains={tenant.domains}
+            domainsLink="/dashboard/settings#website-domains"
+          />
           <div className="actions">
-            <CopyButton text={tenant.installSnippet} label="Copy snippet" />
             <button
               className="button"
               type="button"

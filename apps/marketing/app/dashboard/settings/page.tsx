@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
-import { CopyButton } from '../../../components/dashboard/kit.js';
+import { InstallGuide } from '../../../components/dashboard/install-guide.js';
 import { PortalShell, usePortal } from '../../../components/dashboard/portal.js';
 import { useToast } from '../../../components/dashboard/toast.js';
 import { Card, ErrorNote, errorText, PageHeader } from '../../../components/dashboard/ui.js';
@@ -96,16 +96,11 @@ function Settings() {
         lead="Your company details, where Sunny may run, and how the add-on channels behave."
       />
       <Card title="Add Sunny to your website" id="install">
-        <p className="muted card-lead">
-          Paste this just before <code>&lt;/body&gt;</code> on every page, or in your site
-          builder&apos;s &ldquo;custom code&rdquo; setting.
-        </p>
-        <pre className="snippet" aria-label="Install snippet">
-          {tenant.installSnippet}
-        </pre>
-        <div className="actions">
-          <CopyButton text={tenant.installSnippet} label="Copy snippet" />
-        </div>
+        <InstallGuide
+          snippet={tenant.installSnippet}
+          domains={tenant.domains}
+          domainsLink="#website-domains"
+        />
       </Card>
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, marginInline: 0, minWidth: 0 }}>
         <Section title="Company and customer help">
@@ -177,7 +172,7 @@ function Settings() {
               });
             }}
           >
-            <label className="field">
+            <label className="field" id="website-domains">
               <span>
                 Website domains{' '}
                 <span className="hint">(one per line; subdomains are included)</span>

@@ -76,6 +76,21 @@ test('a new installer signs up and the wizard remembers where they are', async (
   const snippet = await page.getByLabel('Install snippet').textContent();
   publicId = /data-widget-id="(w_[a-z0-9]+)"/.exec(snippet ?? '')?.[1] ?? '';
   expect(publicId).not.toBe('');
+  // One tab per kind of website, each with the same widget id in its own syntax.
+  const platforms = page.getByRole('tablist', { name: 'Your website platform' });
+  await platforms.getByRole('tab', { name: 'WordPress' }).click();
+  await expect(page.getByRole('tabpanel')).toContainText('WPCode');
+  await expect(page.getByLabel(/functions\.php/)).toContainText(publicId);
+  await page.keyboard.press('ArrowRight');
+  await expect(platforms.getByRole('tab', { name: 'Wix' })).toBeFocused();
+  await expect(platforms.getByRole('tab', { name: 'Wix' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await platforms.getByRole('tab', { name: 'React and Next.js' }).click();
+  await expect(page.getByLabel('Next.js', { exact: true })).toContainText(
+    `data-widget-id="${publicId}"`,
+  );
   await page.getByRole('button', { name: 'Continue' }).click();
 
   // Going live needs the installer's phone for customers who need help.
