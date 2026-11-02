@@ -119,7 +119,7 @@ export function serveStatic(options: StaticServerOptions): ReturnType<typeof cre
       'cache-control': 'no-store',
     };
 
-    // The one asset the browser fetches with CORS.
+    // The assets the browser fetches with CORS.
     //
     // A script, a stylesheet and an image can be used cross-origin by default;
     // a font cannot, and the request is refused without this header no matter how
@@ -128,7 +128,11 @@ export function serveStatic(options: StaticServerOptions): ReturnType<typeof cre
     // this, the font request fails on every customer's page and the widget
     // renders in the system stack, silently, with the failure visible only as a
     // console warning about CORS (D-48).
-    if (type.startsWith('font/')) {
+    //
+    // The widget's lazy modules too: `sunny-roof.js` and `sunny-voice.js` are
+    // loaded with `import()`, and a module import is a CORS request even though
+    // the classic `<script src>` that loaded the widget was not.
+    if (type.startsWith('font/') || /\/widget\/sunny-[a-z]+\.js$/.test(pathname)) {
       headers['access-control-allow-origin'] = '*';
     }
 

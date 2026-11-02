@@ -13,7 +13,7 @@ import {
   type SunScanService,
 } from '@sunny/sunscan-adapter';
 import type { FastifyInstance } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
 import { loadConfig } from '../src/config.js';
@@ -324,6 +324,49 @@ describe('SunScan tools', () => {
       context(service, [], 's_someone_else'),
     );
     expect(other.ok).toBe(false);
+  });
+
+  it('a second call for the same address reuses the roof it already measured', async () => {
+    await start();
+    const service = serviceOn(store);
+    const start1 = vi.spyOn(service, 'startAssessment');
+    const ctx = context(service, []);
+    const first = await executeTool(
+      {
+        name: 'start_sunscan_assessment',
+        args: { address: '20 Forthlin Road, Liverpool L18 9TN' },
+      },
+      ctx,
+    );
+    const firstId = (first.data as { assessmentId: string }).assessmentId;
+
+    // A later turn: the model asks again, spelling the address its own way.
+    ctx.events = [];
+    const again = await executeTool(
+      {
+        name: 'start_sunscan_assessment',
+        args: { address: '20 forthlin road,  Liverpool  L18 9TN ' },
+      },
+      ctx,
+    );
+    expect(again.ok).toBe(true);
+    expect((again.data as { assessmentId: string }).assessmentId).toBe(firstId);
+    expect(start1).toHaveBeenCalledTimes(1);
+    // The widget updates the card it already shows rather than adding one.
+    expect(ctx.events).toEqual([
+      expect.objectContaining({
+        kind: 'sunscan',
+        detail: expect.objectContaining({ assessmentId: firstId }),
+      }),
+    ]);
+
+    // A different address is a different roof.
+    const other = await executeTool(
+      { name: 'start_sunscan_assessment', args: { address: '1 Test Street' } },
+      ctx,
+    );
+    expect((other.data as { assessmentId?: string }).assessmentId).not.toBe(firstId);
+    expect(start1).toHaveBeenCalledTimes(2);
   });
 
   it('asks for an address rather than guessing one', async () => {

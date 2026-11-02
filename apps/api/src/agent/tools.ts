@@ -36,6 +36,7 @@ import {
   QUOTE_TOOLS,
   type QuoteToolContext,
 } from '../journey/agent-tools.js';
+import { JOURNEY_KEYS } from '../journey/journey.js';
 
 /**
  * The approved tool surface.
@@ -170,6 +171,16 @@ function sunscanResult(record: AssessmentRecord): ToolResult {
     ? `I have measured the roof: about ${s.usableRoofAreaM2} m² usable, facing east to west${where}.`
     : `I have a rough roof measurement (low confidence): about ${s.usableRoofAreaM2} m² usable, facing east to west${where}.`;
   return { ok: true, data, summary: `${lead} ${s.label}.` };
+}
+
+/** One address however it is typed: case, commas and spacing aside. */
+function sameAddress(a: string | undefined, b: string): boolean {
+  const key = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  return a !== undefined && key(a) === key(b);
 }
 
 function str(args: Record<string, unknown>, key: string): string | null {
@@ -835,6 +846,30 @@ const DEFINITIONS: ToolDefinition[] = [
           summary:
             'The roof assessment service is not connected in this environment, so I cannot run one.',
         };
+      }
+      // The model tends to call this again on later turns ("Yes, that looks
+      // right"). The same address in the same conversation is the roof already
+      // measured: reuse it, so the visitor sees one card, not a fresh one per
+      // answer, and the house is not modelled (and paid for) again.
+      const previousId = ctx.answers[JOURNEY_KEYS.assessmentId];
+      const previous = previousId
+        ? await ctx.sunscan.getAssessment(ctx.tenant.id, previousId)
+        : null;
+      if (
+        previous &&
+        previous.sessionId === ctx.sessionId &&
+        previous.status !== 'failed' &&
+        sameAddress(previous.target.address, address)
+      ) {
+        ctx.events.push({
+          kind: 'sunscan',
+          detail: {
+            assessmentId: previous.id,
+            status: previous.status,
+            summary: previous.summary,
+          },
+        });
+        return sunscanResult(previous);
       }
       const postcode = ctx.answers['postcode'] ?? null;
       const started = await ctx.sunscan.startAssessment(
