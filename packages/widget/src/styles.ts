@@ -369,6 +369,7 @@ export function styles(): string {
   border: 1px solid var(--sunny-orange-soft); font-size: 13px; }
 .roof p { margin: 0 0 6px; }
 .roof .roof-label { font-size: 11.5px; color: #5c5c5c; }
+.roof .roof-note { margin: 8px 0 0; font-size: 12.5px; color: #5c5c5c; }
 .roof button { font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 999px; padding: 6px 12px;
   border: 0; background: var(--sunny-accent-ink); color: #fff; }
 .panel { position: relative; }

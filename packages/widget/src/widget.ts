@@ -147,7 +147,7 @@ export class SunnyWidget {
   #renderedOptionId = '';
 
   /** The last finished roof assessment, so a chosen package can be shown on it. */
-  #lastRoof: { base: string; summary: RoofSummary } | null = null;
+  #lastRoof: { id: string; base: string; summary: RoofSummary } | null = null;
 
   constructor(host: HTMLElement, options: MountOptions) {
     this.#host = host;
@@ -743,9 +743,12 @@ export class SunnyWidget {
         summary.estimatedMaxPanels > 0
           ? `, with room for up to ${summary.estimatedMaxPanels} panels (estimate)`
           : '';
-      this.#lastRoof = { base, summary };
+      this.#lastRoof = { id, base, summary };
       const button = el('button', { type: 'button', text: 'See your roof in 3D' });
-      button.addEventListener('click', () => void this.#openRoof(base, summary, undefined, true));
+      button.addEventListener(
+        'click',
+        () => void this.#openRoof(id, base, summary, undefined, true),
+      );
       card.replaceChildren(
         el('p', {
           text: `${summary.reliable ? 'Your roof' : 'Your roof (low-confidence measurement)'}: about ${Math.round(summary.usableRoofAreaM2)} m² usable${where}${panels}.`,
@@ -758,7 +761,7 @@ export class SunnyWidget {
       // is ready, once per assessment (the button reopens it).
       if (!this.#roofsShown.has(id)) {
         this.#roofsShown.add(id);
-        void this.#openRoof(base, summary);
+        void this.#openRoof(id, base, summary);
       }
     }
     this.#scrollToEnd();
@@ -937,7 +940,7 @@ export class SunnyWidget {
       "When you're ready, I can arrange a free survey to confirm everything. Just say \u201cbook a survey\u201d.",
     );
     if (roof) {
-      await this.#openRoof(roof.base, roof.summary, {
+      await this.#openRoof(roof.id, roof.base, roof.summary, {
         panelCount: chosen.option.panelCount,
         timeline: t,
         onComplete: () => this.#animator.dispatch({ type: 'celebrate' }, performance.now()),
@@ -1014,18 +1017,29 @@ export class SunnyWidget {
    * Dock the 3D roof at the top of the conversation and grow the panel round it
    * (roof mode). `focus` moves focus into it: when the visitor asked for it,
    * not when it opened by itself mid-conversation.
+   *
+   * If the 3D view cannot load (the file is blocked, the network drops), the
+   * roof's card says so and the panel stays as it was. Before this, a failed
+   * import was swallowed and the button simply did nothing.
    */
   async #openRoof(
+    id: string,
     base: string,
     summary: RoofSummary,
     simulation?: RoofModule.OpenRoofOptions['simulation'],
     focus = false,
   ): Promise<void> {
     const dir = this.#options.fontDirectoryUrl;
-    if (!dir) return;
-    const roof = (await import(
-      /* @vite-ignore */ new URL('sunny-roof.js', dir).href
-    )) as typeof RoofModule;
+    let roof: typeof RoofModule;
+    try {
+      if (!dir) throw new Error('the widget script has no directory to load from');
+      roof = (await import(
+        /* @vite-ignore */ new URL('sunny-roof.js', dir).href
+      )) as typeof RoofModule;
+    } catch {
+      this.#roofNote(id, true);
+      return;
+    }
     // A roof that opens by itself while the docked one is compact (the
     // conversation has moved on) stays compact: a re-measure or a late result
     // must not take the panel back from the question being answered.
@@ -1037,27 +1051,50 @@ export class SunnyWidget {
     this.#panel.classList.add('roof-open');
     // the panel has grown, so the newest message is no longer at the bottom
     window.setTimeout(() => this.#scrollToEnd(), 360);
-    const view = await roof.openRoofView(this.#roofDock, {
-      apiUrl: this.#options.apiUrl,
-      token: this.#sessionToken,
-      specUrl: `${base}/spec.json`,
-      address: summary.address,
-      planes: summary.roofPlanes,
-      label: summary.label,
-      reliable: summary.reliable,
-      ...(simulation ? { simulation } : {}),
-      focus,
-      onClose: () => {
-        this.#roofClosed();
-        this.#composer.focus();
-      },
-    });
+    let view: Awaited<ReturnType<typeof roof.openRoofView>>;
+    try {
+      view = await roof.openRoofView(this.#roofDock, {
+        apiUrl: this.#options.apiUrl,
+        token: this.#sessionToken,
+        specUrl: `${base}/spec.json`,
+        address: summary.address,
+        planes: summary.roofPlanes,
+        label: summary.label,
+        reliable: summary.reliable,
+        ...(simulation ? { simulation } : {}),
+        focus,
+        onClose: () => {
+          this.#roofClosed();
+          this.#composer.focus();
+        },
+      });
+    } catch {
+      this.#roofClosed();
+      this.#roofNote(id, true);
+      return;
+    }
+    this.#roofNote(id, false);
     this.#closeRoof = () => {
       view.close();
       this.#roofClosed();
     };
     this.#compactRoof = view.setCompact;
     if (stayCompact) view.setCompact(true);
+  }
+
+  /** The roof card's "could not load" line: one at most, gone once the view opens. */
+  #roofNote(id: string, failed: boolean): void {
+    const card = this.#log.querySelector<HTMLElement>(`.roof[data-id="${CSS.escape(id)}"]`);
+    if (!card) return;
+    card.querySelector('.roof-note')?.remove();
+    if (!failed) return;
+    card.append(
+      el('p', {
+        class: 'roof-note',
+        role: 'status',
+        text: 'The 3D view could not load just now. The measurements still stand; press the button to try again.',
+      }),
+    );
   }
 
   /** Back from roof mode: the dock empties and the panel eases back to its size. */

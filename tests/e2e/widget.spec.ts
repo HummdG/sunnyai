@@ -609,6 +609,65 @@ test('docks the 3D roof in the conversation, compact as it moves on, big again o
   await expect(panel.getByRole('button', { name: 'See your roof in 3D' })).toBeVisible();
 });
 
+test('says so when the 3D roof cannot load, and loads it when asked again', async ({ page }) => {
+  // What an installer's site did before the roof file carried a CORS header:
+  // the import failed and the button did nothing, with no word to the visitor.
+  let blocked = true;
+  await page.route('**/widget/sunny-roof.js', (route) =>
+    blocked ? route.abort('failed') : route.continue(),
+  );
+  await page.route('**/v1/sunscan/assessments/**', (route) => route.fulfill({ status: 503 }));
+  await page.route('**/v1/chat/stream', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: streamOf(
+        { type: 'message_started' },
+        {
+          type: 'sunscan',
+          assessmentId: 'ss_blocked',
+          status: 'succeeded',
+          summary: {
+            address: '3A Downs Walk, Peacehaven BN10 7SN',
+            postcode: 'BN10 7SN',
+            reliable: true,
+            label: 'Indicative, subject to an on-site survey',
+            usableRoofAreaM2: 52,
+            estimatedMaxPanels: 21,
+            bestFacing: 'S',
+            roofPlanes: [],
+          },
+        },
+        { type: 'text_delta', text: 'Does that look right?' },
+        { type: 'message_finished' },
+        { type: 'done', messageId: 'done' },
+      ),
+    }),
+  );
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  await panel.locator('.composer-input').fill('3A Downs Walk, BN10 7SN');
+  await panel.locator('.composer-input').press('Enter');
+
+  // It tried to open by itself and could not: the card says so, the
+  // measurements stay, and the panel is not left half grown round nothing.
+  const card = panel.locator('.roof');
+  const note = card.getByRole('status');
+  await expect(note).toHaveText(/3D view could not load/);
+  await expect(card).toContainText('about 52 m² usable');
+  await expect(panel).not.toHaveClass(/roof-open/);
+
+  // Asked again, still failing: one note, not one per press.
+  await card.getByRole('button', { name: 'See your roof in 3D' }).click();
+  await expect(note).toHaveCount(1);
+
+  // And once the file arrives, the same button opens it and the note goes.
+  blocked = false;
+  await card.getByRole('button', { name: 'See your roof in 3D' }).click();
+  await expect(panel.getByRole('region', { name: /3D model of 3A Downs Walk/ })).toBeVisible();
+  await expect(note).toHaveCount(0);
+});
+
 for (const [w, h] of [
   [1280, 720],
   [1440, 900],
