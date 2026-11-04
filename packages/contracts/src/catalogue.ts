@@ -127,7 +127,7 @@ export const productSchema = z.object({
     .default(null),
   priceStatus: z.enum(PRICE_STATUSES).default('unknown'),
   warrantyYears: z.number().int().nonnegative().nullable().default(null),
-  compatibility: compatibilitySchema.default({}),
+  compatibility: compatibilitySchema.prefault({}),
   /** Where the row came from: a datasheet URL, a price-list document id. */
   sourceRef: z.string().min(1).max(500).nullable().default(null),
   /** Which revision of that source, so a stale price is visible as stale. */
@@ -230,7 +230,7 @@ export const catalogueUploadRequestSchema = z
     /** A CSV file, as text. */
     csv: z.string().max(4_000_000).optional(),
     /** Or structured records, read by the same reader as the CSV. */
-    records: z.array(z.record(z.unknown())).max(5000).optional(),
+    records: z.array(z.record(z.string(), z.unknown())).max(5000).optional(),
     mode: z.enum(['replace', 'append']).default('replace'),
     dryRun: z.boolean().default(false),
   })

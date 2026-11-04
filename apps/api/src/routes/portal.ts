@@ -143,7 +143,7 @@ function parse<S extends z.ZodTypeAny>(schema: S, body: unknown): z.infer<S> {
       `${issue?.path.join('.') || 'body'}: ${issue?.message ?? 'invalid'}`,
     );
   }
-  return result.data as z.infer<S>;
+  return result.data;
 }
 
 function randomId(prefix: string, length = 14): string {

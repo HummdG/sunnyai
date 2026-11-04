@@ -57,12 +57,17 @@
     "chrome-launcher": "^1.2.2",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
-    "firebase-tools": "^14.27.0",
+    "firebase-tools": "^15.35.0",
     "lighthouse": "^13.5.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "^1.14.6"
+    }
   }
 }

@@ -49,7 +49,7 @@ export const apiErrorSchema = z.object({
     /** Correlation id for the failing request; also emitted to Cloud Logging. */
     requestId: z.string().optional(),
     /** Per-field validation detail, present only for `bad_request`. */
-    details: z.record(z.string()).optional(),
+    details: z.record(z.string(), z.string()).optional(),
   }),
 });
 
