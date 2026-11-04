@@ -1,5 +1,5 @@
 import { registerAddonTool } from '../../agent/tools.js';
-import { serviceAccountTokens } from '../../ingest/drive.js';
+import { driveCredentialsFromEnv } from '../../ingest/drive.js';
 import type { Tenant } from '../../tenants.js';
 import type { EmailAddonConfig } from './config.js';
 import { decryptSecret } from './crypto.js';
@@ -77,14 +77,8 @@ export function driveFilesFromEnv(
   env: Record<string, string | undefined>,
   fetchImpl: typeof fetch = fetch,
 ): ((tenant: Tenant) => DriveFiles | null) | undefined {
-  const json = env['GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'];
-  if (!json || json.trim() === '') return undefined;
-  let tokens: (() => Promise<string>) | null = null;
-  try {
-    tokens = serviceAccountTokens(json);
-  } catch {
-    return undefined;
-  }
-  const files = new RestDriveFiles(tokens, fetchImpl);
+  const credentials = driveCredentialsFromEnv(env, fetchImpl);
+  if (!credentials) return undefined;
+  const files = new RestDriveFiles(credentials.tokens, fetchImpl);
   return (tenant) => (tenant.gdriveFolderId ? files : null);
 }

@@ -152,6 +152,71 @@ export function serviceAccountTokens(keyJson: string): TokenProvider {
   );
 }
 
+/**
+ * Keyless: the token of the service account the API runs as, from Cloud Run's
+ * metadata server, narrowed to `drive.readonly`. Installers share their folder
+ * with that account's email; there is no key to leak or rotate.
+ */
+export function metadataServerTokens(fetchImpl: typeof fetch = fetch): TokenProvider {
+  const url =
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' +
+    `?scopes=${encodeURIComponent(SCOPE)}`;
+  return cachedToken(async () => {
+    const response = await fetchImpl(url, {
+      headers: { 'Metadata-Flavor': 'Google' },
+      signal: AbortSignal.timeout(5_000),
+    });
+    const json = (await response.json().catch(() => ({}))) as {
+      access_token?: string;
+      expires_in?: number;
+    };
+    if (!response.ok || !json.access_token) {
+      throw new Error(`The metadata server gave no Drive token (${response.status}).`);
+    }
+    return { token: json.access_token, expiresIn: json.expires_in ?? 3600 };
+  });
+}
+
+export interface DriveCredentials {
+  tokens: TokenProvider;
+  /** The address installers share their folder with. */
+  email: string;
+  mode: 'key' | 'metadata';
+}
+
+/**
+ * The platform's Drive identity, from the environment:
+ *
+ *   GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON   a service-account key (local, or any host)
+ *   SUNNY_DRIVE_AUTH=metadata           keyless, as the account the API runs as;
+ *     with SUNNY_DRIVE_SERVICE_ACCOUNT  that account's email
+ *
+ * Null when neither is set, or the key does not parse.
+ */
+export function driveCredentialsFromEnv(
+  env: Record<string, string | undefined>,
+  fetchImpl: typeof fetch = fetch,
+): DriveCredentials | null {
+  const json = env['GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON']?.trim();
+  if (json) {
+    try {
+      const email = (JSON.parse(json) as { client_email?: string }).client_email;
+      return email ? { tokens: serviceAccountTokens(json), email, mode: 'key' } : null;
+    } catch {
+      return null;
+    }
+  }
+  const email = env['SUNNY_DRIVE_SERVICE_ACCOUNT']?.trim();
+  if (env['SUNNY_DRIVE_AUTH'] === 'metadata' && email) {
+    return { tokens: metadataServerTokens(fetchImpl), email, mode: 'metadata' };
+  }
+  return null;
+}
+
+/** Why Drive is unavailable, for the dashboard. */
+export const DRIVE_NOT_CONFIGURED =
+  'Google Drive is not configured on this deployment (set SUNNY_DRIVE_AUTH=metadata with SUNNY_DRIVE_SERVICE_ACCOUNT, or GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON).';
+
 export function oauthTokens(
   client: { id: string; secret: string },
   refreshToken: string,

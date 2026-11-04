@@ -17,7 +17,8 @@ import type { Tenant } from '../tenants.js';
 import {
   oauthTokens,
   RestDriveClient,
-  serviceAccountTokens,
+  DRIVE_NOT_CONFIGURED,
+  driveCredentialsFromEnv,
   type DriveClient,
 } from '../ingest/drive.js';
 import {
@@ -126,20 +127,12 @@ export function createKnowledgePipeline(
       ? jinaFetcher(env['JINA_API_KEY'] ? { apiKey: env['JINA_API_KEY'] } : {})
       : networkFetcher());
 
-  const serviceAccountJson = env['GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'] ?? null;
-  let serviceAccountEmail: string | null = null;
-  try {
-    serviceAccountEmail = serviceAccountJson
-      ? ((JSON.parse(serviceAccountJson) as { client_email?: string }).client_email ?? null)
-      : null;
-  } catch {
-    serviceAccountEmail = null;
-  }
+  const driveCredentials = driveCredentialsFromEnv(env);
+  const serviceAccountEmail = driveCredentials?.email ?? null;
   const oauthClient =
     env['GOOGLE_OAUTH_CLIENT_ID'] && env['GOOGLE_OAUTH_CLIENT_SECRET']
       ? { id: env['GOOGLE_OAUTH_CLIENT_ID'], secret: env['GOOGLE_OAUTH_CLIENT_SECRET'] }
       : null;
-  const saTokens = serviceAccountJson ? safe(() => serviceAccountTokens(serviceAccountJson)) : null;
 
   const driveClient =
     options.driveClient ??
@@ -151,13 +144,8 @@ export function createKnowledgePipeline(
           return { error: 'This Drive connection has no Google sign-in token.' };
         return new RestDriveClient(oauthTokens(oauthClient, connection.refreshToken));
       }
-      if (!saTokens) {
-        return {
-          error:
-            'Drive sharing is not configured on this deployment (GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON is unset).',
-        };
-      }
-      return new RestDriveClient(saTokens);
+      if (!driveCredentials) return { error: DRIVE_NOT_CONFIGURED };
+      return new RestDriveClient(driveCredentials.tokens);
     });
 
   const geminiKey = env['GEMINI_API_KEY'];
@@ -217,14 +205,6 @@ export function createKnowledgePipeline(
       },
     },
   };
-}
-
-function safe<T>(make: () => T): T | null {
-  try {
-    return make();
-  } catch {
-    return null;
-  }
 }
 
 /** Register the routes and return the pipeline, so the server can share it. */

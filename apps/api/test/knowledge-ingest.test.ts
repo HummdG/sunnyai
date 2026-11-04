@@ -15,6 +15,8 @@ import type { ServerConfig } from '../src/config.js';
 import { crawlSite } from '../src/ingest/crawler.js';
 import {
   csvToMarkdown,
+  driveCredentialsFromEnv,
+  metadataServerTokens,
   serviceAccountAssertion,
   type DriveChange,
   type DriveClient,
@@ -587,6 +589,57 @@ describe('Drive sync', () => {
       scope: 'https://www.googleapis.com/auth/drive.readonly',
       exp: 1_760_003_600,
     });
+  });
+
+  it('asks the metadata server for a read-only Drive token, keyless', async () => {
+    const calls: { url: string; headers: Record<string, string> }[] = [];
+    const fakeFetch = ((url: string, init?: RequestInit) => {
+      calls.push({ url, headers: (init?.headers ?? {}) as Record<string, string> });
+      return Promise.resolve(
+        new Response(JSON.stringify({ access_token: 'tok_1', expires_in: 3599 }), {
+          status: 200,
+        }),
+      );
+    }) as unknown as typeof fetch;
+    const tokens = metadataServerTokens(fakeFetch);
+    expect(await tokens()).toBe('tok_1');
+    expect(await tokens()).toBe('tok_1');
+    expect(calls).toHaveLength(1);
+    const url = new URL(calls[0]!.url);
+    expect(url.host).toBe('metadata.google.internal');
+    expect(url.pathname).toBe('/computeMetadata/v1/instance/service-accounts/default/token');
+    expect(url.searchParams.get('scopes')).toBe('https://www.googleapis.com/auth/drive.readonly');
+    expect(calls[0]!.headers['Metadata-Flavor']).toBe('Google');
+  });
+
+  it('says why when the metadata server gives no token', async () => {
+    const fakeFetch = (() =>
+      Promise.resolve(
+        new Response('scope not allowed', { status: 400 }),
+      )) as unknown as typeof fetch;
+    await expect(metadataServerTokens(fakeFetch)()).rejects.toThrow(/metadata server.*400/);
+  });
+
+  it('picks Drive credentials from the environment', () => {
+    expect(driveCredentialsFromEnv({})).toBeNull();
+    // Keyless needs the address installers share with, or nobody can share.
+    expect(driveCredentialsFromEnv({ SUNNY_DRIVE_AUTH: 'metadata' })).toBeNull();
+    expect(
+      driveCredentialsFromEnv({
+        SUNNY_DRIVE_AUTH: 'metadata',
+        SUNNY_DRIVE_SERVICE_ACCOUNT: 'sunny-api@p.iam.gserviceaccount.com',
+      }),
+    ).toMatchObject({ email: 'sunny-api@p.iam.gserviceaccount.com', mode: 'metadata' });
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const key = JSON.stringify({
+      client_email: 'bot-sync@sunny.iam.gserviceaccount.com',
+      private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    });
+    expect(driveCredentialsFromEnv({ GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: key })).toMatchObject({
+      email: 'bot-sync@sunny.iam.gserviceaccount.com',
+      mode: 'key',
+    });
+    expect(driveCredentialsFromEnv({ GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: 'not json' })).toBeNull();
   });
 });
 

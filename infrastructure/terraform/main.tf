@@ -49,6 +49,16 @@ resource "google_project_iam_member" "api_uses_vertex" {
   member  = "serviceAccount:${google_service_account.api.email}"
 }
 
+# Installers' knowledge folders and price-list Sheets. The API reads them as
+# itself, keyless: they share the folder with the API's service account, and
+# its token comes from the metadata server narrowed to drive.readonly. No IAM
+# role is involved; sharing is the grant.
+resource "google_project_service" "drive" {
+  project            = var.project_id
+  service            = "drive.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_project_service" "secretmanager" {
   project            = var.project_id
   service            = "secretmanager.googleapis.com"
@@ -202,6 +212,12 @@ resource "google_cloud_run_v2_service" "api" {
           {
             SUNNY_STAFF_EMAILS     = join(",", var.staff_emails)
             OPS_CLOUD_RUN_SERVICES = "${local.api_name},${local.web_name}"
+          },
+          # Drive, keyless (see google_project_service.drive): the address
+          # installers share their folder with is the API's own account.
+          {
+            SUNNY_DRIVE_AUTH            = "metadata"
+            SUNNY_DRIVE_SERVICE_ACCOUNT = google_service_account.api.email
           },
           var.ops_billing_table == "" ? {} : { OPS_BILLING_TABLE = var.ops_billing_table },
           var.ops_monthly_budget > 0 ? { OPS_MONTHLY_BUDGET = tostring(var.ops_monthly_budget) } : {},

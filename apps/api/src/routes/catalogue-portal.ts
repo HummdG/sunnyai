@@ -49,7 +49,7 @@ import {
   type PriceList,
 } from '../catalogue/price-list.js';
 import type { CatalogueState } from '../catalogue/types.js';
-import { serviceAccountTokens } from '../ingest/drive.js';
+import { DRIVE_NOT_CONFIGURED, driveCredentialsFromEnv } from '../ingest/drive.js';
 import type { MemberRole, Store } from '../store.js';
 import type { Tenant, TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
@@ -156,18 +156,12 @@ export function registerCataloguePortalRoutes(
   const auditor = createAuditor({ store, now });
   const iso = () => new Date(now()).toISOString();
 
-  const serviceAccount = env['GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'];
+  const driveCredentials = driveCredentialsFromEnv(env, deps.fetch ?? fetch);
   const sheetReader: SheetReader | null =
     deps.sheetReader !== undefined
       ? deps.sheetReader
-      : serviceAccount
-        ? (() => {
-            try {
-              return driveSheetReader(serviceAccountTokens(serviceAccount), deps.fetch ?? fetch);
-            } catch {
-              return null;
-            }
-          })()
+      : driveCredentials
+        ? driveSheetReader(driveCredentials.tokens, deps.fetch ?? fetch)
         : null;
   const gemini: GeminiExtractor | null =
     deps.gemini !== undefined
@@ -214,10 +208,7 @@ export function registerCataloguePortalRoutes(
       ...(await view(store, tenant, state)),
       capabilities: {
         sheet: sheetReader !== null,
-        sheetReason:
-          sheetReader === null
-            ? 'Google Drive is not configured on this deployment (GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON is unset).'
-            : null,
+        sheetReason: sheetReader === null ? DRIVE_NOT_CONFIGURED : null,
         gemini: gemini !== null,
       },
     };
