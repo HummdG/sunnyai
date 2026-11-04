@@ -354,7 +354,10 @@ thing:
      `ops_monthly_budget`, and apply again.
 
   The queries filter on this environment's project, so staging and production
-  can share one billing account.
+  can share one billing account. A billing account exports to one dataset,
+  though: point it at production's, list staging's API service account in
+  production's `ops_billing_readers`, and give both environments the same
+  `ops_billing_table`.
 
 - **Twilio, Postmark, Stripe:** read with the credentials the API already has.
   Postmark has no billing API, so set `OPS_POSTMARK_PRICE_PER_1K` (through

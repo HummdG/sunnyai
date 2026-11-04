@@ -49,6 +49,9 @@ api_base_url = ""
 # Once the billing export exists (ops.tf, README_DEPLOY.md):
 # ops_billing_table  = "your-gcp-project.billing_export_staging.gcp_billing_export_resource_v1_XXXXXX"
 # ops_monthly_budget = 150
+# One billing account exports to one dataset. In the environment that holds it,
+# let the other environments' API accounts read it:
+# ops_billing_readers = ["sunny-api-staging@your-staging-project.iam.gserviceaccount.com"]
 
 # Who hears about it when the API, chat or the website stops answering.
 alert_email = "you@example.com"

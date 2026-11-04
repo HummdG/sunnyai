@@ -184,6 +184,12 @@ variable "ops_billing_table" {
   default     = ""
 }
 
+variable "ops_billing_readers" {
+  description = "Service accounts from other environments allowed to read this environment's billing export dataset (one billing account exports to one dataset, so the environment that holds it shares it)."
+  type        = list(string)
+  default     = []
+}
+
 variable "ops_monthly_budget" {
   description = "This environment's monthly GCP budget, in the billing currency. The staff dashboard warns when the forecast passes it. Zero means no budget."
   type        = number

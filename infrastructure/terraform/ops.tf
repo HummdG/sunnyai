@@ -41,6 +41,17 @@ resource "google_bigquery_dataset_iam_member" "api_reads_billing" {
   member     = "serviceAccount:${google_service_account.api.email}"
 }
 
+# A billing account exports to one dataset, and staging and production share one
+# account. The environment that holds the export lets the others' API accounts
+# read it; their queries filter on their own project, so each sees its own spend.
+resource "google_bigquery_dataset_iam_member" "others_read_billing" {
+  for_each   = toset(var.ops_billing_readers)
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.billing_export.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${each.value}"
+}
+
 resource "google_project_iam_member" "api_runs_queries" {
   project = var.project_id
   role    = "roles/bigquery.jobUser"
