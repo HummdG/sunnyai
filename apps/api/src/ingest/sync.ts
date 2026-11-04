@@ -218,7 +218,16 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
     for (const issue of prepared.issues) {
       if (issue.code !== 'empty-section') run.issue(issue);
     }
-    if (before && before.contentHash === prepared.contentHash && before.title === doc.title) {
+    // Same text, but the placeholder rules may have changed since it was saved:
+    // rewrite it then, or a warning the rules no longer raise would stay.
+    const sameWarnings =
+      JSON.stringify(before?.warnings ?? []) === JSON.stringify(prepared.warnings ?? []);
+    if (
+      before &&
+      before.contentHash === prepared.contentHash &&
+      before.title === doc.title &&
+      sameWarnings
+    ) {
       return 'unchanged';
     }
     const at = iso();

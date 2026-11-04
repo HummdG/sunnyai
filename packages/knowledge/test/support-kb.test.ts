@@ -126,4 +126,18 @@ describe('support knowledge base: placeholders', () => {
   it('leaves clean text alone', () => {
     expect(findPlaceholders('# Batteries\n\nWe fit Powerwall 3. Call 01632 960123.')).toEqual([]);
   });
+
+  it('does not mistake link text, filled-in details or its own redactions for gaps', () => {
+    const page = [
+      '# Contact',
+      '[Email Us](mailto:info@northwind.test) or see [Company Updates](https://northwind.test/news).',
+      '[Email: info@northwind.test] [Phone: 01632 960123]',
+      'Write to [email removed] or ring [phone removed].',
+    ].join('\n');
+    expect(findPlaceholders(page)).toEqual([]);
+    // Still a gap: a bracketed field with nothing filled in.
+    expect(findPlaceholders('Call [phone number] or email [Email Us].').map((f) => f.text)).toEqual(
+      ['[phone number]', '[Email Us]'],
+    );
+  });
 });

@@ -518,6 +518,35 @@ describe('website sync', () => {
     expect(saves.every((j) => j.updatedAt)).toBe(true);
   });
 
+  it('re-checks an unchanged page for placeholders when the rules change', async () => {
+    const { app, store } = await harness({ fetcher: fakeSite(pages()) });
+    const first = await connect(app, {
+      tenantId: DEMO_TENANT.id,
+      kind: 'website',
+      url: `${origin}/`,
+    });
+    await waitForJob(app, DEMO_TENANT.id, first.body.job.id);
+    // A warning saved under older rules that no longer flag it.
+    const prices = (await store.listKnowledgeSources(DEMO_TENANT.id)).find(
+      (s) => s.title === 'Prices',
+    )!;
+    await store.putKnowledgeSource({
+      ...prices,
+      warnings: [{ kind: 'placeholder', text: '[Email Us]', section: null }],
+    });
+    const again = await app.inject({
+      method: 'POST',
+      url: `/v1/knowledge/connections/${first.body.connection.id}/sync?tenantId=${DEMO_TENANT.id}`,
+      headers: auth,
+      payload: {},
+    });
+    await waitForJob(app, DEMO_TENANT.id, again.json<KnowledgeSyncResponse>().job.id);
+    const after = (await store.listKnowledgeSources(DEMO_TENANT.id)).find(
+      (s) => s.title === 'Prices',
+    )!;
+    expect(after.warnings ?? []).toEqual([]);
+  });
+
   it('runs one sync per site at a time: a second request joins the running one', async () => {
     const { fetcher, release } = heldSite();
     const { app } = await harness({ fetcher });

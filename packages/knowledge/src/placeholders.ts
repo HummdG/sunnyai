@@ -27,6 +27,23 @@ export interface PlaceholderFinding {
 interface Pattern {
   kind: PlaceholderKind;
   regex: RegExp;
+  /** False for a match that only looks like a placeholder; given the text after it. */
+  keep?: (match: string, after: string) => boolean;
+}
+
+/** The markers PII redaction writes (pii.ts): Sunny's own, not a gap. */
+const REDACTION_MARKERS = new Set(['[email removed]', '[phone removed]']);
+
+/**
+ * A bracketed field is a gap only when nothing has been filled in. Link text
+ * ("[Email Us](mailto:...)") is a label, and "[Phone: 01444 708252]" or
+ * "[Email: info@...]" already carries the detail.
+ */
+function unfilledField(match: string, after: string): boolean {
+  if (after.startsWith('(')) return false;
+  if (REDACTION_MARKERS.has(match.toLowerCase())) return false;
+  if (/[^\s@\]]+@[^\s@\]]+\.[a-z]{2,}/i.test(match)) return false;
+  return !/(?:\d[\s-]?){7,}/.test(match);
 }
 
 const PATTERNS: readonly Pattern[] = [
@@ -38,6 +55,7 @@ const PATTERNS: readonly Pattern[] = [
     kind: 'placeholder',
     regex:
       /\[(?:insert|add|your|company|installer|phone|telephone|number|email|e-mail|link|url|website|name|address|tbc|tbd|todo|to do|placeholder|details?)\b[^\]\n]{0,80}\]/gi,
+    keep: unfilledField,
   },
   { kind: 'placeholder', regex: /\{\{[^}\n]{1,60}\}\}|<<[^>\n]{1,60}>>/g },
   { kind: 'placeholder', regex: /\b(?:TBC|TBD|lorem ipsum)\b/g },
@@ -56,11 +74,13 @@ export function placeholdersIn(
   text: string,
 ): { kind: PlaceholderKind; text: string; index: number }[] {
   const found: { kind: PlaceholderKind; text: string; index: number }[] = [];
-  for (const { kind, regex } of PATTERNS) {
+  for (const { kind, regex, keep } of PATTERNS) {
     regex.lastIndex = 0;
     for (let m = regex.exec(text); m; m = regex.exec(text)) {
       const value = m[0].trim();
-      if (value !== '') found.push({ kind, text: value, index: m.index });
+      const after = text.slice(m.index + m[0].length);
+      if (value !== '' && (!keep || keep(value, after)))
+        found.push({ kind, text: value, index: m.index });
       if (m[0].length === 0) regex.lastIndex += 1;
     }
   }
