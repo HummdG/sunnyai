@@ -42,6 +42,20 @@ export const WEBSITE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 export const DRIVE_INTERVAL_MS = 15 * 60 * 1000;
 /** A sync that has been "syncing" this long is assumed dead and may be retried. */
 const STALE_LOCK_MS = 2 * 60 * 60 * 1000;
+/** A running sync saves itself at least this often, even mid-step. */
+const HEARTBEAT_MS = 60_000;
+/** A running sync quiet for this long has died: it no longer holds its connection. */
+export const STALE_JOB_MS = 10 * 60_000;
+
+/** True when a queued or running job has stopped saving, so nothing is running it. */
+export function isStaleJob(
+  job: Pick<IngestionJob, 'status' | 'startedAt' | 'updatedAt'>,
+  nowMs: number,
+): boolean {
+  if (job.status !== 'queued' && job.status !== 'running') return false;
+  const last = Date.parse(job.updatedAt ?? job.startedAt);
+  return Number.isFinite(last) && nowMs - last > STALE_JOB_MS;
+}
 const MAX_ISSUES = 40;
 
 interface Counts {
@@ -74,6 +88,12 @@ class JobRun {
   };
   /** Saves the running job (throttled by the caller); set by the job runner. */
   report: () => Promise<void> = () => Promise.resolve();
+
+  /** Another page or file found while the total is still unknown. */
+  async reading(done: number): Promise<void> {
+    this.progress = { phase: 'reading', done, total: null };
+    await this.report();
+  }
 
   /** Start the indexing phase once the number of items is known. */
   async indexing(total: number): Promise<void> {
@@ -136,8 +156,31 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
   }
 
   async function saveJob(job: IngestionJob): Promise<IngestionJob> {
-    await store.saveIngestionJob(job);
-    return job;
+    const saved = { ...job, updatedAt: iso() };
+    await store.saveIngestionJob(saved);
+    return saved;
+  }
+
+  /** Syncs running in this process, by connection, so a second request joins one. */
+  const running = new Map<string, { job: IngestionJob; done: Promise<IngestionJob> }>();
+  const runKey = (tenantId: string, connectionId: string) => `${tenantId}/${connectionId}`;
+
+  /**
+   * The sync already running for a connection, if any: one in this process, or
+   * one another instance is running that has saved itself recently. A job that
+   * has gone quiet has died and does not count. Another instance's `done`
+   * cannot be awaited from here, so it resolves at once with the job as it stands.
+   */
+  async function inFlight(
+    connection: KnowledgeConnectionRecord,
+  ): Promise<{ job: IngestionJob; done: Promise<IngestionJob> } | null> {
+    const local = running.get(runKey(connection.tenantId, connection.id));
+    if (local) return local;
+    if (connection.status !== 'syncing' || !connection.lastJobId) return null;
+    const job = await store.getIngestionJob(connection.tenantId, connection.lastJobId);
+    if (!job || (job.status !== 'queued' && job.status !== 'running')) return null;
+    if (isStaleJob(job, now())) return null;
+    return { job, done: Promise.resolve(job) };
   }
 
   /**
@@ -212,6 +255,8 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
       startUrl: connection.target,
       fetcher: deps.fetcher,
       maxPages: connection.maxPages ?? 200,
+      // The total is not known until the crawl ends, but the count is.
+      onPage: (read) => run.reading(read),
     });
     if (crawl.pages.length === 0) {
       throw new Error(
@@ -456,6 +501,8 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
   ): Promise<{ job: IngestionJob; done: Promise<IngestionJob> } | null> {
     const connection = await syncStore.getConnection(tenantId, connectionId);
     if (!connection) return null;
+    const current = await inFlight(connection);
+    if (current) return current;
 
     const startedAt = iso();
     const queued = await saveJob({
@@ -496,6 +543,17 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
         });
       };
       await saveJob({ ...queued, status: 'running', progress: { ...run.progress } });
+      // A step can take longer than a minute (a slow page, the embedding call):
+      // keep saving so the job is not taken for dead.
+      const heartbeat = setInterval(() => {
+        saveJob({
+          ...queued,
+          status: 'running',
+          counts: { ...run.counts },
+          progress: { ...run.progress },
+        }).catch(() => undefined);
+      }, HEARTBEAT_MS);
+      heartbeat.unref?.();
       let cursor = connection.cursor ?? null;
       let error: string | null = null;
       try {
@@ -510,6 +568,8 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
           message: 'The sync failed.',
           detail: error,
         });
+      } finally {
+        clearInterval(heartbeat);
       }
       const finished: IngestionJob = {
         ...queued,
@@ -533,7 +593,16 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
       return finished;
     })();
 
-    return { job: queued, done };
+    const key = runKey(tenantId, connectionId);
+    const entry = { job: queued, done };
+    running.set(key, entry);
+    // Whatever happens to the run, it stops holding the connection.
+    done
+      .finally(() => {
+        if (running.get(key) === entry) running.delete(key);
+      })
+      .catch(() => undefined);
+    return entry;
   }
 
   /** Create (or replace) a connection and start its first sync. */
@@ -548,6 +617,10 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
         ? new URL(request.url).origin + new URL(request.url).pathname
         : request.folderId;
     const same = existing.find((c) => c.kind === request.kind && c.target === target);
+    // Connecting the same site or folder again while it syncs joins that sync:
+    // saving the record first would clear the lock and start a second crawl.
+    const current = same ? await inFlight(same) : null;
+    if (same && current) return { connection: same, ...current };
     const record: KnowledgeConnectionRecord = {
       id: same?.id ?? newId('kc'),
       tenantId: request.tenantId,

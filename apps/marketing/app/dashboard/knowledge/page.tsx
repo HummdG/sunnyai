@@ -31,16 +31,20 @@ function SyncBar({
   unit: 'page' | 'file';
   progress: SyncProgress | null;
 }) {
+  const plural = (n: number) => `${n.toLocaleString('en-GB')} ${unit}${n === 1 ? '' : 's'}`;
   if (!progress || progress.phase === 'reading' || progress.total === null) {
+    // The total is not known until the crawl ends, so the count stands in for it.
+    const lead = what === 'website' ? 'Reading your website' : 'Reading your Drive folder';
     return (
       <SunProgress
         value={0}
         max={0}
-        label={what === 'website' ? 'Reading your website…' : 'Reading your Drive folder…'}
+        label={
+          progress && progress.done > 0 ? `${lead}: ${plural(progress.done)} so far…` : `${lead}…`
+        }
       />
     );
   }
-  const plural = (n: number) => `${n.toLocaleString('en-GB')} ${unit}${n === 1 ? '' : 's'}`;
   return (
     <SunProgress
       value={progress.done}

@@ -609,6 +609,51 @@ describe('knowledge connections', () => {
       'bot-sync@sunny.iam.gserviceaccount.com',
     );
   });
+
+  it('shows a sync that died as failed, not as syncing for ever', async () => {
+    let clock = NOW;
+    const { app, store } = await setup({
+      now: () => clock,
+      knowledgeSync: { syncWebsite: () => Promise.resolve({ jobId: 'job_quiet' }) },
+    });
+    const tenant = await signUp(app, 'owner@q.test');
+    await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${tenant.id}/knowledge/website`,
+      headers: as('owner@q.test'),
+      payload: { url: 'https://quiet.test' },
+    });
+    // The job last saved itself at NOW, then the instance running it stopped.
+    await store.saveIngestionJob({
+      id: 'job_quiet',
+      tenantId: tenant.id,
+      sourceId: null,
+      status: 'running',
+      documents: 0,
+      chunks: 0,
+      issues: [],
+      startedAt: new Date(NOW).toISOString(),
+      finishedAt: '',
+      updatedAt: new Date(NOW).toISOString(),
+      kind: 'website',
+      progress: { phase: 'reading', done: 12, total: null },
+    });
+    const look = async () =>
+      (
+        await app.inject({
+          method: 'GET',
+          url: `/v1/portal/tenants/${tenant.id}/knowledge`,
+          headers: as('owner@q.test'),
+        })
+      ).json<{ website: { status: string; error: string | null } }>().website;
+
+    clock = NOW + 5 * 60_000;
+    expect((await look()).status).toBe('syncing');
+    clock = NOW + 30 * 60_000;
+    const website = await look();
+    expect(website.status).toBe('failed');
+    expect(website.error).toMatch(/stopped before it finished/);
+  });
 });
 
 describe('Stripe billing', () => {

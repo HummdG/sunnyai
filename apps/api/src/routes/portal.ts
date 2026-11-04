@@ -34,6 +34,7 @@ import {
 } from '../store.js';
 import { JOURNEY_KEYS } from '../journey/journey.js';
 import { ONBOARDING_STEPS, type Tenant, type TenantRegistry } from '../tenants.js';
+import { isStaleJob } from '../ingest/sync.js';
 import type { VoiceUsageLedger } from '../channels/voice/usage.js';
 import type { PortalConfig } from './portal-config.js';
 import { isStaff } from './admin.js';
@@ -876,10 +877,12 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
         sync?.status === 'syncing' && sync.jobId
           ? await store.getIngestionJob(tenant.id, sync.jobId)
           : null;
+      // A job that stopped saving itself died with the instance running it.
+      const died = job !== null && isStaleJob(job, now());
       const status =
         job?.status === 'succeeded'
           ? ('connected' as const)
-          : job?.status === 'failed'
+          : job?.status === 'failed' || died
             ? ('failed' as const)
             : (sync?.status ?? 'pending');
       const failure =
@@ -888,9 +891,13 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
         status,
         target: configured,
         at: job?.finishedAt || sync?.at || null,
-        error: failure ? (failure.detail ?? failure.message) : (sync?.error ?? null),
+        error: died
+          ? 'The sync stopped before it finished. Sync again to pick up where it left off.'
+          : failure
+            ? (failure.detail ?? failure.message)
+            : (sync?.error ?? null),
         progress:
-          job && (job.status === 'running' || job.status === 'queued')
+          job && !died && (job.status === 'running' || job.status === 'queued')
             ? (job.progress ?? { phase: 'reading' as const, done: 0, total: null })
             : null,
       };

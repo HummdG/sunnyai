@@ -32,7 +32,7 @@ import {
 } from '../src/ingest/fetcher.js';
 import { parseRobots } from '../src/ingest/robots.js';
 import { MemoryKnowledgeSyncStore } from '../src/ingest/sync-store.js';
-import { embeddingKey } from '../src/ingest/sync.js';
+import { embeddingKey, isStaleJob, STALE_JOB_MS } from '../src/ingest/sync.js';
 import {
   createKnowledgeLoader,
   createKnowledgeRetriever,
@@ -190,7 +190,12 @@ afterEach(async () => {
 });
 
 async function harness(
-  options: { fetcher?: Fetcher; drive?: FakeDrive; embedder?: Embedder | null } = {},
+  options: {
+    fetcher?: Fetcher;
+    drive?: FakeDrive;
+    embedder?: Embedder | null;
+    now?: () => number;
+  } = {},
 ) {
   const dir = await mkdtemp(join(tmpdir(), 'sunny-ingest-'));
   dirs.push(dir);
@@ -200,7 +205,7 @@ async function harness(
     config: makeConfig(dir),
     store,
     tenants: new TenantRegistry([DEMO_TENANT, RIVAL]),
-    now: () => 1_760_000_000_000,
+    now: options.now ?? (() => 1_760_000_000_000),
     knowledge: {
       syncStore,
       fetcher: options.fetcher ?? fakeSite({}),
@@ -294,6 +299,20 @@ describe('website crawler', () => {
     const battery = result.pages.find((p) => p.url.endsWith('/batteries'));
     expect(battery?.markdown).toContain('# Batteries');
     expect(battery?.markdown).not.toContain('©');
+  });
+
+  it('counts pages as it reads them, so a long crawl shows progress', async () => {
+    const counts: number[] = [];
+    await crawlSite({
+      startUrl: `${origin}/`,
+      fetcher: site(),
+      onPage: (read) => {
+        counts.push(read);
+        return Promise.resolve();
+      },
+    });
+    // Every page looked at counts, the PDF that was skipped included.
+    expect(counts).toEqual([1, 2, 3, 4]);
   });
 
   it('stops at the page cap and says so', async () => {
@@ -460,6 +479,115 @@ describe('website sync', () => {
       headers: auth,
     });
     expect(rivalJob.statusCode).toBe(404);
+  });
+
+  /** A site whose home page does not answer until `release` is called. */
+  function heldSite() {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const inner = fakeSite(pages());
+    const fetcher = Object.assign(
+      async (url: string) => {
+        if (url === `${origin}/`) await gate;
+        return inner(url);
+      },
+      { hits: inner.hits },
+    );
+    return { fetcher, release };
+  }
+
+  it('shows how many pages it has read while the crawl runs', async () => {
+    const { app, store } = await harness({ fetcher: fakeSite(pages()) });
+    const saves: IngestionJob[] = [];
+    const save = store.saveIngestionJob.bind(store);
+    store.saveIngestionJob = (job) => {
+      saves.push(job);
+      return save(job);
+    };
+    const started = await connect(app, {
+      tenantId: DEMO_TENANT.id,
+      kind: 'website',
+      url: `${origin}/`,
+    });
+    expect((await waitForJob(app, DEMO_TENANT.id, started.body.job.id)).status).toBe('succeeded');
+    // Before the total is known, the count of pages read was saved for the bar.
+    const reading = saves
+      .filter((j) => j.progress?.phase === 'reading')
+      .map((j) => j.progress!.done);
+    expect(Math.max(...reading)).toBeGreaterThan(0);
+    expect(saves.every((j) => j.updatedAt)).toBe(true);
+  });
+
+  it('runs one sync per site at a time: a second request joins the running one', async () => {
+    const { fetcher, release } = heldSite();
+    const { app } = await harness({ fetcher });
+    const first = await connect(app, {
+      tenantId: DEMO_TENANT.id,
+      kind: 'website',
+      url: `${origin}/`,
+    });
+    const second = await connect(app, {
+      tenantId: DEMO_TENANT.id,
+      kind: 'website',
+      url: `${origin}/`,
+    });
+    const again = await app.inject({
+      method: 'POST',
+      url: `/v1/knowledge/connections/${first.body.connection.id}/sync?tenantId=${DEMO_TENANT.id}`,
+      headers: auth,
+      payload: {},
+    });
+    expect(second.body.job.id).toBe(first.body.job.id);
+    expect(again.json<KnowledgeSyncResponse>().job.id).toBe(first.body.job.id);
+    release();
+    const job = await waitForJob(app, DEMO_TENANT.id, first.body.job.id);
+    expect(job.status).toBe('succeeded');
+    // The site was crawled once, not three times.
+    expect(fetcher.hits.filter((u) => u === `${origin}/`)).toHaveLength(1);
+  });
+
+  it('does not let a sync that died hold the site: a stale one is replaced', async () => {
+    let clock = 1_760_000_000_000;
+    const { app, store, syncStore } = await harness({
+      fetcher: fakeSite(pages()),
+      now: () => clock,
+    });
+    const first = await connect(app, {
+      tenantId: DEMO_TENANT.id,
+      kind: 'website',
+      url: `${origin}/`,
+    });
+    await waitForJob(app, DEMO_TENANT.id, first.body.job.id);
+    // Make it look as if the instance running it was stopped mid-crawl.
+    const job = (await store.getIngestionJob(DEMO_TENANT.id, first.body.job.id))!;
+    await store.saveIngestionJob({ ...job, status: 'running', finishedAt: '' });
+    const connection = (await syncStore.getConnection(DEMO_TENANT.id, first.body.connection.id))!;
+    await syncStore.putConnection({ ...connection, status: 'syncing', lastJobId: job.id });
+
+    clock += STALE_JOB_MS + 60_000;
+    const second = await connect(app, {
+      tenantId: DEMO_TENANT.id,
+      kind: 'website',
+      url: `${origin}/`,
+    });
+    expect(second.body.job.id).not.toBe(first.body.job.id);
+    expect((await waitForJob(app, DEMO_TENANT.id, second.body.job.id)).status).toBe('succeeded');
+  });
+
+  it('calls a running job stale only once it has gone quiet', () => {
+    const t = 1_760_000_000_000;
+    const running = {
+      status: 'running' as const,
+      startedAt: new Date(t).toISOString(),
+      updatedAt: new Date(t + 5 * 60_000).toISOString(),
+    };
+    expect(isStaleJob(running, t + 5 * 60_000 + STALE_JOB_MS - 1)).toBe(false);
+    expect(isStaleJob(running, t + 5 * 60_000 + STALE_JOB_MS + 1)).toBe(true);
+    // Older jobs have no heartbeat; their start time stands in.
+    expect(
+      isStaleJob({ status: 'queued', startedAt: new Date(t).toISOString() }, t + STALE_JOB_MS + 1),
+    ).toBe(true);
+    expect(isStaleJob({ ...running, status: 'succeeded' }, t + 10 * STALE_JOB_MS)).toBe(false);
   });
 
   it('requires the admin token', async () => {

@@ -34,6 +34,8 @@ export interface CrawlOptions {
   maxPages?: number;
   maxDepth?: number;
   concurrency?: number;
+  /** Called after each page is looked at, with how many have been so far. */
+  onPage?: (read: number) => Promise<void>;
 }
 
 const SKIP_EXTENSIONS =
@@ -157,53 +159,59 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
   for (const url of fromSitemap) enqueue(url, 1);
 
   const seenBodies = new Set<string>();
+  let read = 0;
   async function worker(): Promise<void> {
     for (let item = queue.shift(); item; item = queue.shift()) {
-      try {
-        const page = await fetcher(item.url);
-        if (page.status !== 200) {
-          result.failed.push({ url: item.url, reason: `HTTP ${page.status}` });
-          continue;
-        }
-        const type = page.contentType.toLowerCase();
-        if (type.includes('pdf')) {
-          result.skipped.push({
-            url: item.url,
-            reason: 'PDF: text extraction is not available in this pipeline yet',
-            needsExtraction: true,
-          });
-          continue;
-        }
-        let title: string | null = null;
-        let markdown: string;
-        if (type.includes('html') || /^\s*<(!doctype|html)/i.test(page.body)) {
-          const converted = htmlToMarkdown(page.body, page.url);
-          title = converted.title;
-          markdown = converted.markdown;
-          if (item.depth < maxDepth) {
-            for (const link of linksIn(page.body, page.url)) enqueue(link, item.depth + 1);
-          }
-        } else if (type.includes('text/plain') || type.includes('markdown')) {
-          markdown = page.body.trim();
-        } else {
-          result.skipped.push({
-            url: item.url,
-            reason: `Unsupported content type ${type || 'unknown'}`,
-            needsExtraction: false,
-          });
-          continue;
-        }
-        // The same page served under two URLs (a trailing slash, a query string)
-        // is one page.
-        if (markdown === '' || seenBodies.has(markdown)) continue;
-        seenBodies.add(markdown);
-        result.pages.push({ url: item.url, title: title ?? new URL(item.url).pathname, markdown });
-      } catch (error) {
-        result.failed.push({
-          url: item.url,
-          reason: error instanceof Error ? error.message : String(error),
-        });
+      await visit(item);
+      read += 1;
+      await options.onPage?.(read);
+    }
+  }
+  async function visit(item: { url: string; depth: number }): Promise<void> {
+    try {
+      const page = await fetcher(item.url);
+      if (page.status !== 200) {
+        result.failed.push({ url: item.url, reason: `HTTP ${page.status}` });
+        return;
       }
+      const type = page.contentType.toLowerCase();
+      if (type.includes('pdf')) {
+        result.skipped.push({
+          url: item.url,
+          reason: 'PDF: text extraction is not available in this pipeline yet',
+          needsExtraction: true,
+        });
+        return;
+      }
+      let title: string | null = null;
+      let markdown: string;
+      if (type.includes('html') || /^\s*<(!doctype|html)/i.test(page.body)) {
+        const converted = htmlToMarkdown(page.body, page.url);
+        title = converted.title;
+        markdown = converted.markdown;
+        if (item.depth < maxDepth) {
+          for (const link of linksIn(page.body, page.url)) enqueue(link, item.depth + 1);
+        }
+      } else if (type.includes('text/plain') || type.includes('markdown')) {
+        markdown = page.body.trim();
+      } else {
+        result.skipped.push({
+          url: item.url,
+          reason: `Unsupported content type ${type || 'unknown'}`,
+          needsExtraction: false,
+        });
+        return;
+      }
+      // The same page served under two URLs (a trailing slash, a query string)
+      // is one page.
+      if (markdown === '' || seenBodies.has(markdown)) return;
+      seenBodies.add(markdown);
+      result.pages.push({ url: item.url, title: title ?? new URL(item.url).pathname, markdown });
+    } catch (error) {
+      result.failed.push({
+        url: item.url,
+        reason: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

@@ -137,6 +137,12 @@ export const ingestionJobSchema = z.object({
   startedAt: z.string(),
   /** Empty while the job is queued or running. */
   finishedAt: z.string(),
+  /**
+   * When the job was last saved. A running job saves at least once a minute, so
+   * one that has gone quiet for longer than that has died (an instance stopped
+   * mid-sync) rather than slowed down.
+   */
+  updatedAt: z.string().optional(),
   /** What ran: a single upload, a website crawl, or a Drive folder sync. */
   kind: z.enum(['upload', 'website', 'drive']).optional(),
   /** The connection a sync job ran for. */
