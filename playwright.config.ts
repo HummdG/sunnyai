@@ -55,8 +55,9 @@ export default defineConfig({
   webServer: [
     {
       // A data directory of its own, so an e2e run cannot write into the
-      // developer's `.data` or into whatever the smoke test used.
-      command: 'npx tsx apps/api/src/main.ts',
+      // developer's `.data` or into whatever the smoke test used. Emptied and
+      // seeded first (scripts/e2e-data.ts), so every run starts the same.
+      command: 'npx tsx scripts/e2e-data.ts .data-e2e && npx tsx apps/api/src/main.ts',
       url: `http://127.0.0.1:${API_PORT}/healthz`,
       env: {
         PORT: String(API_PORT),
