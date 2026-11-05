@@ -41,6 +41,22 @@ export interface CrawlOptions {
 const SKIP_EXTENSIONS =
   /\.(png|jpe?g|gif|webp|svg|ico|css|js|mjs|json|zip|gz|rar|mp4|mov|avi|mp3|wav|woff2?|ttf|eot|xml|rss|atom)(\?|$)/i;
 
+/**
+ * A hosting firewall's "checking your browser" page, served in place of the real
+ * one with a 200. SiteGround's says "One moment, please...", Cloudflare's "Just
+ * a moment...". Read as a page it has no links, so a crawl that only saw this
+ * looked like a one-page site and the sync removed every other page.
+ */
+const BOT_CHALLENGE =
+  /<title>\s*(one moment, please|just a moment|attention required|checking your browser)\b|sgcaptcha|cf_chl_opt/i;
+
+export const BLOCKED_REASON =
+  "The site's bot protection showed a check page instead. Ask the web host to allow SunnyBot";
+
+export function isBotChallenge(html: string): boolean {
+  return BOT_CHALLENGE.test(html.slice(0, 20_000));
+}
+
 function sameSite(a: URL, b: URL): boolean {
   const bare = (h: string) => h.toLowerCase().replace(/^www\./, '');
   return bare(a.hostname) === bare(b.hostname) && a.protocol === b.protocol;
@@ -186,6 +202,13 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
       let title: string | null = null;
       let markdown: string;
       if (type.includes('html') || /^\s*<(!doctype|html)/i.test(page.body)) {
+        if (isBotChallenge(page.body)) {
+          result.failed.push({
+            url: item.url,
+            reason: BLOCKED_REASON,
+          });
+          return;
+        }
         const converted = htmlToMarkdown(page.body, page.url);
         title = converted.title;
         markdown = converted.markdown;

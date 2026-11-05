@@ -315,6 +315,21 @@ describe('website crawler', () => {
     expect(counts).toEqual([1, 2, 3, 4]);
   });
 
+  it("treats a firewall's check page as a failure, not as the site", async () => {
+    const result = await crawlSite({
+      startUrl: `${origin}/`,
+      fetcher: fakeSite({
+        [`${origin}/`]: {
+          body: '<html><head><title>One moment, please...</title></head><body><p>Please wait while your request is being verified...</p><script src="/.well-known/sgcaptcha/?r=%2F"></script></body></html>',
+        },
+      }),
+    });
+    expect(result.pages).toEqual([]);
+    expect(result.failed).toEqual([
+      expect.objectContaining({ url: `${origin}/`, reason: expect.stringContaining('bot') }),
+    ]);
+  });
+
   it('stops at the page cap and says so', async () => {
     const result = await crawlSite({ startUrl: `${origin}/`, fetcher: site(), maxPages: 2 });
     expect(result.pages.length).toBe(2);
@@ -456,6 +471,75 @@ describe('website sync', () => {
     const after = await store.listKnowledgeSources(DEMO_TENANT.id);
     expect(after.map((s) => s.title).sort()).toEqual(['Northwind', 'Prices']);
     expect(after.find((s) => s.title === 'Prices')?.text).toContain('£12,900');
+  });
+
+  describe('a crawl that comes back with far less of the site', () => {
+    const topics = ['Panels', 'Batteries', 'Inverters', 'Warranty', 'Finance'];
+    const home = (links: boolean) =>
+      html(
+        'Northwind',
+        `<h1>Solar</h1><p>${links ? topics.map((t) => `<a href="/${t.toLowerCase()}">${t}</a>`).join(' ') : 'Welcome.'}</p>`,
+      );
+    function bigSite(): Record<string, { body: string }> {
+      const site: Record<string, { body: string }> = { [`${origin}/`]: { body: home(true) } };
+      for (const t of topics) {
+        site[`${origin}/${t.toLowerCase()}`] = {
+          body: html(t, `<h1>${t}</h1><p>All about ${t.toLowerCase()} from Northwind.</p>`),
+        };
+      }
+      return site;
+    }
+    async function syncAgain(app: FastifyInstance, connectionId: string) {
+      const again = await app.inject({
+        method: 'POST',
+        url: `/v1/knowledge/connections/${connectionId}/sync?tenantId=${DEMO_TENANT.id}`,
+        headers: auth,
+        payload: {},
+      });
+      return waitForJob(app, DEMO_TENANT.id, again.json<KnowledgeSyncResponse>().job.id);
+    }
+
+    it('fails a sync blocked by a check page and keeps every page', async () => {
+      const site = bigSite();
+      const { app, store } = await harness({ fetcher: fakeSite(site) });
+      const started = await connect(app, {
+        tenantId: DEMO_TENANT.id,
+        kind: 'website',
+        url: `${origin}/`,
+      });
+      expect((await waitForJob(app, DEMO_TENANT.id, started.body.job.id)).status).toBe('succeeded');
+      expect(await store.listKnowledgeSources(DEMO_TENANT.id)).toHaveLength(6);
+
+      for (const url of Object.keys(site)) {
+        site[url] = {
+          body: '<html><head><title>One moment, please...</title></head><body>Please wait</body></html>',
+        };
+      }
+      const blocked = await syncAgain(app, started.body.connection.id);
+      expect(blocked.status).toBe('failed');
+      expect(blocked.issues.map((i) => i.detail).join(' ')).toContain('bot protection');
+      const kept = await store.listKnowledgeSources(DEMO_TENANT.id);
+      expect(kept).toHaveLength(6);
+      expect(kept.map((s) => s.title)).not.toContain('One moment, please...');
+    });
+
+    it('keeps the pages when most of the site goes missing at once, and says so', async () => {
+      const site = bigSite();
+      const { app, store } = await harness({ fetcher: fakeSite(site) });
+      const started = await connect(app, {
+        tenantId: DEMO_TENANT.id,
+        kind: 'website',
+        url: `${origin}/`,
+      });
+      await waitForJob(app, DEMO_TENANT.id, started.body.job.id);
+
+      site[`${origin}/`] = { body: home(false) };
+      const second = await syncAgain(app, started.body.connection.id);
+      expect(second.status).toBe('succeeded');
+      expect(second.counts?.deleted).toBe(0);
+      expect(second.issues.map((i) => i.code)).toContain('removal-held');
+      expect(await store.listKnowledgeSources(DEMO_TENANT.id)).toHaveLength(6);
+    });
   });
 
   it("keeps one installer's crawled pages out of another's index", async () => {

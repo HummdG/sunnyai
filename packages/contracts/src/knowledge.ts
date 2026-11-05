@@ -39,6 +39,8 @@ export const KNOWLEDGE_ISSUE_CODES = [
   'robots-disallowed',
   /** A file type this pipeline does not read (images, spreadsheets, archives). */
   'unsupported-type',
+  /** Most of a site went missing in one crawl, so its pages were kept, not removed. */
+  'removal-held',
 ] as const;
 
 export type KnowledgeIssueCode = (typeof KNOWLEDGE_ISSUE_CODES)[number];

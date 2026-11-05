@@ -46,6 +46,8 @@ const STALE_LOCK_MS = 2 * 60 * 60 * 1000;
 const HEARTBEAT_MS = 60_000;
 /** A running sync quiet for this long has died: it no longer holds its connection. */
 export const STALE_JOB_MS = 10 * 60_000;
+/** A crawl may remove up to this many pages however small the site. */
+const MAX_SAFE_REMOVALS = 3;
 
 /** True when a queued or running job has stopped saving, so nothing is running it. */
 export function isStaleJob(
@@ -332,9 +334,21 @@ export function createKnowledgeSync(deps: KnowledgeSyncDeps) {
     // Pages that have gone from the site go from the index -- but only when the
     // crawl saw the whole site. A crawl cut short by the page cap, or one where
     // pages failed to load, has not proven anything is gone.
+    //
+    // Nor does a crawl that lost most of the site at once. That is far more
+    // often a firewall or a broken menu answering than a site that really
+    // shrank, and removing the pages would empty Sunny's knowledge of it.
     if (!crawl.truncated && crawl.failed.length === 0) {
-      for (const id of existing.keys()) {
-        if (!seen.has(id)) {
+      const gone = [...existing.keys()].filter((id) => !seen.has(id));
+      if (gone.length > MAX_SAFE_REMOVALS && gone.length > existing.size / 2) {
+        run.issue({
+          code: 'removal-held',
+          severity: 'warning',
+          message: `${gone.length} of ${existing.size} pages were not found on this crawl, so they were kept. If they really have gone from the site, disconnect and reconnect it.`,
+          detail: null,
+        });
+      } else {
+        for (const id of gone) {
           await store.deleteKnowledgeSource(connection.tenantId, id);
           run.counts.deleted += 1;
         }
