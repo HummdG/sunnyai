@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { assistantNameSchema, brandSchema } from './brand.js';
 
 /**
  * Tenant and widget identifiers.
@@ -52,6 +53,10 @@ export const widgetConfigSchema = z.object({
   turnstileSiteKey: z.string().min(1).max(200).optional(),
   /** The longest message the server accepts; the composer enforces the same. */
   maxInputChars: z.number().int().positive().max(4000).optional(),
+  /** What the assistant calls itself. Absent means Sunny. */
+  assistantName: assistantNameSchema.optional(),
+  /** The installer's logo in place of the Sunny character. Absent means Sunny. */
+  brand: brandSchema.optional(),
 });
 export type WidgetConfig = z.infer<typeof widgetConfigSchema>;
 
