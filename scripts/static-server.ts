@@ -129,8 +129,8 @@ export function serveStatic(options: StaticServerOptions): ReturnType<typeof cre
     // renders in the system stack, silently, with the failure visible only as a
     // console warning about CORS (D-48).
     //
-    // The widget's lazy modules too: `sunny-roof.js` and `sunny-voice.js` are
-    // loaded with `import()`, and a module import is a CORS request even though
+    // The widget's lazy module too: `sunny-roof.js` is loaded with `import()`,
+    // and a module import is a CORS request even though
     // the classic `<script src>` that loaded the widget was not.
     if (type.startsWith('font/') || /\/widget\/sunny-[a-z]+\.js$/.test(pathname)) {
       headers['access-control-allow-origin'] = '*';

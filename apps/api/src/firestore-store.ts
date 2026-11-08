@@ -209,7 +209,7 @@ export class FirestoreStore implements Store {
 
   /**
    * The client, for state that must be shared across API instances but is
-   * not a store record (voice concurrency leases, voice minute totals).
+   * not a store record (the ops ledger's counters).
    */
   get firestore(): Firestore {
     return this.#db;

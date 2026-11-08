@@ -18,17 +18,23 @@ import {
   tenantPath,
   type ConversationDetail,
   type EmailThread,
+  type Channel,
   type InboxRow,
 } from '../../../lib/portal-api.js';
 
-const CHANNEL_LABEL = { chat: 'Web chat', email: 'Email', voice: 'Voice' } as const;
+const CHANNEL_LABEL: Record<Channel, string> = { chat: 'Web chat', email: 'Email' };
 
-type Filter = 'all' | 'escalated' | 'sales' | 'support' | 'chat' | 'email' | 'voice';
+/** The label for a channel. The API sends chat or email; anything else reads as chat. */
+function channelLabel(channel: string): string {
+  return channel === 'email' ? CHANNEL_LABEL.email : CHANNEL_LABEL.chat;
+}
+
+type Filter = 'all' | 'escalated' | 'sales' | 'support' | 'chat' | 'email';
 
 function query(filter: Filter): string {
   if (filter === 'escalated') return '?escalated=1';
   if (filter === 'sales' || filter === 'support') return `?intent=${filter}`;
-  if (filter === 'chat' || filter === 'email' || filter === 'voice') return `?channel=${filter}`;
+  if (filter === 'chat' || filter === 'email') return `?channel=${filter}`;
   return '';
 }
 
@@ -143,14 +149,13 @@ function Inbox() {
     ['support', 'Support'],
     ['chat', 'Web chat'],
     ['email', 'Email'],
-    ['voice', 'Voice'],
   ];
 
   return (
     <>
       <PageHeader
         title="Inbox"
-        lead="Every conversation Sunny has had, across web chat, email and phone. Safety escalations are always first."
+        lead="Every conversation Sunny has had, across web chat and email. Safety escalations are always first."
       />
       <div className="pills" role="group" aria-label="Filter conversations">
         {filters.map(([key, label]) => (
@@ -197,7 +202,7 @@ function Inbox() {
                   >
                     <span className="thread-meta">
                       {row.escalation ? <Chip tone="danger">Safety escalation</Chip> : null}
-                      <Chip>{CHANNEL_LABEL[row.channel]}</Chip>
+                      <Chip>{channelLabel(row.channel)}</Chip>
                       {row.intent ? (
                         <Chip tone={row.intent === 'support' ? 'orange' : 'neutral'}>
                           {row.intent === 'support' ? 'Support' : 'Sales'}
@@ -213,7 +218,7 @@ function Inbox() {
             </ul>
           )}
         </div>
-        <Card title={detail ? `Conversation · ${CHANNEL_LABEL[detail.channel]}` : 'Conversation'}>
+        <Card title={detail ? `Conversation · ${channelLabel(detail.channel)}` : 'Conversation'}>
           {detail ? (
             <>
               {detail.escalation ? (

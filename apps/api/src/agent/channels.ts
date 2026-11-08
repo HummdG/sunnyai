@@ -8,12 +8,8 @@ import type { Tenant } from '../tenants.js';
  * knowledge base, one guardrail set -- and a per-channel adapter that decides
  * which tools the model may call and what shape its answer must take.
  */
-export const CHANNELS = ['chat', 'email', 'voice'] as const;
+export const CHANNELS = ['chat', 'email'] as const;
 export type Channel = (typeof CHANNELS)[number];
-
-/** The Blueprint §5 voice formatting rule, verbatim. */
-export const VOICE_OUTPUT_RULE =
-  'Respond in 1 to 2 concise spoken sentences (<40 words). Do not use markdown, bullet points, or raw URLs.';
 
 /** The footer every email reply carries (Blueprint §5 matrix: legal disclaimer footer). */
 export const EMAIL_DISCLAIMER_FOOTER =
@@ -64,11 +60,6 @@ export const CHANNEL_POLICIES: Readonly<Record<Channel, ChannelPolicy>> = {
     outputRule:
       'Format answers in short Markdown. When a sentence relies on a passage from <verified_context> or retrieve_knowledge, cite it with its marker, e.g. [S1].',
   },
-  voice: {
-    entitlements: ['voice_widget', 'phone_agent'],
-    tools: ['retrieve_knowledge', 'create_lead', 'transfer_to_human', 'send_sms_link'],
-    outputRule: VOICE_OUTPUT_RULE,
-  },
   email: {
     entitlements: ['email_assistant'],
     tools: ['retrieve_knowledge', 'create_lead', 'create_gmail_draft'],
@@ -99,30 +90,9 @@ export function assertEntitled(tenant: Tenant, channel: Channel): void {
  * Enforce a channel's output policy on the finished answer.
  *
  * The model is told the rule; this is what holds when it does not follow it.
- * Voice strips Markdown and links and keeps to the word limit, because a
- * synthesiser reading "asterisk asterisk" or a URL aloud is the failure the
- * rule exists for. Email gets the footer appended by the system, so a model
- * cannot leave it out.
+ * Email gets the footer appended by the system, so a model cannot leave it out.
  */
 export function finalizeOutput(channel: Channel, text: string): string {
-  if (channel === 'voice') return toSpokenText(text);
   if (channel === 'email') return `${text.trimEnd()}\n\n--\n${EMAIL_DISCLAIMER_FOOTER}`;
   return text;
-}
-
-const VOICE_WORD_LIMIT = 40;
-
-export function toSpokenText(text: string): string {
-  const plain = text
-    .replace(/\[S\d+\]/g, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/https?:\/\/\S+/g, '')
-    .replace(/[*_`#>]+/g, '')
-    .replace(/^\s*[-•]\s+/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const words = plain.split(' ').filter(Boolean);
-  if (words.length <= VOICE_WORD_LIMIT) return plain;
-  const cut = words.slice(0, VOICE_WORD_LIMIT).join(' ');
-  return /[.!?]$/.test(cut) ? cut : `${cut.replace(/[,;:]$/, '')}.`;
 }

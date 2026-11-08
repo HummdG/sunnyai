@@ -46,11 +46,11 @@ const nextConfig = {
    * `cache-control: public, max-age=0` with no CORS header at all, which is what
    * makes the block below worth its lines.
    *
-   * The lazy modules need the same header. The 3D roof and voice are fetched
-   * with `import()`, and a module import is a CORS request even though the
-   * classic `<script src>` that loaded the widget was not: without the header,
-   * "See your roof in 3D" did nothing on an installer's site and voice could not
-   * start, while both worked here, where everything is one origin.
+   * The lazy modules need the same header. The 3D roof is fetched with
+   * `import()`, and a module import is a CORS request even though the classic
+   * `<script src>` that loaded the widget was not: without the header, "See your
+   * roof in 3D" did nothing on an installer's site, while it worked here, where
+   * everything is one origin.
    */
   async headers() {
     return [

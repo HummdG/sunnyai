@@ -46,11 +46,9 @@ export const TOOL_NAMES = [
   'handoff_to_human',
   'suggest_page_action',
   // Blueprint §5 channel matrix. `estimate_savings` is the base package's
-  // non-binding savings estimate; the other three belong to the voice and email
-  // add-ons and refuse unless the add-on module registers them.
+  // non-binding savings estimate; `create_gmail_draft` belongs to the email
+  // add-on and refuses unless the add-on module registers it.
   'estimate_savings',
-  'transfer_to_human',
-  'send_sms_link',
   'create_gmail_draft',
   // The quote journey (apps/api/src/journey): roof → questionnaire → options.
   'get_quote_journey',

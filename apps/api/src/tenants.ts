@@ -32,8 +32,6 @@ export interface Tenant {
     supportContact?: SupportContact;
     /** Email Assistant add-on settings (Blueprint §5, Add-On 2). */
     email?: EmailChannelConfig;
-    /** Voice & Phone add-on settings (Blueprint §5, Add-On 1). */
-    voice?: VoiceChannelConfig;
   };
   /**
    * The installer's registered website domains (Blueprint §4.6). When set, a
@@ -91,20 +89,6 @@ export interface EmailChannelConfig {
   signatureName?: string;
 }
 
-export interface VoiceChannelConfig {
-  /** Twilio numbers assigned to this installer's phone receptionist (E.164). */
-  twilioNumbers?: string[];
-  voiceName?: string;
-  /** Longest call before a polite hand-off; the blueprint caps calls at 5 minutes. */
-  maxCallSeconds: number;
-  /** Simultaneous calls allowed. */
-  concurrency: number;
-  /** The booking link texted to callers (`send_sms_link`); falls back to `websiteUrl`. */
-  bookingUrl?: string;
-  /** What Sunny says when it answers a call: the AI disclosure. A default when unset. */
-  disclosure?: string;
-}
-
 export interface SyncState {
   status: 'pending' | 'syncing' | 'connected' | 'failed';
   at: string;
@@ -147,7 +131,6 @@ const DEMO_TENANT: Tenant = {
       'How do I get a survey?',
     ],
     intensity: 'balanced',
-    voiceEnabled: false,
   },
 };
 

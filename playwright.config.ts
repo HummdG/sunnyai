@@ -88,7 +88,6 @@ export default defineConfig({
         STRIPE_WEBHOOK_SECRET: E2E_STRIPE_WEBHOOK_SECRET,
         STRIPE_PRICE_BASE: 'price_e2e_base',
         STRIPE_PRICE_EMAIL: 'price_e2e_email',
-        STRIPE_PRICE_VOICE: 'price_e2e_voice',
         STRIPE_PRICE_SUITE: 'price_e2e_suite',
       },
       // Opt-in, and the reason is a failure that was measured rather than

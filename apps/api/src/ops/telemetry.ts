@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import type { VoiceUsageLedger } from '../channels/voice/usage.js';
 import type { Store } from '../store.js';
 import { dayKey, mergeCounts, type OpsDay, type OpsErrorEvent, type OpsLedger } from './ledger.js';
 
@@ -10,7 +9,7 @@ import { dayKey, mergeCounts, type OpsDay, type OpsErrorEvent, type OpsLedger } 
  *
  * ## Counted at the boundaries, not in the features
  *
- * Every chat, email and voice turn is written through `store.appendTurn`, every
+ * Every chat and email turn is written through `store.appendTurn`, every
  * lead through `store.saveLead`, every ingestion job and roof assessment through
  * their own `save`. So the counting happens there, in `instrumentStore`, rather
  * than in a line added to each feature: a channel added next quarter is counted
@@ -49,9 +48,6 @@ export const COUNTERS = [
   'escalations',
   /** New leads (a replayed submission is not counted again). */
   'leads',
-  /** Voice sessions and their seconds, `@web` or `@phone`. */
-  'voice_sessions',
-  'voice_seconds',
   /** Knowledge ingestion jobs that finished, `@upload|website|drive`. */
   'ingest_ok',
   'ingest_failed',
@@ -282,7 +278,7 @@ export const NO_TELEMETRY: Telemetry = {
  * methods and four of them are interesting; a hand-written delegate would be
  * four methods of meaning buried in a hundred of forwarding. Every method is
  * bound to the real store, so private fields and `instanceof FirestoreStore`
- * (which the voice and email add-ons use to find the database) still work.
+ * (which the email add-on and the ops ledger use to find the database) still work.
  *
  * Counting happens only after the write succeeded, and a counting mistake can
  * never fail the write: the counter calls touch nothing but memory.
@@ -346,24 +342,6 @@ export function instrumentStore<S extends Store>(store: S, telemetry: Telemetry)
         : value;
     },
   });
-}
-
-/** The voice minutes ledger, counting sessions and seconds as they are recorded. */
-export function instrumentVoiceUsage(
-  usage: VoiceUsageLedger,
-  telemetry: Telemetry,
-): VoiceUsageLedger {
-  return {
-    async record(entry) {
-      await usage.record(entry);
-      telemetry.count('voice_sessions', 1, { tenantId: entry.tenantId, dim: entry.kind });
-      telemetry.count('voice_seconds', entry.seconds, {
-        tenantId: entry.tenantId,
-        dim: entry.kind,
-      });
-    },
-    secondsThisMonth: (tenantId, now) => usage.secondsThisMonth(tenantId, now),
-  };
 }
 
 /** An error's `code` (`ETIMEDOUT`, an `ApiError` code) or class name. */

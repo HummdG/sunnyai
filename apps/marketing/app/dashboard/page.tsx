@@ -169,10 +169,6 @@ function OverviewPage() {
                     <th scope="row">Email</th>
                     <td>{overview.conversations.byChannel.email}</td>
                   </tr>
-                  <tr>
-                    <th scope="row">Voice &amp; phone</th>
-                    <td>{overview.conversations.byChannel.voice}</td>
-                  </tr>
                 </tbody>
               </table>
             </Card>

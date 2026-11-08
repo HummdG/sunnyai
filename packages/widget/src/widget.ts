@@ -23,7 +23,6 @@ import { el } from './dom.js';
 import { optionArt } from './quote-art.js';
 import { renderRich } from './rich.js';
 import type * as RoofModule from './roof.js';
-import type * as VoiceModule from './voice.js';
 import { declareFontFaces, preloadFontFaces, releaseFontFaces } from './fonts.js';
 import { styles } from './styles.js';
 import { turnstileToken } from './turnstile.js';
@@ -91,8 +90,6 @@ export class SunnyWidget {
   #sessionToken = '';
   #sessionId = '';
   #chat: ChatClient | null = null;
-  /** The voice add-on's controller while a voice session is open. */
-  #voice: { stop(): void } | null = null;
   #frameHandle: number | null = null;
   #launcherView!: SunnyView;
   #avatarView!: SunnyView;
@@ -435,62 +432,9 @@ export class SunnyWidget {
       // a visitor returning to a conversation sees the options they were given
       // rather than an empty panel beside a transcript that mentions them.
       void this.#loadOptions();
-      void this.#offerVoice();
     } catch {
       /* offline; the launcher still animates and the panel still opens */
     }
-  }
-
-  // ── voice (Voice & Phone add-on) ─────────────────────────────────────────
-
-  /**
-   * Show a microphone when the installer has the voice add-on. Everything else
-   * lives in `sunny-voice.js`, fetched from beside this script on first press,
-   * so a tenant without the add-on downloads none of it.
-   */
-  async #offerVoice(): Promise<void> {
-    const dir = this.#options.fontDirectoryUrl;
-    if (!dir || typeof AudioWorkletNode === 'undefined') return;
-    const id = encodeURIComponent(this.#options.publicId);
-    const caps = (await fetch(`${this.#options.apiUrl}/v1/voice/capabilities/${id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)) as { webVoice?: boolean } | null;
-    if (!caps?.webVoice) return;
-    const mic = el(
-      'button',
-      { class: 'mic', type: 'button', 'aria-label': 'Talk to Sunny', 'aria-pressed': 'false' },
-      ['🎙'],
-    );
-    mic.addEventListener('click', () => void this.#toggleVoice(mic, dir));
-    this.#send.before(mic);
-  }
-
-  async #toggleVoice(mic: HTMLElement, dir: string): Promise<void> {
-    if (this.#voice) return this.#voice.stop();
-    const url = new URL('sunny-voice.js', dir).href;
-    const voice = (await import(/* @vite-ignore */ url)) as typeof VoiceModule;
-    const now = (): number => performance.now();
-    mic.setAttribute('aria-pressed', 'true');
-    this.#voice = voice.mountVoice(this.#composer.parentElement!, {
-      apiUrl: this.#options.apiUrl,
-      token: this.#sessionToken,
-      companyName: this.#config?.companyName ?? 'the installer',
-      // The character reacts to voice exactly as it does to chat.
-      onState: (state) => {
-        if (state === 'connecting') this.#animator.dispatch({ type: 'attention' }, now());
-        if (state === 'speaking') this.#animator.dispatch({ type: 'speaking_started' }, now());
-        if (state === 'listening') this.#animator.dispatch({ type: 'turn_finished' }, now());
-      },
-      onCaption: (role, text, final) => {
-        if (!final || !text) return;
-        this.#appendTurn(role, text);
-        if (role === 'user') this.#animator.dispatch({ type: 'turn_started' }, now());
-      },
-      onEnd: () => {
-        this.#voice = null;
-        mic.setAttribute('aria-pressed', 'false');
-      },
-    });
   }
 
   // ── the option cards ─────────────────────────────────────────────────────
@@ -1453,7 +1397,6 @@ export class SunnyWidget {
   }
 
   destroy(): void {
-    this.#voice?.stop();
     if (this.#frameHandle !== null) cancelAnimationFrame(this.#frameHandle);
     this.#chat?.cancel();
     this.#clearOpenTimers();

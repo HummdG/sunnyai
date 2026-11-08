@@ -102,23 +102,6 @@ async function run() {
 
   const result = await build(options);
 
-  // The voice add-on, a separate ESM file the widget imports on first press of
-  // the microphone (src/voice.ts). Not counted against the widget's budget,
-  // because tenants without the add-on never download it.
-  const voiceResult = await build({
-    ...options,
-    entryPoints: [here('../src/voice.ts')],
-    outfile: `${outdir}/sunny-voice.js`,
-    format: 'esm',
-  });
-  const voiceFile = Object.keys(voiceResult.metafile.outputs).find((f) =>
-    f.endsWith('sunny-voice.js'),
-  );
-  const voiceJs = readFileSync(voiceFile);
-  console.log(
-    `widget: ${voiceFile} — ${(voiceJs.length / 1024).toFixed(1)} kB ` +
-      `(${(gzipSync(voiceJs).length / 1024).toFixed(1)} kB gzipped, loaded on demand)`,
-  );
   // The 3D roof view (src/roof.ts: SunScan's three.js viewer and the house
   // synthesis), a separate ESM file the widget imports only when a visitor
   // presses "See your roof in 3D". Not counted against the widget's budget.

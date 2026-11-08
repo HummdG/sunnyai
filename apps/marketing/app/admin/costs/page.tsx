@@ -12,7 +12,6 @@ import { compact, dayLabel, money, type AdminCosts } from '../../../lib/admin-ap
 const PLAN_NAMES: Record<string, string> = {
   base: 'Base',
   email: 'Email Assistant',
-  voice: 'Voice & Phone',
   suite: 'Full Suite',
   other: 'Other prices',
 };
@@ -175,51 +174,7 @@ export default function AdminCostsPage() {
           )}
 
           <h2 className="section-title">Providers</h2>
-          <div className="grid two">
-            <Card title="Twilio (phone)">
-              {!data.twilio.available ? (
-                <Unavailable reason={data.twilio.reason} />
-              ) : (
-                <>
-                  <p>
-                    <strong>{money(data.twilio.data.thisMonth, data.twilio.data.currency)}</strong>{' '}
-                    this month, {money(data.twilio.data.lastMonth, data.twilio.data.currency)} last
-                    month.
-                  </p>
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th scope="col">Category</th>
-                          <th scope="col" className="num">
-                            Usage
-                          </th>
-                          <th scope="col" className="num">
-                            Cost
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.twilio.data.byCategory.map((c) => (
-                          <tr key={c.category}>
-                            <td>{c.description}</td>
-                            <td className="num">
-                              {compact(c.usage)} {c.unit}
-                            </td>
-                            <td className="num">
-                              {money(
-                                c.price,
-                                data.twilio.available ? data.twilio.data.currency : null,
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </Card>
+          <div className="grid">
             <Card title="Postmark (quote emails)">
               {!data.postmark.available ? (
                 <Unavailable reason={data.postmark.reason} />
@@ -278,7 +233,7 @@ export default function AdminCostsPage() {
           <Card>
             <p className="muted small">
               Apportioned, not billed: the month’s actual Vertex AI spend split by each installer’s
-              share of tokens, and Twilio’s by phone minutes.
+              share of tokens.
             </p>
             {data.perTenant.rows.length === 0 ? (
               <p className="muted">No usage recorded this month yet.</p>
@@ -292,13 +247,7 @@ export default function AdminCostsPage() {
                         Tokens
                       </th>
                       <th scope="col" className="num">
-                        Voice minutes
-                      </th>
-                      <th scope="col" className="num">
                         Model cost
-                      </th>
-                      <th scope="col" className="num">
-                        Phone cost
                       </th>
                     </tr>
                   </thead>
@@ -311,9 +260,7 @@ export default function AdminCostsPage() {
                           </Link>
                         </td>
                         <td className="num">{compact(r.tokens)}</td>
-                        <td className="num">{compact(r.voiceMinutes)}</td>
                         <td className="num">{money(r.model, data.perTenant.modelCurrency)}</td>
-                        <td className="num">{money(r.phone, data.perTenant.phoneCurrency)}</td>
                       </tr>
                     ))}
                   </tbody>

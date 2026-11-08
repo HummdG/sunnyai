@@ -58,11 +58,10 @@ alert_email = "you@example.com"
 
 # Billing. Fill both Stripe secrets in Secret Manager first (see
 # `terraform output stripe_secret_ids`), then turn this on. Price ids are the
-# four monthly GBP prices: Base 199, Email 99, Voice 199, Full Suite 449.
+# three monthly GBP prices: Base 199, Email 99, Full Suite 449.
 stripe_enabled = false
 stripe_price_ids = {
   # base  = "price_..."
   # email = "price_..."
-  # voice = "price_..."
   # suite = "price_..."
 }

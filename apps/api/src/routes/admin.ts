@@ -14,7 +14,6 @@ import {
   type PostmarkSnapshot,
   type RevenueSnapshot,
   type Source,
-  type TwilioSnapshot,
 } from '../ops/sources.js';
 import {
   detectIssues,
@@ -90,7 +89,6 @@ export interface AdminOverview {
     turnsToday: number;
     turns7d: number;
     leads7d: number;
-    voiceMinutes7d: number;
     errorsToday: number;
     /** Model time-to-first-chunk p95 over 7 days, ms (a bucket bound), or null. */
     ttfbP95: number | null;
@@ -138,22 +136,18 @@ export interface TenantCost {
   tenantId: string;
   companyName: string;
   tokens: number;
-  voiceMinutes: number;
   /** This tenant's share of the month's Vertex AI spend, by tokens. */
   model: number | null;
-  /** This tenant's share of the month's Twilio spend, by phone minutes. */
-  phone: number | null;
 }
 
 export interface AdminCosts {
   month: string;
   budget: number | null;
   gcp: Source<BillingSnapshot>;
-  twilio: Source<TwilioSnapshot>;
   postmark: Source<PostmarkSnapshot>;
   stripe: Source<RevenueSnapshot>;
   /** Apportioned, not billed: actual spend split by each installer's usage. */
-  perTenant: { modelCurrency: string | null; phoneCurrency: string | null; rows: TenantCost[] };
+  perTenant: { modelCurrency: string | null; rows: TenantCost[] };
   /**
    * Revenue against the month's forecast cost, when every figure is in one
    * currency. Null with the reason otherwise; converting would need a rate
@@ -256,7 +250,6 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): void
         turnsToday: today.turns,
         turns7d: week.totals.turns,
         leads7d: week.totals.leads,
-        voiceMinutes7d: week.totals.voiceMinutes,
         errorsToday: today.errors,
         ttfbP95: week.totals.latency.ttfbP95,
       },
@@ -317,9 +310,8 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): void
   app.get('/v1/admin/costs', async (request): Promise<AdminCosts> => {
     await requireStaff(request);
     const t = now();
-    const [gcp, twilio, postmark, stripe, all] = await Promise.all([
+    const [gcp, postmark, stripe, all] = await Promise.all([
       sources.billing(),
-      sources.twilio(),
       sources.postmark(),
       sources.stripe(),
       rows(),
@@ -328,62 +320,52 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): void
       month: monthKeys(t).iso,
       budget: sources.monthlyBudget,
       gcp,
-      twilio,
       postmark,
       stripe,
-      perTenant: apportion(all, t, gcp, twilio),
-      margin: margin(t, gcp, twilio, postmark, stripe),
+      perTenant: apportion(all, t, gcp),
+      margin: margin(t, gcp, postmark, stripe),
     };
   });
 
-  /** Split the month's actual model and phone spend across installers by their usage. */
+  /** Split the month's actual model spend across installers by their usage. */
   function apportion(
     all: OpsDay[],
     t: number,
     gcp: Source<BillingSnapshot>,
-    twilio: Source<TwilioSnapshot>,
   ): AdminCosts['perTenant'] {
     const month = monthKeys(t).iso;
-    const usage = new Map<string, { tokens: number; seconds: number; phone: number }>();
+    const usage = new Map<string, number>();
     for (const r of all) {
       if (r.tenantId === null || !r.day.startsWith(month)) continue;
-      const u = usage.get(r.tenantId) ?? { tokens: 0, seconds: 0, phone: 0 };
-      u.tokens += counterTotal(r.counts, 'tokens_in') + counterTotal(r.counts, 'tokens_out');
-      u.seconds += counterTotal(r.counts, 'voice_seconds');
-      u.phone += r.counts['voice_seconds@phone'] ?? 0;
-      usage.set(r.tenantId, u);
+      usage.set(
+        r.tenantId,
+        (usage.get(r.tenantId) ?? 0) +
+          counterTotal(r.counts, 'tokens_in') +
+          counterTotal(r.counts, 'tokens_out'),
+      );
     }
-    const totalTokens = [...usage.values()].reduce((a, u) => a + u.tokens, 0);
-    const totalPhone = [...usage.values()].reduce((a, u) => a + u.phone, 0);
+    const totalTokens = [...usage.values()].reduce((a, u) => a + u, 0);
     const modelSpend = gcp.available
       ? gcp.data.byService
           .filter((s) => /vertex ai|gemini|generative language/i.test(s.service))
           .reduce((a, s) => a + s.monthToDate, 0)
       : null;
-    const phoneSpend = twilio.available ? twilio.data.thisMonth : null;
     const share = (spend: number | null, part: number, whole: number) =>
       spend === null || whole === 0 ? null : Math.round((spend * part * 100) / whole) / 100;
     return {
       modelCurrency: gcp.available ? gcp.data.currency : null,
-      phoneCurrency: twilio.available ? twilio.data.currency : null,
       rows: tenants.all
         .map((tenant) => {
-          const u = usage.get(tenant.id) ?? { tokens: 0, seconds: 0, phone: 0 };
+          const tokens = usage.get(tenant.id) ?? 0;
           return {
             tenantId: tenant.id,
             companyName: tenant.config.companyName,
-            tokens: u.tokens,
-            voiceMinutes: Math.round(u.seconds / 6) / 10,
-            model: share(modelSpend, u.tokens, totalTokens),
-            phone: share(phoneSpend, u.phone, totalPhone),
+            tokens,
+            model: share(modelSpend, tokens, totalTokens),
           };
         })
-        .filter((r) => r.tokens > 0 || r.voiceMinutes > 0)
-        .sort(
-          (a, b) =>
-            (b.model ?? 0) + (b.phone ?? 0) - ((a.model ?? 0) + (a.phone ?? 0)) ||
-            b.tokens - a.tokens,
-        ),
+        .filter((r) => r.tokens > 0)
+        .sort((a, b) => (b.model ?? 0) - (a.model ?? 0) || b.tokens - a.tokens),
     };
   }
 
@@ -474,8 +456,8 @@ function sourceView(
   billing: Source<BillingSnapshot>,
   monthlyBudget: number | null,
 ): Parameters<typeof sourceIssues>[0] {
-  // Only the two sources every deployment is expected to have. Twilio, Postmark
-  // and Stripe say on the Costs page when they are not connected; an add-on a
+  // Only the two sources every deployment is expected to have. Postmark and
+  // Stripe say on the Costs page when they are not connected; an add-on a
   // deployment does not sell is not an issue.
   const unavailable: Array<{ source: string; reason: string }> = [];
   if (!monitoring.available) {
@@ -526,7 +508,6 @@ export function healthSummary(monitoring: Source<MonitoringSnapshot>): HealthSum
 export function margin(
   t: number,
   gcp: Source<BillingSnapshot>,
-  twilio: Source<TwilioSnapshot>,
   postmark: Source<PostmarkSnapshot>,
   stripe: Source<RevenueSnapshot>,
 ): AdminCosts['margin'] {
@@ -541,13 +522,6 @@ export function margin(
   const parts: Array<{ name: string; currency: string; cost: number }> = [
     { name: 'Google Cloud', currency: gcp.data.currency, cost: gcp.data.forecast },
   ];
-  if (twilio.available) {
-    parts.push({
-      name: 'Twilio',
-      currency: twilio.data.currency,
-      cost: twilio.data.thisMonth / elapsed,
-    });
-  }
   if (postmark.available && postmark.data.costFromPlanRate !== null) {
     // The plan rate is configured in the revenue currency (OPS_POSTMARK_PRICE_PER_1K).
     parts.push({ name: 'Postmark', currency, cost: postmark.data.costFromPlanRate / elapsed });

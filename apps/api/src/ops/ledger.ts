@@ -135,8 +135,7 @@ export class MemoryOpsLedger implements OpsLedger {
 
 /**
  * Development and single-instance: one JSON file of counters and a JSONL of
- * errors under the API's data directory, like the voice minutes ledger.
- * Writes are serialised in-process; two processes sharing a directory is not a
+ * errors under the API's data directory. Writes are serialised in-process; two processes sharing a directory is not a
  * configuration this supports.
  */
 export class FileOpsLedger implements OpsLedger {

@@ -538,7 +538,7 @@
   color: var(--sheet);
 }
 
-/* Four plans side by side where they fit, two by two where they do not. */
+/* The plans side by side where they fit, stacked where they do not. */
 .site .plans {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }

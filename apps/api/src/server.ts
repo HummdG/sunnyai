@@ -69,12 +69,10 @@ import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './session
 import { newId, type DeletedConversation, type ModelCall, type Store } from './store.js';
 import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
-import { FileVoiceUsage } from './channels/voice/usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
 import type { SunScanService } from '@sunny/sunscan-adapter';
-import { registerVoiceRoutes, type VoiceRouteDeps } from './routes/voice.js';
 import {
   createDefaultSunScan,
   registerSunScanRoutes,
@@ -121,9 +119,9 @@ export interface ServerDeps {
   /** Defaults to the unconfigured provider when no key is set. */
   provider?: ChatProvider;
   /**
-   * The website chat's assistant, when it differs from the one email and voice
-   * use: the scripted demo (SUNNY_DEMO_CHAT) answers the widget instantly while
-   * email replies keep the model.
+   * The website chat's assistant, when it differs from the one email uses: the
+   * scripted demo (SUNNY_DEMO_CHAT) answers the widget instantly while email
+   * replies keep the model.
    */
   chatProvider?: ChatProvider;
   /** Injected so tests can drive the clock and read bucket counts. */
@@ -135,8 +133,6 @@ export interface ServerDeps {
   portal?: PortalConfig;
   /** How the portal starts knowledge syncs (provided by the ingestion pipeline). */
   knowledgeSync?: KnowledgeSyncConnector;
-  /** Voice & Phone add-on overrides (Live connector, Twilio fetch, clocks); injected by tests. */
-  voice?: Partial<VoiceRouteDeps>;
   /** Turnstile's siteverify transport; injected by tests. */
   turnstileFetch?: typeof fetch;
   /**
@@ -2065,21 +2061,6 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     mailer: deps.proposalMailer !== undefined ? deps.proposalMailer : mailerFromEnv(process.env),
   });
 
-  // The Voice & Phone add-on (routes/voice.ts).
-  registerVoiceRoutes(app, {
-    store,
-    tenants,
-    sessionSecret: config.sessionSecret,
-    allowedOrigins: config.allowedOrigins,
-    originOnDomains,
-    loadKnowledgeIndex,
-    dataDir: config.dataDir,
-    adminToken: config.adminToken,
-    auditor,
-    telemetry,
-    ...deps.voice,
-  });
-
   // The installer portal and billing (routes/portal.ts).
   registerPortalRoutes(app, {
     store,
@@ -2088,7 +2069,6 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     sessionSecret: config.sessionSecret,
     now,
     knowledgeSync: deps.knowledgeSync ?? knowledgePipeline.connector,
-    voiceUsage: deps.voice?.usage ?? new FileVoiceUsage(config.dataDir),
     sunscan,
   });
 

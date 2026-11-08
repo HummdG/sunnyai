@@ -1,5 +1,4 @@
 import type { Tenant } from '../tenants.js';
-import type { Channel } from './channels.js';
 
 /**
  * Post-install customer support (owner's `Knowledge Base.pdf`, fixture at
@@ -61,15 +60,8 @@ export function supportLine(tenant: Tenant): string {
   return `I'm unable to help with this issue, please reach out on ${phone}${hours} for further assistance.`;
 }
 
-/**
- * The fixed safety reply (§13 "Safety concerns"). Never model-written. Voice
- * gets a shorter form because the voice channel's 40-word rule would otherwise
- * cut the instruction that matters.
- */
-export function safetyResponse(tenant: Tenant, channel: Channel): string {
-  if (channel === 'voice') {
-    return "That could be a safety issue. Please don't touch or restart the equipment and keep away from it. If anyone is in danger, call 999 now.";
-  }
+/** The fixed safety reply (§13 "Safety concerns"). Never model-written. */
+export function safetyResponse(tenant: Tenant): string {
   return [
     'This sounds like it could be a safety issue.',
     "Please don't try to troubleshoot, switch off or restart the equipment yourself, and keep away from it.",

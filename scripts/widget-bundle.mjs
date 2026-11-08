@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 const BUNDLE = fileURLToPath(new URL('../packages/widget/dist/sunny-widget.js', import.meta.url));
 const FONTS = fileURLToPath(new URL('../packages/widget/dist/fonts', import.meta.url));
 /** Loaded on demand from beside `sunny-widget.js`, so they travel with it. */
-const LAZY_PARTS = ['sunny-roof.js', 'sunny-voice.js'];
+const LAZY_PARTS = ['sunny-roof.js'];
 
 /**
  * Copy both artefacts into `targetDir`, which becomes the widget's directory.
@@ -50,8 +50,8 @@ export function copyWidgetBundle(targetDir, label) {
   console.log(`${label}: copied the widget bundle to ${targetDir}`);
 
   // The parts the widget loads only when they are needed, from beside its own
-  // script: the 3D roof and the voice call. Missing them is silent in the page
-  // (the button simply does nothing), so a missing one fails the build here.
+  // script: the 3D roof. Missing it is silent in the page (the button simply
+  // does nothing), so a missing one fails the build here.
   for (const name of LAZY_PARTS) {
     const from = fileURLToPath(new URL(`../packages/widget/dist/${name}`, import.meta.url));
     if (!existsSync(from)) {
@@ -61,7 +61,7 @@ export function copyWidgetBundle(targetDir, label) {
     }
     copyFileSync(from, `${targetDir}/${name}`);
   }
-  console.log(`${label}: copied ${LAZY_PARTS.join(' and ')}`);
+  console.log(`${label}: copied ${LAZY_PARTS.join(', ')}`);
 
   if (!existsSync(FONTS)) {
     console.error(

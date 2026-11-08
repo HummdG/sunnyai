@@ -13,7 +13,6 @@ import {
   createMonitoringSource,
   createPostmarkSource,
   createStripeSource,
-  createTwilioSource,
   hourStarts,
   loadOpsConfig,
 } from '../src/ops/sources.js';
@@ -391,7 +390,6 @@ describe('the outside sources', () => {
     runServices: ['sunny-api-test'],
     billingTable: 'sunny-test.billing.gcp_billing_export_v1_X',
     monthlyBudget: 100,
-    twilio: { accountSid: 'AC1', authToken: 'tok' },
     postmark: { serverToken: 'pm', pricePer1k: 1.25 },
     stripeSecretKey: 'sk_test',
     stripePrices: { base: 'price_base' },
@@ -442,14 +440,14 @@ describe('the outside sources', () => {
       calls += 1;
       return json({ message: 'Authenticate' }, 401);
     };
-    const read = createTwilioSource({ config, fetch: down, now: () => NOW });
+    const read = createPostmarkSource({ config, fetch: down, now: () => NOW });
     expect(await read()).toEqual({
       available: false,
-      reason: 'Twilio refused the request: Authenticate',
+      reason: 'Postmark refused the request: Authenticate',
     });
     await read();
-    // Two periods per read, read twice: the failure was not cached.
-    expect(calls).toBe(4);
+    // One request per read, read twice: the failure was not cached.
+    expect(calls).toBe(2);
   });
 
   it('turns Stripe subscriptions into monthly revenue by plan', async () => {

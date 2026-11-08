@@ -44,8 +44,6 @@ export const widgetConfigSchema = z.object({
   suggestions: z.array(z.string().min(1).max(120)).max(6),
   /** Animation intensity the tenant has chosen. */
   intensity: z.enum(['off', 'minimal', 'balanced', 'playful']),
-  /** Whether the tenant has an entitlement for voice input. */
-  voiceEnabled: z.boolean(),
   /**
    * The Cloudflare Turnstile site key, present only when the deployment
    * verifies sessions with Turnstile. The widget loads Turnstile's script only

@@ -50,7 +50,6 @@ const OTHER_TENANT: Tenant = {
     greeting: 'Hello.',
     suggestions: [],
     intensity: 'balanced',
-    voiceEnabled: false,
   },
 };
 
