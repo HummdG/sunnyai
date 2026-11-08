@@ -668,6 +668,44 @@ test('says so when the 3D roof cannot load, and loads it when asked again', asyn
   await expect(note).toHaveCount(0);
 });
 
+test('takes the whole screen on a phone, and the × gives the page back', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const launcher = page.locator(HOST).locator(LAUNCHER);
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  await page.waitForTimeout(600); // the opening has finished
+
+  const p = (await panel.boundingBox())!;
+  expect(p.x).toBeCloseTo(0, 0);
+  expect(p.y).toBeCloseTo(0, 0);
+  expect(p.width).toBeCloseTo(390, 0);
+  expect(p.height).toBeCloseTo(844, 0);
+  await expect(launcher).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('hidden');
+
+  const close = panel.getByRole('button', { name: 'Close the assistant' });
+  const c = (await close.boundingBox())!;
+  expect(c.width).toBeGreaterThanOrEqual(44);
+  await close.click();
+  await expect(panel).toBeHidden();
+  await expect(launcher).toBeVisible();
+  const l = (await launcher.boundingBox())!;
+  expect(l.x + l.width).toBeLessThanOrEqual(390 - 12 + 1);
+  expect(l.y + l.height).toBeLessThanOrEqual(844 - 12 + 1);
+  expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('');
+});
+
+test('stays a floating card beside the launcher on a desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await openWidget(page);
+  await page.waitForTimeout(600);
+  const p = (await page.locator(HOST).locator(PANEL).boundingBox())!;
+  expect(p.width).toBeLessThanOrEqual(440);
+  expect(p.x).toBeGreaterThan(0);
+  await expect(page.locator(HOST).locator(LAUNCHER)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('');
+});
+
 for (const [w, h] of [
   [1280, 720],
   [1440, 900],

@@ -94,6 +94,20 @@ describe('the widget stylesheet and the device cutout', () => {
     // count above already holds -- and is the whole point of narrowing the
     // gutter through a custom property instead of restating the shorthands.
   });
+
+  it('opens full screen on a phone, with the cutout moved inside the panel', () => {
+    const phone = css.slice(css.indexOf('@media (max-width: 640px)'));
+    expect(phone).toContain(':host([data-open])');
+    // pinned like the corners, so a page builder cannot take it back (D-36)
+    for (const edge of ['left: 0 !important', 'right: 0 !important']) {
+      expect(phone).toContain(edge);
+    }
+    expect(phone).toContain('top: var(--sunny-vvt, 0px) !important');
+    expect(phone).toContain('height: var(--sunny-vvh, 100dvh) !important');
+    // with no gutter round it, the panel's own padding is what clears the cutout
+    expect(phone).toContain('calc(10px + var(--sunny-safe-top))');
+    expect(phone).toContain('padding-bottom: var(--sunny-safe-bottom)');
+  });
 });
 
 /**

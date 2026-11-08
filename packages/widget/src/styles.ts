@@ -40,6 +40,49 @@ import { FONT_STACK } from '@sunny/ui';
  */
 export const VERIFIED_PRICE_INK = '#0f6b3f';
 
+/**
+ * Full screen on a phone. A floating card on a phone leaves a strip of the page
+ * round a chat too small to read, so while it is open the widget takes the whole
+ * screen and the header's × is the way back. `data-open` is set by widget.ts for
+ * as long as the panel is on screen, the closing animation included.
+ *
+ * Kept out of the sheet's own comments because CSS comments ship in the bundle,
+ * and the bundle has a size budget.
+ *
+ * - Everything but the host and the panel itself is unprefixed: the panel is
+ *   only on screen while open, and `:host([data-open]) .panel` outranks the
+ *   roof and quote widths.
+ * - The host is pinned with the four longhands rather than `inset`: this is the
+ *   one rule that is not a corner, so it has no gutter, and the cutout moves
+ *   inside the panel (header, composer and panel padding) instead of round it.
+ *   `!important` for the same reason as the corners (D-36). With a height set
+ *   the corner's `bottom` is ignored, and `left` and `right` give the width.
+ * - Top and height follow the visible viewport, which widget.ts writes into
+ *   `--sunny-vvt` and `--sunny-vvh` so the message box stays above an on-screen
+ *   keyboard (iOS both shrinks and scrolls the visual viewport for one);
+ *   `100dvh` covers a browser without `visualViewport`.
+ * - The bottom cutout is padding on the panel, not the footnote, because the
+ *   footnote waits for the config.
+ * - The close button is a 44 px tap target, and the composer is 16 px, under which iOS zooms the whole page in when the box takes focus.
+ */
+const PHONE_FULL_SCREEN = `
+@media (max-width: 640px) {
+  :host([data-open]) {
+    top: var(--sunny-vvt, 0px) !important; right: 0 !important; left: 0 !important;
+    height: var(--sunny-vvh, 100dvh) !important;
+  }
+  :host([data-open]) .sunny-root { height: 100%; }
+  :host([data-open]) .panel { width: 100%; height: 100%; border-radius: 0; border: 0;
+    box-shadow: none; padding-bottom: var(--sunny-safe-bottom); }
+  :host([data-open]) .launcher, :host([data-open]) .fizz { display: none; }
+  .header { padding: calc(10px + var(--sunny-safe-top)) calc(10px + var(--sunny-safe-right))
+    10px calc(14px + var(--sunny-safe-left)); }
+  .header button { width: 44px; height: 44px; flex: 0 0 44px; font-size: 30px; color: var(--sunny-ink); }
+  .composer { padding-left: calc(12px + var(--sunny-safe-left)); padding-right: calc(12px + var(--sunny-safe-right)); }
+  .composer textarea { font-size: 16px; }
+}
+`;
+
 export function styles(): string {
   return `
 :host {
@@ -626,16 +669,11 @@ export function styles(): string {
     --sunny-gutter-x: 12px;
     --sunny-gutter-y: 12px;
   }
-  .panel, .panel.roof-open, .panel.quote-wide {
-    width: calc(100vw - 24px - var(--sunny-safe-left) - var(--sunny-safe-right));
-    height: min(70vh, 520px);
-  }
-  /* a phone has no room to grow into: the roof takes a third and the chat keeps the rest */
-  .panel.roof-open, .panel.quote-wide { height: min(86vh, 760px); }
   .roof-view.compact .roof-stage { height: 72px; }
   .roof-stage { height: 28vh; }
   .launcher { width: 60px; height: 60px; }
 }
+${PHONE_FULL_SCREEN}
 `;
 }
 

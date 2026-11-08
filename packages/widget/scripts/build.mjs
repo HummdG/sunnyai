@@ -86,7 +86,9 @@ const options = {
 
 // 61 kB since formatted replies (src/rich.ts, 2026-10-27): the widget sat at
 // exactly 60.0 kB and the formatter is ~0.5 kB. Win it back, then lower this.
-const SIZE_BUDGET_BYTES = 61 * 1024;
+// 62 kB since full screen on a phone (2026-11-08): the widget sat at 60.7 kB and
+// the phone rules and visual-viewport tracking are ~0.3 kB.
+const SIZE_BUDGET_BYTES = 62 * 1024;
 
 async function run() {
   copyFonts();

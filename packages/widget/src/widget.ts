@@ -101,6 +101,8 @@ export class SunnyWidget {
   #openTimers: number[] = [];
   #lastFrameAt = 0;
   #open = false;
+  /** Undoes what opening full screen did to the page, while the panel is full screen. */
+  #leaveFullScreen: (() => void) | null = null;
   #pending = false;
   #currentTurn: HTMLElement | null = null;
   /** The raw reply behind each streamed assistant bubble (it shows formatted). */
@@ -614,6 +616,8 @@ export class SunnyWidget {
     if (this.#open) return;
     this.#open = true;
     this.#clearOpenTimers();
+    this.#host.toggleAttribute('data-open', true);
+    this.#enterFullScreen();
     this.#panel.hidden = false;
     this.#panel.classList.remove('closing', 'settled');
     this.#launcher.setAttribute('aria-expanded', 'true');
@@ -669,9 +673,46 @@ export class SunnyWidget {
       if (!this.#open) {
         this.#panel.hidden = true;
         this.#panel.classList.remove('closing', 'opening', 'settled');
+        // Only now, so the exit plays full screen rather than in the corner.
+        this.#host.toggleAttribute('data-open', false);
+        this.#leaveFullScreen?.();
+        this.#leaveFullScreen = null;
       }
     }, 180);
     this.#launcher.focus();
+  }
+
+  /**
+   * On a phone the open panel is the whole screen (styles.ts), and two things
+   * CSS cannot do alone go with it. The page behind stops scrolling, so a swipe
+   * past the end of the transcript does not move the site underneath. And the
+   * panel's height follows the *visible* viewport, so the message box rides above
+   * the on-screen keyboard instead of under it, which is where iOS leaves a
+   * fixed element sized to the layout viewport.
+   */
+  #enterFullScreen(): void {
+    if (this.#leaveFullScreen || !isPhone()) return;
+    const page = document.documentElement;
+    const overflow = page.style.overflow;
+    page.style.overflow = 'hidden';
+
+    const viewport = window.visualViewport;
+    const fit = () => {
+      if (!viewport) return;
+      this.#host.style.setProperty('--sunny-vvh', `${viewport.height}px`);
+      this.#host.style.setProperty('--sunny-vvt', `${viewport.offsetTop}px`);
+    };
+    fit();
+    viewport?.addEventListener('resize', fit);
+    viewport?.addEventListener('scroll', fit);
+
+    this.#leaveFullScreen = () => {
+      page.style.overflow = overflow;
+      viewport?.removeEventListener('resize', fit);
+      viewport?.removeEventListener('scroll', fit);
+      this.#host.style.removeProperty('--sunny-vvh');
+      this.#host.style.removeProperty('--sunny-vvt');
+    };
   }
 
   #clearOpenTimers(): void {
@@ -1416,6 +1457,9 @@ export class SunnyWidget {
     if (this.#frameHandle !== null) cancelAnimationFrame(this.#frameHandle);
     this.#chat?.cancel();
     this.#clearOpenTimers();
+    this.#leaveFullScreen?.();
+    this.#leaveFullScreen = null;
+    this.#host.toggleAttribute('data-open', false);
     this.#root.replaceChildren();
     // The faces went into the *document's* font set, so clearing the shadow root
     // is not enough: without this a page that mounts and unmounts the widget
@@ -1464,6 +1508,11 @@ interface RoofSummary {
   bestFacing: string | null;
   reliable: boolean;
   label: string;
+}
+
+/** A screen narrow enough that the open panel is full screen; the breakpoint in styles.ts. */
+function isPhone(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
 }
 
 function prefersReducedMotion(): boolean {
