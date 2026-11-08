@@ -20,6 +20,7 @@ import {
   CitationLedger,
   lexicalSearch,
   safeLink,
+  withWholePage,
   type PassageSearch,
 } from './retrieval.js';
 import { rewriteQueries, searchAll } from './query-rewrite.js';
@@ -209,7 +210,11 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
         )
       : [];
   const contextPassages = ledger.add(
-    await searchAll(search, knowledgeIndex, [input.message, ...rewrites], CONTEXT_PASSAGES),
+    withWholePage(
+      knowledgeIndex,
+      await searchAll(search, knowledgeIndex, [input.message, ...rewrites], CONTEXT_PASSAGES),
+      input.message,
+    ),
   );
 
   const events: ToolEvent[] = [];
