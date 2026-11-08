@@ -210,7 +210,7 @@ export function accountEmailBodies(
 <tr><td style="padding:8px 28px 0;font-size:20px;font-weight:bold;color:#1f1f1f">${escapeHtml(content.heading)}</td></tr>
 <tr><td style="padding:12px 28px 0;font-size:15px;line-height:1.5">${escapeHtml(content.intro)}</td></tr>
 <tr><td style="padding:24px 28px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#e0701a;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 22px;border-radius:8px">${escapeHtml(content.button)}</a></td></tr>
-<tr><td style="padding:0 28px;font-size:13px;line-height:1.5;color:#666666">Or paste this link into your browser:<br><a href="${escapeHtml(link)}" style="color:#e0701a;word-break:break-all">${escapeHtml(link)}</a></td></tr>
+<tr><td style="padding:0 28px;font-size:12px;line-height:1.5;color:#8a8a8a">Button not working? Copy this link into your browser:<br><a href="${escapeHtml(link)}" style="color:#a8a8a8;font-size:11px;text-decoration:none;word-break:break-all">${escapeHtml(link)}</a></td></tr>
 <tr><td style="padding:20px 28px 28px;font-size:13px;line-height:1.5;color:#666666">${escapeHtml(content.outro)}<br><br>The HeySunny team</td></tr>
 </table>
 </td></tr></table></body></html>`;
