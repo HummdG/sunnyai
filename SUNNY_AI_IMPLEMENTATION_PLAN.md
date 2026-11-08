@@ -4,6 +4,8 @@
 **Version:** 1.0 | **Date:** 10 October 2026  
 **Audience:** Autonomous coding agents and engineers with access to the Sunny.ai workspace, mascot assets, architecture blueprint and SunScan repository.
 
+> **Scope change (8 November 2026):** the owner dropped voice. Sunny supports the web chat and the email assistant only; the voice and telephone work below (Gemini Live, the phone receptionist, the widget's voice mode) was built and then removed, and is kept here as the original plan, not as scope.
+
 > **Agent operating contract:** This is a build plan, not a request to produce another plan. First inspect the actual repositories and assets, record discrepancies, and then execute phases in order. Implement, test, commit and document working increments. Never mark a feature complete on the strength of a mock-up. Do not invent SunScan APIs, Google product capabilities, pricing or credentials. Ask for approval only at genuine external/account/billing/destructive boundaries; otherwise make documented decisions and proceed.
 
 ## 1. Product outcome and non-negotiables

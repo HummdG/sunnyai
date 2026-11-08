@@ -16,7 +16,7 @@ export const metadata: Metadata = pageMetadata({
 const CONTENTS = [
   ['who-we-are', 'Who we are'],
   ['two-roles', 'Two kinds of people, two roles'],
-  ['visitors', 'If you talk to Sunny on an installer’s website or phone line'],
+  ['visitors', 'If you talk to Sunny on an installer’s website or by email'],
   ['installers', 'If you are an installer using Sunny'],
   ['our-website', 'If you visit our website'],
   ['lawful-bases', 'Our lawful bases'],
@@ -71,11 +71,10 @@ export default function PrivacyPage(): React.JSX.Element {
           <ul>
             <li>
               <strong>Homeowners and other visitors</strong> who chat with Sunny on a solar
-              installer’s website, email the installer, or call the installer’s phone line. Here the
-              installer decides why and how your information is used, so the installer is the{' '}
-              <strong>controller</strong>. We are the installer’s <strong>processor</strong>: we
-              handle your information on their behalf and only on their instructions, under a
-              written contract (our terms of service).
+              installer’s website or email the installer. Here the installer decides why and how
+              your information is used, so the installer is the <strong>controller</strong>. We are
+              the installer’s <strong>processor</strong>: we handle your information on their behalf
+              and only on their instructions, under a written contract (our terms of service).
             </li>
             <li>
               <strong>Installers and their staff</strong> who use Sunny, and people who visit this
@@ -83,17 +82,17 @@ export default function PrivacyPage(): React.JSX.Element {
             </li>
           </ul>
           <p>
-            If you talked to Sunny on an installer’s website or phone line, the installer’s own
+            If you talked to Sunny on an installer’s website or by email, the installer’s own
             privacy notice applies too, and the installer is the first place to go with questions or
             requests about your information. We will help them answer.
           </p>
 
-          <h2 id="visitors">3. If you talk to Sunny on an installer’s website or phone line</h2>
+          <h2 id="visitors">3. If you talk to Sunny on an installer’s website or by email</h2>
           <h3>What we collect</h3>
           <ul>
             <li>
-              <strong>The conversation.</strong> What you write or say to Sunny and what Sunny
-              replies, with the time of each message and whether it was chat, email or a call.
+              <strong>The conversation.</strong> What you write to Sunny and what Sunny replies,
+              with the time of each message and whether it was chat or email.
             </li>
             <li>
               <strong>Your answers about your home and energy use</strong>, if you ask for an
@@ -115,14 +114,6 @@ export default function PrivacyPage(): React.JSX.Element {
             <li>
               <strong>Your email address</strong>, if you ask Sunny to email you your quote, which
               you confirm by ticking a box first.
-            </li>
-            <li>
-              <strong>Voice.</strong> If you speak to Sunny using the microphone on a website, only
-              after you agree, your speech is sent to our AI provider so Sunny can reply, and a
-              written transcript is kept. If you phone an installer whose line Sunny answers, you
-              are told at the start of the call that you are speaking to an AI assistant and that
-              the call may be transcribed. We keep a transcript and your phone number. We do not
-              keep a recording of the audio.
             </li>
             <li>
               <strong>Email.</strong> If you email an installer who uses Sunny’s email assistant,
@@ -311,11 +302,6 @@ export default function PrivacyPage(): React.JSX.Element {
                 'Email addresses and email content',
               ],
               [
-                'Twilio',
-                'Phone calls and text messages, for the voice add-on',
-                'Phone numbers and the call’s audio while it happens',
-              ],
-              [
                 'Cloudflare Turnstile',
                 'Spam protection, if the installer turns it on',
                 'IP address and browser information',
@@ -337,10 +323,10 @@ export default function PrivacyPage(): React.JSX.Element {
           <p>
             Sunny’s database is in London. Some providers above may process information in other
             countries, including the European Economic Area and the United States: in particular the
-            AI provider, Stripe, Postmark, Twilio, Cloudflare and some map services. Where
-            information leaves the UK, we rely on the safeguards UK law requires, such as UK
-            adequacy regulations (including the UK Extension to the EU-US Data Privacy Framework) or
-            the UK International Data Transfer Agreement or Addendum. You can ask us for details.
+            AI provider, Stripe, Postmark, Cloudflare and some map services. Where information
+            leaves the UK, we rely on the safeguards UK law requires, such as UK adequacy
+            regulations (including the UK Extension to the EU-US Data Privacy Framework) or the UK
+            International Data Transfer Agreement or Addendum. You can ask us for details.
           </p>
 
           <h2 id="retention">9. How long we keep information</h2>
@@ -421,7 +407,7 @@ export default function PrivacyPage(): React.JSX.Element {
             <li>withdraw consent at any time, where we rely on it.</li>
           </ul>
           <p>
-            If you talked to Sunny on an installer’s website or phone line, please contact that
+            If you talked to Sunny on an installer’s website or by email, please contact that
             installer, as they control your information; we will help them. Otherwise, contact us at{' '}
             {LEGAL.contactEmail}. We will reply within one month. There is normally no charge.
           </p>

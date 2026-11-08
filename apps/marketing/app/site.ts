@@ -26,7 +26,8 @@ export interface Plan {
 
 /**
  * Packages and prices from the Blueprint (§6.3, "SaaS Pricing & Profit Margin
- * Summary"): the web chat is the base package and email and voice are add-ons.
+ * Summary"): the web chat is the base package and email is the add-on. The
+ * Blueprint's voice add-on is not sold: the owner dropped it (2026-11-08).
  *
  * The owner confirmed the figures (2026-10-20) and that they are in pounds:
  * Sunny sells to UK installers. The Stripe price ids the portal charges
@@ -71,26 +72,10 @@ export const PLANS: readonly Plan[] = [
     ],
   },
   {
-    name: 'Voice & Phone',
-    monthly: 199,
-    summary: 'Add-on to Base: speak to Sunny on your site, and on the phone.',
-    features: [
-      'Microphone in the website chat',
-      'AI phone receptionist, 24/7',
-      'Includes 500 call minutes',
-      'Hands over to your team',
-    ],
-  },
-  {
     name: 'Full Suite',
     monthly: 449,
-    summary: 'Chat, email and voice together, on one knowledge base.',
-    features: [
-      'Everything in Base',
-      'Email Assistant',
-      'Voice & Phone',
-      'One inbox for every channel',
-    ],
+    summary: 'Web chat and email together, on one knowledge base.',
+    features: ['Everything in Base', 'Email Assistant', 'One inbox for chat and email'],
   },
 ];
 
@@ -111,5 +96,5 @@ export const LEGAL = {
   contactEmail: '[Contact email address]',
   icoNumber: '[ICO registration number]',
   /** The date both pages say they were last updated. */
-  updated: '21 October 2026',
+  updated: '8 November 2026',
 } as const;

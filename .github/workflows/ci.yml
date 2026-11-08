@@ -167,8 +167,8 @@ jobs:
       - name: Install
         run: npm ci
 
-      # The store contract plus the cross-instance state suites (voice
-      # concurrency leases and minutes, the email auto-reply cap).
+      # The store contract plus the cross-instance state suite (the email
+      # auto-reply cap).
       - name: Firestore store contract and shared state
         run: npm run test:firestore
 

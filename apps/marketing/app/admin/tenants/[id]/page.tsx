@@ -84,7 +84,6 @@ export default function AdminTenantPage() {
               value={compact(data.models.inputTokens + data.models.outputTokens)}
               hint={`${compact(data.models.calls)} model calls`}
             />
-            <Tile label="Voice minutes, 30 days" value={compact(data.totals.voiceMinutes)} />
             <Tile
               label="Errors, 30 days"
               value={compact(data.totals.errors)}

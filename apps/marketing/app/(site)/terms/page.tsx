@@ -21,7 +21,6 @@ const CONTENTS = [
   ['your-website', 'Using Sunny with your customers'],
   ['estimates', 'Estimates and AI answers'],
   ['email', 'The email assistant'],
-  ['voice', 'Voice and phone'],
   ['acceptable-use', 'Acceptable use'],
   ['content', 'Your content and ours'],
   ['data', 'Data protection and processing'],
@@ -70,8 +69,8 @@ export default function TermsPage(): React.JSX.Element {
             In these terms, <strong>Sunny</strong> or the <strong>service</strong> means our AI
             assistant, the chat widget, the dashboard and any add-ons you subscribe to.{' '}
             <strong>Your customers</strong> means the homeowners and other people who talk to Sunny
-            on your website, by email or by phone. Our <Link href="/privacy">privacy policy</Link>{' '}
-            explains how we handle personal information.
+            on your website or by email. Our <Link href="/privacy">privacy policy</Link> explains
+            how we handle personal information.
           </p>
 
           <h2 id="account">2. Your account</h2>
@@ -88,10 +87,7 @@ export default function TermsPage(): React.JSX.Element {
           <h2 id="plans">3. Plans, add-ons and trials</h2>
           <p>
             The plans, what they include and their prices are on our{' '}
-            <Link href="/pricing">pricing page</Link>. The Base plan is needed for the add-ons. The
-            Voice &amp; Phone add-on includes 500 call minutes each billing month; unused minutes do
-            not carry over. When the minutes are used up, calls are passed to your team or callers
-            are invited to use the website chat, until the next billing month.
+            <Link href="/pricing">pricing page</Link>. The Base plan is needed for the add-ons.
           </p>
           <p>
             When we offer a free trial, we tell you its length when you sign up. At the end of a
@@ -133,9 +129,7 @@ export default function TermsPage(): React.JSX.Element {
           <h2 id="your-website">6. Using Sunny with your customers</h2>
           <p>You are responsible for:</p>
           <ul>
-            <li>
-              Only adding Sunny to websites and phone numbers you own or are allowed to manage.
-            </li>
+            <li>Only adding Sunny to websites and mailboxes you own or are allowed to manage.</li>
             <li>
               Telling your customers about Sunny in your own privacy notice: that you use an AI
               assistant provided by us, what it collects and why.
@@ -188,24 +182,7 @@ export default function TermsPage(): React.JSX.Element {
             mailbox at any time.
           </p>
 
-          <h2 id="voice">9. Voice and phone</h2>
-          <ul>
-            <li>
-              At the start of each call, Sunny tells the caller that they are speaking to an AI
-              assistant and that the call may be transcribed. You can change the wording, but it
-              must still say both. Website visitors must agree before using the microphone.
-            </li>
-            <li>
-              Calls are transcribed but not recorded. Each call with Sunny lasts up to five minutes,
-              after which the caller can be passed to your team.
-            </li>
-            <li>
-              Phone numbers and calls go through our telephony provider, Twilio. You must not use
-              Sunny to make unsolicited marketing calls.
-            </li>
-          </ul>
-
-          <h2 id="acceptable-use">10. Acceptable use</h2>
+          <h2 id="acceptable-use">9. Acceptable use</h2>
           <p>You must not, and must not let anyone else:</p>
           <ul>
             <li>use Sunny for anything unlawful, misleading or harmful;</li>
@@ -224,7 +201,7 @@ export default function TermsPage(): React.JSX.Element {
             </li>
           </ul>
 
-          <h2 id="content">11. Your content and ours</h2>
+          <h2 id="content">10. Your content and ours</h2>
           <p>
             <strong>Yours.</strong> Your content (your documents, products, prices, settings and
             your customers’ enquiries) stays yours. You give us permission to use it only to provide
@@ -238,7 +215,7 @@ export default function TermsPage(): React.JSX.Element {
             may use them without owing you anything.
           </p>
 
-          <h2 id="data">12. Data protection and processing</h2>
+          <h2 id="data">11. Data protection and processing</h2>
           <p>
             When your customers talk to Sunny, you are the controller of their personal data and we
             are your processor. This section is the contract between us that Article 28 of the UK
@@ -248,7 +225,7 @@ export default function TermsPage(): React.JSX.Element {
           <ul>
             <li>
               <strong>Subject and purpose:</strong> providing Sunny to you: answering your
-              customers, estimating systems, passing on enquiries, and the email and voice add-ons.
+              customers, estimating systems, passing on enquiries, and the email add-on.
             </li>
             <li>
               <strong>Duration:</strong> while this agreement lasts, and until the data is deleted
@@ -318,7 +295,7 @@ export default function TermsPage(): React.JSX.Element {
             privacy policy applies.
           </p>
 
-          <h2 id="service">13. Availability and support</h2>
+          <h2 id="service">12. Availability and support</h2>
           <p>
             We work to keep Sunny available and working well, but we cannot promise it will always
             be available or free of errors. We may need to pause it for maintenance, which we will
@@ -327,7 +304,7 @@ export default function TermsPage(): React.JSX.Element {
             first. You can contact us for support at {LEGAL.contactEmail}.
           </p>
 
-          <h2 id="suspension">14. Suspension and ending the agreement</h2>
+          <h2 id="suspension">13. Suspension and ending the agreement</h2>
           <ul>
             <li>
               You can end the agreement by cancelling your subscription, as set out in section 5.
@@ -344,12 +321,12 @@ export default function TermsPage(): React.JSX.Element {
             </li>
             <li>
               When it ends, your right to use Sunny stops and we handle your data as set out in
-              section 12. Sections that by their nature should continue, such as liability and data
+              section 11. Sections that by their nature should continue, such as liability and data
               protection, continue.
             </li>
           </ul>
 
-          <h2 id="liability">15. Liability</h2>
+          <h2 id="liability">14. Liability</h2>
           <ul>
             <li>
               Nothing in these terms limits liability for death or personal injury caused by
@@ -374,14 +351,14 @@ export default function TermsPage(): React.JSX.Element {
             </li>
           </ul>
 
-          <h2 id="changes">16. Changes to these terms</h2>
+          <h2 id="changes">15. Changes to these terms</h2>
           <p>
             We may update these terms. We will give you at least 30 days’ notice of any change that
             is not in your favour, by email or in your dashboard. If you do not accept a change, you
             can cancel before it takes effect. Otherwise the new terms apply from that date.
           </p>
 
-          <h2 id="general">17. General</h2>
+          <h2 id="general">16. General</h2>
           <ul>
             <li>
               These terms and our privacy policy are the whole agreement between us about Sunny.

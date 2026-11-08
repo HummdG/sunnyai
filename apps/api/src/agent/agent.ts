@@ -169,7 +169,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   // fixed text from the server, and the conversation is escalated for the
   // installer; the model is not consulted at all.
   if (detectSafetyConcern(input.message)) {
-    const reply = safetyResponse(input.tenant, channel);
+    const reply = safetyResponse(input.tenant);
     yield { type: 'text_delta', messageId, text: reply };
     yield { type: 'escalation', messageId, kind: 'safety' };
     await input.store.appendTurn(input.tenant.id, input.sessionId, {

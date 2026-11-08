@@ -5,8 +5,8 @@
  */
 
 export type Role = 'viewer' | 'sales' | 'admin' | 'owner';
-export type AddonKey = 'web_chat' | 'email_assistant' | 'voice_widget' | 'phone_agent';
-export type Channel = 'chat' | 'voice' | 'email';
+export type AddonKey = 'web_chat' | 'email_assistant';
+export type Channel = 'chat' | 'email';
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'won' | 'lost';
 export type SyncStatus = 'disconnected' | 'pending' | 'syncing' | 'connected' | 'failed';
 export type OnboardingStep =
@@ -43,14 +43,6 @@ export interface TenantView {
     inboundAddress?: string;
     autoSend: boolean;
     signatureName?: string;
-  } | null;
-  voice: {
-    twilioNumbers?: string[];
-    voiceName?: string;
-    maxCallSeconds: number;
-    concurrency: number;
-    bookingUrl?: string;
-    disclosure?: string;
   } | null;
   connections: Record<AddonKey, Connection>;
   installSnippet: string;
@@ -147,12 +139,11 @@ export interface KnowledgeView {
 
 export interface BillingView {
   stripeConfigured: boolean;
-  plans: Array<{ key: 'base' | 'email' | 'voice' | 'suite'; available: boolean }>;
+  plans: Array<{ key: 'base' | 'email' | 'suite'; available: boolean }>;
   addons: Record<AddonKey, boolean>;
   billing: TenantView['billing'];
   hasCustomer: boolean;
   connections: Record<AddonKey, Connection>;
-  voice: { numbers: string[]; minutesUsed: number | null; minutesQuota: number | null };
 }
 
 export interface Member {
@@ -213,7 +204,7 @@ export function tenantPath(tenantId: string, rest = ''): string {
 }
 
 export const PLAN_LABELS: Record<
-  'base' | 'email' | 'voice' | 'suite',
+  'base' | 'email' | 'suite',
   { name: string; price: string; blurb: string }
 > = {
   base: {
@@ -226,19 +217,16 @@ export const PLAN_LABELS: Record<
     price: '+£99/mo',
     blurb: 'Grounded reply drafts in your inbox',
   },
-  voice: {
-    name: 'Voice & Phone',
-    price: '+£199/mo',
-    blurb: 'Web voice and an AI phone receptionist',
+  suite: {
+    name: 'Full Suite',
+    price: '£449/mo',
+    blurb: 'Web chat and the Email Assistant, on one knowledge base',
   },
-  suite: { name: 'Full Suite', price: '£449/mo', blurb: 'Everything, on one knowledge base' },
 };
 
 export const ADDON_LABELS: Record<AddonKey, string> = {
   web_chat: 'Web chat',
   email_assistant: 'Email Assistant',
-  voice_widget: 'Web voice',
-  phone_agent: 'Phone receptionist',
 };
 
 export interface EmailThread {

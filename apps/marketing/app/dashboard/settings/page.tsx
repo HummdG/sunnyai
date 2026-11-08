@@ -82,18 +82,11 @@ function Settings() {
   const site = useSave();
   const [domains, setDomains] = useState(tenant.domains.join('\n'));
 
-  const voice = useSave();
-  const [voiceName, setVoiceName] = useState(tenant.voice?.voiceName ?? '');
-  const [maxCall, setMaxCall] = useState(String(tenant.voice?.maxCallSeconds ?? 300));
-  const [concurrency, setConcurrency] = useState(String(tenant.voice?.concurrency ?? 2));
-  const [bookingUrl, setBookingUrl] = useState(tenant.voice?.bookingUrl ?? '');
-  const [disclosure, setDisclosure] = useState(tenant.voice?.disclosure ?? '');
-
   return (
     <>
       <PageHeader
         title="Settings"
-        lead="Your company details, where Sunny may run, and how the add-on channels behave."
+        lead="Your company details, where Sunny may run, and how the email channel behaves."
       />
       <Card title="Add Sunny to your website" id="install">
         <InstallGuide
@@ -190,7 +183,7 @@ function Settings() {
           </form>
         </Section>
 
-        <div className="grid two" style={{ marginTop: 18 }}>
+        <div className="grid" style={{ marginTop: 18 }}>
           <Card title="Email Assistant">
             <p className="muted" style={{ marginBottom: 14 }}>
               Connect your inbox, choose whether Sunny may send by itself, and see this month&apos;s
@@ -199,81 +192,6 @@ function Settings() {
             <Link className="button secondary" href="/dashboard/settings/email">
               Email settings
             </Link>
-          </Card>
-          <Card title="Voice & Phone">
-            <form
-              onSubmit={(event: FormEvent) => {
-                event.preventDefault();
-                void voice.save({
-                  voice: {
-                    ...(voiceName.trim() ? { voiceName: voiceName.trim() } : {}),
-                    maxCallSeconds: Number(maxCall),
-                    concurrency: Number(concurrency),
-                    ...(bookingUrl.trim() ? { bookingUrl: bookingUrl.trim() } : {}),
-                    ...(disclosure.trim() ? { disclosure: disclosure.trim() } : {}),
-                  },
-                });
-              }}
-            >
-              <p className="muted small" style={{ marginBottom: 12 }}>
-                Phone number:{' '}
-                {tenant.voice?.twilioNumbers?.length
-                  ? tenant.voice.twilioNumbers.join(', ')
-                  : 'not assigned yet'}
-              </p>
-              <label className="field">
-                <span>Voice</span>
-                <input
-                  value={voiceName}
-                  onChange={(e) => setVoiceName(e.target.value)}
-                  placeholder="Default"
-                />
-              </label>
-              <label className="field">
-                <span>Longest call (seconds, up to 300)</span>
-                <input
-                  type="number"
-                  min={30}
-                  max={300}
-                  value={maxCall}
-                  onChange={(e) => setMaxCall(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>Calls at once</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={concurrency}
-                  onChange={(e) => setConcurrency(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>
-                  Booking link{' '}
-                  <span className="hint">(texted to callers; your website if empty)</span>
-                </span>
-                <input
-                  type="url"
-                  value={bookingUrl}
-                  onChange={(e) => setBookingUrl(e.target.value)}
-                  placeholder={tenant.websiteUrl ?? 'https://'}
-                />
-              </label>
-              <label className="field">
-                <span>
-                  Call opening{' '}
-                  <span className="hint">(what Sunny says first; must say it is an AI)</span>
-                </span>
-                <textarea
-                  value={disclosure}
-                  onChange={(e) => setDisclosure(e.target.value)}
-                  placeholder="Hi, you're through to Sunny, the AI assistant for your installer. This call may be recorded."
-                />
-              </label>
-              <SaveRow {...voice} disabled={!canEdit} />
-            </form>
           </Card>
         </div>
       </fieldset>

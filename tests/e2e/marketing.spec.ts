@@ -89,10 +89,10 @@ test('mounts the real widget, not a picture of one', async ({ page }) => {
 });
 
 test('serves the parts the widget loads on demand, beside the widget', async ({ request }) => {
-  // The 3D roof and the voice call are fetched from beside sunny-widget.js only
-  // when asked for. Missing, the page shows nothing wrong: the button just does
-  // nothing. So the files themselves are checked.
-  for (const name of ['sunny-widget.js', 'sunny-roof.js', 'sunny-voice.js']) {
+  // The 3D roof is fetched from beside sunny-widget.js only when asked for.
+  // Missing, the page shows nothing wrong: the button just does nothing. So the
+  // files themselves are checked.
+  for (const name of ['sunny-widget.js', 'sunny-roof.js']) {
     const res = await request.get(`/widget/${name}`);
     expect(res.status(), name).toBe(200);
     expect(res.headers()['content-type'], name).toContain('javascript');

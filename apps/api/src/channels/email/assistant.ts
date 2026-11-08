@@ -42,7 +42,7 @@ import type { EmailOutcome, EmailStateStore, ThreadLink } from './state.js';
  * current email and the thread it quotes -- nothing else from the mailbox,
  * because there is no code path that reads anything else (Blueprint "zero
  * inbox read-back"). The turn is stored like a chat turn with `channel:
- * 'email'`, so the installer's unified inbox shows it beside web chat and voice.
+ * 'email'`, so the installer's unified inbox shows it beside web chat.
  */
 
 /** What the core needs for one email turn. Matches `runTurn`'s inputs. */

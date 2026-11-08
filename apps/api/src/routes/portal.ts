@@ -28,6 +28,7 @@ import {
   LEAD_STATUSES,
   MEMBER_ROLES,
   type Conversation,
+  type ConversationChannel,
   type LeadRecord,
   type Membership,
   type Store,
@@ -35,7 +36,6 @@ import {
 import { JOURNEY_KEYS } from '../journey/journey.js';
 import { ONBOARDING_STEPS, type Tenant, type TenantRegistry } from '../tenants.js';
 import { isStaleJob } from '../ingest/sync.js';
-import type { VoiceUsageLedger } from '../channels/voice/usage.js';
 import type { PortalConfig } from './portal-config.js';
 import { isStaff } from './admin.js';
 
@@ -66,14 +66,12 @@ export interface PortalDeps {
   sessionSecret: string;
   now: () => number;
   knowledgeSync?: KnowledgeSyncConnector;
-  /** The voice add-on's minutes ledger, for usage against quota on the billing page. */
-  voiceUsage?: VoiceUsageLedger;
   /** The SunScan service, for the installer's 3D view of a lead's roof. */
   sunscan?: SunScanService | null;
   fetch?: typeof fetch;
 }
 
-const PLAN_KEYS = ['base', 'email', 'voice', 'suite'] as const;
+const PLAN_KEYS = ['base', 'email', 'suite'] as const;
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const domain = z
@@ -111,13 +109,6 @@ const settingsSchema = z
         signatureName: z.string().trim().max(120),
       })
       .partial(),
-    voice: z.object({
-      voiceName: z.string().trim().max(80).optional(),
-      maxCallSeconds: z.number().int().min(30).max(300).default(300),
-      concurrency: z.number().int().min(1).max(10).default(2),
-      bookingUrl: z.string().trim().url().max(500).optional(),
-      disclosure: z.string().trim().min(10).max(400).optional(),
-    }),
   })
   .partial();
 
@@ -177,8 +168,11 @@ export function csvField(value: string | number | null | undefined): string {
  * these per turn (a conversation can turn from a sales question into a support
  * one); the inbox shows the latest intent, and any escalation in the thread.
  */
-function conversationChannel(c: Conversation): 'chat' | 'voice' | 'email' {
-  return c.channel ?? c.turns.find((t) => t.channel)?.channel ?? 'chat';
+function conversationChannel(c: Conversation): ConversationChannel {
+  // Widened on purpose: a record saved by the retired phone channel says
+  // 'voice', and anything that is not email shows as chat rather than failing.
+  const stored: string | undefined = c.channel ?? c.turns.find((t) => t.channel)?.channel;
+  return stored === 'email' ? 'email' : 'chat';
 }
 
 function conversationIntent(c: Conversation): 'sales' | 'support' | null {
@@ -229,7 +223,6 @@ function placeholderWarnings(
 /** Whether each add-on's channel is actually connected, beside whether it is paid for. */
 function connections(tenant: Tenant) {
   const email = tenant.config.email;
-  const voice = tenant.config.voice;
   return {
     web_chat: { connected: (tenant.domains ?? []).length > 0, detail: 'Widget domain registered' },
     email_assistant: {
@@ -242,17 +235,6 @@ function connections(tenant: Tenant) {
           : `${email.provider === 'gmail' ? 'Gmail' : 'Outlook'} ${email.tokenRef ? 'connected' : 'not connected'}`
         : 'No inbox connected',
       autoSend: email?.autoSend ?? false,
-    },
-    voice_widget: {
-      connected: true,
-      detail: 'Nothing to connect: a microphone button appears in the widget',
-    },
-    phone_agent: {
-      connected: (voice?.twilioNumbers ?? []).length > 0,
-      detail:
-        (voice?.twilioNumbers ?? []).length > 0
-          ? `Number ${voice!.twilioNumbers!.join(', ')}`
-          : 'No phone number assigned',
     },
   };
 }
@@ -286,7 +268,6 @@ function tenantView(tenant: Tenant, portal: PortalConfig, role: Membership['role
     addons: Object.fromEntries(ADDON_KEYS.map((key) => [key, hasEntitlement(tenant, key, now)])),
     billing: tenant.billing ?? null,
     email: tenant.config.email ?? null,
-    voice: tenant.config.voice ?? null,
     connections: connections(tenant),
     installSnippet: installSnippet(portal, tenant),
   };
@@ -500,7 +481,6 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
           'I need help with my system',
         ],
         intensity: 'balanced',
-        voiceEnabled: false,
         // The base package starts as a trial; billing switches the rest.
         addons: { web_chat: true },
       },
@@ -557,15 +537,6 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
       }
       config.email = merged;
     }
-    if (body.voice !== undefined) {
-      // Numbers are assigned when a Twilio number is provisioned, not typed in.
-      config.voice = {
-        ...body.voice,
-        ...(tenant.config.voice?.twilioNumbers
-          ? { twilioNumbers: tenant.config.voice.twilioNumbers }
-          : {}),
-      };
-    }
     const next: Tenant = { ...tenant, config };
     if (body.websiteUrl !== undefined) next.websiteUrl = body.websiteUrl;
     if (body.domains !== undefined) next.domains = [...new Set(body.domains)];
@@ -598,7 +569,7 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
       store.listKnowledgeSources(tenant.id),
     ]);
     const since = now() - 30 * 86_400_000;
-    const byChannel = { chat: 0, voice: 0, email: 0 };
+    const byChannel = { chat: 0, email: 0 };
     const byIntent = { sales: 0, support: 0, unclassified: 0 };
     let escalations = 0;
     for (const c of conversations) {
@@ -1063,19 +1034,6 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
       billing: tenant.billing ?? null,
       hasCustomer: Boolean(tenant.stripeCustomerId),
       connections: connections(tenant),
-      voice: {
-        numbers: tenant.config.voice?.twilioNumbers ?? [],
-        minutesUsed: deps.voiceUsage
-          ? Math.ceil((await deps.voiceUsage.secondsThisMonth(tenant.id, now())) / 60)
-          : null,
-        // One pool for web voice and the phone: the ledger counts both together.
-        minutesQuota:
-          tenant.addonConfig?.voice_widget?.monthlyQuota === undefined &&
-          tenant.addonConfig?.phone_agent?.monthlyQuota === undefined
-            ? null
-            : (tenant.addonConfig?.voice_widget?.monthlyQuota ?? 0) +
-              (tenant.addonConfig?.phone_agent?.monthlyQuota ?? 0),
-      },
     };
   });
 

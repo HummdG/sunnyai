@@ -46,11 +46,6 @@ export default function AdminOverviewPage() {
               hint={`of ${data.kpis.tenants}, ${data.kpis.payingTenants} paying`}
               trend={data.week.map((d) => d.activeTenants)}
             />
-            <Tile
-              label="Voice minutes, 7 days"
-              value={compact(data.kpis.voiceMinutes7d)}
-              trend={data.week.map((d) => d.voiceMinutes)}
-            />
           </div>
 
           <h2 className="section-title">Health</h2>

@@ -42,7 +42,7 @@ export default function PricingPage(): React.JSX.Element {
         <div className="wrap">
           <span className="eyebrow">Plans</span>
           <h2>Pick the plan that fits</h2>
-          <p className="intro">Start with Base, and add email or voice when you are ready.</p>
+          <p className="intro">Start with Base, and add email when you are ready.</p>
           <PricingCards />
         </div>
       </section>

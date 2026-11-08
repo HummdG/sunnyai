@@ -13,7 +13,7 @@ import type { PlanKey } from '../entitlements.js';
  *   SUNNY_DASHBOARD_URL              the website's origin (the dashboard is under /dashboard)
  *   STRIPE_SECRET_KEY                Stripe API key (test or live)
  *   STRIPE_WEBHOOK_SECRET            `whsec_...` for /v1/billing/webhook
- *   STRIPE_PRICE_BASE / _EMAIL / _VOICE / _SUITE   price ids per package
+ *   STRIPE_PRICE_BASE / _EMAIL / _SUITE   price ids per package
  *   SUNNY_STAFF_EMAILS               comma-separated Sunny staff, who may open /admin
  */
 export interface StripeConfig {
@@ -68,7 +68,6 @@ export function loadPortalConfig(
   for (const [plan, name] of [
     ['base', 'STRIPE_PRICE_BASE'],
     ['email', 'STRIPE_PRICE_EMAIL'],
-    ['voice', 'STRIPE_PRICE_VOICE'],
     ['suite', 'STRIPE_PRICE_SUITE'],
   ] as const) {
     const id = value(name);

@@ -33,7 +33,7 @@ export interface StripeEvent {
 
 export type WebhookOutcome = 'applied' | 'duplicate' | 'ignored' | 'stale' | 'unknown_tenant';
 
-const PLANS: readonly PlanKey[] = ['base', 'email', 'voice', 'suite'];
+const PLANS: readonly PlanKey[] = ['base', 'email', 'suite'];
 
 function isPlan(value: unknown): value is PlanKey {
   return typeof value === 'string' && (PLANS as readonly string[]).includes(value);

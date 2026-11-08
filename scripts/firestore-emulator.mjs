@@ -48,10 +48,8 @@ const TEST_ARGS = process.argv.slice(2).length
   : [
       'run',
       // Every suite with a Firestore half: the store contract, and the state
-      // that must be shared across API instances (voice slots and minutes, the
-      // email auto-reply cap).
+      // that must be shared across API instances (the email auto-reply cap).
       'apps/api/test/store-contract.test.ts',
-      'apps/api/test/voice-shared-counters.test.ts',
       'apps/api/test/email-shared-state.test.ts',
     ];
 

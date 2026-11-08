@@ -7,7 +7,6 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { issueDevToken } from '../src/auth/dev.js';
-import { MemoryVoiceUsage } from '../src/channels/voice/usage.js';
 import { createFirebaseVerifier } from '../src/auth/firebase.js';
 import { stripeSignatureHeader, verifyStripeSignature } from '../src/billing/signature.js';
 import type { ServerConfig } from '../src/config.js';
@@ -16,7 +15,7 @@ import { csvField, driveFolderId, type KnowledgeSyncConnector } from '../src/rou
 import { loadPortalConfig, type PortalConfig } from '../src/routes/portal-config.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
-import { TenantRegistry, defaultTenants } from '../src/tenants.js';
+import { TenantRegistry, defaultTenants, type Tenant } from '../src/tenants.js';
 
 const NOW = Date.parse('2026-10-12T12:00:00.000Z');
 const SECRET = 'test-secret-not-used-in-production';
@@ -24,7 +23,6 @@ const WHSEC = 'whsec_test_portal';
 const PRICES = {
   base: 'price_base',
   email: 'price_email',
-  voice: 'price_voice',
   suite: 'price_suite',
 };
 
@@ -74,7 +72,6 @@ afterEach(async () => {
 
 async function setup(
   options: {
-    voiceUsage?: MemoryVoiceUsage;
     portal?: Partial<PortalConfig>;
     knowledgeSync?: KnowledgeSyncConnector;
     now?: () => number;
@@ -91,7 +88,6 @@ async function setup(
     now: options.now ?? (() => NOW),
     portal: portalConfig(options.portal),
     ...(options.knowledgeSync ? { knowledgeSync: options.knowledgeSync } : {}),
-    ...(options.voiceUsage ? { voice: { usage: options.voiceUsage } } : {}),
   });
   await app.ready();
   return { app, store, tenants, dir };
@@ -539,6 +535,44 @@ describe('settings, overview and inbox', () => {
     ).toBe(1);
   });
 
+  it('reads a conversation from the retired phone channel as web chat', async () => {
+    const { app, store, dir } = await setup();
+    const t = await signUp(app, 'owner@phone.test');
+    await store.appendTurn(t.id, 's_call', {
+      role: 'user',
+      text: 'Can someone call me back?',
+      at: new Date(NOW - 60_000).toISOString(),
+    });
+    // Stored by the phone channel before it was removed: 'voice' on the
+    // conversation and on its turns, a value the types no longer allow.
+    const call = await store.getConversation(t.id, 's_call');
+    await appendFile(
+      join(dir, 'conversations', `${encodeURIComponent(t.id)}.jsonl`),
+      `${JSON.stringify({
+        ...call,
+        channel: 'voice',
+        turns: call!.turns.map((turn) => ({ ...turn, channel: 'voice' })),
+      })}\n`,
+    );
+    const inbox = await app.inject({
+      method: 'GET',
+      url: `/v1/portal/tenants/${t.id}/inbox`,
+      headers: as('owner@phone.test'),
+    });
+    expect(inbox.statusCode).toBe(200);
+    const rows = inbox.json<{ conversations: Array<{ channel: string }> }>().conversations;
+    expect(rows.map((r) => r.channel)).toEqual(['chat']);
+    const overview = await app.inject({
+      method: 'GET',
+      url: `/v1/portal/tenants/${t.id}/overview`,
+      headers: as('owner@phone.test'),
+    });
+    expect(
+      overview.json<{ conversations: { byChannel: Record<string, number> } }>().conversations
+        .byChannel,
+    ).toEqual({ chat: 1, email: 0 });
+  });
+
   it('exports leads as CSV with formulas defused', () => {
     expect(csvField('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
     expect(csvField('+44 7700 900123')).toBe("'+44 7700 900123");
@@ -738,12 +772,12 @@ describe('Stripe billing', () => {
       },
     });
     await deliver(app, sub('evt_a', NOW / 1000, 'active', 'price_suite'));
-    expect(hasEntitlement(tenants.byId(t.id)!, 'phone_agent', clock)).toBe(true);
+    expect(hasEntitlement(tenants.byId(t.id)!, 'email_assistant', clock)).toBe(true);
 
     // An older event arriving late cannot undo the newer state.
     const stale = await deliver(app, sub('evt_old', NOW / 1000 - 100, 'active', 'price_base'));
     expect(stale.json<{ outcome: string }>().outcome).toBe('stale');
-    expect(hasEntitlement(tenants.byId(t.id)!, 'phone_agent', clock)).toBe(true);
+    expect(hasEntitlement(tenants.byId(t.id)!, 'email_assistant', clock)).toBe(true);
 
     await deliver(app, {
       id: 'evt_fail',
@@ -753,9 +787,9 @@ describe('Stripe billing', () => {
     });
     expect(tenants.byId(t.id)!.billing?.status).toBe('past_due');
     clock = NOW + (PAYMENT_GRACE_DAYS - 1) * 86_400_000;
-    expect(hasEntitlement(tenants.byId(t.id)!, 'phone_agent', clock)).toBe(true);
+    expect(hasEntitlement(tenants.byId(t.id)!, 'email_assistant', clock)).toBe(true);
     clock = NOW + (PAYMENT_GRACE_DAYS + 1) * 86_400_000;
-    expect(hasEntitlement(tenants.byId(t.id)!, 'phone_agent', clock)).toBe(false);
+    expect(hasEntitlement(tenants.byId(t.id)!, 'email_assistant', clock)).toBe(false);
     expect(hasEntitlement(tenants.byId(t.id)!, 'web_chat', clock)).toBe(false);
 
     await deliver(
@@ -768,7 +802,7 @@ describe('Stripe billing', () => {
       },
       clock,
     );
-    expect(hasEntitlement(tenants.byId(t.id)!, 'phone_agent', clock)).toBe(true);
+    expect(hasEntitlement(tenants.byId(t.id)!, 'email_assistant', clock)).toBe(true);
 
     await deliver(
       app,
@@ -780,36 +814,37 @@ describe('Stripe billing', () => {
       },
       clock,
     );
-    for (const key of ['web_chat', 'email_assistant', 'voice_widget', 'phone_agent'] as const) {
+    for (const key of ['web_chat', 'email_assistant'] as const) {
       expect(hasEntitlement(tenants.byId(t.id)!, key, clock), key).toBe(false);
     }
   });
 
-  it('reports voice minutes used against the monthly quota', async () => {
-    const usage = new MemoryVoiceUsage();
-    const { app, tenants } = await setup({ voiceUsage: usage });
-    const t = await signUp(app, 'owner@voice.test');
-    await usage.record({
-      tenantId: t.id,
-      sessionId: 'call_1',
-      kind: 'phone',
-      startedAt: new Date(NOW - 60_000).toISOString(),
-      endedAt: new Date(NOW).toISOString(),
-      seconds: 150,
-      endReason: 'hangup',
-    });
+  it('ignores add-on flags and settings left by the retired phone add-on', async () => {
+    const { app, tenants } = await setup();
+    const t = await signUp(app, 'owner@legacy.test');
     const tenant = tenants.byId(t.id)!;
-    await tenants.save({ ...tenant, addonConfig: { phone_agent: { monthlyQuota: 500 } } });
+    // A record saved while the phone add-on was sold, read back as it is stored.
+    await tenants.save({
+      ...tenant,
+      config: {
+        ...tenant.config,
+        voiceEnabled: true,
+        voice: { maxCallSeconds: 300, concurrency: 2, twilioNumbers: ['+441632960001'] },
+        addons: { web_chat: true, voice_widget: true, phone_agent: true },
+      },
+      addonConfig: { phone_agent: { monthlyQuota: 500 } },
+    } as unknown as Tenant);
     const billing = await app.inject({
       method: 'GET',
       url: `/v1/portal/tenants/${t.id}/billing`,
-      headers: as('owner@voice.test'),
+      headers: as('owner@legacy.test'),
     });
-    expect(billing.json<{ voice: unknown }>().voice).toEqual({
-      numbers: [],
-      minutesUsed: 3,
-      minutesQuota: 500,
-    });
+    expect(billing.statusCode).toBe(200);
+    const view = billing.json<{ addons: Record<string, boolean>; plans: Array<{ key: string }> }>();
+    expect(view.addons).toEqual({ web_chat: true, email_assistant: false });
+    expect(view.plans.map((p) => p.key)).toEqual(['base', 'email', 'suite']);
+    const config = await app.inject({ method: 'GET', url: `/v1/widget/config/${t.publicId}` });
+    expect(config.json<Record<string, unknown>>()).not.toHaveProperty('voiceEnabled');
   });
 
   it('creates a Checkout session for the owner only', async () => {
@@ -835,21 +870,21 @@ describe('Stripe billing', () => {
         method: 'POST',
         url: `/v1/portal/tenants/${t.id}/billing/checkout`,
         headers: as('admin@c.test'),
-        payload: { plan: 'voice' },
+        payload: { plan: 'email' },
       });
       expect(denied.statusCode).toBe(403);
       const ok = await app.inject({
         method: 'POST',
         url: `/v1/portal/tenants/${t.id}/billing/checkout`,
         headers: as('owner@c.test'),
-        payload: { plan: 'voice' },
+        payload: { plan: 'email' },
       });
       expect(ok.json<{ url: string }>().url).toBe('https://checkout.stripe.test/cs_1');
       expect(posted[0]?.url).toBe('https://api.stripe.com/v1/checkout/sessions');
       const params = new URLSearchParams(posted[0]!.body);
-      expect(params.get('line_items[0][price]')).toBe('price_voice');
+      expect(params.get('line_items[0][price]')).toBe('price_email');
       expect(params.get('metadata[tenant_id]')).toBe(t.id);
-      expect(params.get('subscription_data[metadata][plan]')).toBe('voice');
+      expect(params.get('subscription_data[metadata][plan]')).toBe('email');
     } finally {
       globalThis.fetch = original;
     }

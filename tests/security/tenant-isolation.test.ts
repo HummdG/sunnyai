@@ -9,7 +9,6 @@ import { issueDevToken } from '../../apps/api/src/auth/dev.js';
 import { issueInviteToken } from '../../apps/api/src/auth/invite.js';
 import { issueSessionToken as issuePortalSession } from '../../apps/api/src/auth/session.js';
 import { inboundToken, signState } from '../../apps/api/src/channels/email/crypto.js';
-import { twilioSignature } from '../../apps/api/src/channels/voice/twilio.js';
 import { roleAtLeast } from '../../apps/api/src/auth/index.js';
 import type { Fetcher } from '../../apps/api/src/ingest/fetcher.js';
 import type { PortalConfig } from '../../apps/api/src/routes/portal-config.js';
@@ -51,9 +50,9 @@ import type { FastifyInstance, InjectOptions } from 'fastify';
 // ─── the two tenants ─────────────────────────────────────────────────────────
 
 /**
- * The demo installer, entitled to every add-on and owning a phone number.
+ * The demo installer, entitled to every add-on.
  *
- * Without the entitlements the email and voice routes would answer every
+ * Without the entitlements the email routes would answer every
  * credential `not_enabled`, and an allowed case would pass without the route
  * ever reaching the code that decides who may see what.
  */
@@ -61,8 +60,7 @@ const DEMO_FULL: Tenant = {
   ...DEMO_TENANT,
   config: {
     ...DEMO_TENANT.config,
-    addons: { web_chat: true, email_assistant: true, voice_widget: true, phone_agent: true },
-    voice: { maxCallSeconds: 300, concurrency: 2, twilioNumbers: ['+441632960001'] },
+    addons: { web_chat: true, email_assistant: true },
     email: {
       provider: 'forwarding',
       inboundAddress: 'enquiries@northwind.example',
@@ -124,7 +122,6 @@ const ORIGIN = 'http://localhost:4173';
 // token: webhooks and the provider callbacks. Configured so their refusals are
 // real signature checks rather than "not configured on this deployment".
 const STRIPE_WEBHOOK_SECRET = 'whsec_security_sweep';
-const TWILIO_AUTH_TOKEN = 'twilio-security-sweep';
 const PUBLIC_BASE_URL = 'https://api.sweep.test';
 const INBOUND_BASIC = { user: 'postmark', password: 'security-sweep-basic' };
 const GMAIL_PUSH_TOKEN = 'gmail-push-security-sweep';
@@ -152,10 +149,6 @@ const PORTAL: PortalConfig = {
 /** Every crawl answers 404: the sweep is about who may start one, not what it finds. */
 const NO_NETWORK: Fetcher = (url) =>
   Promise.resolve({ url, status: 404, contentType: 'text/plain', body: '' });
-
-/** Twilio's REST API, faked: a call is "placed" and nothing leaves the process. */
-const TWILIO_FAKE: typeof fetch = () =>
-  Promise.resolve(new Response(JSON.stringify({ sid: 'CA_sweep' }), { status: 201 }));
 
 function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   return {
@@ -211,18 +204,6 @@ async function harness(provider?: ChatProvider): Promise<FastifyInstance> {
       syncDrive: () => Promise.resolve({ jobId: 'job_sweep_drive' }),
     },
     knowledge: { fetcher: NO_NETWORK, urlCheck: () => Promise.resolve(), embedder: null },
-    voice: {
-      voice: {
-        apiKey: null,
-        liveModel: 'sweep-live',
-        liveUrl: 'ws://127.0.0.1:9/never',
-        maxSessionSeconds: 300,
-        defaultConcurrency: 2,
-        twilio: { accountSid: 'AC_sweep', authToken: TWILIO_AUTH_TOKEN, fromNumber: null },
-        publicBaseUrl: PUBLIC_BASE_URL,
-      },
-      fetch: TWILIO_FAKE,
-    },
     emailAddon: {
       config: {
         inboundBasic: INBOUND_BASIC,
@@ -1332,31 +1313,6 @@ const ROUTES: RouteSpec[] = [
     kind: 'installer',
     minRole: 'viewer',
     namesRecord: true,
-  },
-
-  // ─── the Voice & Phone add-on (routes/voice.ts) ───────────────────────────
-  {
-    method: 'GET',
-    pattern: '/v1/voice/capabilities/:publicId',
-    url: (ids) => `/v1/voice/capabilities/${ids.publicId}`,
-    // What the widget needs to decide whether to show the mic; no tenant data.
-    kind: 'public',
-  },
-  {
-    method: 'POST',
-    pattern: '/v1/voice/twilio/incoming',
-    url: () => '/v1/voice/twilio/incoming',
-    // Twilio's request signature; anything unsigned is refused.
-    kind: 'secret',
-    refuses: 'forbidden',
-    payload: () => ({ CallSid: 'CA_forged', To: '+441632960001', From: '+447700900123' }),
-  },
-  {
-    method: 'POST',
-    pattern: '/v1/voice/twilio/outbound',
-    url: () => '/v1/voice/twilio/outbound',
-    kind: 'admin',
-    payload: (ids) => ({ tenantId: ids.tenantId, to: '+447700900123' }),
   },
 
   // ─── the quote journey (routes/quote.ts) ──────────────────────────────────
@@ -2625,42 +2581,6 @@ describe('webhooks decide the tenant from their verified routing', () => {
     });
     expect(pushed.statusCode).toBe(200);
     expect(json<{ handled: number }>(pushed).handled).toBe(0);
-  });
-
-  it('answers a signed Twilio call as the installer that owns the number', async () => {
-    const params = {
-      CallSid: 'CA_sweep_call',
-      To: '+441632960001',
-      From: '+447700900123',
-      Direction: 'inbound',
-    };
-    const url = `${PUBLIC_BASE_URL}/v1/voice/twilio/incoming`;
-    const signed = await app.inject({
-      method: 'POST',
-      url: '/v1/voice/twilio/incoming',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        'x-twilio-signature': twilioSignature(url, params, TWILIO_AUTH_TOKEN),
-      },
-      payload: new URLSearchParams(params).toString(),
-    });
-    expect(signed.statusCode).toBe(200);
-    // Routed to the demo installer, who owns the number -- with no live voice
-    // connector configured here, its own hand-off line answers.
-    expect(signed.body).toContain(DEMO_FULL.config.companyName);
-    expect(signed.body).not.toContain(RIVAL.config.companyName);
-
-    // Signed for other parameters: the signature covers the number called.
-    const tampered = await app.inject({
-      method: 'POST',
-      url: '/v1/voice/twilio/incoming',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        'x-twilio-signature': twilioSignature(url, params, TWILIO_AUTH_TOKEN),
-      },
-      payload: new URLSearchParams({ ...params, To: '+441632960999' }).toString(),
-    });
-    expect(tampered.statusCode).toBe(403);
   });
 
   it('connects no mailbox for a forged OAuth state', async () => {

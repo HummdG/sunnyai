@@ -109,34 +109,6 @@ function Billing() {
               </div>
             ))}
           </Card>
-          <Card title="Voice & Phone usage">
-            <div className="grid stats">
-              <div className="stat">
-                <span className="stat-value">
-                  {view.voice.minutesUsed === null ? '–' : view.voice.minutesUsed}
-                  {view.voice.minutesQuota !== null ? (
-                    <span className="muted" style={{ fontSize: '1rem' }}>
-                      {' '}
-                      / {view.voice.minutesQuota}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="stat-label">Minutes this month</span>
-                <span className="stat-hint">
-                  {view.voice.minutesQuota === null
-                    ? 'No monthly cap set'
-                    : 'Web voice and phone share one allowance'}
-                </span>
-              </div>
-              <div className="stat">
-                <span className="stat-value" style={{ fontSize: '1.2rem' }}>
-                  {view.voice.numbers.length > 0 ? view.voice.numbers.join(', ') : 'None yet'}
-                </span>
-                <span className="stat-label">Phone number</span>
-                <span className="stat-hint">Assigned when the phone receptionist is set up</span>
-              </div>
-            </div>
-          </Card>
           <Card title="Packages">
             {!view.stripeConfigured ? (
               <p className="muted" style={{ marginBottom: 14 }}>

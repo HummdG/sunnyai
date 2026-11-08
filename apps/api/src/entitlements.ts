@@ -3,36 +3,33 @@ import type { Tenant } from './tenants.js';
 /**
  * Package entitlements (Blueprint §5, `tenant_addons`).
  *
- * The base package is the web chat; the email assistant and voice/phone are
- * add-ons. Stripe webhooks switch them (`billing/webhook.ts`); every channel
- * checks them here before doing any work. This module is the shared contract
- * with the chat/voice/email channels: `hasEntitlement(tenant, key)` is the only
- * question they ask.
+ * The base package is the web chat; the email assistant is the add-on. Stripe
+ * webhooks switch them (`billing/webhook.ts`); every channel checks them here
+ * before doing any work. This module is the shared contract with the chat and
+ * email channels: `hasEntitlement(tenant, key)` is the only question they ask.
+ *
+ * A tenant record saved while the phone add-on existed may still carry
+ * `voice_widget` or `phone_agent` flags. Nothing reads them: only the keys
+ * below are ever looked up.
  */
-export type AddonKey = 'web_chat' | 'email_assistant' | 'voice_widget' | 'phone_agent';
+export type AddonKey = 'web_chat' | 'email_assistant';
 
-export const ADDON_KEYS: readonly AddonKey[] = [
-  'web_chat',
-  'email_assistant',
-  'voice_widget',
-  'phone_agent',
-];
+export const ADDON_KEYS: readonly AddonKey[] = ['web_chat', 'email_assistant'];
 
 /** The packages a tenant can buy, and the add-ons each one switches on. */
-export type PlanKey = 'base' | 'email' | 'voice' | 'suite';
+export type PlanKey = 'base' | 'email' | 'suite';
 
 export const PLAN_ADDONS: Readonly<Record<PlanKey, readonly AddonKey[]>> = {
   base: ['web_chat'],
   email: ['email_assistant'],
-  voice: ['voice_widget', 'phone_agent'],
-  suite: ['web_chat', 'email_assistant', 'voice_widget', 'phone_agent'],
+  suite: ['web_chat', 'email_assistant'],
 };
 
 /** Per-add-on configuration (`config_json` in the blueprint). */
 export interface AddonConfig {
-  /** Monthly usage quota: messages for chat, emails, or voice minutes. */
+  /** Monthly usage quota: messages for chat, or emails. */
   monthlyQuota?: number;
-  /** Voice id, channel-specific settings. Never secrets: those live in Secret Manager. */
+  /** Channel-specific settings. Never secrets: those live in Secret Manager. */
   [key: string]: unknown;
 }
 

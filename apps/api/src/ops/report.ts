@@ -22,7 +22,6 @@ export interface UsagePoint {
   tokensIn: number;
   tokensOut: number;
   leads: number;
-  voiceMinutes: number;
   errors: number;
   ingestFailed: number;
   sunscanFailed: number;
@@ -63,8 +62,6 @@ export interface UsageTotals {
   messages: number;
   escalations: number;
   leads: number;
-  voiceSessions: number;
-  voiceMinutes: number;
   ingestOk: number;
   ingestFailed: number;
   sunscanOk: number;
@@ -98,10 +95,6 @@ function sumAll(maps: Iterable<Readonly<Record<string, number>>>): Record<string
   return out;
 }
 
-function minutes(seconds: number): number {
-  return Math.round((seconds / 60) * 10) / 10;
-}
-
 export function totalsOf(counts: Readonly<Record<string, number>>): UsageTotals {
   const calls = counterByDimension(counts, 'model_calls');
   const tokensIn = counterByDimension(counts, 'tokens_in');
@@ -121,8 +114,6 @@ export function totalsOf(counts: Readonly<Record<string, number>>): UsageTotals 
     messages: counterTotal(counts, 'messages'),
     escalations: counterTotal(counts, 'escalations'),
     leads: counterTotal(counts, 'leads'),
-    voiceSessions: counterTotal(counts, 'voice_sessions'),
-    voiceMinutes: minutes(counterTotal(counts, 'voice_seconds')),
     ingestOk: counterTotal(counts, 'ingest_ok'),
     ingestFailed: counterTotal(counts, 'ingest_failed'),
     sunscanOk: counterTotal(counts, 'sunscan_ok'),
@@ -152,7 +143,6 @@ function pointOf(
     tokensIn: counterTotal(counts, 'tokens_in'),
     tokensOut: counterTotal(counts, 'tokens_out'),
     leads: counterTotal(counts, 'leads'),
-    voiceMinutes: minutes(counterTotal(counts, 'voice_seconds')),
     errors: counterTotal(counts, 'errors'),
     ingestFailed: counterTotal(counts, 'ingest_failed'),
     sunscanFailed: counterTotal(counts, 'sunscan_failed'),
@@ -218,7 +208,6 @@ export interface TenantRow {
   turns: number;
   leads: number;
   tokens: number;
-  voiceMinutes: number;
   errors: number;
   /** The last day in the window with an assistant turn, or null. */
   lastActiveDay: string | null;
@@ -273,7 +262,6 @@ export function tenantRows(
         turns: counterTotal(c, 'turns'),
         leads: counterTotal(c, 'leads'),
         tokens: counterTotal(c, 'tokens_in') + counterTotal(c, 'tokens_out'),
-        voiceMinutes: minutes(counterTotal(c, 'voice_seconds')),
         errors: counterTotal(c, 'errors'),
         lastActiveDay: usage.lastActive,
         flags: tenantFlags(tenant, now),

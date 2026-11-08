@@ -160,15 +160,15 @@ variable "stripe_enabled" {
 
 variable "stripe_price_ids" {
   description = <<-EOT
-    Stripe price ids per package, keyed base, email, voice and suite: monthly
+    Stripe price ids per package, keyed base, email and suite: monthly
     recurring prices in GBP, excluding VAT, matching apps/marketing/app/site.ts.
   EOT
   type        = map(string)
   default     = {}
 
   validation {
-    condition     = alltrue([for k in keys(var.stripe_price_ids) : contains(["base", "email", "voice", "suite"], k)])
-    error_message = "stripe_price_ids keys must be base, email, voice or suite."
+    condition     = alltrue([for k in keys(var.stripe_price_ids) : contains(["base", "email", "suite"], k)])
+    error_message = "stripe_price_ids keys must be base, email or suite."
   }
 }
 

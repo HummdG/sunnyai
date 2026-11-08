@@ -23,7 +23,7 @@ layer. See `docs/PRODUCT_PLAN.md` for packages, gap analysis and workstreams.
 | 2. Core engine + guardrails — channels, blueprint prompt, citations, limits, Turnstile, support mode, safety triage                                                               | ✅ Done (419 tests)                                                                             |
 | 3. Installer portal + billing — dashboard (port 4177), sign-up, onboarding, unified inbox, leads, knowledge, Studio, team, Stripe                                                 | ✅ Done (needs Firebase + Stripe accounts)                                                      |
 | 4. Email Assistant add-on — inbound email, Gmail/Outlook drafts, 3 auto-replies/sender/day                                                                                        | ✅ Done with fakes (needs Google OAuth, Postmark, Azure)                                        |
-| 5. Voice & Phone add-on — widget mic (Gemini Live), Twilio phone receptionist                                                                                                     | ✅ Done with fakes (needs Gemini Live + Twilio)                                                 |
+| 5. Voice & Phone add-on — widget mic (Gemini Live), Twilio phone receptionist                                                                                                     | Removed 2026-11-08 (owner: chat and email only)                                                 |
 | 6. SunScan 3D roof assessment — SunScanV2 brought into this repo; roof card + 3D viewer in chat; open UK data, no keys                                                            | ✅ Done (replay-tested; first live run pending)                                                 |
 | 7. Installer product catalogue — Products page, CSV upload + template, price list, Google Sheet sync, website product drafts with approval, HSEnergy example                      | ✅ Done (Sheet + Gemini extraction await credentials)                                           |
 | 8. Guided quote journey — address, 3D roof, full questionnaire (roof confirmed), 3 priced options from the installer price list, consent, lead                                    | ✅ Done (Sentinel uplift + emailed proposal PDF still to do)                                    |
@@ -37,7 +37,7 @@ layer. See `docs/PRODUCT_PLAN.md` for packages, gap analysis and workstreams.
 | 16. Savings simulation — choose a package, panels on the 3D roof, monthly £ pop-ups, year and 25-year totals                                                                      | ✅ Done (lead page: add chosen-package savings figures)                                         |
 | 17. Character polish + widget size — wrist seams, point/hips/droop hands, bundle back to ≤ 52 kB                                                                                  | ✅ Done (widget 50.8 kB gz)                                                                     |
 | 18. SunScan first live run + Cloud Storage for 3D models + Cloud Tasks queue                                                                                                      | ✅ Done (6 live addresses incl. Wales + Scotland; live = replay; Terraform fmt + validate pass) |
-| 19. Firestore emulator tests + shared voice/email counters                                                                                                                        | ✅ Done (70/70 emulator tests; no FirestoreStore bugs)                                          |
+| 19. Firestore emulator tests + shared email counters (the voice counters went with voice)                                                                                         | ✅ Done (70/70 emulator tests; no FirestoreStore bugs)                                          |
 | 20. Pointing hand redraw                                                                                                                                                          | ✅ Done (finger-gun + raised index; 1a691e8)                                                    |
 
 ## Character status
@@ -97,8 +97,8 @@ npm run dev:marketing                    # http://localhost:4176
 
 Build complete on branch `recovery/sunny-ai-rebuild` (not pushed). The owner
 chose to stop here pending accounts. **Blocked on the owner:** live checks
-against Gemini (chat, embeddings, Live voice), Firebase Auth, Stripe (test
-mode), Google Drive/Gmail OAuth, Postmark and Twilio. Each integration is
+against Gemini (chat, embeddings), Firebase Auth, Stripe (test mode), Google
+Drive/Gmail OAuth and Postmark. Each integration is
 built and tested against fakes or emulators; setup steps are in
 `docs/integration/*.md`. Add keys to `.env` (never committed) and run the
 checks per provider. Also open: package prices/currency and each installer's

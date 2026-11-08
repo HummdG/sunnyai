@@ -23,7 +23,6 @@ export interface UsagePoint {
   tokensIn: number;
   tokensOut: number;
   leads: number;
-  voiceMinutes: number;
   errors: number;
   ingestFailed: number;
   sunscanFailed: number;
@@ -44,8 +43,6 @@ export interface UsageTotals {
   messages: number;
   escalations: number;
   leads: number;
-  voiceSessions: number;
-  voiceMinutes: number;
   ingestOk: number;
   ingestFailed: number;
   sunscanOk: number;
@@ -79,7 +76,6 @@ export interface AdminOverview {
     turnsToday: number;
     turns7d: number;
     leads7d: number;
-    voiceMinutes7d: number;
     errorsToday: number;
     ttfbP95: number | null;
   };
@@ -143,18 +139,6 @@ export interface AdminCosts {
     topSkus: Array<{ service: string; sku: string; cost: number }>;
     daily: Array<{ day: string; byService: Record<string, number> }>;
   }>;
-  twilio: Source<{
-    currency: string;
-    thisMonth: number;
-    lastMonth: number;
-    byCategory: Array<{
-      category: string;
-      description: string;
-      usage: number;
-      unit: string;
-      price: number;
-    }>;
-  }>;
   postmark: Source<{
     sent: number;
     bounced: number;
@@ -172,14 +156,11 @@ export interface AdminCosts {
   }>;
   perTenant: {
     modelCurrency: string | null;
-    phoneCurrency: string | null;
     rows: Array<{
       tenantId: string;
       companyName: string;
       tokens: number;
-      voiceMinutes: number;
       model: number | null;
-      phone: number | null;
     }>;
   };
   margin:
@@ -215,7 +196,6 @@ export interface TenantRow {
   turns: number;
   leads: number;
   tokens: number;
-  voiceMinutes: number;
   errors: number;
   lastActiveDay: string | null;
   flags: string[];

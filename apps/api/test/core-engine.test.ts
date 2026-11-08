@@ -11,9 +11,7 @@ import {
   CHANNEL_POLICIES,
   EMAIL_DISCLAIMER_FOOTER,
   NotEntitledError,
-  VOICE_OUTPUT_RULE,
   finalizeOutput,
-  toSpokenText,
 } from '../src/agent/channels.js';
 import { UnconfiguredProvider, type ChatChunk, type ChatProvider } from '../src/agent/provider.js';
 import { buildSystemInstruction, fallbackLine, sandwich, userQuery } from '../src/agent/prompt.js';
@@ -201,8 +199,8 @@ describe('the guardrail prompt', () => {
     expect(sent.at(-1)!.text).toContain(`turn ${history.length - 1}`);
   });
 
-  it('appends the voice rule verbatim on the voice channel', () => {
-    expect(buildSystemInstruction(demo(), 'voice', 0)).toContain(VOICE_OUTPUT_RULE);
+  it('appends the email rule on the email channel', () => {
+    expect(buildSystemInstruction(demo(), 'email', 0)).toContain(CHANNEL_POLICIES.email.outputRule);
   });
 });
 
@@ -210,15 +208,8 @@ describe('the guardrail prompt', () => {
 
 describe('per-channel tools and entitlements', () => {
   it('offers each channel only its own tools', () => {
-    const voice = declarationsFor(CHANNEL_POLICIES.voice.tools).map((d) => d.name);
-    expect(voice.sort()).toEqual([
-      'create_lead',
-      'retrieve_knowledge',
-      'send_sms_link',
-      'transfer_to_human',
-    ]);
     const email = declarationsFor(CHANNEL_POLICIES.email.tools).map((d) => d.name);
-    expect(email).toContain('create_gmail_draft');
+    expect(email.sort()).toEqual(['create_gmail_draft', 'create_lead', 'retrieve_knowledge']);
     expect(email).not.toContain('suggest_page_action');
     const chat = declarationsFor(CHANNEL_POLICIES.chat.tools).map((d) => d.name);
     expect(chat).toContain('estimate_savings');
@@ -245,9 +236,6 @@ describe('per-channel tools and entitlements', () => {
     await expect(
       collect(turn(provider, store, 'hello', { channel: 'email' })),
     ).rejects.toBeInstanceOf(NotEntitledError);
-    await expect(
-      collect(turn(provider, store, 'hello', { channel: 'voice' })),
-    ).rejects.toBeInstanceOf(NotEntitledError);
     const entitled = demo({}, { addons: { email_assistant: true } });
     const events = await collect(
       turn(provider, store, 'hello', { channel: 'email', tenant: entitled }),
@@ -267,22 +255,18 @@ describe('per-channel tools and entitlements', () => {
       sunscanConnected: false,
       knowledge: { sourceCount: 0, chunks: [] },
     };
-    const off = await executeTool({ name: 'send_sms_link', args: { purpose: 'book_survey' } }, ctx);
+    const draft = { name: 'create_gmail_draft' as const, args: { subject: 's', body: 'b' } };
+    const off = await executeTool(draft, ctx);
     expect(off.ok).toBe(false);
     expect(off.summary).toMatch(/not enabled/);
-    registerAddonTool('send_sms_link', () =>
-      Promise.resolve({ ok: true, data: { sent: true }, summary: 'Sent.' }),
+    registerAddonTool('create_gmail_draft', () =>
+      Promise.resolve({ ok: true, data: { draftId: 'd1' }, summary: 'Drafted.' }),
     );
-    const on = await executeTool({ name: 'send_sms_link', args: { purpose: 'book_survey' } }, ctx);
+    const on = await executeTool(draft, ctx);
     expect(on.ok).toBe(true);
   });
 
-  it('shapes voice and email output whatever the model wrote', () => {
-    const spoken = toSpokenText(
-      '**Yes!** See [our page](https://x.example) [S1]. ' + 'word '.repeat(60),
-    );
-    expect(spoken).not.toMatch(/[*[\]]|https?:/);
-    expect(spoken.split(' ').length).toBeLessThanOrEqual(40);
+  it('shapes email output whatever the model wrote', () => {
     expect(finalizeOutput('email', 'Dear customer')).toContain(EMAIL_DISCLAIMER_FOOTER);
     expect(finalizeOutput('chat', 'unchanged')).toBe('unchanged');
   });

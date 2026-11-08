@@ -10,15 +10,14 @@ import type { PlanKey } from '../entitlements.js';
  * The repository still holds no model price, and this file does not add one.
  * Gemini runs through Vertex AI, so its real cost is a line in the project's
  * GCP bill; the billing export to BigQuery is where that line is read from.
- * Twilio reports its own charges per usage category. Postmark has no billing
- * API, so its figure is the one exception: sent count times the plan rate the
- * operator configures, labelled as such on the page.
+ * Postmark has no billing API, so its figure is the one exception: sent count
+ * times the plan rate the operator configures, labelled as such on the page.
  *
  * ## Every source fails soft
  *
  * Each read returns `{ available: false, reason }` rather than throwing, and the
  * page shows the reason in place of the panel. A dashboard that goes blank
- * because Twilio timed out is a dashboard nobody trusts during the incident it
+ * because Postmark timed out is a dashboard nobody trusts during the incident it
  * exists for.
  *
  * ## Credentials
@@ -41,7 +40,6 @@ export interface OpsConfig {
   billingTable: string | null;
   /** Monthly budget in the billing currency (`OPS_MONTHLY_BUDGET`). */
   monthlyBudget: number | null;
-  twilio: { accountSid: string; authToken: string } | null;
   postmark: { serverToken: string; pricePer1k: number | null } | null;
   stripeSecretKey: string | null;
   /** Price id → plan, to name the plans revenue comes from. */
@@ -72,8 +70,6 @@ export function loadOpsConfig(
   ) {
     throw new Error(`OPS_BILLING_TABLE must be project.dataset.table, not "${table}"`);
   }
-  const sid = value('TWILIO_ACCOUNT_SID');
-  const token = value('TWILIO_AUTH_TOKEN');
   const postmark = value('SUNNY_POSTMARK_SERVER_TOKEN');
   return {
     project: value('GOOGLE_CLOUD_PROJECT'),
@@ -83,7 +79,6 @@ export function loadOpsConfig(
       .filter(Boolean),
     billingTable: table,
     monthlyBudget: number('OPS_MONTHLY_BUDGET'),
-    twilio: sid && token ? { accountSid: sid, authToken: token } : null,
     postmark: postmark
       ? { serverToken: postmark, pricePer1k: number('OPS_POSTMARK_PRICE_PER_1K') }
       : null,
@@ -509,75 +504,6 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-// ── Twilio ──────────────────────────────────────────────────────────────────
-
-export interface TwilioSnapshot {
-  currency: string;
-  thisMonth: number;
-  lastMonth: number;
-  byCategory: Array<{
-    category: string;
-    description: string;
-    usage: number;
-    unit: string;
-    price: number;
-  }>;
-}
-
-interface TwilioRecord {
-  category: string;
-  description: string;
-  usage: string;
-  usage_unit: string | null;
-  price: string | number;
-  price_unit: string;
-}
-
-export function createTwilioSource(options: {
-  config: OpsConfig;
-  fetch: typeof fetch;
-  now: () => number;
-}): () => Promise<Source<TwilioSnapshot>> {
-  const { config, now } = options;
-  return cachedSource(60 * 60 * 1000, now, async () => {
-    if (!config.twilio) return unavailable('Twilio is not configured on this deployment.');
-    const { accountSid, authToken } = config.twilio;
-    const auth = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`;
-    const read = (period: 'ThisMonth' | 'LastMonth') =>
-      getJson<{ usage_records: TwilioRecord[] }>(
-        options.fetch,
-        `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Usage/Records/${period}.json?PageSize=1000`,
-        { headers: { authorization: auth } },
-        'Twilio',
-      );
-    const [current, previous] = await Promise.all([read('ThisMonth'), read('LastMonth')]);
-    const total = (records: TwilioRecord[]) =>
-      Number(records.find((r) => r.category === 'totalprice')?.price ?? 0);
-    return {
-      available: true,
-      at: new Date(now()).toISOString(),
-      data: {
-        currency: (current.usage_records[0]?.price_unit ?? 'usd').toUpperCase(),
-        thisMonth: round2(total(current.usage_records)),
-        lastMonth: round2(total(previous.usage_records)),
-        // Twilio nests categories (calls ⊃ calls-inbound); the leaves with a
-        // price are the useful breakdown, and the totals are the headline.
-        byCategory: current.usage_records
-          .filter((r) => r.category !== 'totalprice' && Number(r.price) > 0)
-          .map((r) => ({
-            category: r.category,
-            description: r.description,
-            usage: Number(r.usage),
-            unit: r.usage_unit ?? '',
-            price: round2(Number(r.price)),
-          }))
-          .sort((a, b) => b.price - a.price)
-          .slice(0, 12),
-      },
-    };
-  });
-}
-
 // ── Postmark ────────────────────────────────────────────────────────────────
 
 export interface PostmarkSnapshot {
@@ -730,7 +656,6 @@ export function createStripeSource(options: {
 export interface OpsSources {
   monitoring: () => Promise<Source<MonitoringSnapshot>>;
   billing: () => Promise<Source<BillingSnapshot>>;
-  twilio: () => Promise<Source<TwilioSnapshot>>;
   postmark: () => Promise<Source<PostmarkSnapshot>>;
   stripe: () => Promise<Source<RevenueSnapshot>>;
   monthlyBudget: number | null;
@@ -749,7 +674,6 @@ export function createOpsSources(options: {
   return {
     monitoring: createMonitoringSource({ ...shared, token }),
     billing: createBillingSource({ ...shared, token }),
-    twilio: createTwilioSource(shared),
     postmark: createPostmarkSource(shared),
     stripe: createStripeSource(shared),
     monthlyBudget: options.config.monthlyBudget,
@@ -763,7 +687,6 @@ export function noSources(reason = 'Not configured.'): OpsSources {
   return {
     monitoring: off,
     billing: off,
-    twilio: off,
     postmark: off,
     stripe: off,
     monthlyBudget: null,

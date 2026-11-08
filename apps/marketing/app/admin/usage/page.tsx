@@ -15,7 +15,7 @@ import {
   type UsageReport,
 } from '../../../lib/admin-api.js';
 
-const CHANNEL_LABEL: Record<string, string> = { chat: 'Web chat', email: 'Email', voice: 'Voice' };
+const CHANNEL_LABEL: Record<string, string> = { chat: 'Web chat', email: 'Email' };
 
 /** Everything the platform did, per day, across every installer. */
 export default function AdminUsagePage() {
@@ -53,12 +53,6 @@ export default function AdminUsagePage() {
               label="Tokens"
               value={compact(data.totals.byModel.reduce((a, m) => a + m.tokensIn + m.tokensOut, 0))}
               hint="Input and output, all models"
-            />
-            <Tile
-              label="Voice minutes"
-              value={compact(data.totals.voiceMinutes)}
-              hint={`${compact(data.totals.voiceSessions)} sessions`}
-              trend={pick('voiceMinutes')}
             />
             <Tile
               label="Safety escalations"
@@ -108,14 +102,6 @@ export default function AdminUsagePage() {
                     slot: 1,
                   },
                 ]}
-                area
-              />
-            </Card>
-            <Card>
-              <LineChart
-                title="Voice minutes"
-                labels={labels}
-                series={[{ key: 'voice', label: 'Minutes', values: pick('voiceMinutes'), slot: 1 }]}
                 area
               />
             </Card>

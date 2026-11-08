@@ -15,15 +15,13 @@ import {
   type TenantRow,
 } from '../../../lib/admin-api.js';
 
-type SortKey =
-  'companyName' | 'turns' | 'leads' | 'tokens' | 'voiceMinutes' | 'errors' | 'lastActiveDay';
+type SortKey = 'companyName' | 'turns' | 'leads' | 'tokens' | 'errors' | 'lastActiveDay';
 
 const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
   { key: 'companyName', label: 'Installer', numeric: false },
   { key: 'turns', label: 'Replies', numeric: true },
   { key: 'leads', label: 'Leads', numeric: true },
   { key: 'tokens', label: 'Tokens', numeric: true },
-  { key: 'voiceMinutes', label: 'Voice min', numeric: true },
   { key: 'errors', label: 'Errors', numeric: true },
   { key: 'lastActiveDay', label: 'Last active', numeric: false },
 ];
@@ -124,7 +122,6 @@ export default function AdminTenantsPage() {
                     <td className="num">{compact(t.turns)}</td>
                     <td className="num">{compact(t.leads)}</td>
                     <td className="num">{compact(t.tokens)}</td>
-                    <td className="num">{compact(t.voiceMinutes)}</td>
                     <td className="num">{compact(t.errors)}</td>
                     <td>
                       {t.lastActiveDay ? (

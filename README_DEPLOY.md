@@ -216,7 +216,7 @@ ADR-002's):
 | `FIREBASE_PROJECT_ID`                                                    | the GCP project      | whose ID tokens installer sign-in accepts                                         |
 | `SUNNY_DASHBOARD_URL`, `SUNNY_PUBLIC_API_URL`, `SUNNY_WIDGET_SCRIPT_URL` | development URLs     | links and install snippets (Terraform sets them from `site_url` / `api_base_url`) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`                             | unset                | billing secrets (Secret Manager, once `stripe_enabled`)                           |
-| `STRIPE_PRICE_BASE` / `_EMAIL` / `_VOICE` / `_SUITE`                     | unset                | GBP price ids (`stripe_price_ids`)                                                |
+| `STRIPE_PRICE_BASE` / `_EMAIL` / `_SUITE`                                | unset                | GBP price ids (`stripe_price_ids`)                                                |
 
 Two of these are gates rather than settings, and the API refuses to boot if they
 are wrong: `assertProductionReady()` **will not start in production** while
@@ -359,7 +359,7 @@ thing:
   production's `ops_billing_readers`, and give both environments the same
   `ops_billing_table`.
 
-- **Twilio, Postmark, Stripe:** read with the credentials the API already has.
+- **Postmark, Stripe:** read with the credentials the API already has.
   Postmark has no billing API, so set `OPS_POSTMARK_PRICE_PER_1K` (through
   `api_env`, in the revenue currency) to see a cost worked out from your plan
   rate.

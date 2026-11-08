@@ -41,10 +41,11 @@ export interface ConversationTurn {
   clientMessageId?: string;
   /**
    * The channel the turn arrived on (Blueprint §5: one unified inbox across
-   * chat, voice and email). Absent on turns written before channels existed,
-   * which were all chat.
+   * chat and email). Absent on turns written before channels existed, which
+   * were all chat. Turns saved by the retired phone channel say 'voice'; the
+   * inbox reads any value it does not know as chat.
    */
-  channel?: 'chat' | 'email' | 'voice';
+  channel?: ConversationChannel;
   /** Whether the visitor was buying or an existing customer needing support. */
   intent?: 'sales' | 'support';
   /**
@@ -173,7 +174,8 @@ export interface Conversation {
   /**
    * The channel the conversation came in on, for the unified inbox
    * (Blueprint §5). Absent means web chat, which is every conversation written
-   * before the email and voice channels existed.
+   * before the email channel existed. A stored value outside the type (the
+   * retired 'voice') is read as chat too.
    */
   channel?: ConversationChannel;
   /** Sales enquiry or post-install support, as the core classified it. */
@@ -187,7 +189,7 @@ export interface Conversation {
   updatedAt: string;
 }
 
-export type ConversationChannel = 'chat' | 'voice' | 'email';
+export type ConversationChannel = 'chat' | 'email';
 export type ConversationIntent = 'sales' | 'support';
 export interface ConversationEscalation {
   kind: 'safety';

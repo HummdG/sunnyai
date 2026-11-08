@@ -1118,19 +1118,19 @@ DEFINITIONS.push({
 // The quote journey's tools (journey/agent-tools.ts).
 DEFINITIONS.push(...QUOTE_TOOLS);
 
-// ─── add-on tools (voice, email) ────────────────────────────────────────────
+// ─── add-on tools (email) ───────────────────────────────────────────────────
 //
 // Declared in the core so the channel matrix is complete and the model sees a
 // stable surface, but each refuses until the add-on module that implements it
 // registers itself. An add-on that is not installed therefore cannot be
 // half-working: it says "not enabled" and does nothing.
 
-type AddonToolName = 'transfer_to_human' | 'send_sms_link' | 'create_gmail_draft';
+type AddonToolName = 'create_gmail_draft';
 type AddonToolRun = ToolDefinition['run'];
 
 const ADDON_RUNNERS = new Map<AddonToolName, AddonToolRun>();
 
-/** Called by the voice and email add-on modules to provide their tools. */
+/** Called by the email add-on module to provide its tools. */
 export function registerAddonTool(name: AddonToolName, run: AddonToolRun): void {
   ADDON_RUNNERS.set(name, run);
 }
@@ -1164,18 +1164,6 @@ function addonTool(
 }
 
 DEFINITIONS.push(
-  addonTool(
-    'transfer_to_human',
-    'Transfer the call to a person at the installer (phone channel).',
-    { reason: { type: 'string' } },
-    ['reason'],
-  ),
-  addonTool(
-    'send_sms_link',
-    'Text the caller a link to book a survey (phone channel). Only with their agreement.',
-    { purpose: { type: 'string', enum: ['book_survey', 'quote_request'] } },
-    ['purpose'],
-  ),
   addonTool(
     'create_gmail_draft',
     "Create a draft reply in the installer's inbox for a person to approve (email channel). Never sends.",
