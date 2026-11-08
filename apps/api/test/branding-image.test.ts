@@ -237,6 +237,44 @@ describe('cropAndFit', () => {
   });
 });
 
+describe('cropAndFit alignment', () => {
+  it('keeps mask and image on the same window in alpha mode', () => {
+    const r = blank(300, 200, [0, 0, 0, 0]);
+    for (let y = 20; y < 180; y++)
+      for (let x = 30; x < 270; x++) {
+        const a = x < 40 ? 20 : 255;
+        set(r, x, y, [...LIME, a]);
+      }
+    const m = extractMask(r)!;
+    const { image, mask } = cropAndFit(r, m, 100, 100);
+    expect(mask!.coverage.length).toBe(image.width * image.height);
+    for (let i = 0; i < mask!.coverage.length; i++) {
+      expect(Math.abs(mask!.coverage[i]! - image.data[i * 4 + 3]! / 255)).toBeLessThanOrEqual(
+        2 / 255,
+      );
+    }
+  });
+
+  it('keeps the whole opaque tile and aligns the bar mask with it', () => {
+    const t = tile();
+    const { image, mask } = cropAndFit(t, extractMask(t), 512, 512);
+    expect([image.width, image.height]).toEqual([80, 80]);
+    expect(mask!.mode).toBe('background');
+    for (let y = 0; y < 80; y++)
+      for (let x = 0; x < 80; x++) {
+        const isBar = x >= 15 && x < 65 && y >= 30 && y < 50;
+        expect(mask!.coverage[y * 80 + x]).toBeGreaterThanOrEqual(isBar ? 0.99 : 0);
+        if (!isBar) expect(mask!.coverage[y * 80 + x]).toBe(0);
+      }
+    const big = blank(1000, 1000, [20, 24, 40, 255]);
+    for (let y = 400; y < 600; y++) for (let x = 100; x < 900; x++) set(big, x, y, [...LIME, 255]);
+    const f = cropAndFit(big, extractMask(big), 500, 500);
+    expect([f.image.width, f.image.height]).toEqual([500, 500]);
+    expect(f.mask!.coverage[250 * 500 + 250]).toBeGreaterThanOrEqual(0.99);
+    expect(f.mask!.coverage[50 * 500 + 250]).toBe(0);
+  });
+});
+
 describe('encoders and colours', () => {
   it('writes a white mask with alpha = coverage', () => {
     const m = extractMask(disc())!;

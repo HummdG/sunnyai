@@ -180,9 +180,8 @@ export function cropAndFit(
   maxW: number,
   maxH: number,
 ): { image: Raster; mask: Mask | null } {
-  const box = (mask
-    ? boundingBox(r.width, r.height, (i) => mask.coverage[i]! > 0.1)
-    : boundingBox(r.width, r.height, (i) => r.data[i * 4 + 3]! > 0)) ?? {
+  // Always the visible pixels, never the mask: the logo shown is exactly what was uploaded.
+  const box = boundingBox(r.width, r.height, (i) => r.data[i * 4 + 3]! > 0) ?? {
     x0: 0,
     y0: 0,
     x1: r.width,
