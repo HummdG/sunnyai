@@ -156,6 +156,28 @@ export function nextFromContinueUrl(continueUrlParam: string | null, fallback: s
   }
 }
 
+/**
+ * Ask the API to send an account email from the company's own mailbox, with a
+ * link to this website (routes/account-email.ts). False when this deployment
+ * does not send its own (`not_enabled`) or the API cannot be reached, so the
+ * caller falls back to Firebase's email; other refusals are real and thrown.
+ */
+async function sendOurAccountEmail(body: {
+  kind: 'verifyEmail' | 'resetPassword' | 'signIn' | 'changeEmail';
+  continueUrl: string;
+  email?: string;
+  newEmail?: string;
+  idToken?: string;
+}): Promise<boolean> {
+  try {
+    await api('/v1/auth/email', { method: 'POST', body });
+    return true;
+  } catch (error) {
+    if (error instanceof ApiFailure && error.status !== 403 && error.status < 500) throw error;
+    return false;
+  }
+}
+
 export async function signUpWithPassword(
   email: string,
   password: string,
@@ -164,14 +186,27 @@ export async function signUpWithPassword(
   const auth = await firebaseAuth();
   const { createUserWithEmailAndPassword, sendEmailVerification } = await import('firebase/auth');
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
-  await sendEmailVerification(user, { url: verifyContinueUrl(next) });
+  const url = verifyContinueUrl(next);
+  if (
+    await sendOurAccountEmail({
+      kind: 'verifyEmail',
+      continueUrl: url,
+      idToken: await user.getIdToken(),
+    })
+  ) {
+    return;
+  }
+  await sendEmailVerification(user, { url });
 }
 
 export async function resendVerification(next = '/dashboard/onboarding'): Promise<void> {
   const auth = await firebaseAuth();
   const { sendEmailVerification } = await import('firebase/auth');
   if (!auth.currentUser) throw new AuthProblem('signed-out', 'Sign in again to resend the email.');
-  await sendEmailVerification(auth.currentUser, { url: verifyContinueUrl(next) });
+  const url = verifyContinueUrl(next);
+  const idToken = await auth.currentUser.getIdToken();
+  if (await sendOurAccountEmail({ kind: 'verifyEmail', continueUrl: url, idToken })) return;
+  await sendEmailVerification(auth.currentUser, { url });
 }
 
 /** After the verification link: refresh the account and start the session. */
@@ -201,11 +236,11 @@ export async function signInWithGoogle(): Promise<void> {
 
 export async function sendMagicLink(email: string): Promise<void> {
   const auth = await firebaseAuth();
-  const { sendSignInLinkToEmail } = await import('firebase/auth');
-  await sendSignInLinkToEmail(auth, email, {
-    url: continueUrl('/auth/action?mode=signIn'),
-    handleCodeInApp: true,
-  });
+  const url = continueUrl('/auth/action?mode=signIn');
+  if (!(await sendOurAccountEmail({ kind: 'signIn', continueUrl: url, email }))) {
+    const { sendSignInLinkToEmail } = await import('firebase/auth');
+    await sendSignInLinkToEmail(auth, email, { url, handleCodeInApp: true });
+  }
   // Not a credential: lets the link finish without retyping the address.
   window.localStorage.setItem(LINK_EMAIL_KEY, email);
 }
@@ -232,8 +267,10 @@ export async function finishMagicLink(email: string, href: string): Promise<void
 
 export async function sendPasswordReset(email: string): Promise<void> {
   const auth = await firebaseAuth();
+  const url = continueUrl('/sign-in?reset=1');
+  if (await sendOurAccountEmail({ kind: 'resetPassword', continueUrl: url, email })) return;
   const { sendPasswordResetEmail } = await import('firebase/auth');
-  await sendPasswordResetEmail(auth, email, { url: continueUrl('/sign-in?reset=1') });
+  await sendPasswordResetEmail(auth, email, { url });
 }
 
 export async function resetEmailFor(oobCode: string): Promise<string> {
@@ -274,7 +311,14 @@ export async function changeEmail(next: string): Promise<void> {
   if (!auth.currentUser) {
     throw new AuthProblem('signed-out', 'Sign in again on this device to change your email.');
   }
-  await verifyBeforeUpdateEmail(auth.currentUser, next, { url: continueUrl('/sign-in') });
+  const url = continueUrl('/sign-in');
+  const idToken = await auth.currentUser.getIdToken();
+  if (
+    await sendOurAccountEmail({ kind: 'changeEmail', continueUrl: url, newEmail: next, idToken })
+  ) {
+    return;
+  }
+  await verifyBeforeUpdateEmail(auth.currentUser, next, { url });
 }
 
 /** Sign out of this browser. */

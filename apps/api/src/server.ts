@@ -82,6 +82,13 @@ import {
 } from './routes/sunscan.js';
 import { registerQuoteRoutes, sunscanRoofLookup } from './routes/quote.js';
 import { registerProposalRoutes } from './routes/proposal.js';
+import { registerAccountEmailRoutes } from './routes/account-email.js';
+import {
+  accountMailFromEnv,
+  createAccountMailer,
+  type AccountMailer,
+} from './auth/account-email.js';
+import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
@@ -121,6 +128,8 @@ export interface ServerDeps {
   chatProvider?: ChatProvider;
   /** Injected so tests can drive the clock and read bucket counts. */
   rateLimiter?: RateLimiter;
+  /** Account emails sent by Sunny (routes/account-email.ts); null switches them off. */
+  accountMailer?: AccountMailer | null;
   now?: () => number;
   /** Installer portal + billing settings; read from the environment when absent. */
   portal?: PortalConfig;
@@ -2018,6 +2027,33 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     pricing: quotePricing,
     roof: sunscanRoofLookup(sunscan),
   });
+
+  // Account emails from the company's own mailbox (routes/account-email.ts).
+  {
+    const portal = deps.portal ?? loadPortalConfig(process.env, config.nodeEnv);
+    const mailConfig = accountMailFromEnv(
+      process.env,
+      portal.firebaseProjectId,
+      portal.dashboardUrl,
+    );
+    registerAccountEmailRoutes(app, {
+      mailer:
+        deps.accountMailer !== undefined
+          ? deps.accountMailer
+          : mailConfig
+            ? createAccountMailer(mailConfig)
+            : null,
+      siteUrl: portal.dashboardUrl,
+      verifyIdToken: portal.firebaseProjectId
+        ? createFirebaseVerifier({
+            projectId: portal.firebaseProjectId,
+            emulator: portal.firebaseEmulator,
+            now,
+          })
+        : null,
+      enforceRateLimit,
+    });
+  }
 
   // The customer proposal PDF and "email me my quote" (routes/proposal.ts).
   registerProposalRoutes(app, {
