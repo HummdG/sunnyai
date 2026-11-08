@@ -220,6 +220,8 @@ async function harness(provider?: ChatProvider): Promise<FastifyInstance> {
     // "Email me my quote" configured, so its route reaches the session check
     // rather than answering everyone `not_enabled`.
     proposalMailer: { send: () => Promise.resolve({ messageId: 'sweep' }) },
+    // Account emails configured, so the route is served rather than `not_enabled`.
+    accountMailer: { send: () => Promise.resolve() },
     // The Cloud Tasks worker route switched on, with a verifier no sweep
     // credential satisfies: only a Google-signed queue token runs a job, and
     // none of the credentials below is one (see sunscan-production.test.ts for
@@ -1257,6 +1259,19 @@ const ROUTES: RouteSpec[] = [
     kind: 'secret',
     refuses: 'unauthorized',
     payload: () => ({ message: { data: '' } }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/auth/email',
+    url: () => '/v1/auth/email',
+    // Public by nature: a signed-out person resets a password or asks for a
+    // sign-in link. It names no installer and answers the same for any address.
+    kind: 'public',
+    payload: () => ({
+      kind: 'resetPassword',
+      email: 'sweep@example.test',
+      continueUrl: 'http://localhost:4176/sign-in?reset=1',
+    }),
   },
   {
     method: 'GET',
