@@ -4,6 +4,7 @@
  * The default is a draft for a person to approve (Blueprint §5,
  * human-in-the-loop). An automatic reply needs every one of:
  *   - the installer switched auto-send on;
+ *   - the email is not from a supplier or an invoice (those are always drafts);
  *   - grounding confidence ≥ the threshold (0.95) on a STANDARD FAQ;
  *   - the sender is under today's cap (3 automatic replies per sender per day);
  *   - no safety escalation, no "I don't have that exact information" fallback,
@@ -17,6 +18,8 @@
  * FAQs -- and it is zero when the answer cites nothing, used a tool other than
  * knowledge retrieval, or contains a figure no cited passage contains.
  */
+
+import type { EmailCategory } from './category.js';
 
 export interface GroundingInput {
   /** The customer's words: subject and the new part of the email. */
@@ -107,12 +110,17 @@ export interface SendDecisionInput {
   injectionSuspected: boolean;
   /** A mailbox that can send is connected. */
   canSend: boolean;
+  /** What kind of email it is (category.ts). Supplier and invoice mail is never auto-sent. */
+  category?: EmailCategory | null;
 }
 
 export type SendDecision = { send: true } | { send: false; reason: string };
 
 export function decideSend(input: SendDecisionInput): SendDecision {
   if (!input.autoSendEnabled) return { send: false, reason: 'draft mode (auto-send is off)' };
+  if (input.category === 'supplier' || input.category === 'invoice') {
+    return { send: false, reason: 'supplier and invoice mail is always a draft' };
+  }
   if (input.escalated) return { send: false, reason: 'safety escalation' };
   if (input.usedFallback) return { send: false, reason: 'answer not in the knowledge base' };
   if (input.injectionSuspected)

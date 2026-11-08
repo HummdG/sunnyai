@@ -19,6 +19,7 @@ import {
   MemoryEmailState,
   registerEmailTools,
   type DriveFiles,
+  type EmailCategory,
   type EmailCore,
   type GmailPushClient,
   type InboundEmail,
@@ -128,7 +129,9 @@ const fakeDrive: DriveFiles = {
   },
 };
 
-async function setup(options: { tenant?: Tenant } = {}) {
+async function setup(
+  options: { tenant?: Tenant; classify?: (email: InboundEmail) => EmailCategory } = {},
+) {
   const dir = await mkdtemp(join(tmpdir(), 'sunny-email-e2e-'));
   dirs.push(dir);
   const store = new FileStore(dir);
@@ -148,6 +151,14 @@ async function setup(options: { tenant?: Tenant } = {}) {
     loadKnowledge: async () => knowledge,
     mailbox: async () => mailbox,
     driveFiles: () => fakeDrive,
+    ...(options.classify
+      ? {
+          classify: async (_t: Tenant, email: InboundEmail) => ({
+            category: options.classify!(email),
+            via: 'model' as const,
+          }),
+        }
+      : {}),
     now: () => NOW,
   });
   return {
@@ -194,6 +205,75 @@ function decode(raw: string): string {
     .map((m) => Buffer.from(m[1]!.replace(/\r\n/g, ''), 'base64').toString('utf8'))
     .join('\n\n');
 }
+
+describe('which emails get a draft', () => {
+  it('leaves an email that is not business untouched: no turn, no draft, no conversation', async () => {
+    const { assistant, store, state, mailbox, tenant: t, calls } = await setup();
+    const result = await assistant.handleInbound(
+      t,
+      inbound({ subject: 'Exciting opportunity', text: 'I am a recruiter with a role for you.' }),
+    );
+    expect(result).toMatchObject({
+      outcome: 'skipped',
+      category: 'other',
+      reason: 'not a sales, support, supplier or invoice email',
+    });
+    expect(calls()).toBe(0);
+    expect(mailbox.drafts).toHaveLength(0);
+    expect(await store.listConversations(t.id)).toHaveLength(0);
+    expect(await state.usage(t.id, '2026-10')).toMatchObject({ processed: 0, skipped: 1 });
+  });
+
+  it('drafts sales and support enquiries', async () => {
+    const { assistant, mailbox, tenant: t } = await setup();
+    const sales = await assistant.handleInbound(
+      t,
+      inbound({ subject: 'Quote', text: 'How much would solar panels and a battery cost?' }),
+    );
+    const support = await assistant.handleInbound(t, inbound());
+    expect([sales.outcome, support.outcome]).toEqual(['drafted', 'drafted']);
+    expect([sales.category, support.category]).toEqual(['sales', 'support']);
+    expect(mailbox.drafts).toHaveLength(2);
+  });
+
+  it("follows the classifier's label", async () => {
+    const { assistant, mailbox, tenant: t } = await setup({ classify: () => 'other' });
+    expect((await assistant.handleInbound(t, inbound())).outcome).toBe('skipped');
+    expect(mailbox.drafts).toHaveLength(0);
+  });
+
+  it('drafts supplier and invoice mail with a note, and never auto-sends it', async () => {
+    const { assistant, state, mailbox } = await setup({ classify: () => 'invoice' });
+    const t = tenant({ email: { provider: 'gmail', autoSend: true } });
+    // The exact FAQ that is auto-sent as a support email.
+    const result = await assistant.handleInbound(t, inbound());
+    expect(result).toMatchObject({ outcome: 'drafted', category: 'invoice' });
+    expect(result.reason).toBe('supplier and invoice mail is always a draft');
+    expect(mailbox.sent).toHaveLength(0);
+    const link = await state.getThread(t.id, result.sessionId!);
+    expect(link?.notes.join(' ')).toMatch(/invoice or payment email/);
+  });
+
+  it('answers a reply in a thread it already answered, whatever the reply says', async () => {
+    let label: EmailCategory = 'sales';
+    const { assistant, mailbox, tenant: t } = await setup({ classify: () => label });
+    const first = inbound({ subject: 'Quote', text: 'Could I get a quote for solar?' });
+    await assistant.handleInbound(t, first);
+    label = 'other';
+    const reply = await assistant.handleInbound(
+      t,
+      inbound({
+        subject: 'Re: Quote',
+        text: 'Tuesday works for me.',
+        inReplyTo: first.messageId,
+        references: [first.messageId!],
+      }),
+    );
+    expect(reply.outcome).toBe('drafted');
+    expect(reply.category).toBeNull();
+    expect(mailbox.drafts).toHaveLength(2);
+  });
+});
 
 describe('email assistant, end to end with the demo knowledge base', () => {
   it('drafts a grounded support reply with the footer and the spec sheet, and does not send', async () => {

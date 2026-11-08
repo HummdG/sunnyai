@@ -15,6 +15,7 @@ import {
 import type { EmailStateStore } from './state.js';
 
 export * from './assistant.js';
+export * from './category.js';
 export * from './config.js';
 export * from './crypto.js';
 export * from './followup.js';

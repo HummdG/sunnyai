@@ -7,6 +7,12 @@ import { assertEntitled } from '../../agent/channels.js';
 import { fallbackLine } from '../../agent/prompt.js';
 import type { ConversationTurn, Store } from '../../store.js';
 import type { Tenant } from '../../tenants.js';
+import {
+  DRAFTED_CATEGORIES,
+  keywordCategory,
+  type EmailCategory,
+  type EmailClassification,
+} from './category.js';
 import { composeReply, stripFooter } from './compose.js';
 import type { EmailAddonConfig } from './config.js';
 import {
@@ -64,6 +70,8 @@ export interface EmailAssistantDeps {
   mailbox: (tenant: Tenant) => Promise<(MailboxClient & Partial<GmailPushClient>) | null>;
   /** Drive access for spec-sheet attachments, when the tenant has any. */
   driveFiles?: (tenant: Tenant) => DriveFiles | null;
+  /** Labels an email (category.ts). Without it, keyword rules alone decide. */
+  classify?: (tenant: Tenant, email: InboundEmail) => Promise<EmailClassification>;
   now: () => number;
 }
 
@@ -77,6 +85,8 @@ export interface EmailResult {
   autoSent: boolean;
   confidence: number;
   intent: 'sales' | 'support' | null;
+  /** What kind of email it is; null for a thread already answered, or one skipped before sorting. */
+  category: EmailCategory | null;
   escalated: boolean;
   attachments: string[];
 }
@@ -149,6 +159,7 @@ export class EmailAssistant {
       autoSent: false,
       confidence: 0,
       intent: null,
+      category: null,
       escalated: false,
       attachments: [],
     };
@@ -165,7 +176,10 @@ export class EmailAssistant {
       };
     }
 
-    const skip = async (reason: string): Promise<EmailResult> => {
+    const skip = async (
+      reason: string,
+      category: EmailCategory | null = null,
+    ): Promise<EmailResult> => {
       await state.finish(tenant.id, {
         key,
         outcome: 'skipped',
@@ -175,7 +189,7 @@ export class EmailAssistant {
         at,
       });
       await state.addUsage(tenant.id, month(now()), { skipped: 1 });
-      return { ...empty, outcome: 'skipped', reason };
+      return { ...empty, outcome: 'skipped', reason, category };
     };
 
     const automated = isAutomated(email);
@@ -194,7 +208,21 @@ export class EmailAssistant {
     await state.recordMessage(tenant.id, email.from.address, today);
 
     try {
-      return await this.#answer(tenant, email, key, at);
+      // Only business mail is answered (category.ts). A reply in a thread
+      // already answered is not sorted again: "Tuesday works" continues the
+      // conversation it belongs to, whatever it looks like on its own.
+      let category: EmailCategory | null = null;
+      const answered = await this.#deps.store.getConversation(
+        tenant.id,
+        threadSessionId(tenant.id, email),
+      );
+      if (!answered) {
+        category = (await this.#classify(tenant, email)).category;
+        if (!DRAFTED_CATEGORIES.has(category)) {
+          return await skip('not a sales, support, supplier or invoice email', category);
+        }
+      }
+      return await this.#answer(tenant, email, key, at, category);
     } catch (error) {
       await state.finish(tenant.id, {
         key,
@@ -213,6 +241,7 @@ export class EmailAssistant {
     email: InboundEmail,
     key: string,
     at: string,
+    category: EmailCategory | null,
   ): Promise<EmailResult> {
     const { store, state, config, now } = this.#deps;
     const sessionId = threadSessionId(tenant.id, email);
@@ -308,6 +337,7 @@ export class EmailAssistant {
       usedFallback,
       injectionSuspected,
       canSend: mailbox !== null,
+      category,
     });
 
     let outcome: EmailOutcome = 'drafted';
@@ -360,6 +390,14 @@ export class EmailAssistant {
         ...(injectionSuspected
           ? ['The email looked like it tried to instruct the assistant; check the reply.']
           : []),
+        ...(category === 'supplier'
+          ? ['A supplier email: the assistant answers customers, so check the reply closely.']
+          : []),
+        ...(category === 'invoice'
+          ? [
+              'An invoice or payment email: the assistant answers customers, so check the reply closely.',
+            ]
+          : []),
         ...(escalated ? ['Safety escalation: the customer reported a possible hazard.'] : []),
         ...(usedFallback
           ? ['The answer was not in the knowledge base; a specialist should follow up.']
@@ -384,8 +422,24 @@ export class EmailAssistant {
       autoSent: outcome === 'sent',
       confidence,
       intent,
+      category,
       escalated,
       attachments: attachments.map((a) => a.filename),
+    };
+  }
+
+  /** The email's category: the injected classifier, or keyword rules without one or when it fails. */
+  async #classify(tenant: Tenant, email: InboundEmail): Promise<EmailClassification> {
+    if (this.#deps.classify) {
+      try {
+        return await this.#deps.classify(tenant, email);
+      } catch {
+        // Fall through: sorting never fails an email.
+      }
+    }
+    return {
+      category: keywordCategory(email.subject, splitQuoted(email.text).latest),
+      via: 'keywords',
     };
   }
 

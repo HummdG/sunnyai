@@ -38,6 +38,31 @@ content hash) and processed once. Automated mail (auto-replies, bounces,
 lists, `no-reply@`), the installer's own address, and senders over the daily
 ceiling (`SUNNY_EMAIL_DAILY_SENDER_LIMIT`, default 20) are skipped.
 
+## Which emails get a draft
+
+Only business mail is answered. Before any draft work, one small model call
+(`emailCategory` on the chat provider, `channels/email/category.ts`) labels
+the email from its subject and new text:
+
+| Category   | Meaning                                                               | Answered |
+| ---------- | --------------------------------------------------------------------- | -------- |
+| `sales`    | Quotes, prices, surveys, products, installations                      | yes      |
+| `support`  | An existing customer's system, app, fault, warranty, tariff or export | yes      |
+| `supplier` | Stock, orders, deliveries, price lists, lead times                    | yes      |
+| `invoice`  | Invoices, receipts, statements, remittances, payment reminders, POs   | yes      |
+| `other`    | Recruiters, pitches to the company, newsletters, personal mail, spam  | no       |
+
+An `other` email is skipped: no core turn, no draft, nothing in Sunny's inbox,
+and it counts under `skipped` in the month's usage. Supplier and invoice drafts
+carry a reviewer note and are never auto-sent.
+
+The email is data inside the classifier prompt and the answer is constrained
+to the five labels, so an email can at most change its own label, and the
+result is still a draft for a person. When the model is not configured, errors,
+answers with anything else, or takes more than 2.5 seconds, keyword rules
+decide instead (`keywordCategory`). A reply in a thread Sunny already answered
+is not sorted again, so "Tuesday works for me" still gets its draft.
+
 ## Zero inbox read-back
 
 The assistant receives only the current email and the thread it quotes, plus

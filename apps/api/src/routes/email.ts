@@ -9,6 +9,7 @@ import type { PassageSearch } from '../agent/retrieval.js';
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import {
   authorizeUrl,
+  classifyEmail,
   decryptSecret,
   driveFilesFromEnv,
   EmailAssistant,
@@ -30,6 +31,7 @@ import {
   verifyState,
   type DriveFiles,
   type EmailAddonConfig,
+  type EmailClassification,
   type EmailCore,
   type EmailResult,
   type EmailStateStore,
@@ -67,6 +69,8 @@ export interface EmailOverrides {
   core?: EmailCore;
   mailbox?: (tenant: Tenant) => Promise<(MailboxClient & Partial<GmailPushClient>) | null>;
   driveFiles?: (tenant: Tenant) => DriveFiles | null;
+  /** Labels an inbound email; by default the chat provider's model, then keyword rules. */
+  classify?: (tenant: Tenant, email: InboundEmail) => Promise<EmailClassification>;
   /** The transport for OAuth token exchange and provider calls. */
   fetch?: typeof fetch;
 }
@@ -154,6 +158,10 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
       loadKnowledge: deps.loadKnowledge,
       mailbox: overrides.mailbox ?? mailboxFromState(state, config, fetchImpl),
       ...(driveFiles ? { driveFiles } : {}),
+      classify:
+        overrides.classify ??
+        (async (tenant, email) =>
+          classifyEmail(await deps.getProvider(), tenant.config.companyName, email)),
       now,
     });
   })();

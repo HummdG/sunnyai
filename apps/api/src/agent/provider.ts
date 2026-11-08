@@ -64,6 +64,12 @@ export interface ChatProvider {
    * words alone (query-rewrite.ts).
    */
   searchQueries?(prompt: string, signal?: AbortSignal): Promise<unknown>;
+  /**
+   * An inbound email's category, as the model's parsed JSON (`{ category }`
+   * when it behaves). Optional: a provider without it sorts mail by keyword
+   * rules alone (channels/email/category.ts).
+   */
+  emailCategory?(prompt: string, signal?: AbortSignal): Promise<unknown>;
 }
 
 export class ProviderUnavailableError extends Error {
@@ -212,6 +218,32 @@ export class GeminiProvider implements ChatProvider {
       },
     });
     return JSON.parse(response.text ?? '[]') as unknown;
+  }
+
+  async emailCategory(prompt: string, signal?: AbortSignal): Promise<unknown> {
+    const { Type } = await import('@google/genai');
+    const ai = await this.#client();
+    const response = await ai.models.generateContent({
+      model: this.model,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0,
+        maxOutputTokens: 256,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            category: {
+              type: Type.STRING,
+              enum: ['sales', 'support', 'supplier', 'invoice', 'other'],
+            },
+          },
+          required: ['category'],
+        },
+        ...(signal ? { abortSignal: signal } : {}),
+      },
+    });
+    return JSON.parse(response.text ?? '{}') as unknown;
   }
 
   async *stream(request: ChatTurnRequest): AsyncIterable<ChatChunk> {
