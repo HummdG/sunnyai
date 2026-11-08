@@ -127,9 +127,10 @@ export async function generateActionLink(
     oobLink?: string;
     error?: { message?: string };
   };
-  if (!response.ok || !json.oobLink) {
-    throw new AccountLinkError(json.error?.message ?? `HTTP ${response.status}`);
-  }
+  if (!response.ok) throw new AccountLinkError(json.error?.message ?? `HTTP ${response.status}`);
+  // With email enumeration protection on, an unknown address is a success with
+  // no link: there is nobody to email.
+  if (!json.oobLink) throw new AccountLinkError('EMAIL_NOT_FOUND');
   return brandedActionLink(json.oobLink, config.siteUrl);
 }
 

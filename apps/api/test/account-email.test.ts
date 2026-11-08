@@ -12,6 +12,7 @@ import {
   brandedActionLink,
   buildAccountMime,
   createAccountMailer,
+  generateActionLink,
   type AccountMailer,
   type LinkRequest,
 } from '../src/auth/account-email.js';
@@ -59,6 +60,25 @@ describe('account email links', () => {
     expect(accountMailFromEnv(env, 'p', `${SITE}/`)).toMatchObject({ siteUrl: SITE });
     expect(accountMailFromEnv(env, null, SITE)).toBeNull();
     expect(accountMailFromEnv({ ...env, SUNNY_ACCOUNT_MAIL_FROM: ' ' }, 'p', SITE)).toBeNull();
+  });
+});
+
+describe('an unknown address', () => {
+  it('is reported as not found when Firebase answers success with no link', async () => {
+    const send = generateActionLink(
+      {
+        serviceAccount: 'a@p.iam.gserviceaccount.com',
+        mailbox: 'm@heysunny.co.uk',
+        from: 'HeySunny <support@heysunny.co.uk>',
+        projectId: 'heysunny-prod',
+        siteUrl: SITE,
+      },
+      { kind: 'resetPassword', email: 'nobody@example.com', continueUrl: `${SITE}/sign-in` },
+      () => Promise.resolve('t'),
+      () =>
+        Promise.resolve(Response.json({ kind: 'identitytoolkit#GetOobConfirmationCodeResponse' })),
+    );
+    await expect(send).rejects.toMatchObject({ reason: 'EMAIL_NOT_FOUND' });
   });
 });
 
