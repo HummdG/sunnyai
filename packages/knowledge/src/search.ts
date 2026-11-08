@@ -109,8 +109,10 @@ export function buildIndex(chunks: readonly KnowledgeChunk[], sourceCount: numbe
   for (const chunk of chunks) {
     // The heading is searchable text: a query for "warranty" should reach the
     // clauses filed under a Warranty heading even when the body never says the
-    // word again.
-    const stream = tokenize(`${chunk.heading ?? ''}\n${chunk.text}`);
+    // word again. So is the page title: a news story titled "Group MD joins
+    // advisory board" may never say "MD" in its body, and without its title it
+    // lost a search for "md" to every listing page that links to it by name.
+    const stream = tokenize(`${chunk.title}\n${chunk.heading ?? ''}\n${chunk.text}`);
     tokens.set(chunk.id, stream);
     total += stream.length;
     for (const term of new Set(stream)) {
@@ -135,6 +137,59 @@ function idf(index: BuiltIndex, term: string): number {
   return Math.log(1 + (n - df + 0.5) / (df + 0.5));
 }
 
+/** Edit distance with adjacent swaps, giving up once it passes `max`. */
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2: number[] = [];
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let d = Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d = Math.min(d, prev2[j - 2]! + 1);
+      }
+      row.push(d);
+      best = Math.min(best, d);
+    }
+    if (best > max) return max + 1;
+    prev2 = prev;
+    prev = row;
+  }
+  return prev[b.length]!;
+}
+
+/**
+ * The word the documents use for a misspelt query word, or null.
+ *
+ * A visitor who types "suprvisor" means "supervisor", and a lexical index that
+ * cannot see that answers "I don't know" to one spelling and correctly to the
+ * other, which reads as the assistant being random. Only words of five letters
+ * or more are corrected (one slip; two from eight letters), since short words
+ * are often different words one letter apart. Ties go to the more common word,
+ * then alphabetically, so the correction is deterministic.
+ */
+function correction(index: BuiltIndex, term: string): string | null {
+  if (term.length < 5 || /\d/.test(term)) return null;
+  const max = term.length >= 8 ? 2 : 1;
+  let best: { word: string; distance: number; df: number } | null = null;
+  for (const [word, df] of index.documentFrequency) {
+    if (word.length < 5 || /\d/.test(word)) continue;
+    const distance = editDistance(term, word, max);
+    if (distance > max) continue;
+    if (
+      !best ||
+      distance < best.distance ||
+      (distance === best.distance && (df > best.df || (df === best.df && word < best.word)))
+    ) {
+      best = { word, distance, df };
+    }
+  }
+  return best?.word ?? null;
+}
+
 /**
  * Score every chunk against a query, best first.
  *
@@ -149,8 +204,17 @@ export function searchIndex(
   query: string,
   limit: number = DEFAULT_RESULT_LIMIT,
 ): RetrievalResult {
-  const terms = [...new Set(tokenize(query))];
-  const missingTerms = terms.filter((term) => !index.documentFrequency.has(term)).sort();
+  const typed = [...new Set(tokenize(query))];
+  const missingTerms = typed
+    .filter((term) => !index.documentFrequency.has(term) && !correction(index, term))
+    .sort();
+  const terms = [
+    ...new Set(
+      typed.map((term) =>
+        index.documentFrequency.has(term) ? term : (correction(index, term) ?? term),
+      ),
+    ),
+  ];
 
   if (terms.length === 0 || index.chunks.length === 0) {
     return {

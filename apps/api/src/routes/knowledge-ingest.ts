@@ -23,6 +23,7 @@ import {
 } from '../ingest/drive.js';
 import {
   GeminiEmbedder,
+  VertexEmbedder,
   metadataToken,
   vertexReranker,
   type Embedder,
@@ -149,12 +150,23 @@ export function createKnowledgePipeline(
     });
 
   const geminiKey = env['GEMINI_API_KEY'];
+  // A key wins; otherwise a deployment on Vertex embeds as its own service
+  // account, the way it chats. Without either, search is keyword-only.
+  const vertexProject =
+    env['GEMINI_SURFACE'] === 'vertex' ? (env['GOOGLE_CLOUD_PROJECT'] ?? null) : null;
   const embedder =
     options.embedder !== undefined
       ? options.embedder
       : geminiKey
         ? new GeminiEmbedder({ apiKey: geminiKey, model: env['SUNNY_EMBEDDING_MODEL'] })
-        : null;
+        : vertexProject
+          ? new VertexEmbedder({
+              project: vertexProject,
+              location: env['SUNNY_EMBEDDING_LOCATION'] ?? 'europe-west2',
+              token: metadataToken(),
+              model: env['SUNNY_EMBEDDING_MODEL'],
+            })
+          : null;
 
   const rerankProject =
     env['SUNNY_RERANK'] === 'vertex' ? (env['GOOGLE_CLOUD_PROJECT'] ?? null) : null;
@@ -195,7 +207,8 @@ export function createKnowledgePipeline(
         : {
             available: false,
             model: null,
-            reason: 'GEMINI_API_KEY is not set: retrieval is keyword-only (BM25).',
+            reason:
+              'Neither GEMINI_API_KEY nor GEMINI_SURFACE=vertex is set: retrieval is keyword-only (BM25).',
           },
       rerank: { available: rerank !== null, provider: rerank ? 'vertex' : null },
       pdf: {

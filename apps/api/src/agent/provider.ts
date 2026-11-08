@@ -58,6 +58,12 @@ export interface ChatProvider {
   readonly model: string | null;
   /** Streams a turn. Throws `ProviderUnavailableError` when not configured. */
   stream(request: ChatTurnRequest): AsyncIterable<ChatChunk>;
+  /**
+   * Search queries for a turn, as the model's parsed JSON (an array of strings
+   * when it behaves). Optional: a provider without it searches the visitor's
+   * words alone (query-rewrite.ts).
+   */
+  searchQueries?(prompt: string, signal?: AbortSignal): Promise<unknown>;
 }
 
 export class ProviderUnavailableError extends Error {
@@ -173,23 +179,44 @@ export class GeminiProvider implements ChatProvider {
     this.#maxOutputTokens = options.maxOutputTokens ?? 2048;
   }
 
-  async *stream(request: ChatTurnRequest): AsyncIterable<ChatChunk> {
-    const { GoogleGenAI, FunctionCallingConfigMode } = await import('@google/genai');
+  async #client() {
+    const { GoogleGenAI } = await import('@google/genai');
     // The client is built for the surface the credentials describe. Passing an
     // API-key-only client a Vertex model identifier is not a degraded mode: the
     // request 404s. Vertex needs the project and location; the Developer API
     // needs only the key, and must not be handed the other two.
-    const ai =
-      this.#config.surface === 'vertex'
-        ? new GoogleGenAI({
-            // Without a key, the client uses the deployment's own identity
-            // (Application Default Credentials: Cloud Run's service account).
-            ...(this.#config.apiKey ? { apiKey: this.#config.apiKey } : {}),
-            vertexai: true,
-            project: this.#config.project,
-            location: this.#config.location,
-          })
-        : new GoogleGenAI({ apiKey: this.#config.apiKey });
+    return this.#config.surface === 'vertex'
+      ? new GoogleGenAI({
+          // Without a key, the client uses the deployment's own identity
+          // (Application Default Credentials: Cloud Run's service account).
+          ...(this.#config.apiKey ? { apiKey: this.#config.apiKey } : {}),
+          vertexai: true,
+          project: this.#config.project,
+          location: this.#config.location,
+        })
+      : new GoogleGenAI({ apiKey: this.#config.apiKey });
+  }
+
+  async searchQueries(prompt: string, signal?: AbortSignal): Promise<unknown> {
+    const { Type } = await import('@google/genai');
+    const ai = await this.#client();
+    const response = await ai.models.generateContent({
+      model: this.model,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0,
+        maxOutputTokens: 256,
+        responseMimeType: 'application/json',
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
+        ...(signal ? { abortSignal: signal } : {}),
+      },
+    });
+    return JSON.parse(response.text ?? '[]') as unknown;
+  }
+
+  async *stream(request: ChatTurnRequest): AsyncIterable<ChatChunk> {
+    const { FunctionCallingConfigMode } = await import('@google/genai');
+    const ai = await this.#client();
 
     const contents: Content[] = [
       ...request.history.map((m) => ({

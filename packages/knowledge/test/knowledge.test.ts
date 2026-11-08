@@ -243,6 +243,46 @@ describe('retrieval', () => {
     expect(best.matchedTerms).toEqual(['inverter', 'warranty']);
   });
 
+  it('finds a page by its title, ahead of a page that only links to it', () => {
+    // HSEnergy's news story is titled "Group MD ..." and never says "MD" again;
+    // the listing page repeats the headline as link text. "who is the md" has
+    // to reach the story, which is the page that names the person.
+    const corpus = chunkDocuments([
+      doc({
+        id: 'doc_news',
+        title: 'Company News',
+        text: '# News\n\n[Group MD Invited to Join Advisory Board](/plg)\n\n[Group MD at Solar Show](/show)',
+      }),
+      doc({
+        id: 'doc_story',
+        title: 'Group MD Invited to Join Advisory Board',
+        text: '# Advisory board\n\nNeil Mitchell, our founder and managing director, has joined the board.',
+      }),
+    ]);
+    const best = first(searchChunks(corpus, 'who is the md').hits);
+
+    expect(best.chunk.documentId).toBe('doc_story');
+  });
+
+  it('finds the same passage for a misspelt word as for the right spelling', () => {
+    const corpus = chunkDocuments([
+      doc({ id: 'doc_team', title: 'About us', text: '# Team\n\nSenior IT Supervisor: Dylan.' }),
+      doc({
+        id: 'doc_other',
+        title: 'Batteries',
+        text: '# Batteries\n\nStore your power for the evening.',
+      }),
+    ]);
+    const right = searchChunks(corpus, 'who is the it supervisor');
+    const typo = searchChunks(corpus, 'who is the IT suprvisor?');
+
+    expect(first(typo.hits).chunk.documentId).toBe('doc_team');
+    expect(typo.hits.map((h) => h.chunk.id)).toEqual(right.hits.map((h) => h.chunk.id));
+    expect(typo.missingTerms).not.toContain('suprvisor');
+    // Short words are not "corrected" into other words.
+    expect(searchChunks(corpus, 'cat').missingTerms).toEqual(['cat']);
+  });
+
   it('stops indexing a source once it is gone from the corpus', () => {
     // The property the API's "delete reflected" claim rests on: retrieval has no
     // second copy of the corpus, so a source that is no longer passed in cannot

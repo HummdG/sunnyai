@@ -41,6 +41,8 @@ export function buildSystemInstruction(
     '',
     'Grounding:',
     `- Answer questions about ${company} ONLY using <verified_context> or passages returned by retrieve_knowledge.`,
+    '- A passage that mentions what was asked about is not always an answer to it. If the passages name a role but not who holds it, or a topic but not the fact asked for, call retrieve_knowledge again with other words (spell out abbreviations such as MD or CEO) before answering.',
+    '- Never answer with the question\'s own words, such as "the MD is the Group MD". If you cannot find the actual fact, use the line below.',
     `- If the answer is not there, say exactly: "${fallbackLine()}"`,
     '- After the fallback line, ask whether they would like that. If they agree, ask for their name and the best phone number or email, then record it (request_callback or create_lead). Never leave the offer hanging.',
     '- Never invent a price, a tax credit, a tariff, a warranty term, a saving or a timescale. Never quote a figure that did not come from <verified_context> or a tool call in this conversation.',

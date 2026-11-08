@@ -22,6 +22,7 @@ import {
   safeLink,
   type PassageSearch,
 } from './retrieval.js';
+import { rewriteQueries, searchAll } from './query-rewrite.js';
 import { declarationsFor, executeTool, type ToolContext, type ToolEvent } from './tools.js';
 
 // The prompt lives in `prompt.ts`; re-exported for callers that import it from here.
@@ -194,8 +195,22 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   const knowledgeIndex = input.knowledge ?? EMPTY_KNOWLEDGE;
   const ledger = new CitationLedger();
   // Retrieved up front, into <verified_context> (Blueprint §4.3); the tool is
-  // there for a second lookup, and shares the markers through the ledger.
-  const contextPassages = ledger.add(await search(knowledgeIndex, input.message, CONTEXT_PASSAGES));
+  // there for a second lookup, and shares the markers through the ledger. The
+  // search runs for the visitor's words and for the model's rewrites of them
+  // (query-rewrite.ts), so a typo, an abbreviation or a "he" still finds it.
+  const rewrites =
+    knowledgeIndex.sourceCount > 0
+      ? await rewriteQueries(
+          input.provider,
+          input.tenant.config.companyName,
+          modelWindow(input.history),
+          input.message,
+          input.signal,
+        )
+      : [];
+  const contextPassages = ledger.add(
+    await searchAll(search, knowledgeIndex, [input.message, ...rewrites], CONTEXT_PASSAGES),
+  );
 
   const events: ToolEvent[] = [];
   const ctx: ToolContext = {

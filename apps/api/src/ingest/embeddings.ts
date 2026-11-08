@@ -89,6 +89,105 @@ export class GeminiEmbedder implements Embedder {
 }
 
 /**
+ * Gemini embeddings on Vertex AI, as the deployment's own service account.
+ *
+ * Production reaches the model through Vertex with no API key, and the embedder
+ * above needs one, so until this existed every deployed installer had keyword
+ * search only: "head of IT" never found "IT Supervisor", "md" never found
+ * "managing director". This is the same model and the same vectors, called the
+ * way chat is called, so it needs no key and bills the project.
+ *
+ * Vertex takes one text per request for this model, so documents go a few at
+ * a time, and a busy answer (429) is retried after a pause rather than
+ * failing the whole sync's batch.
+ */
+export class VertexEmbedder implements Embedder {
+  readonly model: string;
+  readonly #url: string;
+  readonly #token: () => Promise<string>;
+  readonly #timeoutMs: number;
+  readonly #concurrency: number;
+  readonly #fetch: typeof fetch;
+
+  constructor(options: {
+    project: string;
+    location: string;
+    token: () => Promise<string>;
+    model?: string;
+    timeoutMs?: number;
+    concurrency?: number;
+    fetchImpl?: typeof fetch;
+  }) {
+    this.model = options.model ?? DEFAULT_EMBEDDING_MODEL;
+    const host =
+      options.location === 'global'
+        ? 'aiplatform.googleapis.com'
+        : `${options.location}-aiplatform.googleapis.com`;
+    this.#url = `https://${host}/v1/projects/${encodeURIComponent(options.project)}/locations/${encodeURIComponent(options.location)}/publishers/google/models/${encodeURIComponent(this.model)}:predict`;
+    this.#token = options.token;
+    this.#timeoutMs = options.timeoutMs ?? 20_000;
+    this.#concurrency = options.concurrency ?? 5;
+    this.#fetch = options.fetchImpl ?? fetch;
+  }
+
+  async #embed(instance: Record<string, string>, timeoutMs: number): Promise<number[]> {
+    for (let attempt = 0; ; attempt++) {
+      const response = await this.#fetch(this.#url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${await this.#token()}`,
+        },
+        body: JSON.stringify({
+          instances: [instance],
+          parameters: { outputDimensionality: EMBEDDING_DIMENSIONS, autoTruncate: true },
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      // A visitor's query is not retried: a turn falls back to keywords instead.
+      if (response.status === 429 && attempt < 4 && instance['task_type'] !== 'RETRIEVAL_QUERY') {
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`Vertex embedding failed (${response.status}): ${text.slice(0, 200)}`);
+      }
+      const json = (await response.json()) as {
+        predictions?: { embeddings?: { values?: number[] } }[];
+      };
+      const values = json.predictions?.[0]?.embeddings?.values;
+      if (!values?.length) throw new Error('Vertex returned no embedding');
+      return values;
+    }
+  }
+
+  async embedDocuments(texts: readonly { title: string; text: string }[]): Promise<number[][]> {
+    const out: number[][] = new Array<number[]>(texts.length);
+    let next = 0;
+    const worker = async () => {
+      for (let i = next++; i < texts.length; i = next++) {
+        out[i] = await this.#embed(
+          {
+            content: texts[i]!.text,
+            task_type: 'RETRIEVAL_DOCUMENT',
+            title: texts[i]!.title.slice(0, 200),
+          },
+          this.#timeoutMs,
+        );
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(this.#concurrency, texts.length) }, worker));
+    return out;
+  }
+
+  embedQuery(text: string): Promise<number[]> {
+    // Short: this runs before a visitor's answer, and keywords are the fallback.
+    return this.#embed({ content: text, task_type: 'RETRIEVAL_QUERY' }, 3_000);
+  }
+}
+
+/**
  * Vertex AI Ranking API (Discovery Engine `rank`), behind `SUNNY_RERANK=vertex`
  * and `GOOGLE_CLOUD_PROJECT`. On Cloud Run the access token comes from the
  * metadata server, so no key is stored. Not exercised against the real service
