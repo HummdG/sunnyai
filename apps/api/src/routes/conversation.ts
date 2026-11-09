@@ -241,24 +241,29 @@ export function registerConversationRoutes(
         issues,
       });
     }
-    // Merged into the tenant as the store holds it now, not this instance's
-    // cached copy, so a settings save made elsewhere is not undone.
-    const current = (await tenants.fresh(tenant.id)) ?? tenant;
-    // The version and time are the server's: whatever the client sent is ignored.
-    const flow: ConversationFlow = {
-      ...body.data.flow,
-      version: (storedFlow(current.config)?.version ?? 0) + 1,
-      updatedAt: new Date(deps.now()).toISOString(),
-    };
-    await tenants.save({ ...current, config: { ...current.config, conversation: flow } });
-    return view(tenant.id, flow);
+    // Applied to the tenant as the store holds it now, not this instance's
+    // cached copy, so a settings save made elsewhere is not undone, and the
+    // version counts on from the flow actually stored.
+    const saved = await tenants.update(tenant.id, (current) => {
+      // The version and time are the server's: whatever the client sent is ignored.
+      const flow: ConversationFlow = {
+        ...body.data.flow,
+        version: (storedFlow(current.config)?.version ?? 0) + 1,
+        updatedAt: new Date(deps.now()).toISOString(),
+      };
+      return { ...current, config: { ...current.config, conversation: flow } };
+    });
+    if (!saved) throw new ApiError('not_found', 'No such installer.');
+    return view(tenant.id, storedFlow(saved.config));
   });
 
   app.delete('/v1/portal/tenants/:tenantId/conversation', async (request) => {
     const tenant = await member(request, 'admin');
-    const current = (await tenants.fresh(tenant.id)) ?? tenant;
-    const { conversation: _removed, ...config } = current.config;
-    await tenants.save({ ...current, config });
+    const saved = await tenants.update(tenant.id, (current) => {
+      const { conversation: _removed, ...config } = current.config;
+      return { ...current, config };
+    });
+    if (!saved) throw new ApiError('not_found', 'No such installer.');
     return view(tenant.id, null);
   });
 

@@ -392,17 +392,22 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
         throw new ApiError('bad_request', 'autoSend must be true or false.');
       }
       const provider = settingsProvider(body.provider);
-      const current: EmailChannelConfig = tenant.config.email ?? {
-        provider: 'forwarding',
-        autoSend: false,
-      };
-      const next: EmailChannelConfig = {
-        ...current,
-        ...(typeof body.autoSend === 'boolean' ? { autoSend: body.autoSend } : {}),
-        ...(provider ? { provider } : {}),
-      };
-      await tenants.save({ ...tenant, config: { ...tenant.config, email: next } });
-      return { email: next };
+      // Merged over the email settings as the store holds them now, so a token
+      // reference written by the connect flow on another instance survives.
+      const saved = await tenants.update(tenant.id, (current) => {
+        const email: EmailChannelConfig = current.config.email ?? {
+          provider: 'forwarding',
+          autoSend: false,
+        };
+        const next: EmailChannelConfig = {
+          ...email,
+          ...(typeof body.autoSend === 'boolean' ? { autoSend: body.autoSend } : {}),
+          ...(provider ? { provider } : {}),
+        };
+        return { ...current, config: { ...current.config, email: next } };
+      });
+      if (!saved?.config.email) throw new ApiError('not_found', 'No such installer.');
+      return { email: saved.config.email };
     },
   );
 
@@ -467,18 +472,19 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
         scopes: grant.scopes,
         connectedAt: new Date(now()).toISOString(),
       });
-      const saved = await tenants.save({
-        ...tenant,
+      const saved = await tenants.update(tenant.id, (current) => ({
+        ...current,
         config: {
-          ...tenant.config,
+          ...current.config,
           email: {
-            ...(tenant.config.email ?? { autoSend: false }),
+            ...(current.config.email ?? { autoSend: false }),
             provider: state.provider,
             // A reference to where the token is, never the token.
-            tokenRef: `email-state:${tenant.id}`,
+            tokenRef: `email-state:${current.id}`,
           },
         },
-      });
+      }));
+      if (!saved) return back('email=not_enabled');
       // A connected Gmail is watched at once: without the watch, no new mail
       // ever reaches Sunny, and the dashboard had no other way to start one.
       if (state.provider === 'gmail' && config.gmailPush) {
@@ -497,14 +503,14 @@ export function registerEmailRoutes(app: FastifyInstance, deps: EmailRouteDeps):
     async (request) => {
       const tenant = await member(request, 'admin');
       await (await getState()).deleteToken(tenant.id);
-      const { tokenRef: _tokenRef, ...rest } = tenant.config.email ?? {
-        provider: 'forwarding' as const,
-        autoSend: false,
-      };
-      await tenants.save({
-        ...tenant,
-        config: { ...tenant.config, email: { ...rest, autoSend: false } },
+      const saved = await tenants.update(tenant.id, (current) => {
+        const { tokenRef: _tokenRef, ...rest } = current.config.email ?? {
+          provider: 'forwarding' as const,
+          autoSend: false,
+        };
+        return { ...current, config: { ...current.config, email: { ...rest, autoSend: false } } };
       });
+      if (!saved) throw new ApiError('not_found', 'No such installer.');
       return { connected: false };
     },
   );
