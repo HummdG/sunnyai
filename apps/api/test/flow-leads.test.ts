@@ -11,9 +11,12 @@ import { LeadFollowUp, MemoryEmailState } from '../src/channels/email/index.js';
 import type { MailboxClient } from '../src/channels/email/index.js';
 import { flowForTenant } from '../src/flow/tenant.js';
 import { demoPricing } from '../src/journey/pricing.js';
+import type { ServerConfig } from '../src/config.js';
+import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
-import { DEMO_TENANT, type Tenant } from '../src/tenants.js';
+import { DEMO_TENANT, TenantRegistry, type Tenant } from '../src/tenants.js';
 
+import { TEST_ADMIN_TOKEN } from './catalogue-fixture.js';
 import { ScriptedProvider } from './scripted-provider.js';
 
 /** A lead carries the installer's questions and answers (Task 7). */
@@ -275,5 +278,77 @@ describe('leads carry the installer questions and answers', () => {
     expect(drafts.at(-1)?.text).toContain('Would you like an EV charger fitted at the same time?');
     expect(drafts.at(-1)?.text).toContain('Yes please');
     expect(drafts.at(-1)?.text).not.toContain('—');
+  });
+});
+
+describe('a lead filed from a host page carries them too', () => {
+  const ORIGIN = 'http://localhost:4173';
+  const limit = { limit: 100_000, windowMs: 60_000 };
+  const config: ServerConfig = {
+    port: 0,
+    host: '127.0.0.1',
+    nodeEnv: 'test',
+    gemini: undefined,
+    dataDir: '.data-test-flow-leads',
+    allowedOrigins: [ORIGIN],
+    sessionSecret: 'test-secret-not-used-in-production',
+    adminToken: TEST_ADMIN_TOKEN,
+    logLevel: 'silent',
+    sandboxTenant: false,
+    leadRetentionDays: 730,
+    rateLimit: {
+      enabled: true,
+      trustProxyHops: 0,
+      rules: {
+        session: limit,
+        chat: limit,
+        leads: limit,
+        qualification: limit,
+        catalogue: limit,
+        knowledge: limit,
+      },
+      maxKeys: 10_000,
+    },
+  };
+
+  it('POST /v1/leads records the answers given so far, in the installer wording', async () => {
+    const store = await tempStore();
+    const app = buildServer({
+      config,
+      store,
+      tenants: new TenantRegistry([tenantWith(FLOW)]),
+      now: () => 1_700_000_000_000,
+    });
+    await app.ready();
+    try {
+      const session = await app.inject({
+        method: 'POST',
+        url: '/v1/widget/session',
+        payload: { publicId: DEMO_TENANT.publicId, origin: ORIGIN },
+      });
+      const { sessionId, sessionToken } = session.json<{
+        sessionId: string;
+        sessionToken: string;
+      }>();
+      await store.mergeAnswers(DEMO_TENANT.id, sessionId, ANSWERS);
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/leads',
+        headers: { authorization: `Bearer ${sessionToken}` },
+        payload: { sessionId, consent: true, email: 'a@b.example' },
+      });
+      expect(response.statusCode).toBe(201);
+      const [lead] = await store.listAllLeads(DEMO_TENANT.id);
+      expect(lead?.flowVersion).toBe(5);
+      expect(lead?.flowAnswers).toContainEqual({
+        id: 'c_evcharger1',
+        question: 'Would you like an EV charger fitted at the same time?',
+        value: 'yes',
+        answer: 'Yes please',
+        mode: 'quote',
+      });
+    } finally {
+      await app.close();
+    }
   });
 });

@@ -91,6 +91,8 @@ import {
 } from './auth/account-email.js';
 import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
+import { flowFieldsFor } from './flow/answers.js';
+import { flowForTenant } from './flow/tenant.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
 import { sha256 } from './ingest/prepare.js';
@@ -1002,6 +1004,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       consent: { version: CONSENT_VERSION, surface: 'form', origin: claims.origin ?? null },
       createdAt: new Date(now()).toISOString(),
       clientLeadId: body.data.clientLeadId,
+      // The installer's questions and what the visitor answered, as the chat tool records them.
+      ...flowFieldsFor(flowForTenant(tenant), existing?.answers ?? {}),
     });
 
     if (result.outcome === 'conflict') {
