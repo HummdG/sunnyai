@@ -40,6 +40,11 @@ export interface CycleOptions {
 
 export interface Cycle {
   setBusy(busy: boolean): void;
+  /**
+   * One pass of one effect while idle, then still: the chat button's hello
+   * when the page loads. Only at full motion, and only from a still logo.
+   */
+  playOnce(): void;
   setMotion(motion: LogoMotion): void;
   destroy(): void;
 }
@@ -112,6 +117,11 @@ export function createCycle({ effects, render, random = Math.random }: CycleOpti
       if (busy && timer === null) {
         if (allowed().list.length > 0) start();
       }
+    },
+    playOnce() {
+      if (destroyed || busy || timer !== null || motion !== 'full') return;
+      // Not busy, so the end of this pass settles the logo (see endOfPeriod).
+      if (allowed().list.length > 0) start();
     },
     setMotion(next) {
       if (destroyed || next === motion) return;
