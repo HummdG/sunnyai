@@ -117,9 +117,9 @@ export interface ServerDeps {
    * Checks the Cloud Tasks OIDC token on `POST /internal/sunscan/run`. Absent
    * reads the environment (SUNSCAN_QUEUE=cloud-tasks); null switches it off.
    */
+  sunscanTaskVerifier?: ((token: string) => Promise<boolean>) | null;
   /** Uploaded logos. Absent reads the environment: local disk under `dataDir`, or GCS. */
   brandAssets?: BrandAssetStore;
-  sunscanTaskVerifier?: ((token: string) => Promise<boolean>) | null;
   /** Defaults to the unconfigured provider when no key is set. */
   provider?: ChatProvider;
   /**
