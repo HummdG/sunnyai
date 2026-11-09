@@ -1020,4 +1020,60 @@ describe('two instances changing the same installer', () => {
     expect(late.json<{ outcome: string }>().outcome).toBe('stale');
     await other.close();
   });
+
+  it('a Stripe event for a customer the instance has not cached yet is found in the store', async () => {
+    const { app, store } = await setup();
+    // Loaded before the sign-up: this instance has never seen the installer.
+    const other = await secondInstance(store);
+    const t = await signUp(app, 'owner@two-c.test');
+
+    const deliver = (target: FastifyInstance, event: Record<string, unknown>) => {
+      const raw = JSON.stringify(event);
+      return target.inject({
+        method: 'POST',
+        url: '/v1/billing/webhook',
+        headers: {
+          'content-type': 'application/json',
+          'stripe-signature': stripeSignatureHeader(WHSEC, Math.floor(NOW / 1000), raw),
+        },
+        payload: raw,
+      });
+    };
+    const checkout = await deliver(app, {
+      id: 'evt_two_c_checkout',
+      type: 'checkout.session.completed',
+      created: NOW / 1000,
+      data: {
+        object: {
+          client_reference_id: t.id,
+          customer: 'cus_two_c',
+          subscription: 'sub_two_c',
+          metadata: { tenant_id: t.id, plan: 'email' },
+        },
+      },
+    });
+    expect(checkout.json<{ outcome: string }>().outcome).toBe('applied');
+
+    // Named only by its customer id, which the other instance's cache lacks.
+    const failed = (id: string, customer: string) => ({
+      id,
+      type: 'invoice.payment_failed',
+      created: NOW / 1000 + 20,
+      data: { object: { customer } },
+    });
+    const found = await deliver(other, failed('evt_two_c_failed', 'cus_two_c'));
+    expect(found.json<{ outcome: string }>().outcome).toBe('applied');
+    expect((await store.getTenant(t.id))?.billing?.status).toBe('past_due');
+
+    // A customer no store holds: unknown, and the claim is given back so a
+    // redelivery is processed rather than skipped as a duplicate.
+    const unknown = failed('evt_two_c_unknown', 'cus_nobody');
+    expect((await deliver(other, unknown)).json<{ outcome: string }>().outcome).toBe(
+      'unknown_tenant',
+    );
+    expect((await deliver(other, unknown)).json<{ outcome: string }>().outcome).toBe(
+      'unknown_tenant',
+    );
+    await other.close();
+  });
 });

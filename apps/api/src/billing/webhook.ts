@@ -76,10 +76,22 @@ export async function applyStripeEvent(
     const object = event.data.object;
     const metadata = metadataOf(object);
     const customerId = str(object['customer']);
-    const found =
+    const lookUp = () =>
       tenants.byId(str(object['client_reference_id']) ?? metadata['tenant_id'] ?? '') ??
       (customerId ? (tenants.all.find((t) => t.stripeCustomerId === customerId) ?? null) : null);
-    if (!found) return 'unknown_tenant';
+    let found = lookUp();
+    if (!found) {
+      // This instance's cache can be up to a refresh old: an installer signed up,
+      // or a customer id saved, on another instance is in the store already.
+      await tenants.refresh();
+      found = lookUp();
+    }
+    if (!found) {
+      // Give the claim back, so a redelivery (once the tenant exists) is
+      // processed rather than skipped as a duplicate.
+      await store.releaseStripeEvent(event.id);
+      return 'unknown_tenant';
+    }
 
     // Decided against the tenant as the store holds it when the change is
     // written, not this instance's cached copy: the staleness check needs the
