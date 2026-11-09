@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -10,7 +11,14 @@ import {
 } from 'react';
 
 import { ESTIMATE, layoutFlow, type FlowNode, type Measure } from './flow-layout.js';
-import { placeAt, subtreeIds, type Context, type Draft, type EditorIssue } from './model.js';
+import {
+  draftPath,
+  placeAt,
+  subtreeIds,
+  type Context,
+  type Draft,
+  type EditorIssue,
+} from './model.js';
 
 /**
  * The conversation drawn as a flow: the listed questions on a spine between
@@ -116,13 +124,24 @@ export function FlowCanvas({
     if (changed) setHeights(next);
   });
 
-  // Fitted to the flow's width until the owner zooms (never so small it cannot be read).
+  // Fitted to the flow's width when it opens (once the font is measured) and
+  // when the canvas changes size, until the owner zooms; never while they type.
   const zoomed = useRef(false);
-  useLayoutEffect(() => {
+  const widthRef = useRef(layout.width);
+  widthRef.current = layout.width;
+  const fitWidth = useCallback(() => {
     const el = view.current;
     if (zoomed.current || !el || el.clientWidth === 0) return;
-    setScale(Math.min(1, Math.max(OPEN_MIN, (el.clientWidth - 4) / layout.width)));
-  }, [layout.width]);
+    setScale(Math.min(1, Math.max(OPEN_MIN, (el.clientWidth - 4) / widthRef.current)));
+  }, []);
+  useLayoutEffect(fitWidth, [measure, fitWidth]);
+  useEffect(() => {
+    const el = view.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => fitWidth());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fitWidth]);
 
   // Zooming keeps the point under the pointer (or the view's centre) where it was.
   function zoomTo(target: number, anchor?: { x: number; y: number }): void {
@@ -190,9 +209,16 @@ export function FlowCanvas({
       (el.clientHeight - 16) / layout.height,
       1,
     );
-    pendingScroll.current = { left: 0, top: 0 };
     zoomed.current = true;
-    setScale(clampScale(fitted));
+    const next = clampScale(fitted);
+    if (next === scaleRef.current) {
+      // Nothing to re-render: bring the start back into view now.
+      el.scrollLeft = 0;
+      el.scrollTop = 0;
+      return;
+    }
+    pendingScroll.current = { left: 0, top: 0 };
+    setScale(next);
   }
 
   const tops = layout.nodes
@@ -208,6 +234,10 @@ export function FlowCanvas({
   }
 
   function onBoxDown(event: ReactPointerEvent<HTMLButtonElement>, node: FlowNode): void {
+    // A click that follows a finished drag is long past.
+    suppressClick.current = false;
+    // Mouse only: a finger or pen on a box scrolls the canvas, as anywhere else.
+    if (event.pointerType !== 'mouse') return;
     if (readOnly || node.kind !== 'top' || event.button !== 0 || !node.stepId) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     setDragging({
@@ -228,14 +258,33 @@ export function FlowCanvas({
   }
 
   function onBoxUp(event: ReactPointerEvent<HTMLButtonElement>): void {
+    // A drag cancelled with Escape: its release's click is swallowed, no later one.
+    if (suppressClick.current) window.setTimeout(() => (suppressClick.current = false), 0);
     if (!dragging || dragging.pointerId !== event.pointerId) return;
     if (dragging.moved) {
       const { id, insertAt } = dragging;
+      // The click this release makes is not a click on the box; any later one is.
       suppressClick.current = true;
+      window.setTimeout(() => (suppressClick.current = false), 0);
       onDraft((d) => ({ ...d, steps: placeAt(d.steps, id, insertAt) }));
     }
     setDragging(null);
   }
+
+  // Escape puts a dragged box back where it was.
+  const isDragging = dragging !== null;
+  useEffect(() => {
+    if (!isDragging) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setDragging((current) => {
+        if (current?.moved) suppressClick.current = true;
+        return null;
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDragging]);
 
   // Others keep their place while one is dragged; the line shows where it lands.
   const others = dragging?.moved ? tops.filter((n) => n.stepId !== dragging.id) : [];
@@ -257,8 +306,10 @@ export function FlowCanvas({
     el.scrollTop = start.top - (event.clientY - start.y);
   }
 
+  // Anything wrong in the box's own question or anything asked under it.
   const attention = (id: string): boolean => {
-    const step = draft.steps.find((s) => s.id === id);
+    const path = draftPath(draft, ctx, id);
+    const step = path?.[path.length - 1]?.step;
     if (!step) return issues.some((i) => i.stepId === id);
     const below = subtreeIds(step, draft, ctx);
     return issues.some((i) => below.has(i.stepId));
@@ -359,7 +410,6 @@ export function FlowCanvas({
                   data-step-id={id}
                   data-dragging={moving ? 'true' : undefined}
                   data-draggable={!readOnly && node.kind === 'top' ? 'true' : undefined}
-                  aria-label={node.label}
                   aria-pressed={selectedId === id}
                   style={moving ? { ...style, transform: `translateY(${dragging.dy}px)` } : style}
                   onPointerDown={(event) => onBoxDown(event, node)}

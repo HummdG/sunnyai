@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 import type { FlowEffect, FlowStep } from '../../../lib/portal-api.js';
 import { Chip } from '../ui.js';
 import { Effects } from './effect-picker.js';
@@ -88,6 +90,16 @@ function StepEditor({
   const ownIssues = issues.filter((i) => i.stepId === step.id && !i.choice);
   const below = subtreeIds(step, draft, ctx);
   const attention = issues.some((i) => below.has(i.stepId));
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const confirming = removing === step.id;
+
+  // "Remove" asked from the list or the card: the question is on screen, and so is the choice.
+  useEffect(() => {
+    if (!confirming) return;
+    const el = confirmRef.current;
+    el?.scrollIntoView({ block: 'center' });
+    el?.focus({ preventScroll: true });
+  }, [confirming]);
 
   function setLabel(value: string, label: string): void {
     update((s) =>
@@ -367,8 +379,14 @@ function StepEditor({
           </button>
         </div>
       )}
-      {removing === step.id ? (
-        <div className="flow-confirm" role="alertdialog" aria-label={`Remove ${name}?`}>
+      {confirming ? (
+        <div
+          ref={confirmRef}
+          className="flow-confirm"
+          role="alertdialog"
+          aria-label={`Remove ${name}?`}
+          tabIndex={-1}
+        >
           <p>{preset?.warning ?? 'This also removes the follow-ups under it.'}</p>
           <div className="actions">
             <button

@@ -59,7 +59,12 @@ const canvas = (page: Page) => editor(page).getByRole('region', { name: 'Flow' }
 const list = (page: Page) => editor(page).getByRole('region', { name: 'Questions' });
 const card = (page: Page) => editor(page).getByRole('region', { name: 'Selected question' });
 const preview = (page: Page) => editor(page).getByRole('region', { name: 'How Sunny asks it' });
-const box = (page: Page, name: string) => canvas(page).getByRole('button', { name, exact: true });
+const exactly = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+/** A question's box on the flow: a button named by its text, then its tags. */
+const box = (page: Page, name: string) =>
+  canvas(page)
+    .getByRole('button')
+    .filter({ has: page.locator('.flow-node-text', { hasText: exactly(name) }) });
 const row = (page: Page, name: string) => list(page).getByRole('listitem', { name, exact: true });
 const view = (page: Page, name: 'Flow' | 'Questions') =>
   editor(page).getByRole('button', { name, exact: true });
@@ -67,8 +72,8 @@ const view = (page: Page, name: 'Flow' | 'Questions') =>
 /** The listed questions on the flow's spine, top to bottom. */
 async function flowOrder(page: Page): Promise<string[]> {
   return canvas(page)
-    .locator('[data-kind="top"]')
-    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('aria-label') ?? ''));
+    .locator('[data-kind="top"] .flow-node-text')
+    .evaluateAll((nodes) => nodes.map((n) => n.textContent ?? ''));
 }
 
 /** The listed questions in the list, top to bottom. */
@@ -161,6 +166,10 @@ test('an added question whose "Yes" adds the EV charger is saved and still there
   await card(page).getByLabel('Question text').fill(EV);
   await expect(box(page, EV)).toContainText('Changes the quote');
   await expect(box(page, EV)).toHaveAttribute('aria-pressed', 'true');
+  // Its name says what its tag says, not only the question.
+  await expect(box(page, EV)).toHaveAccessibleName(
+    /^Do you have an electric car\?\s*Changes the quote$/,
+  );
   const yes = card(page).getByRole('group', { name: 'Answer Yes' });
   await addPriceChange(yes, 'EV-7KW');
   await expect(yes).toContainText('Adds 7kW EV charger, £899');
@@ -277,6 +286,8 @@ test('a problem on a follow-up is flagged on its parent, and Save opens it', asy
   await expect(message).toBeVisible();
   await expect(message).toBeInViewport();
   await expect(box(page, 'New question')).toHaveAttribute('aria-pressed', 'true');
+  // The follow-up's own box is flagged too, not only its parent's.
+  await expect(box(page, 'New question')).toContainText('Needs attention');
 
   // The parent says something below it needs attention, on the flow and in the list.
   await expect(box(page, EV)).toContainText('Needs attention');
@@ -291,6 +302,34 @@ test('a problem on a follow-up is flagged on its parent, and Save opens it', asy
 test('dragging on the flow and in the list reorders, and so do the buttons', async ({ page }) => {
   await openAs(page, OWNER);
   let order = await flowOrder(page);
+
+  // A finger on a box scrolls the canvas; it never drags the question.
+  const ev = (await box(page, EV).boundingBox())!;
+  for (const [type, y] of [
+    ['pointerdown', ev.y + 10],
+    ['pointermove', ev.y - 200],
+    ['pointerup', ev.y - 200],
+  ] as const) {
+    await box(page, EV).dispatchEvent(type, {
+      pointerType: 'touch',
+      pointerId: 7,
+      isPrimary: true,
+      button: 0,
+      clientX: ev.x + 20,
+      clientY: y,
+    });
+  }
+  expect(await flowOrder(page)).toEqual(order);
+
+  // Escape puts a dragged box back, and the next click still selects.
+  await page.mouse.move(ev.x + ev.width / 2, ev.y + ev.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(ev.x + ev.width / 2, ev.y - 120, { steps: 6 });
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  expect(await flowOrder(page)).toEqual(order);
+  await box(page, SHADING).click();
+  await expect(box(page, SHADING)).toHaveAttribute('aria-pressed', 'true');
   expect(order.indexOf(EV)).toBeGreaterThan(order.indexOf(SHADING));
 
   // On the flow: drag the box up the spine, above roof shading (the whole flow in view).
@@ -323,6 +362,7 @@ test('dragging on the flow and in the list reorders, and so do the buttons', asy
 test('removing electricity use shows its warning first, and the preview never asks it', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await openAs(page, OWNER);
   await view(page, 'Questions').click();
   await row(page, USAGE)
@@ -330,6 +370,11 @@ test('removing electricity use shows its warning first, and the preview never as
     .click();
   const confirm = card(page).getByRole('alertdialog');
   await expect(confirm).toContainText('Sunny uses this to work out savings.');
+  // The choice is on screen by itself (nothing here scrolls to it), and has focus.
+  await expect(confirm).toBeFocused();
+  const shown = (await confirm.boundingBox())!;
+  expect(shown.y).toBeGreaterThanOrEqual(0);
+  expect(shown.y + shown.height).toBeLessThanOrEqual(900);
   await confirm.getByRole('button', { name: 'Remove question' }).click();
   await expect(row(page, USAGE)).toHaveCount(0);
   await view(page, 'Flow').click();
@@ -404,8 +449,15 @@ test('the Flow or Questions choice is remembered, and the flow zooms', async ({ 
   const scale = async () => Number(await stage.getAttribute('data-scale'));
   const start = await scale();
   // It opens at full size, or a little smaller when the branches would not fit.
-  expect(start).toBeGreaterThanOrEqual(0.85);
+  expect(start).toBeGreaterThanOrEqual(0.9);
   expect(start).toBeLessThanOrEqual(1);
+  // Typing a long question does not re-zoom the flow under the owner's hands.
+  await card(page).getByRole('button', { name: '+ Add a question' }).click();
+  await card(page)
+    .getByLabel('Question text')
+    .fill('Would you like a quote for a battery, an EV charger and a hot water diverter too?');
+  expect(await scale()).toBe(start);
+  await card(page).getByRole('button', { name: 'Close the selected question' }).click();
   const before = (await box(page, SHADING).boundingBox())!;
   await canvas(page).getByRole('button', { name: 'Zoom in' }).click();
   await expect.poll(scale).toBeCloseTo(start * 1.2, 1);
@@ -426,6 +478,13 @@ test('the Flow or Questions choice is remembered, and the flow zooms', async ({ 
   await expect(canvas(page)).toHaveCount(0);
   await view(page, 'Flow').click();
   await expect(box(page, SHADING)).toBeVisible();
+
+  // Sunny Studio in the sidebar opens Studio's first tab, wherever it was.
+  await page.getByRole('link', { name: 'Sunny Studio' }).click();
+  await expect(page.getByRole('tab', { name: 'Your brand' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
 });
 
 test('a mandatory item cannot be picked, and a per-metre item asks how many', async ({ page }) => {

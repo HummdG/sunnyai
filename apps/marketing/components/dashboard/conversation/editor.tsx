@@ -59,6 +59,15 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
     message?.scrollIntoView({ block: 'center' });
   }, [reveal]);
 
+  // Narrow screens put the side column under the flow: a picked question is
+  // scrolled to, so clicking a box or row visibly opens it.
+  useEffect(() => {
+    if (!selectedId || !window.matchMedia('(max-width: 1099px)').matches) return;
+    document
+      .querySelector(`[data-step-editor="${CSS.escape(selectedId)}"]`)
+      ?.scrollIntoView({ block: 'start' });
+  }, [selectedId]);
+
   function adopt(next: ConversationView): void {
     setView(next);
     setDraft(draftFrom(next.flow, next.presets));

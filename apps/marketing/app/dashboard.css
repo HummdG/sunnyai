@@ -1401,9 +1401,6 @@
 .dash .flow-node:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-.dash .flow-node[data-draggable='true'] {
-  touch-action: none;
-}
 .dash .flow-node[data-kind='branch'] {
   border-style: dashed;
 }
@@ -1630,6 +1627,16 @@
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+/* Wide screens: the side column stays in view while the flow or list scrolls. */
+@media (min-width: 1100px) {
+  .dash .flow-side {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 .dash .flow-card {
   display: grid;
