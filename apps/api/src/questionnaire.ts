@@ -25,7 +25,20 @@
  * is recorded in `docs/integration/sunscan-contract.md` §2.1 instead.
  */
 
+import { resolveFlow, type ResolvedFlow } from './flow/resolve.js';
+
 export const QUESTIONNAIRE_VERSION = 'sunscan-2026-01';
+
+/**
+ * Sunny's own questions, resolved once. The functions below delegate to it so
+ * that the default flow and this module cannot disagree. Built on first use
+ * rather than at load: `flow/resolve.ts` imports `QUESTIONS` from here, and a
+ * load-time call could run before `QUESTIONS` exists.
+ */
+let resolvedDefault: ResolvedFlow | undefined;
+function defaultFlow(): ResolvedFlow {
+  return (resolvedDefault ??= resolveFlow(null));
+}
 
 /**
  * Why a question appears only sometimes.
@@ -247,12 +260,7 @@ export const STEP_ORDER = [
 export type Applicability = 'applies' | 'pending' | 'conflicts';
 
 export function applicability(questionId: string, answers: Record<string, string>): Applicability {
-  const question = QUESTIONS[questionId];
-  const gate = question?.appearsWhen;
-  if (!gate) return 'applies';
-  const given = answers[gate.questionId];
-  if (given === undefined) return 'pending';
-  return gate.anyOf.includes(given) ? 'applies' : 'conflicts';
+  return defaultFlow().applicability(questionId, answers);
 }
 
 /**
@@ -263,14 +271,12 @@ export function applicability(questionId: string, answers: Record<string, string
  * the other way (so the question conflicts and is not in the flow at all).
  */
 export function outstandingQuestions(answers: Record<string, string>): string[] {
-  return Object.keys(QUESTIONS).filter(
-    (id) => answers[id] === undefined && applicability(id, answers) === 'applies',
-  );
+  return defaultFlow().outstanding(answers);
 }
 
 /** The first outstanding question, or null when nothing applies and is unanswered. */
 export function nextQuestion(answers: Record<string, string>): string | null {
-  return outstandingQuestions(answers)[0] ?? null;
+  return defaultFlow().next(answers);
 }
 
 /** An answer removed because a later answer ruled its question out. */
@@ -308,35 +314,7 @@ export function reconcile(answers: Record<string, string>): {
   answers: Record<string, string>;
   dropped: DroppedAnswer[];
 } {
-  const kept: Record<string, string> = { ...answers };
-  const dropped: DroppedAnswer[] = [];
-  // A pass can only ever turn a dependent from `applies` to `pending` (dropping a
-  // gate answer leaves the gate unanswered, and unanswered is pending, never a
-  // conflict), so this cannot cascade. It loops anyway rather than assuming that:
-  // each pass removes at least one answer or ends, and a question set that later
-  // nests gates stays correct without anyone re-deriving that argument.
-  for (let pass = 0; pass < Object.keys(QUESTIONS).length; pass++) {
-    // Question-set order, not insertion order, so the report is the same for the
-    // same map however the answers arrived.
-    const conflicting = Object.keys(QUESTIONS).filter(
-      (id) => kept[id] !== undefined && applicability(id, kept) === 'conflicts',
-    );
-    if (conflicting.length === 0) break;
-    for (const id of conflicting) {
-      const gate = QUESTIONS[id]!.appearsWhen!;
-      dropped.push({
-        questionId: id,
-        value: kept[id]!,
-        ruledOutBy: {
-          questionId: gate.questionId,
-          value: kept[gate.questionId]!,
-          anyOf: gate.anyOf,
-        },
-      });
-      delete kept[id];
-    }
-  }
-  return { answers: kept, dropped };
+  return defaultFlow().reconcile(answers);
 }
 
 /**
@@ -366,84 +344,12 @@ export type AnswerVerdict =
       needs?: string;
     };
 
-/**
- * A number as a visitor types it.
- *
- * Tolerates the punctuation people actually use -- a leading currency symbol,
- * thousands separators, a trailing unit -- and nothing more. A wider grammar is a
- * parser, and a parser that guesses is how "3200" and "3,200" become two different
- * answers to a question asked once. The value stored is the visitor's own text,
- * not a re-rendering of it: Sunny has no business rewriting a figure the installer
- * will read.
- */
-function parseNumber(value: string): number | null {
-  const cleaned = value
-    .trim()
-    .replace(/[,\s]/g, '')
-    .replace(/^[£$€]/, '')
-    .replace(/(kwh|gbp|pounds?)$/i, '');
-  if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
-  return Number(cleaned);
-}
-
 export function validateAnswer(
   questionId: string,
   value: string,
   answers: Record<string, string> = {},
 ): AnswerVerdict {
-  if (!questionId || !value) {
-    return { ok: false, error: 'questionId and value are required' };
-  }
-  const question = QUESTIONS[questionId];
-  if (!question) {
-    return { ok: false, error: 'unknown question', known: Object.keys(QUESTIONS) };
-  }
-  if (applicability(questionId, answers) === 'conflicts') {
-    const gate = question.appearsWhen!;
-    return {
-      ok: false,
-      error: 'that question is not asked, given an earlier answer',
-      needs: `${gate.questionId} to be one of ${gate.anyOf.join(', ')} (it is "${answers[gate.questionId]}")`,
-    };
-  }
-  if (question.multi && question.options) {
-    const parts = value
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean);
-    const bad = parts.filter((part) => !question.options!.includes(part));
-    if (parts.length === 0 || bad.length > 0) {
-      return { ok: false, error: 'value not among the allowed options', allowed: question.options };
-    }
-    if (parts.includes('none') && parts.length > 1) {
-      return { ok: false, error: '"none" cannot be combined with other options' };
-    }
-    // Normalised: de-duplicated, in the question's own option order.
-    const normal = question.options.filter((option) => parts.includes(option)).join(',');
-    return { ok: true, questionId, value: normal };
-  }
-  if (question.options && !question.options.includes(value)) {
-    return { ok: false, error: 'value not among the allowed options', allowed: question.options };
-  }
-  if (question.numeric) {
-    const parsed = parseNumber(value);
-    if (parsed === null) {
-      return {
-        ok: false,
-        error: 'value is not a number',
-        expects: `a number of ${question.numeric.unit}`,
-      };
-    }
-    const { min, max, unit } = question.numeric;
-    if (parsed < min || parsed > max) {
-      return {
-        ok: false,
-        error: 'value is outside the range that makes sense',
-        expects: `a number of ${unit} between ${min} and ${max}`,
-      };
-    }
-  }
-  return { ok: true, questionId, value };
+  return defaultFlow().validate(questionId, value, answers);
 }
 
 /**
