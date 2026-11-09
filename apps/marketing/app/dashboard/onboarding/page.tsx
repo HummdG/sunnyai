@@ -313,6 +313,7 @@ function Wizard() {
       <Frame step="customise">
         <Card title="Make Sunny yours">
           <StudioForm
+            key={tenant.id}
             tenant={tenant}
             submitLabel="Save and continue"
             onSaved={(saved) => {

@@ -283,6 +283,55 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   await expect(preview.locator('.sunny-preview')).toHaveCount(1);
 });
 
+test('an unsaved logo stays with its installer when the owner switches', async ({ page }) => {
+  // A second installer for the same owner, so the dashboard shows its switcher.
+  const second = await page.request.post(`${API}/v1/portal/tenants`, {
+    headers: { authorization: `Bearer ${await token(page.request)}` },
+    data: { companyName: `Second Site ${RUN}` },
+  });
+  expect(second.ok()).toBe(true);
+
+  await signIn(page);
+  await page.goto(`${SITE}/dashboard/studio`);
+  const logo = page.getByRole('group', { name: 'Your logo' });
+  await expect(page.getByLabel('Assistant name')).toHaveValue('Volt');
+  await logo.getByLabel('Use my logo').check();
+  await logo.getByLabel('Icon file').setInputFiles({
+    name: 'tile.png',
+    mimeType: 'image/png',
+    buffer: tilePng(),
+  });
+  await expect(logo.getByText('Outline traced and checked.')).toBeVisible();
+
+  // A second upload is still in flight when the owner switches installer.
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/brand/icon', async (route) => {
+    await held;
+    await route.continue();
+  });
+  await logo.getByLabel('Icon file').setInputFiles({
+    name: 'tile.png',
+    mimeType: 'image/png',
+    buffer: tilePng(),
+  });
+  await expect(logo.getByRole('button', { name: 'Uploading…' })).toBeVisible();
+  const late = page.waitForResponse((r) => /\/brand\/icon$/.test(r.url()));
+  await page
+    .getByRole('combobox', { name: 'Installer' })
+    .selectOption({ label: `Second Site ${RUN}` });
+  await expect(page.getByLabel('Assistant name')).toHaveValue('Sunny');
+  release();
+  await late;
+
+  // The second installer starts clean: none of the first one's draft came along.
+  await expect(logo.getByLabel('Use Sunny')).toBeChecked();
+  await expect(logo.getByLabel('Icon file')).toHaveCount(0);
+  await logo.getByLabel('Use my logo').check();
+  await expect(logo.getByRole('button', { name: 'Upload icon' })).toBeVisible();
+  await expect(logo.locator('.brand-slot img')).toHaveCount(0);
+});
+
 test('another installer cannot open this one', async ({ request }) => {
   const login = await request.post(`${API}/v1/portal/dev-login`, {
     data: { email: `stranger-${RUN}@other.test` },

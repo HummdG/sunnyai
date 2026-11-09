@@ -76,7 +76,10 @@ export function StudioForm({
               mode: brand.mode,
               iconId: brand.icon?.id ?? null,
               wordmarkId: brand.wordmark?.id ?? null,
-              effects: brand.effects,
+              // Only what the icon can draw, so what is saved is what Studio shows.
+              effects: brand.effects.filter(
+                (effect) => brand.icon?.availableEffects.includes(effect) ?? false,
+              ),
               colors: brand.colors,
             },
             suggestions: suggestions

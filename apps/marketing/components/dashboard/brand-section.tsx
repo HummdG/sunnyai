@@ -1,7 +1,7 @@
 'use client';
 
 import { effectMarkup, logoSvg, stillMarkup, type LogoArt } from '@sunny/logo-effects';
-import { useId, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 
 import {
   api,
@@ -179,6 +179,15 @@ function Slot({
   const input = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // An upload that answers after this slot has gone (the owner switched
+  // installer, or left Studio) belongs to a draft that no longer exists.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   async function choose(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0];
@@ -192,11 +201,11 @@ function Slot({
         tenantPath(tenantId, `/brand/${kind}`),
         { body: { png } },
       );
-      onUploaded(next);
+      if (mounted.current) onUploaded(next);
     } catch (failure) {
-      setError(errorText(failure));
+      if (mounted.current) setError(errorText(failure));
     } finally {
-      setUploading(false);
+      if (mounted.current) setUploading(false);
     }
   }
 
