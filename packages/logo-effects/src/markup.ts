@@ -260,11 +260,13 @@ export function effectMarkup(
       );
 
     case 'segments': {
-      // The logo is cut into five vertical bands that light up in turn. Every
-      // band is the real image, inside the logo's mask: dim when unlit, at full
-      // opacity when lit.
+      // The logo is cut into five vertical bands that light up in turn. The real
+      // image is always drawn whole beneath them, so none of the logo's own
+      // pixels ever vanish (a tile behind the mark included). Each lit band is
+      // the same image again, brightened, inside the logo's mask.
       const s = stencil(art, uid);
       const bandW = w / 5;
+      const lit = `lit-${uid}`;
       const clips: string[] = [];
       const bands: string[] = [];
       for (let i = 0; i < 5; i++) {
@@ -273,12 +275,17 @@ export function effectMarkup(
         );
         bands.push(
           `<g clip-path="url(#b${i}-${uid})" mask="${s.ref}" ` +
-            `style="animation:${k('seg')} ${p} ease-in-out ${lead(i * 0.15)} infinite">${base}</g>`,
+            `style="opacity:0; animation:${k('seg')} ${p} ease-in-out ${lead(i * 0.15)} infinite">` +
+            `${image(art.src, art, ` filter="url(#${lit})"`)}</g>`,
         );
       }
+      // An SVG filter rather than CSS brightness(), which Safari ignores on SVG elements.
+      const slope = (c: string) => `<feFunc${c} type="linear" slope="1.35"/>`;
       return (
-        style(`@keyframes ${k('seg')} { 0%,100% { opacity: 0.18; } 20%,40% { opacity: 1; } }`) +
-        `<defs>${s.def}${clips.join('')}</defs>` +
+        style(`@keyframes ${k('seg')} { 0%,100% { opacity: 0; } 20%,40% { opacity: 1; } }`) +
+        `<defs>${s.def}${clips.join('')}<filter id="${lit}" color-interpolation-filters="sRGB">` +
+        `<feComponentTransfer>${slope('R')}${slope('G')}${slope('B')}</feComponentTransfer></filter></defs>` +
+        base +
         bands.join('')
       );
     }

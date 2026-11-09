@@ -153,6 +153,26 @@ describe('effectMarkup', () => {
     expect(effectMarkup('rings', art(), 'a')).toContain('transform-origin:60px 50px');
   });
 
+  it('segments keeps a tile logo whole beneath the bands, so it never vanishes', () => {
+    // Background-mode art: the image is an opaque tile, and the mask only covers the mark on it.
+    const tile = art({ src: 'tile.png', maskSrc: 'mark-mask.png' });
+    const out = effectMarkup('segments', tile, 'a');
+    const still = '<image href="tile.png" x="0" y="0" width="120" height="100"/>';
+    // Outside the style, the defs and the band groups, all that is left is the plain image.
+    const outside = out
+      .replace(/<style>[\s\S]*?<\/style>/, '')
+      .replace(/<defs>[\s\S]*?<\/defs>/, '')
+      .replace(/<g [^>]*>[\s\S]*?<\/g>/g, '');
+    expect(outside).toBe(still);
+    // Each lit band is the same image brightened, inside the mark's mask.
+    const bands = out.match(
+      /<g clip-path="url\(#b\d-a\)" mask="url\(#m-a\)"[^>]*><image href="tile\.png"[^>]*filter="url\(#lit-a\)"\/><\/g>/g,
+    );
+    expect(bands).toHaveLength(5);
+    expect(out).toContain('<filter id="lit-a"');
+    expect(out).not.toMatch(/<rect[^>]*fill=/);
+  });
+
   it('segments light five vertical bands across the mask', () => {
     const out = effectMarkup('segments', art(), 'a');
     expect(out.match(/<clipPath /g)).toHaveLength(5);
