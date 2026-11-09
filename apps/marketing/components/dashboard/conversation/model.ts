@@ -235,17 +235,27 @@ export function effectText(effect: FlowEffect, ctx: Context): string {
   }
 }
 
-/** The diagram's short form: "+£899", "removes Bird mesh". */
+/** The flow's short form, on a branch pill: "+£899 7kW EV charger", "removes Bird mesh". */
 export function effectShort(effect: FlowEffect, ctx: Context): string {
-  const price = (key: string) => ctx.items.find((i) => i.key === key)?.priceText ?? key;
+  const find = (key: string) => ctx.items.find((i) => i.key === key);
   switch (effect.kind) {
-    case 'add':
-      return `+${price(effect.itemKey)}`;
+    case 'add': {
+      const item = find(effect.itemKey);
+      if (!item) return `+${effect.itemKey}`;
+      return effect.quantity
+        ? `+${effect.quantity} ${unitsWord(item.unitLabel, effect.quantity)} ${item.name}`
+        : `+${item.priceText} ${item.name}`;
+    }
     case 'remove':
       return `removes ${itemName(effect.itemKey, ctx)}`;
     case 'swap':
       return `swaps to ${itemName(effect.toKey, ctx)}`;
   }
+}
+
+/** An answer's effects in short: "+£899 7kW EV charger, removes Bird mesh". */
+export function effectsShort(effects: FlowEffect[], ctx: Context): string {
+  return effects.map((e) => effectShort(e, ctx)).join(', ');
 }
 
 // ── tree edits (every step id is unique in a flow) ─────────────────────────
@@ -300,6 +310,15 @@ export function placeBefore(steps: FlowStep[], id: string, beforeId: string): Fl
   const at = rest.findIndex((s) => s.id === beforeId);
   if (at < 0) return steps;
   rest.splice(at, 0, moved);
+  return rest;
+}
+
+/** Put a top-level step at `index` in the list as it is without it (drag on the flow). */
+export function placeAt(steps: FlowStep[], id: string, index: number): FlowStep[] {
+  const moved = steps.find((s) => s.id === id);
+  if (!moved) return steps;
+  const rest = steps.filter((s) => s.id !== id);
+  rest.splice(Math.max(0, Math.min(index, rest.length)), 0, moved);
   return rest;
 }
 
@@ -456,4 +475,25 @@ export function subtreeIds(step: FlowStep, draft: Draft, ctx: Context): Set<stri
   const ids = new Set<string>();
   walkSteps([step, ...membersOf(step, draft, ctx)], (s) => ids.add(s.id));
   return ids;
+}
+
+/**
+ * How deep a step sits for follow-ups: a listed step and a group member are 0
+ * (a member is stored as its own step), a follow-up one more than its parent.
+ */
+export function depthOf(draft: Draft, ctx: Context, id: string): number {
+  const direct = pathTo(draft.steps, id);
+  if (direct) return direct.length - 1;
+  for (const head of draft.steps) {
+    for (const member of membersOf(head, draft, ctx)) {
+      const below = pathTo([member], id);
+      if (below) return below.length - 1;
+    }
+  }
+  return 0;
+}
+
+/** Whether `id` is a preset asked with another (it moves and is removed with its head). */
+export function isMember(ctx: Context, id: string): boolean {
+  return groupMembers(ctx.presets.values()).has(id);
 }

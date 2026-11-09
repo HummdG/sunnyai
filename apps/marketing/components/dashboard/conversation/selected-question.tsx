@@ -1,23 +1,24 @@
 'use client';
 
-import { useState, type DragEvent } from 'react';
-
 import type { FlowEffect, FlowStep } from '../../../lib/portal-api.js';
 import { Chip } from '../ui.js';
 import { Effects } from './effect-picker.js';
+import { NothingSelected } from './nothing-selected.js';
+import { toneOf } from './flow-layout.js';
 import {
   MAX_CHOICES,
   MAX_DEPTH,
   addFollowUp,
   changesQuote,
   choicesOf,
-  deleteStep,
+  depthOf,
+  draftPath,
+  isMember,
   membersOf,
   moveStep,
   nameOf,
   newChoiceValue,
   newQuestion,
-  placeBefore,
   promptOf,
   subtreeIds,
   tagOf,
@@ -26,209 +27,67 @@ import {
   type EditorIssue,
 } from './model.js';
 
-export interface ListProps {
+export interface SelectedProps {
   draft: Draft;
   ctx: Context;
   readOnly: boolean;
   selectedId: string | null;
-  onSelect: (id: string | null) => void;
   issues: EditorIssue[];
+  onSelect: (id: string | null) => void;
   /** A change to the shape of the conversation: add, remove, reorder. */
   onDraft: (change: (draft: Draft) => Draft) => void;
   /** A change to one question, wherever it sits (its issues clear: it was edited). */
   onEdit: (id: string, change: (step: FlowStep) => FlowStep) => void;
-}
-
-/** The drag data a question row carries, so other drags (text, files) are ignored. */
-const DRAG_TYPE = 'application/x-sunny-step';
-
-/** What a row needs from the list it sits in. */
-export interface RowEnv extends ListProps {
-  open: Set<string>;
-  dragging: string | null;
-  setDragging: (id: string | null) => void;
+  /** The question waiting for "Remove" to be confirmed, if any. */
+  removing: string | null;
+  onRemove: (id: string) => void;
+  onConfirmRemove: (id: string) => void;
+  onCancelRemove: () => void;
 }
 
 /**
- * One question in the list, opening in place. A listed question can be dragged,
- * moved and removed; a follow-up only removed; a group member (asked with its
- * head) neither, though its wording, answers, effects and follow-ups are its own.
+ * The side column's "Selected question": its wording, its answers and what
+ * each does to the quote, its follow-ups, and moving or removing it. A listed
+ * question moves and is removed; a follow-up is only removed; a group member
+ * (asked with its head) neither, though its wording, answers, effects and
+ * follow-ups are its own. With nothing selected: a prompt and "+ Add a question".
  */
-export function StepRow({
-  env,
-  step,
-  depth,
-  index,
-  member = false,
-}: {
-  env: RowEnv;
-  step: FlowStep;
-  depth: number;
-  index?: number;
-  member?: boolean;
-}) {
-  const { ctx, readOnly, selectedId, onSelect, onDraft, issues, draft } = env;
-  const [confirming, setConfirming] = useState(false);
-  const name = nameOf(step, ctx);
-  const open = env.open.has(step.id);
-  const preset = step.kind === 'preset' ? ctx.presets.get(step.id) : undefined;
-  const top = depth === 0 && index !== undefined && !member;
-  const linked = preset?.group.length ?? 0;
-  const ownIssues = issues.filter((i) => i.stepId === step.id && !i.choice);
-  // Anything wrong at or below this question shows here, even while it is closed.
-  const below = subtreeIds(step, draft, ctx);
-  const attention = issues.some((i) => below.has(i.stepId));
-  const effectsAny = choicesOf(step, ctx).some((c) => c.effects.length > 0);
-
-  function remove(): void {
-    if (selectedId && below.has(selectedId)) onSelect(null);
-    onDraft((d) => deleteStep(d, step.id));
-  }
-
-  function askRemove(): void {
-    const risky = (preset?.warning ?? null) !== null || (step.followUps?.length ?? 0) > 0;
-    if (risky) setConfirming(true);
-    else remove();
-  }
-
-  const dropHandlers =
-    top && !readOnly
-      ? {
-          onDragOver: (event: DragEvent) => {
-            // Only a question being dragged by its handle drops here (not text, say).
-            if (!event.dataTransfer.types.includes(DRAG_TYPE)) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-          },
-          onDrop: (event: DragEvent) => {
-            const id = event.dataTransfer.getData(DRAG_TYPE);
-            if (!id) return;
-            event.preventDefault();
-            onDraft((d) => ({ ...d, steps: placeBefore(d.steps, id, step.id) }));
-            env.setDragging(null);
-          },
-        }
-      : {};
-
-  return (
-    <li
-      className="flow-row"
-      aria-label={name}
-      aria-current={selectedId === step.id ? 'true' : undefined}
-      data-step-row={step.id}
-      data-dragging={env.dragging === step.id ? 'true' : undefined}
-      {...dropHandlers}
-    >
-      <div className="flow-row-head">
-        {top && !readOnly ? (
-          <span
-            className="flow-drag"
-            draggable
-            aria-hidden="true"
-            title="Drag to reorder"
-            onDragStart={(event) => {
-              event.dataTransfer.setData(DRAG_TYPE, step.id);
-              event.dataTransfer.effectAllowed = 'move';
-              // After the drag has started: changing the page during dragstart cancels it.
-              window.setTimeout(() => env.setDragging(step.id), 0);
-            }}
-            onDragEnd={() => env.setDragging(null)}
-          >
-            ⋮⋮
-          </span>
-        ) : null}
-        <button
-          type="button"
-          className="flow-row-title"
-          aria-expanded={open}
-          onClick={() => onSelect(selectedId === step.id ? null : step.id)}
-        >
-          {name}
-        </button>
-        <span className="chip-row">
-          <Chip tone={step.kind === 'preset' ? 'neutral' : 'orange'}>{tagOf(step)}</Chip>
-          {step.kind === 'preset' && effectsAny ? (
-            <Chip tone="orange">Changes the quote</Chip>
-          ) : null}
-          {attention ? <Chip tone="danger">Needs attention</Chip> : null}
-        </span>
-        {readOnly || member ? null : (
-          <span className="flow-row-actions">
-            {top ? (
-              <>
-                <button
-                  type="button"
-                  className="flow-icon-button"
-                  aria-label={`Move up: ${name}`}
-                  disabled={index === 0}
-                  onClick={() => onDraft((d) => ({ ...d, steps: moveStep(d.steps, step.id, -1) }))}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="flow-icon-button"
-                  aria-label={`Move down: ${name}`}
-                  disabled={index === draft.steps.length - 1}
-                  onClick={() => onDraft((d) => ({ ...d, steps: moveStep(d.steps, step.id, 1) }))}
-                >
-                  ↓
-                </button>
-              </>
-            ) : null}
-            <button
-              type="button"
-              className="link-button"
-              aria-label={`Remove: ${name}`}
-              onClick={askRemove}
-            >
-              Remove
-            </button>
-          </span>
-        )}
-      </div>
-      {member ? (
-        <p className="muted small">Asked with the question above, when it applies.</p>
-      ) : null}
-      {linked > 0 && !open ? (
-        <p className="muted small">
-          Asks {linked === 1 ? 'a linked question' : `${linked} linked questions`} when they apply.
-        </p>
-      ) : null}
-      {ownIssues.length > 0 ? (
-        <ul className="issue-list">
-          {ownIssues.map((issue, i) => (
-            <li key={i} className="error">
-              {issue.message}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {confirming ? (
-        <div className="flow-confirm" role="alertdialog" aria-label={`Remove ${name}?`}>
-          <p>{preset?.warning ?? 'This also removes the follow-ups under it.'}</p>
-          <div className="actions">
-            <button type="button" className="button danger" onClick={remove}>
-              Remove question
-            </button>
-            <button type="button" className="button secondary" onClick={() => setConfirming(false)}>
-              Keep it
-            </button>
-          </div>
-        </div>
-      ) : null}
-      {open ? <StepBody env={env} step={step} depth={depth} /> : null}
-    </li>
-  );
+export function SelectedQuestion(props: SelectedProps) {
+  const { draft, ctx, selectedId } = props;
+  const path = selectedId ? draftPath(draft, ctx, selectedId) : null;
+  const step = path?.[path.length - 1]?.step;
+  if (!path || !step) return <NothingSelected {...props} />;
+  return <StepEditor key={step.id} {...props} step={step} path={path} />;
 }
 
-function StepBody({ env, step, depth }: { env: RowEnv; step: FlowStep; depth: number }) {
-  const { ctx, readOnly, onEdit, onSelect, issues, draft } = env;
+function StepEditor({
+  draft,
+  ctx,
+  readOnly,
+  issues,
+  onSelect,
+  onDraft,
+  onEdit,
+  removing,
+  onRemove,
+  onConfirmRemove,
+  onCancelRemove,
+  step,
+  path,
+}: SelectedProps & { step: FlowStep; path: Array<{ step: FlowStep; when: string | null }> }) {
   const update = (change: (s: FlowStep) => FlowStep) => onEdit(step.id, change);
-  const members = membersOf(step, draft, ctx);
+  const name = nameOf(step, ctx);
   const preset = step.kind === 'preset' ? ctx.presets.get(step.id) : undefined;
   const choices = choicesOf(step, ctx);
   const quote = changesQuote(step);
+  const members = membersOf(step, draft, ctx);
+  const member = isMember(ctx, step.id);
+  const index = draft.steps.findIndex((s) => s.id === step.id);
+  const depth = depthOf(draft, ctx, step.id);
+  const parent = path.length > 1 ? path[path.length - 2]! : null;
+  const ownIssues = issues.filter((i) => i.stepId === step.id && !i.choice);
+  const below = subtreeIds(step, draft, ctx);
+  const attention = issues.some((i) => below.has(i.stepId));
 
   function setLabel(value: string, label: string): void {
     update((s) =>
@@ -267,23 +126,66 @@ function StepBody({ env, step, depth }: { env: RowEnv; step: FlowStep; depth: nu
     onSelect(child.id);
   }
 
+  const parentChoice = parent
+    ? choicesOf(parent.step, ctx).find((c) => c.value === parent.when)
+    : undefined;
+
   return (
-    <div className="flow-row-body">
-      <label className="field">
+    <section className="flow-card" aria-label="Selected question" data-step-editor={step.id}>
+      <div className="flow-card-head">
+        <h3>Selected question</h3>
+        <button
+          type="button"
+          className="flow-icon-button"
+          aria-label="Close the selected question"
+          onClick={() => onSelect(null)}
+        >
+          ✕
+        </button>
+      </div>
+      <div className="chip-row">
+        <span className="flow-tag" data-tone={toneOf(step)}>
+          {tagOf(step)}
+        </span>
+        {attention ? <Chip tone="danger">Needs attention</Chip> : null}
+      </div>
+      {parent ? (
+        <p className="muted small">
+          {member ? 'Asked with ' : 'Asked after '}
+          <button type="button" className="link-button" onClick={() => onSelect(parent.step.id)}>
+            {nameOf(parent.step, ctx)}
+          </button>
+          {member
+            ? ', when it applies. It moves and is removed with that question.'
+            : ` when the answer is ${parentChoice?.label ?? parent.when ?? 'given'}.`}
+        </p>
+      ) : null}
+      {ownIssues.length > 0 ? (
+        <ul className="issue-list">
+          {ownIssues.map((issue, i) => (
+            <li key={i} className="error">
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <label className="field compact">
         <span>Question text</span>
-        <input
+        <textarea
+          className="flow-question-text"
+          rows={2}
           value={promptOf(step, ctx)}
           maxLength={300}
           disabled={readOnly}
           placeholder={preset?.prompt}
           onChange={(event) => {
-            const prompt = event.target.value;
+            const prompt = event.target.value.replace(/\n/g, ' ');
             update((s) => ({ ...s, prompt }));
           }}
         />
       </label>
       {step.kind === 'custom' ? (
-        <div className="field-row">
+        <>
           <label className="field compact">
             <span>What the answer does</span>
             <select
@@ -326,33 +228,34 @@ function StepBody({ env, step, depth }: { env: RowEnv; step: FlowStep; depth: nu
               </select>
             </label>
           ) : null}
-        </div>
+        </>
       ) : null}
-      {step.kind === 'preset' && choices.length > 0 ? (
-        <p className="muted small">
-          You can reword Sunny&apos;s answers. Each still means the same to the quote.
+      {choices.length > 0 ? (
+        <p className="flow-card-label">
+          Answers
+          {step.kind === 'preset' ? (
+            <span className="muted"> (reword them; each still means the same to the quote)</span>
+          ) : null}
         </p>
       ) : null}
       {choices.map((choice) => (
         <fieldset key={choice.value} className="flow-answer" aria-label={`Answer ${choice.label}`}>
           <div className="flow-answer-head">
-            <label className="field compact">
-              <span>Answer</span>
-              <input
-                value={choice.label}
-                maxLength={80}
-                disabled={readOnly}
-                onChange={(event) => setLabel(choice.value, event.target.value)}
-              />
-            </label>
+            <input
+              aria-label="Answer"
+              value={choice.label}
+              maxLength={80}
+              disabled={readOnly}
+              onChange={(event) => setLabel(choice.value, event.target.value)}
+            />
             {!readOnly && step.kind === 'custom' && choices.length > 1 ? (
               <button
                 type="button"
-                className="link-button"
+                className="flow-icon-button"
                 aria-label={`Remove answer ${choice.label}`}
                 onClick={() => removeChoice(choice.value)}
               >
-                Remove answer
+                ✕
               </button>
             ) : null}
           </div>
@@ -371,13 +274,19 @@ function StepBody({ env, step, depth }: { env: RowEnv; step: FlowStep; depth: nu
                 {issue.message}
               </p>
             ))}
-          <ol className="flow-follow-ups">
-            {(step.followUps ?? [])
-              .filter((f) => f.when[0] === choice.value)
-              .map((f) => (
-                <StepRow key={f.step.id} env={env} step={f.step} depth={depth + 1} />
-              ))}
-          </ol>
+          {(step.followUps ?? [])
+            .filter((f) => f.when[0] === choice.value)
+            .map((f) => (
+              <button
+                key={f.step.id}
+                type="button"
+                className="flow-card-link"
+                aria-label={`Follow-up: ${nameOf(f.step, ctx)}`}
+                onClick={() => onSelect(f.step.id)}
+              >
+                ↳ {nameOf(f.step, ctx)}
+              </button>
+            ))}
           {!readOnly && depth < MAX_DEPTH ? (
             <button type="button" className="link-button" onClick={() => followUp(choice.value)}>
               + Add a follow-up
@@ -407,19 +316,74 @@ function StepBody({ env, step, depth }: { env: RowEnv; step: FlowStep; depth: nu
         </button>
       ) : null}
       {members.length > 0 ? (
-        <div className="flow-members">
+        <div className="flow-members" role="group" aria-label="Linked questions">
           <p className="small">
             <strong>Asked next, when they apply.</strong>{' '}
             <span className="muted">They move and are removed with this question.</span>
           </p>
-          <ol className="flow-follow-ups" aria-label="Linked questions">
-            {members.map((m) => (
-              // Stored as its own step, so its follow-ups nest from zero.
-              <StepRow key={m.id} env={env} step={m} depth={0} member />
-            ))}
-          </ol>
+          {members.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className="flow-card-link"
+              onClick={() => onSelect(m.id)}
+            >
+              ↳ {nameOf(m, ctx)}
+            </button>
+          ))}
         </div>
       ) : null}
-    </div>
+      {readOnly || member ? null : (
+        <div className="flow-card-actions">
+          {index >= 0 ? (
+            <>
+              <button
+                type="button"
+                className="button secondary"
+                aria-label={`Move up: ${name}`}
+                disabled={index === 0}
+                onClick={() => onDraft((d) => ({ ...d, steps: moveStep(d.steps, step.id, -1) }))}
+              >
+                ↑ Up
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                aria-label={`Move down: ${name}`}
+                disabled={index === draft.steps.length - 1}
+                onClick={() => onDraft((d) => ({ ...d, steps: moveStep(d.steps, step.id, 1) }))}
+              >
+                ↓ Down
+              </button>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="button secondary danger-text"
+            aria-label={`Remove: ${name}`}
+            onClick={() => onRemove(step.id)}
+          >
+            Remove
+          </button>
+        </div>
+      )}
+      {removing === step.id ? (
+        <div className="flow-confirm" role="alertdialog" aria-label={`Remove ${name}?`}>
+          <p>{preset?.warning ?? 'This also removes the follow-ups under it.'}</p>
+          <div className="actions">
+            <button
+              type="button"
+              className="button danger"
+              onClick={() => onConfirmRemove(step.id)}
+            >
+              Remove question
+            </button>
+            <button type="button" className="button secondary" onClick={onCancelRemove}>
+              Keep it
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }

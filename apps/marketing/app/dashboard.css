@@ -1209,130 +1209,334 @@
   margin-bottom: 20px;
 }
 
-/* ── Studio: "Your conversation" (question list, flow diagram, chat preview) ── */
+/* ── Studio tabs: brand, conversation, assistant settings ───────────────── */
 
-.dash .flow-editor {
-  display: grid;
-  gap: 14px;
-}
-.dash .flow-tabs {
+.dash .studio-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
+  border-bottom: 1px solid #e8e1d4;
 }
-.dash .flow-tabs [role='tab'] {
+.dash .studio-tabs [role='tab'] {
   font: inherit;
   font-weight: 650;
-  font-size: 0.9rem;
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: var(--radius-pill);
-  padding: 6px 14px;
-  cursor: pointer;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 10px 16px;
   color: var(--muted-text);
+  cursor: pointer;
 }
-.dash .flow-tabs [role='tab'][aria-selected='true'] {
-  background: var(--sunny-ink);
-  border-color: var(--sunny-ink);
-  color: #fff;
+.dash .studio-tabs [role='tab']:hover {
+  color: var(--sunny-ink);
 }
-.dash .flow-panels {
+.dash .studio-tabs [role='tab'][aria-selected='true'] {
+  color: var(--text-orange);
+  border-bottom-color: #e8590c;
+}
+
+/* ── Studio: "Your conversation" (flow or list, and the selected question) ── */
+
+.dash .flow-editor {
+  --flow-line: #cfc6b7;
+  --flow-price: #3b74d1;
+  --flow-border: #e3dccf;
+  --flow-soft: #ece5d8;
+  --flow-paper: #fffdf9;
+  --flow-locked: #f6f1e7;
+  --flow-locked-text: #6b655c;
+  --flow-quote: #1f4f9a;
+  --flow-quote-pale: #e9f2ff;
+  --flow-lead: #2f6b23;
+  --flow-lead-pale: #eef6ea;
+  --flow-sunny: #9a4a00;
+  --flow-sunny-pale: #fff1e5;
   display: grid;
+  gap: 12px;
+}
+.dash .flow-editor .ok-note,
+.dash .flow-editor .error-note {
+  margin: 0;
+}
+.dash .flow-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.dash .flow-bar-lead {
+  flex: 1 1 220px;
+}
+.dash .flow-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.dash .flow-bar-actions .button {
+  padding: 7px 16px;
+  font-size: 0.9rem;
+}
+.dash .flow-seg {
+  display: inline-flex;
+  background: #f1ebe0;
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+.dash .flow-seg button {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 650;
+  border: 0;
+  background: none;
+  color: var(--muted-text);
+  border-radius: var(--radius-pill);
+  padding: 6px 16px;
+  cursor: pointer;
+}
+.dash .flow-seg button[aria-pressed='true'] {
+  background: #fff;
+  color: var(--sunny-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.dash .flow-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 14px;
   align-items: start;
 }
-.dash .flow-panel {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: #fff;
+@media (max-width: 1099px) {
+  .dash .flow-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.dash .flow-stage-col {
   min-width: 0;
 }
-.dash .flow-panel-head {
+
+/* The canvas: a dotted sheet that scrolls and zooms. */
+.dash .flow-canvas {
+  position: relative;
+  border: 1px solid var(--flow-soft);
+  border-radius: var(--radius-md);
+  background: var(--flow-paper);
+  overflow: hidden;
+}
+.dash .flow-canvas-view {
+  height: clamp(420px, calc(100vh - 250px), 760px);
+  overflow: auto;
+  cursor: grab;
+  background: radial-gradient(#e6dfd2 1.2px, transparent 1.2px) 0 0 / 16px 16px;
+}
+.dash .flow-canvas-view:active {
+  cursor: grabbing;
+}
+.dash .flow-stage {
+  position: relative;
+  transform-origin: 0 0;
+}
+.dash .flow-lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.dash .flow-lines path {
+  fill: none;
+  stroke: var(--flow-line);
+  stroke-width: 2;
+}
+.dash .flow-lines path[data-price='true'] {
+  stroke: var(--flow-price);
+  stroke-width: 2.2;
+}
+.dash .flow-node {
+  position: absolute;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
+  gap: 4px 8px;
+  min-height: 38px;
+  padding: 8px 11px;
+  background: #fff;
+  border: 1px solid var(--flow-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--sunny-ink);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
 }
-.dash .flow-panel-head h3 {
-  font-size: 0.95rem;
+.dash .flow-node:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-.dash .flow-panel-body {
-  padding: 14px;
+.dash .flow-node[data-draggable='true'] {
+  touch-action: none;
 }
-/* Narrow screens: one panel at a time, chosen by the tabs; nothing minimises. */
-@media (max-width: 1099px) {
-  .dash .flow-panels[data-tab='list'] .flow-panel:not([data-panel='list']),
-  .dash .flow-panels[data-tab='diagram'] .flow-panel:not([data-panel='diagram']),
-  .dash .flow-panels[data-tab='preview'] .flow-panel:not([data-panel='preview']) {
-    display: none;
-  }
-  .dash .flow-panel-toggle {
-    display: none;
-  }
+.dash .flow-node[data-kind='branch'] {
+  border-style: dashed;
 }
-/* Wide screens: three panels side by side, each one minimisable to its title. */
-@media (min-width: 1100px) {
-  .dash .flow-tabs {
-    display: none;
-  }
-  .dash .flow-panels {
-    grid-template-columns: var(--flow-cols);
-  }
-  .dash .flow-panel[data-collapsed='true'] .flow-panel-body {
-    display: none;
-  }
-  .dash .flow-panel[data-collapsed='true'] .flow-panel-head {
-    border-bottom: 0;
-  }
+.dash .flow-node[data-kind='fixed'] {
+  background: var(--flow-locked);
+  color: var(--flow-locked-text);
+  font-weight: 500;
+  border-style: dashed;
+  box-shadow: none;
+  cursor: default;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.dash .flow-node[aria-pressed='true'] {
+  border: 2px solid #e8590c;
+  padding: 7px 10px;
+  box-shadow: 0 0 0 4px rgba(232, 89, 12, 0.12);
+}
+.dash .flow-node[data-dragging='true'] {
+  z-index: 3;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+  cursor: grabbing;
+  opacity: 0.92;
+}
+.dash .flow-node-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dash .flow-insert {
+  position: absolute;
+  height: 3px;
+  border-radius: 2px;
+  background: #e8590c;
+  pointer-events: none;
+}
+.dash .flow-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.5;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  background: #f1f1f1;
+  color: #3d3d3d;
+}
+.dash .flow-tag[data-tone='sunny'] {
+  background: var(--flow-sunny-pale);
+  color: var(--flow-sunny);
+}
+.dash .flow-tag[data-tone='quote'] {
+  background: var(--flow-quote-pale);
+  color: var(--flow-quote);
+}
+.dash .flow-tag[data-tone='lead'] {
+  background: var(--flow-lead-pale);
+  color: var(--flow-lead);
+}
+.dash .flow-tag[data-tone='warn'] {
+  background: var(--danger-pale);
+  color: var(--danger);
+}
+.dash .flow-pill {
+  position: absolute;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid #e0d8ca;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: #6b6b6b;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.dash .flow-pill[data-price='true'] {
+  color: var(--flow-quote);
+  border-color: #bcd3f5;
+}
+.dash .flow-lock {
+  display: inline-flex;
+  opacity: 0.8;
+}
+.dash .flow-canvas-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  margin: 0;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 253, 249, 0.9);
+  font-size: 11px;
+  color: #8a8378;
+  pointer-events: none;
+}
+.dash .flow-canvas-tools {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dash .flow-canvas-tools button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e0d8ca;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  color: var(--sunny-ink);
+  cursor: pointer;
+}
+.dash .flow-canvas-tools button:hover {
+  background: var(--flow-locked);
 }
 
-.dash .flow-list,
-.dash .flow-follow-ups {
+/* The compact list: one line per question. */
+.dash .flow-list {
+  background: #fff;
+  border: 1px solid var(--flow-soft);
+  border-radius: var(--radius-md);
+  padding: 6px;
+}
+.dash .flow-list ol {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 8px;
 }
-.dash .flow-follow-ups {
-  margin: 8px 0 4px 18px;
-  padding-left: 12px;
-  border-left: 2px solid var(--sunny-brand-orange-pale);
-}
-.dash .flow-follow-ups:empty {
-  display: none;
-}
-.dash .flow-row {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+.dash .flow-li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
   padding: 8px 10px;
-  background: #fff;
+  border-radius: 10px;
+  font-size: 0.92rem;
 }
-.dash .flow-row[aria-current='true'] {
-  border-color: var(--sunny-brand-orange);
-  box-shadow: 0 0 0 2px var(--sunny-brand-orange-pale);
+.dash .flow-li + .flow-li {
+  border-top: 1px solid #f2ece2;
 }
-.dash .flow-row[data-dragging='true'] {
+.dash .flow-li[data-fixed='true'] {
+  color: var(--flow-locked-text);
+  background: #faf6ee;
+}
+.dash .flow-li[aria-current='true'] {
+  background: #fff4ec;
+  outline: 2px solid #e8590c;
+  outline-offset: -2px;
+}
+.dash .flow-li[data-dragging='true'] {
   opacity: 0.5;
 }
-.dash .flow-row-fixed {
-  background: var(--sunny-warm-white);
-  border-style: dashed;
-}
-.dash .flow-row-fixed p {
-  margin-top: 4px;
-}
-.dash .flow-row-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-}
-.dash .flow-row-title {
-  /* The question has its own line; tags and actions wrap below it. */
-  flex: 1 1 calc(100% - 40px);
+.dash .flow-li-q {
+  flex: 1 1 200px;
   min-width: 0;
   background: none;
   border: 0;
@@ -1343,87 +1547,226 @@
   color: inherit;
   cursor: pointer;
 }
-.dash .flow-row-name {
-  flex: 1 1 calc(100% - 40px);
+.dash span.flow-li-q {
+  cursor: default;
+  font-weight: 600;
+}
+.dash .flow-li-q[data-depth]:not([data-depth='0']) {
+  font-weight: 500;
+}
+.dash .flow-li-when {
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.dash .flow-li-eff {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--flow-quote);
+}
+.dash .flow-li-note {
+  font-size: 0.78rem;
+  color: #8a8378;
+}
+.dash .flow-li-actions {
+  display: inline-flex;
+  gap: 2px;
 }
 .dash .flow-drag {
   cursor: grab;
-  color: var(--muted-text);
-  letter-spacing: -2px;
+  color: #b9b1a4;
   user-select: none;
   padding: 0 2px;
 }
-.dash .flow-lock {
-  color: var(--muted-text);
-  display: inline-flex;
-}
-.dash .flow-row-actions {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
 .dash .flow-icon-button {
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: var(--radius-pill);
   width: 28px;
   height: 28px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  color: #8a8378;
   font: inherit;
   cursor: pointer;
 }
+.dash .flow-icon-button:hover:not(:disabled) {
+  background: var(--flow-locked);
+  color: var(--sunny-ink);
+}
 .dash .flow-icon-button:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
-.dash .flow-row-body {
-  margin-top: 10px;
+.dash .flow-list-add {
+  display: block;
+  padding: 10px;
+}
+
+/* The side column: the selected question, and how Sunny asks it. */
+.dash .flow-side {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.dash .flow-card {
   display: grid;
   gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  background: #fff;
+  border: 1px solid var(--flow-soft);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  min-width: 0;
 }
-.dash .flow-row .issue-list {
-  margin-top: 6px;
+.dash .flow-card h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a5a2b;
+}
+.dash .flow-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -6px -6px -4px 0;
+}
+.dash .flow-card .field > span {
+  font-size: 12.5px;
+}
+.dash .flow-card .field input,
+.dash .flow-card .field select,
+.dash .flow-card .field textarea,
+.dash .flow-answer-head input {
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid #e0d8ca;
+  background: var(--flow-paper);
+  font: inherit;
+  width: 100%;
+}
+.dash .flow-card .link-button {
+  font-size: 13px;
+}
+.dash .flow-card .button {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.dash .flow-card .field textarea.flow-question-text {
+  min-height: 0;
+  resize: vertical;
+  font-weight: 600;
+}
+.dash .flow-card-label {
+  font-weight: 650;
+  font-size: 0.82rem;
+}
+.dash .flow-card-add {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.dash .flow-card-add .field {
+  width: 100%;
+}
+.dash .flow-card-link {
+  display: block;
+  width: 100%;
+  background: var(--flow-locked);
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  color: var(--sunny-ink);
+  cursor: pointer;
+}
+.dash .flow-card-link:hover {
+  background: #efe7d8;
+}
+.dash .flow-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #f2ece2;
+}
+.dash .flow-card-actions .button {
+  padding: 5px 12px;
+  font-size: 12.5px;
+}
+.dash .button.danger-text {
+  color: var(--danger);
 }
 .dash .flow-answer {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 10px;
+  display: grid;
+  gap: 6px;
   margin: 0;
+  padding: 8px;
+  border: 1px solid #f0e9dd;
+  border-radius: 10px;
   min-width: 0;
 }
 .dash .flow-answer-head {
   display: flex;
-  align-items: end;
-  gap: 10px;
+  align-items: center;
+  gap: 4px;
 }
-.dash .flow-answer-head .field {
+.dash .flow-answer-head input {
   flex: 1;
-  margin: 0;
+  min-width: 0;
+  font-weight: 600;
+}
+.dash .flow-answer .link-button {
+  font-size: 0.85rem;
+}
+.dash .flow-effects {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
 }
 .dash .flow-effects ul {
-  margin: 6px 0;
-  padding-left: 1.1em;
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
   gap: 4px;
 }
+.dash .flow-effects li {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--flow-quote-pale);
+  color: var(--flow-quote);
+  font-weight: 600;
+}
 .dash .flow-effects li .link-button {
-  margin-left: 8px;
-  font-size: 0.85rem;
+  margin-left: 6px;
+  font-size: 0.8rem;
 }
 .dash .flow-picker {
-  margin-top: 8px;
-  padding: 10px;
-  border-radius: var(--radius-md);
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
   background: var(--sunny-warm-white);
+}
+.dash .flow-picker select,
+.dash .flow-picker input {
+  width: 100%;
+}
+.dash .flow-picker .button {
+  padding: 6px 14px;
 }
 .dash .flow-members {
   display: grid;
   gap: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  border-top: 1px solid #f2ece2;
 }
 .dash .flow-confirm {
-  margin-top: 8px;
   padding: 12px;
   border-radius: var(--radius-md);
   background: var(--sunny-brand-orange-pale);
@@ -1431,79 +1774,33 @@
 .dash .flow-confirm .actions {
   margin-top: 10px;
 }
-.dash .flow-add {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-  justify-items: start;
-}
-.dash .flow-save .actions {
-  align-items: center;
+.dash .flow-card .issue-list {
+  margin: 0;
 }
 
-.dash .flow-diagram {
-  display: block;
-  max-width: none;
-}
-.dash .flow-diagram .flow-line {
-  fill: none;
-  stroke: rgba(23, 23, 23, 0.25);
-  stroke-width: 1.5;
-}
-.dash .flow-diagram .flow-box rect {
-  fill: #fff;
-  stroke: rgba(23, 23, 23, 0.2);
-  stroke-width: 1.2;
-}
-.dash .flow-diagram .flow-box[role='button'] {
-  cursor: pointer;
-}
-.dash .flow-diagram .flow-box[data-fixed='true'] rect {
-  fill: var(--sunny-warm-white);
-  stroke-dasharray: 4 3;
-}
-.dash .flow-diagram .flow-box[data-selected='true'] rect {
-  fill: var(--sunny-brand-orange-pale);
-  stroke: var(--sunny-brand-orange);
-  stroke-width: 2.4;
-}
-.dash .flow-diagram .flow-box:focus-visible {
-  outline: none;
-}
-.dash .flow-diagram .flow-box:focus-visible rect {
-  stroke: var(--sunny-brand-orange);
-  stroke-width: 3;
-}
-.dash .flow-diagram text {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  fill: var(--sunny-ink);
-}
-.dash .flow-diagram .flow-box-label {
-  font-weight: 650;
-}
-.dash .flow-diagram .flow-box-note,
-.dash .flow-diagram .flow-when {
-  font-size: 11px;
-  fill: var(--muted-text);
-}
-.dash .flow-diagram .flow-effect {
-  font-size: 11px;
-  font-weight: 700;
-  fill: var(--text-orange);
-}
-
+/* "How Sunny asks it": the chat bubble, sample answers and what one does. */
 .dash .chat-preview {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   justify-items: start;
 }
 .dash .chat-preview .transcript {
   width: 100%;
+  gap: 6px;
+}
+.dash .chat-preview .bubble {
+  max-width: 92%;
+  padding: 8px 11px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--flow-locked);
+}
+.dash .chat-preview .bubble.user {
+  border-radius: 14px 14px 4px 14px;
+  background: var(--sunny-ink);
 }
 .dash .preview-note {
-  color: var(--muted-text);
-  font-style: italic;
+  font-size: 0.75rem;
+  color: #8a8378;
 }
 .dash .preview-chips {
   display: flex;
@@ -1511,20 +1808,35 @@
   gap: 6px;
 }
 .dash .preview-chips .pill {
-  padding: 5px 12px;
-  font-size: 0.9rem;
+  padding: 4px 11px;
+  font-size: 0.82rem;
+  border-color: #f0c49a;
+  background: #fff6ee;
+  color: var(--flow-sunny);
+}
+.dash .preview-chips .pill[aria-pressed='true'] {
+  background: #e8590c;
+  border-color: #e8590c;
+  color: #fff;
 }
 .dash .preview-result {
   width: 100%;
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--flow-quote-pale);
+  color: var(--flow-quote);
+}
+.dash .preview-result .muted {
+  color: var(--flow-quote);
 }
 .dash .preview-effects {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   padding: 0;
   display: grid;
   gap: 4px;
+  font-weight: 600;
+  font-size: 0.88rem;
 }
 .dash .preview-effects li {
   display: flex;
@@ -1538,17 +1850,4 @@
 }
 .dash .preview-type .field {
   margin: 0;
-}
-/* The list panel is narrow beside the others: its fields stack, full width. */
-.dash .flow-row-body .field-row {
-  grid-template-columns: 1fr;
-}
-.dash .flow-row-body select,
-.dash .flow-picker select {
-  width: 100%;
-}
-/* The diagram keeps its drawn size (legible text) and scrolls when the panel is narrower. */
-.dash .flow-panel[data-panel='diagram'] .flow-panel-body {
-  overflow-x: auto;
-  padding: 10px 8px;
 }
