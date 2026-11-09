@@ -7,7 +7,9 @@ const custom = (over: Record<string, unknown> = {}) => ({
   prompt: 'Do you have a car?',
   mode: 'quote',
   answer: 'choice',
-  choices: [{ value: 'yes', label: 'Yes', effects: [{ kind: 'add', itemKey: 'charger', quantity: 1 }] }],
+  choices: [
+    { value: 'yes', label: 'Yes', effects: [{ kind: 'add', itemKey: 'charger', quantity: 1 }] },
+  ],
   ...over,
 });
 const flow = (steps: unknown[]) => ({ version: 1, updatedAt: '2026-11-09T10:00:00.000Z', steps });
@@ -16,9 +18,19 @@ describe('conversationFlowSchema', () => {
   it('accepts a flow with a preset rewording, a custom quote question with an add effect, and a follow-up', () => {
     const r = conversationFlowSchema.safeParse(
       flow([
-        { kind: 'preset', id: 'roof', prompt: 'What is your roof like?', labels: { tile: 'Tiles' } },
+        {
+          kind: 'preset',
+          id: 'roof',
+          prompt: 'What is your roof like?',
+          labels: { tile: 'Tiles' },
+        },
         custom({
-          followUps: [{ when: ['yes'], step: custom({ id: 'c_followup1', mode: 'lead', answer: 'text', choices: [] }) }],
+          followUps: [
+            {
+              when: ['yes'],
+              step: custom({ id: 'c_followup1', mode: 'lead', answer: 'text', choices: [] }),
+            },
+          ],
         }),
       ]),
     );
@@ -26,7 +38,9 @@ describe('conversationFlowSchema', () => {
   });
 
   it('refuses a custom question in quote mode with free-text answers', () => {
-    expect(conversationFlowSchema.safeParse(flow([custom({ answer: 'text' })])).success).toBe(false);
+    expect(conversationFlowSchema.safeParse(flow([custom({ answer: 'text' })])).success).toBe(
+      false,
+    );
   });
 
   it('refuses follow-ups nested deeper than 2', () => {
@@ -35,7 +49,14 @@ describe('conversationFlowSchema', () => {
     const l1 = custom({ id: 'c_level1aa', followUps: [{ when: ['yes'], step: l2 }] });
     const top = custom({ followUps: [{ when: ['yes'], step: l1 }] });
     expect(conversationFlowSchema.safeParse(flow([top])).success).toBe(false);
-    const ok = custom({ followUps: [{ when: ['yes'], step: custom({ id: 'c_level1aa', followUps: [{ when: ['yes'], step: l3 }] }) }] });
+    const ok = custom({
+      followUps: [
+        {
+          when: ['yes'],
+          step: custom({ id: 'c_level1aa', followUps: [{ when: ['yes'], step: l3 }] }),
+        },
+      ],
+    });
     expect(conversationFlowSchema.safeParse(flow([ok])).success).toBe(true);
   });
 
@@ -46,7 +67,9 @@ describe('conversationFlowSchema', () => {
   });
 
   it('refuses a prompt over 300 characters and a label over 80', () => {
-    expect(conversationFlowSchema.safeParse(flow([custom({ prompt: 'a'.repeat(301) })])).success).toBe(false);
+    expect(
+      conversationFlowSchema.safeParse(flow([custom({ prompt: 'a'.repeat(301) })])).success,
+    ).toBe(false);
     expect(
       conversationFlowSchema.safeParse(
         flow([custom({ choices: [{ value: 'y', label: 'a'.repeat(81), effects: [] }] })]),
@@ -56,7 +79,9 @@ describe('conversationFlowSchema', () => {
 
   it('refuses an add with quantity 0 or a fraction', () => {
     for (const quantity of [0, 1.5]) {
-      const c = custom({ choices: [{ value: 'y', label: 'Y', effects: [{ kind: 'add', itemKey: 'x', quantity }] }] });
+      const c = custom({
+        choices: [{ value: 'y', label: 'Y', effects: [{ kind: 'add', itemKey: 'x', quantity }] }],
+      });
       expect(conversationFlowSchema.safeParse(flow([c])).success).toBe(false);
     }
   });
