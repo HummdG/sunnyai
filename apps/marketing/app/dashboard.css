@@ -1321,14 +1321,21 @@
   position: relative;
   border: 1px solid var(--flow-soft);
   border-radius: var(--radius-md);
-  background: var(--flow-paper);
+  background: var(--flow-paper) radial-gradient(#e6dfd2 1.2px, transparent 1.2px) 0 0 / 16px 16px;
   overflow: hidden;
 }
+/* Fills the window below the editor's bar (scroll the page to the bar to see it all). */
 .dash .flow-canvas-view {
-  height: clamp(420px, calc(100vh - 250px), 760px);
+  height: max(520px, calc(100vh - 190px));
   overflow: auto;
   cursor: grab;
-  background: radial-gradient(#e6dfd2 1.2px, transparent 1.2px) 0 0 / 16px 16px;
+}
+.dash .flow-canvas-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 0 14px;
 }
 .dash .flow-canvas-view:active {
   cursor: grabbing;
@@ -1357,16 +1364,16 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  min-height: 38px;
-  padding: 8px 11px;
+  min-height: 42px;
+  padding: 10px 12px;
   background: #fff;
   border: 1px solid var(--flow-border);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 19px;
   text-align: left;
   color: var(--sunny-ink);
   cursor: pointer;
@@ -1393,7 +1400,7 @@
 }
 .dash .flow-node[aria-pressed='true'] {
   border: 2px solid #e8590c;
-  padding: 7px 10px;
+  padding: 9px 11px;
   box-shadow: 0 0 0 4px rgba(232, 89, 12, 0.12);
 }
 .dash .flow-node[data-dragging='true'] {
@@ -1442,17 +1449,18 @@
 }
 .dash .flow-pill {
   position: absolute;
-  height: 22px;
   display: inline-flex;
   align-items: center;
-  padding: 0 9px;
+  justify-content: center;
+  padding: 3px 9px;
+  line-height: 14px;
+  text-align: center;
   border: 1px solid #e0d8ca;
   border-radius: var(--radius-pill);
   background: #fff;
   color: #6b6b6b;
   font-size: 11px;
   font-weight: 650;
-  white-space: nowrap;
 }
 .dash .flow-pill[data-price='true'] {
   color: var(--flow-quote);
@@ -1463,32 +1471,26 @@
   opacity: 0.8;
 }
 .dash .flow-canvas-hint {
-  position: absolute;
-  left: 12px;
-  bottom: 10px;
   margin: 0;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 253, 249, 0.9);
-  font-size: 11px;
+  font-size: 11.5px;
   color: #8a8378;
-  pointer-events: none;
 }
 .dash .flow-canvas-tools {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #e0d8ca;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 .dash .flow-canvas-tools button {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border: 1px solid #e0d8ca;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 7px;
   background: #fff;
   font: inherit;
   font-weight: 700;

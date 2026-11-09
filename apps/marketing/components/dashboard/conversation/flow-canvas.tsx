@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 
-import { layoutFlow, type FlowNode } from './flow-layout.js';
+import { ESTIMATE, layoutFlow, type FlowNode, type Measure } from './flow-layout.js';
 import { placeAt, subtreeIds, type Context, type Draft, type EditorIssue } from './model.js';
 
 /**
@@ -25,8 +25,27 @@ const MAX_SCALE = 2;
 const STEP = 1.2;
 /** How far a box moves before a press becomes a drag rather than a click. */
 const DRAG_START = 5;
-/** The smallest scale the flow opens at when it is wider than the view. */
-const OPEN_MIN = 0.85;
+/** The smallest scale the flow opens at when it is wider than the view (14px text stays over 12.5px). */
+const OPEN_MIN = 0.9;
+
+/** Text widths from the page's own font, so boxes and pills fit their words exactly. */
+function fontMeasure(): Measure {
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return ESTIMATE;
+  const family = getComputedStyle(document.body).fontFamily;
+  const cache = new Map<string, number>();
+  const make = (font: string) => (text: string) => {
+    const key = `${font}|${text}`;
+    let width = cache.get(key);
+    if (width === undefined) {
+      context.font = `${font} ${family}`;
+      width = Math.ceil(context.measureText(text).width) + 1;
+      cache.set(key, width);
+    }
+    return width;
+  };
+  return { text: make('600 14px'), tag: make('650 10.5px'), pill: make('650 11px') };
+}
 
 const clampScale = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
 
@@ -67,7 +86,21 @@ export function FlowCanvas({
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
 
-  const layout = useMemo(() => layoutFlow(draft, ctx, heights), [draft, ctx, heights]);
+  const [measure, setMeasure] = useState<Measure>(ESTIMATE);
+  // Measured once the page's font has loaded (its widths are the ones drawn).
+  useEffect(() => {
+    let live = true;
+    const ready = document.fonts?.ready ?? Promise.resolve();
+    void ready.then(() => live && setMeasure(fontMeasure()));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const layout = useMemo(
+    () => layoutFlow(draft, ctx, heights, measure),
+    [draft, ctx, heights, measure],
+  );
 
   // Boxes wrap their full question: once drawn, their real heights feed the layout.
   useLayoutEffect(() => {
@@ -83,14 +116,12 @@ export function FlowCanvas({
     if (changed) setHeights(next);
   });
 
-  // Opens wide enough to show the branches beside the spine (never so small it cannot be read).
-  const fitted = useRef(false);
+  // Fitted to the flow's width until the owner zooms (never so small it cannot be read).
+  const zoomed = useRef(false);
   useLayoutEffect(() => {
     const el = view.current;
-    if (fitted.current || !el || el.clientWidth === 0) return;
-    fitted.current = true;
-    const room = el.clientWidth - 16;
-    if (layout.width > room) setScale(clampScale(Math.max(OPEN_MIN, room / layout.width)));
+    if (zoomed.current || !el || el.clientWidth === 0) return;
+    setScale(Math.min(1, Math.max(OPEN_MIN, (el.clientWidth - 4) / layout.width)));
   }, [layout.width]);
 
   // Zooming keeps the point under the pointer (or the view's centre) where it was.
@@ -98,6 +129,7 @@ export function FlowCanvas({
     const el = view.current;
     const next = clampScale(target);
     if (!el || next === scaleRef.current) return;
+    zoomed.current = true;
     const ax = anchor?.x ?? el.clientWidth / 2;
     const ay = anchor?.y ?? el.clientHeight / 2;
     const cx = (el.scrollLeft + ax) / scaleRef.current;
@@ -159,6 +191,7 @@ export function FlowCanvas({
       1,
     );
     pendingScroll.current = { left: 0, top: 0 };
+    zoomed.current = true;
     setScale(clampScale(fitted));
   }
 
@@ -233,6 +266,32 @@ export function FlowCanvas({
 
   return (
     <section className="flow-canvas" aria-label="Flow">
+      {/* Above the sheet, so no box can ever sit under the controls. */}
+      <div className="flow-canvas-bar">
+        <p className="flow-canvas-hint">
+          {readOnly
+            ? 'Click a box to see it · Ctrl + scroll to zoom'
+            : 'Drag a box to reorder · click to edit · Ctrl + scroll to zoom'}
+        </p>
+        <div className="flow-canvas-tools" role="group" aria-label="Zoom">
+          <button type="button" aria-label="Zoom in" onClick={() => zoomTo(scale * STEP)}>
+            +
+          </button>
+          <button type="button" aria-label="Zoom out" onClick={() => zoomTo(scale / STEP)}>
+            −
+          </button>
+          <button type="button" aria-label="Fit the flow in view" onClick={fit}>
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
       <div
         ref={view}
         className="flow-canvas-view"
@@ -254,12 +313,7 @@ export function FlowCanvas({
               aria-hidden="true"
             >
               {layout.edges.map((edge) => (
-                <path
-                  key={edge.key}
-                  d={edge.d}
-                  data-price={edge.price ? 'true' : undefined}
-                  strokeDasharray={edge.dashed ? '5 4' : undefined}
-                />
+                <path key={edge.key} d={edge.d} data-price={edge.price ? 'true' : undefined} />
               ))}
             </svg>
             {layout.pills.map((pill) => (
@@ -267,7 +321,7 @@ export function FlowCanvas({
                 key={pill.key}
                 className="flow-pill"
                 data-price={pill.price ? 'true' : undefined}
-                style={{ left: pill.x, top: pill.y }}
+                style={{ left: pill.x, top: pill.y, width: pill.width, minHeight: pill.height }}
               >
                 {pill.text}
               </span>
@@ -343,29 +397,6 @@ export function FlowCanvas({
             ) : null}
           </div>
         </div>
-      </div>
-      <p className="flow-canvas-hint">
-        {readOnly
-          ? 'Click a box to see it · Ctrl + scroll to zoom'
-          : 'Drag a box to reorder · click to edit · Ctrl + scroll to zoom'}
-      </p>
-      <div className="flow-canvas-tools" role="group" aria-label="Zoom">
-        <button type="button" aria-label="Zoom in" onClick={() => zoomTo(scale * STEP)}>
-          +
-        </button>
-        <button type="button" aria-label="Zoom out" onClick={() => zoomTo(scale / STEP)}>
-          −
-        </button>
-        <button type="button" aria-label="Fit the flow in view" onClick={fit}>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <path
-              d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            />
-          </svg>
-        </button>
       </div>
     </section>
   );

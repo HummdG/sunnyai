@@ -1,17 +1,18 @@
 /**
  * Where the flow canvas draws everything, computed from the draft alone (no
- * diagram library, nothing measured but the boxes' heights, which the canvas
- * may pass in once it has drawn them).
+ * diagram library). The canvas may pass in text widths measured with the real
+ * font and the boxes' drawn heights; without them, widths and heights are
+ * estimated from the text.
  *
  * The listed questions sit on a vertical spine between the locked start and
  * end. Group members and follow-ups branch to the right, one column per
- * level, each on a curved line that ends at a pill naming the answer that
+ * level, each on a short curve carrying a pill that names the answer that
  * opens it (and what that answer does to the price). An answer that changes
- * the price but opens nothing shows its pill on a short stub under its box.
+ * the price but opens nothing shows its pill on a stub under its box.
  *
- * Boxes never overlap: a level's column starts right of the widest box (or
- * stub pill) of the level before plus room for the widest pill, and in a
- * column every box starts below the whole block (box, stubs, branches) above it.
+ * Boxes never overlap: a level's column starts just right of the widest
+ * parent-plus-pill of the level before, and in a column every box starts
+ * below the whole block (box, stubs, branches) above it.
  */
 
 import type { FlowStep } from '../../../lib/portal-api.js';
@@ -52,7 +53,6 @@ export interface FlowEdge {
   d: string;
   /** The answer on it changes the price: drawn blue. */
   price: boolean;
-  dashed: boolean;
 }
 
 export interface FlowPill {
@@ -62,6 +62,7 @@ export interface FlowPill {
   x: number;
   y: number;
   width: number;
+  height: number;
 }
 
 export interface FlowLayout {
@@ -74,42 +75,79 @@ export interface FlowLayout {
   spineX: number;
 }
 
+/** Text widths in canvas pixels, at the fonts dashboard.css gives each part. */
+export interface Measure {
+  /** A question, 14px semibold. */
+  text: (s: string) => number;
+  /** A tag, 10.5px semibold. */
+  tag: (s: string) => number;
+  /** A pill, 11px semibold. */
+  pill: (s: string) => number;
+}
+
+/** Without a browser: rough per-character widths for the dashboard font. */
+export const ESTIMATE: Measure = {
+  text: (s) => s.length * 7.4,
+  tag: (s) => s.length * 6.1,
+  pill: (s) => s.length * 6.2,
+};
+
 // Sizes in canvas pixels, matched to the CSS in dashboard.css (.flow-node, .flow-pill).
-export const LEFT = 28;
-export const TOP = 24;
-const PAD_RIGHT = 40;
-const PAD_BOTTOM = 40;
-const SPINE_GAP = 30;
+export const LEFT = 24;
+export const TOP = 20;
+const PAD_RIGHT = 20;
+const PAD_BOTTOM = 28;
+const SPINE_GAP = 28;
 const CHILD_GAP = 16;
-const BRANCH_MIN = 110;
-const PILL_ROOM = 46;
-const PILL_HEIGHT = 22;
-const PILL_ROW = 28;
+/** Room for the curve either side of a pill. */
+const CURVE = 22;
 const STUB_INDENT = 40;
 const SPINE_INSET = 24;
-const BOX_MAX = 280;
-const SINGLE_MAX = 340;
-const BOX_MIN = 150;
-const CHAR = 7.1;
-const TAG_CHAR = 6.2;
-const PILL_CHAR = 6.3;
-const LINE = 18;
+/** Box padding (12px a side) and border, across. */
+const BOX_PAD = 26;
+const SPINE_MAX = 280;
+const BRANCH_MAX = 260;
+const BOX_MIN = 120;
+const ONE_LINE = 42;
+const LINE = 19;
+const TAG_ROW = 22;
+const PILL_MAX = 180;
+const PILL_PAD = 20;
+const PILL_ONE = 22;
+const PILL_LINE = 14;
 
 export const FIXED_START = 'Address and roof check';
 export const FIXED_END = 'Quote, then contact details';
 
-/** A box's width and estimated height: one line when it fits, else wrapped at BOX_MAX. */
-export function boxSize(label: string, tag: string | null, fixed: boolean): [number, number] {
-  const text = label.length * CHAR + (fixed ? 22 : 0);
-  const tagWidth = tag ? tag.length * TAG_CHAR + 18 : 0;
-  const single = 26 + text + (tag ? 8 + tagWidth : 0);
-  if (single <= SINGLE_MAX) return [Math.max(fixed ? 0 : BOX_MIN, Math.ceil(single)), 38];
-  const lines = Math.ceil(text / (BOX_MAX - 26));
-  return [BOX_MAX, 18 + lines * LINE + (tag ? 26 : 0)];
+/**
+ * A box's width and estimated height: text and tag on one line when they fit
+ * in `max`, else the text wraps at `max` with the tag on a line of its own.
+ */
+export function boxSize(
+  label: string,
+  tag: string | null,
+  fixed: boolean,
+  max: number,
+  m: Measure = ESTIMATE,
+): [number, number] {
+  const text = m.text(label);
+  if (fixed) return [Math.ceil(BOX_PAD + 22 + text), ONE_LINE];
+  const tagWidth = tag ? m.tag(tag) + 18 : 0;
+  const single = BOX_PAD + text + (tag ? 8 + tagWidth : 0);
+  if (single <= max) return [Math.max(BOX_MIN, Math.ceil(single)), ONE_LINE];
+  const inner = max - BOX_PAD;
+  const width = Math.min(max, Math.ceil(Math.max(text, tagWidth) + BOX_PAD));
+  // A little slack: words wrap before the line is quite full.
+  const lines = Math.max(1, Math.ceil(text / (inner * 0.92)));
+  return [width, 22 + lines * LINE + (tag ? TAG_ROW : 0)];
 }
 
-export function pillWidth(text: string): number {
-  return Math.ceil(text.length * PILL_CHAR + 22);
+/** A pill's size: one line, or wrapped at PILL_MAX. */
+export function pillSize(text: string, m: Measure = ESTIMATE): [number, number] {
+  const w = m.pill(text) + PILL_PAD;
+  if (w <= PILL_MAX) return [Math.ceil(w), PILL_ONE];
+  const lines = Math.ceil(m.pill(text) / ((PILL_MAX - PILL_PAD) * 0.9));
+  return [PILL_MAX, 8 + lines * PILL_LINE];
 }
 
 /** The tag's colour: Sunny's own, changes the quote, lead only. */
@@ -125,21 +163,35 @@ function branchText(labels: string[], opening: ChoiceView[], ctx: Context): [str
   return effects.length > 0 ? [`${head} · ${effectsShort(effects, ctx)}`, true] : [head, false];
 }
 
+interface Pill {
+  text: string;
+  price: boolean;
+  width: number;
+  height: number;
+}
+
 interface Tree {
-  step: FlowStep;
   node: FlowNode;
   /** Pills under the box, for priced answers that open nothing. */
-  stubs: Array<{ text: string }>;
-  children: Array<{ tree: Tree; pill: string; price: boolean }>;
+  stubs: Pill[];
+  /** How far right the box and its stub pills reach, from the box's left. */
+  reach: number;
+  children: Array<{ tree: Tree; pill: Pill }>;
 }
 
 export function layoutFlow(
   draft: Draft,
   ctx: Context,
   heights: ReadonlyMap<string, number> = new Map(),
+  m: Measure = ESTIMATE,
 ): FlowLayout {
+  const pill = (text: string, price: boolean): Pill => {
+    const [width, height] = pillSize(text, m);
+    return { text, price, width, height };
+  };
   const sized = (node: Omit<FlowNode, 'x' | 'y' | 'width' | 'height'>): FlowNode => {
-    const [width, estimate] = boxSize(node.label, node.tag, node.kind === 'fixed');
+    const max = node.depth === 0 ? SPINE_MAX : BRANCH_MAX;
+    const [width, estimate] = boxSize(node.label, node.tag, node.kind === 'fixed', max, m);
     const measured = heights.get(node.key);
     return { ...node, x: 0, y: 0, width, height: measured && measured > 0 ? measured : estimate };
   };
@@ -155,7 +207,7 @@ export function layoutFlow(
           ? choices.filter((c) => gate.anyOf.includes(c.value))
           : [];
       opening.forEach((c) => opened.add(c.value));
-      const [pill, price] =
+      const [text, price] =
         opening.length > 0
           ? branchText(
               opening.map((c) => c.label),
@@ -163,21 +215,21 @@ export function layoutFlow(
               ctx,
             )
           : ['When it applies', false];
-      children.push({ tree: build(member, depth + 1, null), pill, price });
+      children.push({ tree: build(member, depth + 1, null), pill: pill(text, price) });
     }
     for (const f of step.followUps ?? []) {
       const opening = choices.filter((c) => f.when.includes(c.value));
       f.when.forEach((w) => opened.add(w));
-      const [pill, price] = branchText(
+      const [text, price] = branchText(
         f.when.map((w) => choices.find((c) => c.value === w)?.label ?? w),
         opening,
         ctx,
       );
-      children.push({ tree: build(f.step, depth + 1, null), pill, price });
+      children.push({ tree: build(f.step, depth + 1, null), pill: pill(text, price) });
     }
     const stubs = choices
       .filter((c) => c.effects.length > 0 && !opened.has(c.value))
-      .map((c) => ({ text: `${c.label} · ${effectsShort(c.effects, ctx)}` }));
+      .map((c) => pill(`${c.label} · ${effectsShort(c.effects, ctx)}`, true));
     const node = sized({
       key: step.id,
       stepId: step.id,
@@ -188,7 +240,8 @@ export function layoutFlow(
       index,
       depth,
     });
-    return { step, node, stubs, children };
+    const reach = Math.max(node.width, ...stubs.map((s) => STUB_INDENT + s.width + 8));
+    return { node, stubs, reach, children };
   };
 
   const trees = draft.steps.map((step, i) => build(step, 0, i));
@@ -204,23 +257,20 @@ export function layoutFlow(
   });
   const end = sized({ ...start, key: 'end', label: FIXED_END });
 
-  // Column widths (boxes and their stub pills) and the widest pill entering each column.
-  const colWidth: number[] = [Math.max(start.width, end.width)];
-  const pillMax: number[] = [0];
+  // How far each column starts right of the one before: the widest parent (or
+  // its stub pills) plus its widest branch pill and room for the curve.
+  const step: number[] = [];
   const measure = (tree: Tree) => {
     const d = tree.node.depth;
-    const stubWidth = Math.max(0, ...tree.stubs.map((s) => STUB_INDENT + pillWidth(s.text)));
-    colWidth[d] = Math.max(colWidth[d] ?? 0, tree.node.width, stubWidth);
-    for (const child of tree.children) {
-      pillMax[d + 1] = Math.max(pillMax[d + 1] ?? 0, pillWidth(child.pill));
-      measure(child.tree);
+    if (tree.children.length > 0) {
+      const widest = Math.max(...tree.children.map((c) => c.pill.width));
+      step[d + 1] = Math.max(step[d + 1] ?? 0, tree.reach + widest + 2 * CURVE);
     }
+    tree.children.forEach((c) => measure(c.tree));
   };
   trees.forEach(measure);
   const colX: number[] = [LEFT];
-  for (let d = 1; d < colWidth.length; d++) {
-    colX[d] = colX[d - 1]! + colWidth[d - 1]! + Math.max(BRANCH_MIN, (pillMax[d] ?? 0) + PILL_ROOM);
-  }
+  for (let d = 1; d < step.length; d++) colX[d] = colX[d - 1]! + step[d]!;
 
   const nodes: FlowNode[] = [];
   const edges: FlowEdge[] = [];
@@ -235,47 +285,38 @@ export function layoutFlow(
     nodes.push(node);
     let bottom = y + node.height;
     tree.stubs.forEach((stub, i) => {
-      const mid = bottom + 6 + i * PILL_ROW + PILL_HEIGHT / 2 + 3;
+      const top = bottom + 6;
+      const mid = top + stub.height / 2;
       const x = node.x + STUB_INDENT;
-      const lineX = node.x + SPINE_INSET;
       edges.push({
         key: `stub-${node.key}-${i}`,
-        d: `M ${lineX} ${y + node.height} V ${mid} H ${x}`,
+        d: `M ${node.x + SPINE_INSET} ${node.y + node.height} V ${mid} H ${x}`,
         price: true,
-        dashed: false,
       });
-      pills.push({
-        key: `stub-${node.key}-${i}`,
-        text: stub.text,
-        price: true,
-        x,
-        y: mid - PILL_HEIGHT / 2,
-        width: pillWidth(stub.text),
-      });
+      pills.push({ key: `stub-${node.key}-${i}`, ...stub, x, y: top });
+      bottom = top + stub.height;
     });
-    if (tree.stubs.length > 0) bottom += 6 + tree.stubs.length * PILL_ROW;
     let childY = y;
     for (const child of tree.children) {
       const childBottom = place(child.tree, childY);
       const c = child.tree.node;
       const fromX = node.x + node.width;
-      const fromY = node.y + Math.min(node.height / 2, 19);
-      const toY = c.y + Math.min(c.height / 2, 19);
-      const width = pillWidth(child.pill);
-      const bend = Math.max(30, (c.x - fromX - width) / 2);
+      const fromY = node.y + Math.min(node.height / 2, ONE_LINE / 2);
+      const toY = c.y + Math.min(c.height / 2, ONE_LINE / 2);
+      // The pill sits in the middle of the gap, the curve bending before it.
+      const clear = node.x + tree.reach;
+      const pillX = Math.round((clear + c.x - child.pill.width) / 2);
+      const bend = Math.max(8, (pillX - fromX) / 2);
       edges.push({
         key: `branch-${c.key}`,
-        d: `M ${fromX} ${fromY} C ${fromX + bend} ${fromY}, ${c.x - width - 20} ${toY}, ${c.x - width - 10} ${toY} H ${c.x}`,
-        price: child.price,
-        dashed: false,
+        d: `M ${fromX} ${fromY} C ${fromX + bend} ${fromY}, ${pillX - bend} ${toY}, ${pillX} ${toY} H ${c.x}`,
+        price: child.pill.price,
       });
       pills.push({
         key: `branch-${c.key}`,
-        text: child.pill,
-        price: child.price,
-        x: c.x - width - 10,
-        y: toY - PILL_HEIGHT / 2,
-        width,
+        ...child.pill,
+        x: pillX,
+        y: toY - child.pill.height / 2,
       });
       bottom = Math.max(bottom, childBottom);
       childY = childBottom + CHILD_GAP;
@@ -290,37 +331,18 @@ export function layoutFlow(
     return y + node.height;
   };
 
-  let y = TOP;
-  let previousBottom = placeSpine(start, y);
-  y = previousBottom + SPINE_GAP;
-  let returning: { from: FlowNode } | null = null;
-  const link = (nextTop: number) => {
+  let previousBottom = placeSpine(start, TOP);
+  let y = previousBottom + SPINE_GAP;
+  const link = (nextTop: number) =>
     edges.push({
       key: `spine-${nextTop}`,
       d: `M ${spineX} ${previousBottom} V ${nextTop}`,
       price: false,
-      dashed: false,
     });
-    if (returning) {
-      // The branch rejoins the spine just above the next question.
-      const from = returning.from;
-      const fx = from.x + Math.min(from.width / 2, 60);
-      const fy = from.y + from.height;
-      edges.push({
-        key: `return-${from.key}`,
-        d: `M ${fx} ${fy} C ${fx} ${nextTop - 6}, ${spineX + 60} ${nextTop - 10}, ${spineX} ${nextTop - 8}`,
-        price: false,
-        dashed: true,
-      });
-      returning = null;
-    }
-  };
   for (const tree of trees) {
     link(y);
     const blockBottom = place(tree, y);
     previousBottom = tree.node.y + tree.node.height;
-    const last = tree.children[tree.children.length - 1];
-    returning = last ? { from: last.tree.node } : null;
     y = blockBottom + SPINE_GAP;
   }
   link(y);

@@ -143,13 +143,35 @@ describe('the flow canvas layout', () => {
     for (const a of layout.nodes)
       for (const b of layout.nodes) if (a !== b) expect(overlaps(a, b)).toBe(false);
     for (const p of layout.pills) {
-      const box = { ...p, height: 22 } as unknown as FlowNode;
+      const box = p as unknown as FlowNode;
       for (const n of layout.nodes) expect(overlaps(box, n)).toBe(false);
     }
     for (const n of layout.nodes) {
       expect(n.x + n.width).toBeLessThanOrEqual(layout.width);
       expect(n.y + n.height).toBeLessThanOrEqual(layout.height);
     }
+  });
+
+  it('keeps each branch short: its pill in the middle of the gap, no line back to the spine', () => {
+    const ev = node('c_ev');
+    const tesla = node('c_tesla');
+    const pill = layout.pills.find((p) => p.key === 'branch-c_tesla')!;
+    const left = pill.x - (ev.x + ev.width);
+    const right = tesla.x - (pill.x + pill.width);
+    expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+    expect(left).toBeLessThanOrEqual(60);
+    expect(layout.edges.some((e) => e.key.startsWith('return'))).toBe(false);
+    expect(tesla.width).toBeLessThanOrEqual(260);
+  });
+
+  it('wraps a long pill instead of widening the canvas', () => {
+    const long = layoutFlow(draft, ctx, new Map(), {
+      text: (s) => s.length * 7.4,
+      tag: (s) => s.length * 6.1,
+      pill: (s) => s.length * 12,
+    });
+    for (const p of long.pills) expect(p.width).toBeLessThanOrEqual(180);
+    expect(long.pills.some((p) => p.height > 22)).toBe(true);
   });
 
   it('uses measured heights when given, and still keeps boxes apart', () => {
