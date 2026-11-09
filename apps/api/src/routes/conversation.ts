@@ -279,7 +279,7 @@ export function registerConversationRoutes(
     // version counts on from the flow actually stored. `mutate` may run more
     // than once (a retried transaction); the flow from its last run is the one
     // written.
-    let written: ConversationFlow | null = null;
+    const written: { flow: ConversationFlow | null } = { flow: null };
     const saved = await tenants.update(tenant.id, (current) => {
       // The version and time are the server's: whatever the client sent is ignored.
       const flow: ConversationFlow = {
@@ -287,11 +287,11 @@ export function registerConversationRoutes(
         version: (storedFlow(current.config)?.version ?? 0) + 1,
         updatedAt: new Date(deps.now()).toISOString(),
       };
-      written = flow;
+      written.flow = flow;
       return { ...current, config: { ...current.config, conversation: flow } };
     });
     if (!saved) throw new ApiError('not_found', 'No such installer.');
-    return view(tenant.id, written);
+    return view(tenant.id, written.flow);
   });
 
   app.delete('/v1/portal/tenants/:tenantId/conversation', async (request) => {
