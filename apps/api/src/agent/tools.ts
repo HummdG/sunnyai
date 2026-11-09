@@ -620,7 +620,7 @@ const DEFINITIONS: ToolDefinition[] = [
         // The roof caveats still stand, but nothing about the hardware has been
         // checked, and saying "no problems found" here would be a lie of omission.
         notes.push(
-          'No product list has been loaded into Sunny, so nothing about the hardware could be checked.',
+          'No product list has been loaded for this installer, so nothing about the hardware could be checked.',
         );
       }
 
@@ -669,7 +669,7 @@ const DEFINITIONS: ToolDefinition[] = [
           ok: false,
           data: { products: [], catalogueSize: 0 },
           summary:
-            'No product list has been loaded into Sunny for this installer, so I cannot quote any ' +
+            'No product list has been loaded for this installer, so I cannot quote any ' +
             'product or price. I can still pass the enquiry on.',
         };
       }
