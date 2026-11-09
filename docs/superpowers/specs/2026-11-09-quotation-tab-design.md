@@ -194,6 +194,27 @@ Viewers see the tab read-only. Admins and owners edit. Every plan.
 - Branding uploads and storage: `apps/api/src/branding/*`, `routes/branding.ts`.
 - Studio tabs: `apps/marketing/app/dashboard/studio/page.tsx`.
 
+## The estimate must be unmistakable (owner)
+
+The quotation must make it very clear that every figure is an **estimate** and
+**will change once a proper survey has been done**. Not small print:
+
+- The Quotation page is titled **"Estimated quotation"** and the total is
+  labelled **"Estimated total"**; the cover rail's price is "Estimated total".
+- Directly under the page title, before the line items, a clearly set notice
+  (full-width, ruled above and below, normal reading size, not muted grey):
+  "This is an estimate, not a final price. It is based on a 3D model of your
+  roof and the answers you gave us. Your final price will be confirmed after
+  a survey of your property, and it may go up or down."
+- The cover carries a short version of the same notice beside the figures
+  ("Estimate. Final price confirmed after a survey.").
+- Deposit and balance are framed after the survey (writer's call, following
+  from the above): "Deposit, payable once your survey has confirmed the final
+  price" rather than "on acceptance".
+- The letter's fixed wording says the figures are estimates until the survey.
+- None of this can be switched off or edited away in Studio; the installer's
+  own T&Cs and letter lines are added to it, never replace it.
+
 ## Decisions after the builder check
 
 Owner's answers:
