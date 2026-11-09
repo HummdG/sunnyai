@@ -41,6 +41,14 @@ function tile(): Raster {
   return r;
 }
 
+/** A dark tile with a 6 px transparent margin and a lime bar: an app icon exported with padding. */
+function marginTile(): Raster {
+  const r = blank(100, 100, [0, 0, 0, 0]);
+  for (let y = 6; y < 94; y++) for (let x = 6; x < 94; x++) set(r, x, y, [20, 24, 40, 255]);
+  for (let y = 40; y < 60; y++) for (let x = 20; x < 80; x++) set(r, x, y, [...LIME, 255]);
+  return r;
+}
+
 function chunk(type: string, body: Buffer): Buffer {
   const t = Buffer.from(type, 'ascii');
   const len = Buffer.alloc(4);
@@ -199,6 +207,24 @@ describe('extractMask', () => {
     expect(m?.mode).toBe('background');
     expect(m!.coverage[40 * 80 + 40]).toBeGreaterThanOrEqual(0.99);
     expect(m!.coverage[2 * 80 + 2]).toBe(0);
+  });
+
+  it('keys the tile inside a transparent margin, so only the mark is covered', () => {
+    const m = extractMask(marginTile());
+    expect(m?.mode).toBe('background');
+    expect(m!.coverage[50 * 100 + 50]).toBeGreaterThanOrEqual(0.99);
+    // The tile itself and the margin around it are not the mark.
+    expect(m!.coverage[10 * 100 + 10]).toBe(0);
+    expect(m!.coverage[50 * 100 + 90]).toBe(0);
+    expect(m!.coverage[2 * 100 + 2]).toBe(0);
+  });
+
+  it('keeps alpha for a flat square in a margin, where keying would leave nothing', () => {
+    const r = blank(100, 100, [0, 0, 0, 0]);
+    for (let y = 6; y < 94; y++) for (let x = 6; x < 94; x++) set(r, x, y, [...LIME, 255]);
+    const m = extractMask(r);
+    expect(m?.mode).toBe('alpha');
+    expect(m!.coverage[50 * 100 + 50]).toBe(1);
   });
 
   it('returns null for photo-like noise', () => {

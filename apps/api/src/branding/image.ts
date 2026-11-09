@@ -82,47 +82,78 @@ function median(values: number[]): number {
   return s[Math.floor(s.length / 2)]!;
 }
 
+/** Ring indices of the box (x0, y0)..(x1, y1), exclusive of x1 and y1, each once. */
+function ring(w: number, box: Box): number[] {
+  const out: number[] = [];
+  const { x0, y0 } = box;
+  const x1 = box.x1 - 1;
+  const y1 = box.y1 - 1;
+  for (let x = x0; x <= x1; x++) {
+    out.push(y0 * w + x);
+    if (y1 > y0) out.push(y1 * w + x);
+  }
+  for (let y = y0 + 1; y < y1; y++) {
+    out.push(y * w + x0);
+    if (x1 > x0) out.push(y * w + x1);
+  }
+  return out;
+}
+
+/**
+ * A flat colour across at least 90 % of the opaque pixels of `pixels`, or null.
+ * `key(i)` is then pixel i's keying ramp: 0 within 12 of that colour, 1 past 48.
+ */
+function flatKey(data: Uint8Array, pixels: number[]): ((i: number) => number) | null {
+  const solid = pixels.filter((p) => data[p * 4 + 3]! >= 200);
+  if (solid.length === 0) return null;
+  const bg = [0, 1, 2].map((c) => median(solid.map((p) => data[p * 4 + c]!)));
+  const dist = (i: number): number => {
+    const dr = data[i * 4]! - bg[0]!;
+    const dg = data[i * 4 + 1]! - bg[1]!;
+    const db = data[i * 4 + 2]! - bg[2]!;
+    return Math.sqrt(dr * dr + dg * dg + db * db);
+  };
+  const near = solid.filter((p) => dist(p) <= 24).length;
+  if (near < solid.length * 0.9) return null;
+  return (i) => Math.min(1, Math.max(0, (dist(i) - 12) / (48 - 12)));
+}
+
 export function extractMask(r: Raster): Mask | null {
   const { width: w, height: h, data } = r;
-  const border: number[] = [];
-  for (let x = 0; x < w; x++) {
-    border.push(x, (h - 1) * w + x);
-  }
-  for (let y = 1; y < h - 1; y++) {
-    border.push(y * w, y * w + w - 1);
-  }
-  const uniq = [...new Set(border)];
+  const border = ring(w, { x0: 0, y0: 0, x1: w, y1: h });
+  const enough = (c: Float32Array): boolean => {
+    let covered = 0;
+    for (let i = 0; i < c.length; i++) if (c[i]! > 0.5) covered++;
+    return covered >= w * h * 0.005;
+  };
 
   const coverage = new Float32Array(w * h);
-  let mode: Mask['mode'];
-
-  const clear = uniq.filter((p) => data[p * 4 + 3]! < 128).length;
-  if (clear >= uniq.length * 0.5) {
-    mode = 'alpha';
-    for (let i = 0; i < w * h; i++) coverage[i] = data[i * 4 + 3]! / 255;
-  } else {
-    const solid = uniq.filter((p) => data[p * 4 + 3]! >= 200);
-    if (solid.length === 0) return null;
-    const bg = [0, 1, 2].map((c) => median(solid.map((p) => data[p * 4 + c]!)));
-    const dist = (i: number): number => {
-      const dr = data[i * 4]! - bg[0]!;
-      const dg = data[i * 4 + 1]! - bg[1]!;
-      const db = data[i * 4 + 2]! - bg[2]!;
-      return Math.sqrt(dr * dr + dg * dg + db * db);
-    };
-    const near = solid.filter((p) => dist(p) <= 24).length;
-    if (near < solid.length * 0.9) return null;
-    mode = 'background';
-    for (let i = 0; i < w * h; i++) {
-      const t = Math.min(1, Math.max(0, (dist(i) - 12) / (48 - 12)));
-      coverage[i] = t * (data[i * 4 + 3]! / 255);
-    }
+  const clear = border.filter((p) => data[p * 4 + 3]! < 128).length;
+  if (clear < border.length * 0.5) {
+    const key = flatKey(data, border);
+    if (!key) return null;
+    for (let i = 0; i < w * h; i++) coverage[i] = key(i) * (data[i * 4 + 3]! / 255);
+    return enough(coverage) ? { width: w, height: h, coverage, mode: 'background' } : null;
   }
 
-  let covered = 0;
-  for (let i = 0; i < coverage.length; i++) if (coverage[i]! > 0.5) covered++;
-  if (covered < w * h * 0.005) return null;
-  return { width: w, height: h, coverage, mode };
+  for (let i = 0; i < w * h; i++) coverage[i] = data[i * 4 + 3]! / 255;
+  // A tile inside a transparent margin (an app icon exported with padding): the
+  // opaque box's own edge is one flat colour, so key that out too, or every
+  // effect would trace the square instead of the mark on it.
+  const box = boundingBox(w, h, (i) => data[i * 4 + 3]! >= 200);
+  if (box) {
+    const edge = ring(w, box);
+    const opaque = edge.filter((p) => data[p * 4 + 3]! >= 200).length;
+    // Mostly opaque, so a tile and not a round or ragged mark that only touches its box.
+    const key = opaque >= edge.length * 0.5 ? flatKey(data, edge) : null;
+    if (key) {
+      const keyed = new Float32Array(w * h);
+      for (let i = 0; i < w * h; i++) keyed[i] = coverage[i]! * key(i);
+      // Keying away everything means the flat shape was the mark itself.
+      if (enough(keyed)) return { width: w, height: h, coverage: keyed, mode: 'background' };
+    }
+  }
+  return enough(coverage) ? { width: w, height: h, coverage, mode: 'alpha' } : null;
 }
 
 interface Box {

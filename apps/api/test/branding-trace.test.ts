@@ -41,6 +41,14 @@ function tile(): Raster {
   return r;
 }
 
+/** A dark tile with a 6 px transparent margin and a lime bar: an app icon exported with padding. */
+function marginTile(): Raster {
+  const r = blank(100, 100, [0, 0, 0, 0]);
+  for (let y = 6; y < 94; y++) for (let x = 6; x < 94; x++) set(r, x, y, [20, 24, 40, 255]);
+  for (let y = 40; y < 60; y++) for (let x = 20; x < 80; x++) set(r, x, y, [...LIME, 255]);
+  return r;
+}
+
 /** The disc with isolated single pixels flipped in and out of it. */
 function speckled(): Raster {
   const r = disc();
@@ -125,6 +133,19 @@ describe('processLogo', () => {
     expect(Math.abs(y0 - 30)).toBeLessThanOrEqual(1);
     expect(Math.abs(x1 - 65)).toBeLessThanOrEqual(1);
     expect(Math.abs(y1 - 50)).toBeLessThanOrEqual(1);
+  });
+
+  it('a tile inside a transparent margin traces the bar, not the tile', () => {
+    const p = processLogo(encodePng(marginTile()), 'icon');
+    // Cropped to the tile plus 4 % padding: the window starts at (2, 2).
+    expect([p.width, p.height]).toEqual([96, 96]);
+    expect(p.outline).not.toBeNull();
+    expect(p.availableEffects).toEqual([...LOGO_EFFECTS]);
+    const [x0, y0, x1, y1] = bbox(p.outline!);
+    expect(Math.abs(x0 - 18)).toBeLessThanOrEqual(1);
+    expect(Math.abs(y0 - 38)).toBeLessThanOrEqual(1);
+    expect(Math.abs(x1 - 78)).toBeLessThanOrEqual(1);
+    expect(Math.abs(y1 - 58)).toBeLessThanOrEqual(1);
   });
 
   it('speckle fails verification and keeps only the stencil effects', () => {
