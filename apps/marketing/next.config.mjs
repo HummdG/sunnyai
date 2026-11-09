@@ -86,6 +86,7 @@ const nextConfig = {
     '@sunny/sunscan-viewer',
     '@sunny/sunscan-core',
     '@sunny/contracts',
+    '@sunny/logo-effects',
   ],
 
   /**

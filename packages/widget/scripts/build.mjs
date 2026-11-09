@@ -59,8 +59,29 @@ function copyFonts() {
   );
 }
 
+/**
+ * The stylesheet's comments, taken out of the bundle.
+ *
+ * `src/styles.ts` is one template literal of CSS, and its comments (the reasons
+ * behind the rules) are inside the string, where minifying the script cannot
+ * reach them: they were about 4 kB of the gzipped bundle. Every `/*` in that
+ * file opens a comment, so removing them from the source is the same as
+ * removing them from the sheet. `test/styles.test.ts` reads the sheet with its
+ * comments stripped the same way, so it checks what ships.
+ */
+const stripStyleComments = {
+  name: 'strip-style-comments',
+  setup(b) {
+    b.onLoad({ filter: /[\\/]src[\\/]styles\.ts$/ }, (args) => ({
+      contents: readFileSync(args.path, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''),
+      loader: 'ts',
+    }));
+  },
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const options = {
+  plugins: [stripStyleComments],
   entryPoints: [here('../src/index.ts')],
   outfile: `${outdir}/sunny-widget.js`,
   bundle: true,
@@ -88,6 +109,8 @@ const options = {
 // exactly 60.0 kB and the formatter is ~0.5 kB. Win it back, then lower this.
 // 62 kB since full screen on a phone (2026-11-08): the widget sat at 60.7 kB and
 // the phone rules and visual-viewport tracking are ~0.3 kB.
+// 58.0 kB since the stylesheet's comments are stripped (2026-11-09), with the
+// installer's logo added; the budget is left where it was for now.
 const SIZE_BUDGET_BYTES = 62 * 1024;
 
 async function run() {
@@ -118,6 +141,23 @@ async function run() {
   console.log(
     `widget: ${roofFile} — ${(roofJs.length / 1024).toFixed(1)} kB ` +
       `(${(gzipSync(roofJs).length / 1024).toFixed(1)} kB gzipped, loaded on demand)`,
+  );
+  // The installer's animated logo (src/logo.ts: @sunny/logo-effects), loaded
+  // only for a tenant that has uploaded one. Also outside the widget's budget,
+  // which is the point: a Sunny tenant's visitors never download it.
+  const logoResult = await build({
+    ...options,
+    entryPoints: [here('../src/logo.ts')],
+    outfile: `${outdir}/sunny-logo.js`,
+    format: 'esm',
+  });
+  const logoFile = Object.keys(logoResult.metafile.outputs).find((f) =>
+    f.endsWith('sunny-logo.js'),
+  );
+  const logoJs = readFileSync(logoFile);
+  console.log(
+    `widget: ${logoFile} — ${(logoJs.length / 1024).toFixed(1)} kB ` +
+      `(${(gzipSync(logoJs).length / 1024).toFixed(1)} kB gzipped, loaded on demand)`,
   );
   const outFile = Object.keys(result.metafile.outputs).find((f) => f.endsWith('sunny-widget.js'));
   const js = readFileSync(outFile);

@@ -70,6 +70,8 @@ import { newId, type DeletedConversation, type ModelCall, type Store } from './s
 import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
+import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
+import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
 import type { SunScanService } from '@sunny/sunscan-adapter';
@@ -116,6 +118,8 @@ export interface ServerDeps {
    * reads the environment (SUNSCAN_QUEUE=cloud-tasks); null switches it off.
    */
   sunscanTaskVerifier?: ((token: string) => Promise<boolean>) | null;
+  /** Uploaded logos. Absent reads the environment: local disk under `dataDir`, or GCS. */
+  brandAssets?: BrandAssetStore;
   /** Defaults to the unconfigured provider when no key is set. */
   provider?: ChatProvider;
   /**
@@ -297,6 +301,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       // Fastify's own schema validation, which we do not use for bodies but is
       // still reachable for a malformed URL or content type.
       apiError = new ApiError('bad_request', error.message);
+    } else if ((error as { statusCode?: number } | null)?.statusCode === 413) {
+      // Fastify's body limit: the caller sent too much, which is theirs to fix.
+      apiError = new ApiError('bad_request', 'That upload is too big.');
     } else {
       // Everything else is a bug. It is logged in full and reported as a bare
       // 500: an unexpected error's message can name an internal path, a
@@ -466,8 +473,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // Config is public and cacheable, but briefly: an installer changing its
     // colour expects it live, not after a CDN's hour.
     reply.header('cache-control', 'public, max-age=60');
+    const tenant = tenants.byPublicId(parsed.data);
     return {
       ...widgetConfig,
+      assistantName: tenant?.config.assistantName ?? 'Sunny',
+      brand: tenant ? publicBrand(tenant, request.log) : undefined,
       maxInputChars: config.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS,
       ...(config.turnstile ? { turnstileSiteKey: config.turnstile.siteKey } : {}),
     };
@@ -2061,6 +2071,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     mailer: deps.proposalMailer !== undefined ? deps.proposalMailer : mailerFromEnv(process.env),
   });
 
+  const brandAssets = deps.brandAssets ?? brandAssetStoreFromEnv(config.dataDir, process.env);
+
   // The installer portal and billing (routes/portal.ts).
   registerPortalRoutes(app, {
     store,
@@ -2070,6 +2082,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     knowledgeSync: deps.knowledgeSync ?? knowledgePipeline.connector,
     sunscan,
+    brandAssets,
   });
 
   // The staff dashboard: platform usage, health and cost (routes/admin.ts).
@@ -2098,6 +2111,17 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     sessionSecret: config.sessionSecret,
     now,
     adminToken: config.adminToken,
+  });
+
+  // Custom logo upload and asset serving (routes/branding.ts).
+  registerBrandingRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
+    brandAssets,
+    enforceRateLimit,
   });
 
   // The Email Assistant add-on (routes/email.ts).

@@ -608,6 +608,127 @@
   border-radius: var(--radius-lg);
   padding: 24px;
 }
+/* Studio's "Your logo". Logo SVGs draw with overflow visible (echo rings grow
+   past the image), so nothing here clips them. */
+.dash .brand-section {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+  padding-bottom: 6px;
+}
+.dash .brand-section h3 {
+  font-size: 1rem;
+  margin: 0 0 10px;
+}
+.dash .brand-section .pill input[type='radio'] {
+  accent-color: var(--text-orange);
+}
+.dash .brand-slot {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.dash .brand-slot-text {
+  flex: 1;
+  min-width: 0;
+}
+.dash .brand-slot-text p {
+  margin: 4px 0 8px;
+}
+.dash .brand-slot .pills {
+  margin-bottom: 0;
+}
+.dash .brand-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  background: #23272b;
+  padding: 6px;
+}
+.dash .brand-thumb.wide {
+  width: 132px;
+  height: 52px;
+}
+.dash .brand-thumb img,
+.dash .brand-thumb svg {
+  position: absolute;
+  inset: 6px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  object-fit: contain;
+}
+.dash .effect-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.dash .effect-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.dash .effect-choice.unavailable {
+  cursor: default;
+  opacity: 0.6;
+}
+.dash .effect-tile {
+  flex: 0 0 auto;
+  display: block;
+  width: 64px;
+  height: 64px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: #23272b;
+  overflow: visible;
+}
+.dash .logo-preview {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: 100%;
+}
+/* The widget's own header (packages/widget/src/styles.ts .header): its pale
+   background, ink and hairline, and a 40 px avatar. */
+.dash .logo-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px 16px 0 0;
+  background: var(--sunny-brand-orange-pale);
+  border-bottom: 1px solid rgba(23, 23, 23, 0.07);
+  color: var(--sunny-ink);
+  min-width: 0;
+}
+.dash .logo-preview-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+}
+.dash .logo-preview-wordmark {
+  height: 26px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+}
+/* The widget's launcher (.launcher): 72 px, the logo alone on the page, no disc. */
+.dash .logo-preview-launcher {
+  justify-self: end;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  overflow: visible;
+}
 .dash .preview-greeting {
   background: #fff;
   border-radius: 16px;

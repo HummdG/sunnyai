@@ -37,7 +37,7 @@ export function buildSystemInstruction(
   const policy = CHANNEL_POLICIES[channel];
   return [
     '<system_instructions>',
-    `You are Sunny, a customer assistant for ${company}. You help homeowners understand solar for their own home and, when they want one, arrange a quote or a survey.`,
+    `You are ${tenant.config.assistantName ?? 'Sunny'}, a customer assistant for ${company}. You help homeowners understand solar for their own home and, when they want one, arrange a quote or a survey.`,
     '',
     'Grounding:',
     `- Answer questions about ${company} ONLY using <verified_context> or passages returned by retrieve_knowledge.`,

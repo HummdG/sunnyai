@@ -9,6 +9,7 @@ import {
   type SunnyView,
 } from '@sunny/character';
 import type {
+  Brand,
   ChatStreamEvent,
   QuoteCard,
   PageAction,
@@ -16,12 +17,21 @@ import type {
   WidgetConfig,
 } from '@sunny/contracts';
 
+import {
+  readBrand,
+  safeAssistantName,
+  safeBrand,
+  SUNNY,
+  toArt,
+  writeBrand,
+} from './brand-cache.js';
 import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el } from './dom.js';
 import { optionArt } from './quote-art.js';
 import { renderRich } from './rich.js';
+import type * as LogoModule from './logo.js';
 import type * as RoofModule from './roof.js';
 import { declareFontFaces, preloadFontFaces, releaseFontFaces } from './fonts.js';
 import { styles } from './styles.js';
@@ -91,8 +101,15 @@ export class SunnyWidget {
   #sessionId = '';
   #chat: ChatClient | null = null;
   #frameHandle: number | null = null;
-  #launcherView!: SunnyView;
-  #avatarView!: SunnyView;
+  /** Sunny on the launcher and in the header; null while a logo shows instead. */
+  #launcherView: SunnyView | null = null;
+  #avatarView: SunnyView | null = null;
+  /** The installer's logo, when one shows in place of Sunny. */
+  #brand: Brand | null = null;
+  /** The animated logos (launcher, header), once `sunny-logo.js` has loaded. */
+  #logoViews: LogoModule.LogoView[] = [];
+  /** Ends a first visit's wait for the config, after which the launcher shows Sunny. */
+  #pendingTimer: number | null = null;
   #avatar!: HTMLElement;
   #fizz!: HTMLElement;
   #openTimers: number[] = [];
@@ -171,11 +188,24 @@ export class SunnyWidget {
     preloadFontFaces();
 
     this.#buildShell();
+
+    // Sunny or the installer's logo. A returning visitor's logo was kept last
+    // time and shows at once. On a first visit nobody knows yet, so the
+    // launcher waits for the config rather than flash Sunny up for a tenant
+    // with a logo -- briefly: a slow API then gets Sunny, and a logo arriving
+    // later still replaces it.
+    const remembered = readBrand(localStore(), this.#options.publicId);
+    if (remembered === SUNNY) {
+      this.#showSunny();
+    } else if (remembered) {
+      this.#applyNames(remembered.assistantName);
+      void this.#showLogo(remembered.brand);
+    } else {
+      this.#launcher.classList.add('pending');
+      this.#pendingTimer = window.setTimeout(() => this.#settle(), BRAND_WAIT_MS);
+    }
     this.#startFrameLoop();
 
-    // The launcher renders immediately from the local rig: the character is
-    // never gated on a network call, so a slow API costs a greeting, not the
-    // whole assistant.
     await this.#loadConfig();
 
     if (this.#options.interactive !== false) {
@@ -189,7 +219,8 @@ export class SunnyWidget {
     const style = el('style');
     style.textContent = styles();
 
-    this.#launcherArt = el('span', { class: 'svg-host' });
+    // `svg-host` for Sunny, `logo-host` for a logo: set by whichever shows.
+    this.#launcherArt = el('span');
     this.#launcher = el(
       'button',
       {
@@ -271,7 +302,7 @@ export class SunnyWidget {
     const header = el('div', { class: 'header' }, [
       this.#avatar,
       el('div', { class: 'titles' }, [
-        el('div', { class: 'name', text: 'Sunny' }),
+        el('div', { class: 'name', text: '' }),
         el('div', { class: 'tagline', text: 'Solar assistant' }),
       ]),
       closeButton,
@@ -307,11 +338,6 @@ export class SunnyWidget {
       ),
     );
 
-    this.#launcherView = createSunnyView(this.#launcherArt, { decorative: true });
-    // Head only at avatar size, like the reference badge: a full figure at 40 px
-    // leaves a face too small to read.
-    this.#avatarView = createSunnyView(this.#avatar, { decorative: true, limbs: false });
-
     this.#root.append(
       style,
       el('div', { class: 'sunny-root' }, [this.#panel, this.#fizz, this.#launcher]),
@@ -332,7 +358,100 @@ export class SunnyWidget {
     } catch {
       // A failed config fetch is not fatal: the widget runs with its defaults and
       // the visitor still gets an assistant, just without the installer's copy.
+      // A remembered logo stays, since nothing has said it is gone.
+    } finally {
+      this.#settle();
     }
+  }
+
+  /** The config has answered, failed or taken too long: show the launcher. */
+  #settle(): void {
+    if (this.#pendingTimer !== null) clearTimeout(this.#pendingTimer);
+    this.#pendingTimer = null;
+    if (!this.#brand && !this.#launcherView) this.#showSunny();
+    this.#launcher.classList.remove('pending');
+  }
+
+  /** Clear the launcher and the header avatar of Sunny and of any logo. */
+  #clearCharacter(): void {
+    this.#launcherView?.destroy();
+    this.#avatarView?.destroy();
+    this.#launcherView = null;
+    this.#avatarView = null;
+    for (const view of this.#logoViews) view.destroy();
+    this.#logoViews = [];
+    this.#brand = null;
+    for (const host of [this.#launcherArt, this.#avatar]) {
+      host.replaceChildren();
+      delete host.dataset.logoEffect;
+    }
+  }
+
+  #showSunny(): void {
+    this.#clearCharacter();
+    this.#launcherArt.className = 'svg-host';
+    this.#launcherView = createSunnyView(this.#launcherArt, { decorative: true });
+    // Head only at avatar size, like the reference badge: a full figure at 40 px
+    // leaves a face too small to read.
+    this.#avatarView = createSunnyView(this.#avatar, { decorative: true, limbs: false });
+  }
+
+  /**
+   * The installer's icon on the launcher and in the header: first as the plain
+   * image, then animated once `sunny-logo.js` is in. At rest the two look the
+   * same, so the swap does not show; if the file cannot load, the image stays.
+   */
+  async #showLogo(brand: Brand): Promise<void> {
+    this.#clearCharacter();
+    this.#brand = brand;
+    const art = toArt(brand, this.#options.apiUrl);
+    // An icon that will not load (a deleted file, a blocked request) leaves a
+    // plain disc in the brand's colour, never Sunny and never an invisible
+    // button. The colour has passed `safeBrand`, so it is a bare `#rrggbb`.
+    const broken = (): void => {
+      if (this.#brand !== brand) return;
+      for (const view of this.#logoViews) view.destroy();
+      this.#logoViews = [];
+      for (const host of [this.#launcherArt, this.#avatar]) {
+        delete host.dataset.logoEffect;
+        host.replaceChildren(
+          el('span', { class: 'logo-fallback', style: `background:${brand.colors.primary}` }),
+        );
+      }
+    };
+    for (const host of [this.#launcherArt, this.#avatar]) {
+      const img = el('img', { src: art.src, alt: '' });
+      img.addEventListener('error', broken, { once: true });
+      host.replaceChildren(img);
+    }
+    this.#launcherArt.className = 'logo-host';
+    this.#launcher.classList.add('ready');
+    this.#launcher.classList.remove('pending');
+
+    const dir = this.#options.fontDirectoryUrl;
+    let logo: typeof LogoModule;
+    try {
+      if (!dir) throw new Error('the widget script has no directory to load from');
+      logo = (await import(
+        /* @vite-ignore */ new URL('sunny-logo.js', dir).href
+      )) as typeof LogoModule;
+    } catch {
+      return; // the plain image stays, which is the logo at rest anyway
+    }
+    // Replaced while it loaded, or the icon would not load.
+    if (this.#brand !== brand || this.#launcherArt.querySelector('.logo-fallback')) return;
+    const hosts = this.#launcher.hidden ? [this.#avatar] : [this.#launcherArt, this.#avatar];
+    this.#logoViews = hosts.map((host) => logo.createLogoView(host, art, brand.effects));
+  }
+
+  /**
+   * Name the launcher and the panel after the assistant. Sunny keeps the
+   * generic labels a Sunny tenant has always had.
+   */
+  #applyNames(name: string): void {
+    const named = name !== 'Sunny';
+    this.#launcher.setAttribute('aria-label', named ? `Open ${name}` : 'Open the solar assistant');
+    this.#panel.setAttribute('aria-label', named ? `${name}, solar assistant` : 'Solar assistant');
   }
 
   /**
@@ -370,9 +489,30 @@ export class SunnyWidget {
     // travelling on; see `safePaint`.
     const accent = this.#applyAccent(config.primaryColor);
 
+    // Unvalidated until here, like the colour, and it becomes image URLs.
+    const brand = safeBrand(config.brand);
+    const assistantName = safeAssistantName(config.assistantName);
+    writeBrand(localStore(), this.#options.publicId, brand ? { brand, assistantName } : SUNNY);
+    this.#applyNames(assistantName);
+    if (brand) void this.#showLogo(brand);
+    else if (this.#brand) this.#showSunny();
+
     const name = this.#root.querySelector('.header .name');
     const tagline = this.#root.querySelector('.header .tagline');
-    if (name) name.textContent = config.companyName;
+    const wordmark = brand?.wordmark;
+    if (name) {
+      name.replaceChildren(
+        wordmark
+          ? el('img', {
+              class: 'wordmark',
+              src: this.#options.apiUrl.replace(/\/+$/, '') + wordmark.path,
+              alt: config.companyName,
+              width: wordmark.width,
+              height: wordmark.height,
+            })
+          : config.companyName,
+      );
+    }
     if (tagline) tagline.textContent = config.tagline;
 
     this.#animator = this.#reportingAnimator({
@@ -516,11 +656,23 @@ export class SunnyWidget {
     // Each view patches its SVG in place and skips identical frames, so the
     // nodes under the pointer survive from frame to frame.
     const boil = prefersReducedMotion() ? undefined : clock.boil;
-    if (!this.#launcher.hidden) this.#launcherView.draw(result.rig, { boil });
+    if (!this.#launcher.hidden) this.#launcherView?.draw(result.rig, { boil });
 
     // States can also change on the clock (a celebration settling to idle).
     this.#reportState();
-    if (this.#open) this.#avatarView.draw(result.rig, { boil });
+    if (this.#open) this.#avatarView?.draw(result.rig, { boil });
+
+    // A logo has two settings, both cheap to repeat: whether the assistant is
+    // busy, and how much it may move.
+    if (this.#logoViews.length > 0) {
+      const busy = BUSY_STATES.includes(this.#animator.state);
+      const motion =
+        this.#config?.intensity === 'off' ? 'off' : prefersReducedMotion() ? 'reduced' : 'full';
+      for (const view of this.#logoViews) {
+        view.setMotion(motion);
+        view.setBusy(busy);
+      }
+    }
 
     if (this.#launcher.querySelector('.svg-host svg')) {
       this.#launcher.classList.add('ready');
@@ -665,7 +817,7 @@ export class SunnyWidget {
   }
 
   #greet(): void {
-    const greeting = this.#config?.greeting ?? "Hi, I'm Sunny. Ask me about solar for your home.";
+    const greeting = this.#config?.greeting ?? 'Hi! Ask me about solar for your home.';
     this.#appendTurn('assistant', greeting);
   }
 
@@ -1398,6 +1550,9 @@ export class SunnyWidget {
 
   destroy(): void {
     if (this.#frameHandle !== null) cancelAnimationFrame(this.#frameHandle);
+    if (this.#pendingTimer !== null) clearTimeout(this.#pendingTimer);
+    for (const view of this.#logoViews) view.destroy();
+    this.#logoViews = [];
     this.#chat?.cancel();
     this.#clearOpenTimers();
     this.#leaveFullScreen?.();
@@ -1409,6 +1564,21 @@ export class SunnyWidget {
     // leaves a copy of the typeface behind on every pass.
     releaseFontFaces(this.#fontFaces);
     this.#fontFaces = [];
+  }
+}
+
+/** The states in which a logo plays an effect; in every other state it is still. */
+const BUSY_STATES: readonly string[] = ['thinking', 'speaking', 'guiding'];
+
+/** How long a first visit waits for the config before the launcher shows Sunny. */
+const BRAND_WAIT_MS = 4000;
+
+/** The page's local storage, or null where reading it throws (storage switched off). */
+function localStore(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
   }
 }
 

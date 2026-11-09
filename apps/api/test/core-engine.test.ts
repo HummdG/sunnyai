@@ -147,6 +147,15 @@ describe('the guardrail prompt', () => {
     expect(instruction).toContain(ESTIMATE_DISCLAIMER);
   });
 
+  it('introduces the assistant by the name the installer chose', () => {
+    const tenant = demo();
+    tenant.config = { ...tenant.config, assistantName: 'Volt' };
+    expect(buildSystemInstruction(tenant, 'chat', 0)).toContain(
+      `You are Volt, a customer assistant for ${tenant.config.companyName}.`,
+    );
+    expect(buildSystemInstruction(demo(), 'chat', 0)).toContain('You are Sunny, a customer');
+  });
+
   it('follows the fallback line through, and treats a survey as the quote journey', () => {
     // Seen live: "How do I get a survey?" got the fallback line and nothing
     // after it, so the visitor was offered a specialist and left there.

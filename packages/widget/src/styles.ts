@@ -214,6 +214,8 @@ export function styles(): string {
   visibility: hidden;
 }
 .launcher.ready { visibility: visible; }
+/* A first visit, until the config says whether this is Sunny or a logo. */
+.launcher.pending { visibility: hidden; }
 .launcher[hidden] { display: none; }
 .launcher:hover { transform: scale(1.06); }
 .launcher:focus-visible { outline: 3px solid var(--sunny-accent); outline-offset: 4px; }
@@ -226,6 +228,12 @@ export function styles(): string {
    so it does not need to be a hit target; the button is, and no frame replaces
    it. Measured, and D-53. */
 .launcher .svg-host { pointer-events: none; }
+/* The installer's logo. Its effects are redrawn like Sunny is, so it is not a
+   hit target either; echo rings draw past the image, so nothing here clips. */
+.launcher .logo-host { pointer-events: none; display: block; width: 100%; height: 100%; }
+.logo-fallback { display: block; width: 100%; height: 100%; border-radius: 50%; }
+.logo-host img, .avatar img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.wordmark { display: block; height: 22px; width: auto; max-width: 100%; object-fit: contain; object-position: left; }
 
 .launcher .badge {
   position: absolute; top: 2px; right: 2px; width: 12px; height: 12px;

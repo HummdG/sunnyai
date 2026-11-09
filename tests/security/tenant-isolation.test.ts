@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { PNG } from 'pngjs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { issueDevToken } from '../../apps/api/src/auth/dev.js';
@@ -476,6 +477,13 @@ interface RouteSpec {
    */
   ownRecord?: boolean;
 }
+
+/** A 4x4 opaque PNG, for the logo upload route's well-formed body. */
+const TINY_PNG = (() => {
+  const png = new PNG({ width: 4, height: 4 });
+  png.data.fill(200);
+  return PNG.sync.write(png).toString('base64');
+})();
 
 const ROUTES: RouteSpec[] = [
   {
@@ -1027,6 +1035,32 @@ const ROUTES: RouteSpec[] = [
     url: (ids) => `/v1/portal/tenants/${ids.tenantId}/catalogue/versions/999/rollback`,
     kind: 'installer',
     minRole: 'admin',
+    namesRecord: true,
+  },
+  // ─── custom logo (routes/branding.ts) ──────────────────────────────────────
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/brand/:kind',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/brand/icon`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ png: TINY_PNG }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/brand/assets/:file',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/brand/assets/0123456789abcdef.png`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/widget/brand/:publicId/:file',
+    url: (ids) => `/v1/widget/brand/${ids.publicId}/0123456789abcdef.png`,
+    // Public by nature: the widget loads it cross-origin. It serves only the ids a
+    // tenant has saved with logo branding on, so an unsaved id is a 404.
+    kind: 'public',
     namesRecord: true,
   },
   {

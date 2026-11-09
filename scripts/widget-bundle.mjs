@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 const BUNDLE = fileURLToPath(new URL('../packages/widget/dist/sunny-widget.js', import.meta.url));
 const FONTS = fileURLToPath(new URL('../packages/widget/dist/fonts', import.meta.url));
 /** Loaded on demand from beside `sunny-widget.js`, so they travel with it. */
-const LAZY_PARTS = ['sunny-roof.js'];
+const LAZY_PARTS = ['sunny-roof.js', 'sunny-logo.js'];
 
 /**
  * Copy both artefacts into `targetDir`, which becomes the widget's directory.

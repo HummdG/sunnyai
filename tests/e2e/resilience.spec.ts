@@ -149,12 +149,13 @@ test('the host page is untouched when the Sunny API is the thing that is down', 
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
   // The widget still mounts and still opens. The character is never gated on a
-  // network call, so an outage costs the installer's copy -- the header falls
-  // back to the built-in name -- and not the widget.
+  // network call, so an outage costs the installer's copy -- the header names
+  // nobody rather than a name that may not be this installer's assistant (it
+  // may have its own logo and name) -- and not the widget.
   await expect(page.locator(HOST).locator(LAUNCHER)).toBeVisible();
   await openWidget(page);
   const panel = page.locator(HOST).locator(PANEL);
-  await expect(panel.locator('.header .name')).toHaveText('Sunny');
+  await expect(panel.locator('.header .name')).toHaveText('');
   await expect(panel.locator('.header .name')).not.toHaveText(/northwind/i);
   await expect(panel.locator('.turn.assistant').first()).toContainText('Ask me about solar');
 

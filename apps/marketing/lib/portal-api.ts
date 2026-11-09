@@ -4,6 +4,9 @@
  * cookie to the API; the API resolves the caller's role on every request.
  */
 
+import type { LogoEffect } from '@sunny/contracts';
+
+export type { LogoEffect };
 export type Role = 'viewer' | 'sales' | 'admin' | 'owner';
 export type AddonKey = 'web_chat' | 'email_assistant';
 export type Channel = 'chat' | 'email';
@@ -46,6 +49,38 @@ export interface TenantView {
   } | null;
   connections: Record<AddonKey, Connection>;
   installSnippet: string;
+  /** What the assistant calls itself; `Sunny` unless the installer renamed it. */
+  assistantName: string;
+  branding: {
+    mode: 'sunny' | 'logo';
+    icon: BrandAssetView | null;
+    wordmark: BrandAssetView | null;
+    effects: LogoEffect[];
+    colors: BrandColors | null;
+  };
+}
+
+export interface BrandColors {
+  primary: string;
+  glow: string;
+}
+
+/** An uploaded logo image. `url` and `maskUrl` are portal paths, read through the proxy. */
+export interface BrandAssetView {
+  id: string;
+  kind: 'icon' | 'wordmark';
+  width: number;
+  height: number;
+  outline: string | null;
+  availableEffects: LogoEffect[];
+  suggestedColors: BrandColors | null;
+  url: string;
+  maskUrl: string | null;
+}
+
+/** A portal path as the browser loads it: through this app's same-origin proxy. */
+export function portalUrl(path: string): string {
+  return `/api/portal${path}`;
 }
 
 export interface Overview {

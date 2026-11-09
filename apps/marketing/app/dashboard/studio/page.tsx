@@ -15,7 +15,8 @@ function Studio() {
       />
       <Card>
         {canEdit ? (
-          <StudioForm tenant={tenant} onSaved={setTenant} />
+          // Keyed by installer: an unsaved draft never follows the owner to another one.
+          <StudioForm key={tenant.id} tenant={tenant} onSaved={setTenant} />
         ) : (
           <p className="muted">Ask an admin to change how Sunny looks.</p>
         )}

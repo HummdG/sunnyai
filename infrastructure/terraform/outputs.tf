@@ -34,6 +34,11 @@ output "sunscan_artefact_bucket" {
   value       = google_storage_bucket.sunscan_artefacts.name
 }
 
+output "brand_asset_bucket" {
+  description = "Private bucket holding installers' uploaded logos (BRAND_ASSET_BUCKET)."
+  value       = google_storage_bucket.brand_assets.name
+}
+
 output "sunscan_tasks_queue" {
   description = "Cloud Tasks queue for SunScan assessments (used once api_base_url is set)."
   value       = google_cloud_tasks_queue.sunscan.id

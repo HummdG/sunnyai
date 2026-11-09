@@ -5,6 +5,7 @@
 export * from './errors.js';
 export * from './events.js';
 export * from './chat.js';
+export * from './brand.js';
 export * from './widget.js';
 export * from './leads.js';
 export * from './consent.js';

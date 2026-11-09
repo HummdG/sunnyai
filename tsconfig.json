@@ -31,7 +31,8 @@
       "@sunny/ui": ["./packages/ui/src/index.ts"],
       "@sunny/solar-rules": ["./packages/solar-rules/src/index.ts"],
       "@sunny/knowledge": ["./packages/knowledge/src/index.ts"],
-      "@sunny/quote-engine": ["./packages/quote-engine/src/index.ts"]
+      "@sunny/quote-engine": ["./packages/quote-engine/src/index.ts"],
+      "@sunny/logo-effects": ["./packages/logo-effects/src/index.ts"]
       // The SunScan packages are deliberately absent here. They are vendored
       // from SunScanV2 and compile under its own settings (tsconfig.sunscan.json);
       // this project sees the adapter and the viewer through their declared
