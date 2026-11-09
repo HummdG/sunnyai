@@ -1,4 +1,5 @@
 import { chunkDocuments } from './chunk.js';
+import { stem } from './stem.js';
 import type {
   KnowledgeChunk,
   KnowledgeDocument,
@@ -112,7 +113,9 @@ export function buildIndex(chunks: readonly KnowledgeChunk[], sourceCount: numbe
     // word again. So is the page title: a news story titled "Group MD joins
     // advisory board" may never say "MD" in its body, and without its title it
     // lost a search for "md" to every listing page that links to it by name.
-    const stream = tokenize(`${chunk.title}\n${chunk.heading ?? ''}\n${chunk.text}`);
+    // Matched by root, so "accounts" on the page answers a question about the
+    // accountant (see stem.ts).
+    const stream = tokenize(`${chunk.title}\n${chunk.heading ?? ''}\n${chunk.text}`).map(stem);
     tokens.set(chunk.id, stream);
     total += stream.length;
     for (const term of new Set(stream)) {
@@ -205,16 +208,19 @@ export function searchIndex(
   limit: number = DEFAULT_RESULT_LIMIT,
 ): RetrievalResult {
   const typed = [...new Set(tokenize(query))];
-  const missingTerms = typed
-    .filter((term) => !index.documentFrequency.has(term) && !correction(index, term))
-    .sort();
-  const terms = [
-    ...new Set(
-      typed.map((term) =>
-        index.documentFrequency.has(term) ? term : (correction(index, term) ?? term),
-      ),
-    ),
-  ];
+  // Each word the visitor typed, as the root the index holds: its own root, or
+  // the corrected spelling's. `said` maps a root back to the visitor's word, so
+  // matched terms read as what they asked rather than as roots.
+  const said = new Map<string, string>();
+  const missingTerms: string[] = [];
+  for (const word of typed) {
+    const root = stem(word);
+    const found = index.documentFrequency.has(root) ? root : correction(index, root);
+    if (found === null) missingTerms.push(word);
+    if (!said.has(found ?? root)) said.set(found ?? root, word);
+  }
+  missingTerms.sort();
+  const terms = [...said.keys()];
 
   if (terms.length === 0 || index.chunks.length === 0) {
     return {
@@ -237,7 +243,7 @@ export function searchIndex(
     for (const term of terms) {
       const tf = counts.get(term) ?? 0;
       if (tf === 0) continue;
-      matchedTerms.push(term);
+      matchedTerms.push(said.get(term) ?? term);
       const normaliser = 1 - B + (B * length) / index.averageLength;
       score += idf(index, term) * ((tf * (K1 + 1)) / (tf + K1 * normaliser));
     }

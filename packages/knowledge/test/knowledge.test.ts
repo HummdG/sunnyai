@@ -264,6 +264,43 @@ describe('retrieval', () => {
     expect(best.chunk.documentId).toBe('doc_story');
   });
 
+  it('finds the accounts team for a question about the accountant', () => {
+    // HSEnergy's About Us lists "Accounts, Bookkeeper" and never says
+    // "accountant", which is three letters from "accounts": too far for a typo,
+    // so only matching by root reaches it.
+    const corpus = chunkDocuments([
+      doc({
+        id: 'doc_team',
+        title: 'About Us',
+        text: '# Our team\n\nMeet the team. Alex Dowden-Yates: Accounts, Bookkeeper and Quality Manager.',
+      }),
+      doc({
+        id: 'doc_other',
+        title: 'Batteries',
+        text: '# Batteries\n\nStore your power for the evening.',
+      }),
+    ]);
+    const result = searchChunks(corpus, 'who is the accountant');
+    const best = first(result.hits);
+
+    expect(best.chunk.documentId).toBe('doc_team');
+    // Reported in the visitor's own words, not as a root.
+    expect(best.matchedTerms).toContain('accountant');
+    expect(result.missingTerms).not.toContain('accountant');
+  });
+
+  it('matches plurals and other forms of a word both ways', () => {
+    const corpus = chunkDocuments([
+      doc({
+        id: 'doc_b',
+        title: 'Storage',
+        text: '# Storage\n\nWe fit batteries from three makers.',
+      }),
+    ]);
+    expect(first(searchChunks(corpus, 'battery').hits).chunk.documentId).toBe('doc_b');
+    expect(first(searchChunks(corpus, 'fitting').hits).chunk.documentId).toBe('doc_b');
+  });
+
   it('finds the same passage for a misspelt word as for the right spelling', () => {
     const corpus = chunkDocuments([
       doc({ id: 'doc_team', title: 'About us', text: '# Team\n\nSenior IT Supervisor: Dylan.' }),
