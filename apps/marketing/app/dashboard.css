@@ -753,6 +753,25 @@
   box-shadow: var(--shadow-raised);
   max-width: 260px;
 }
+.dash .preview-starters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 260px;
+}
+.dash .preview-starters li {
+  padding: 4px 11px;
+  border: 1px solid #f0c49a;
+  border-radius: var(--radius-pill);
+  background: #fff6ee;
+  color: #9a4a00;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
 
 .dash .auth-page {
   min-height: 100vh;

@@ -77,6 +77,13 @@ export function StudioForm({
     setGreetingName(trimmed);
   }
 
+  // As the widget shows them: the first six non-empty lines.
+  const starters = suggestions
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setBusy(true);
@@ -108,11 +115,7 @@ export function StudioForm({
                   tagline: tagline.trim() === '' ? null : tagline,
                   position,
                   assistantName: assistantName.trim(),
-                  suggestions: suggestions
-                    .split('\n')
-                    .map((line) => line.trim())
-                    .filter(Boolean)
-                    .slice(0, 6),
+                  suggestions: starters,
                 }
               : {}),
           },
@@ -203,9 +206,18 @@ export function StudioForm({
             </label>
             <label className="field">
               <span>
-                Suggested questions <span className="hint">(one per line, up to six)</span>
+                Starter buttons <span className="hint">(one per line, up to six)</span>
               </span>
-              <textarea value={suggestions} onChange={(e) => setSuggestions(e.target.value)} />
+              {/* Read as the field's description, not as part of its name. */}
+              <span className="hint" id="starter-buttons-hint" aria-hidden="true">
+                Buttons visitors can tap to start a chat. These are what visitors ask Sunny, not
+                what Sunny asks them.
+              </span>
+              <textarea
+                value={suggestions}
+                aria-describedby="starter-buttons-hint"
+                onChange={(e) => setSuggestions(e.target.value)}
+              />
             </label>
             <label className="field">
               <span>Launcher position</span>
@@ -242,6 +254,13 @@ export function StudioForm({
           <SunnyPreview colour={colour} />
         )}
         <p className="preview-greeting">{greeting}</p>
+        {settingsPart && starters.length > 0 ? (
+          <ul className="preview-starters" aria-label="Starter buttons">
+            {starters.map((text, i) => (
+              <li key={i}>{text}</li>
+            ))}
+          </ul>
+        ) : null}
         <span className="muted small">Live preview</span>
       </div>
     </div>

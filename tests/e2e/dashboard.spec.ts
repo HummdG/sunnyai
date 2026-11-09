@@ -266,6 +266,13 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   });
   await nameInput.fill("Nova & Co. O'Neil-2");
   expect((await validity()).valid).toBe(true);
+  // Starter buttons are what visitors ask, shown as chips beside the form.
+  const starters = page.getByRole('textbox', { name: /^Starter buttons/ });
+  await expect(starters).toHaveAccessibleDescription(/what visitors ask Sunny/);
+  await starters.fill('How much could I save?\nDo you fit batteries?');
+  await expect(
+    page.getByRole('list', { name: 'Starter buttons' }).getByRole('listitem'),
+  ).toHaveText(['How much could I save?', 'Do you fit batteries?']);
   await page.getByLabel('Assistant name').fill('Volt');
   await expect(page.getByLabel('Greeting')).toHaveValue(/I'm Volt/);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
