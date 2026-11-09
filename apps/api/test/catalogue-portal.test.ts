@@ -18,6 +18,7 @@ import {
 import { CSV_TEMPLATE, exportCsv, productKey } from '../src/catalogue/service.js';
 import { scanWebsite, setSheetSource, sheetFileId, syncSheet } from '../src/catalogue/sources.js';
 import type { ServerConfig } from '../src/config.js';
+import { resolveFlow } from '../src/flow/resolve.js';
 import { loadPortalConfig } from '../src/routes/portal-config.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
@@ -349,6 +350,7 @@ describe('grounding: the chat reads only the published catalogue', () => {
           events: [],
           sunscanConnected: false,
           knowledge: EMPTY_KNOWLEDGE,
+          flow: resolveFlow(null),
         },
       );
       return JSON.stringify(result.data);

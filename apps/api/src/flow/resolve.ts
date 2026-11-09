@@ -49,6 +49,8 @@ export interface ResolvedQuestion {
 export interface ResolvedFlow {
   /** False for Sunny's own questions (no stored flow). */
   custom: boolean;
+  /** The stored flow this was resolved from (null for Sunny's own), for `effectsFor`. */
+  stored: ConversationFlow | null;
   /**
    * Fixed start, then the middle in order. A follow-up comes right after its
    * parent, except that a group head's own group members come first.
@@ -336,6 +338,7 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
 
   return {
     custom: stored != null,
+    stored: stored ?? null,
     questions,
     removedPresets,
     question: (id) => byId.get(id),

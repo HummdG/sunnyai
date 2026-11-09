@@ -16,15 +16,8 @@ import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
 import { newId, type LeadRecord, type Store } from '../store.js';
 import type { Auditor } from '../audit.js';
-import {
-  QUESTIONNAIRE_VERSION,
-  QUESTIONS,
-  STEP_ORDER,
-  applicability,
-  explain,
-  reconcile,
-  validateAnswer,
-} from '../questionnaire.js';
+import type { ResolvedFlow } from '../flow/resolve.js';
+import { QUESTIONNAIRE_VERSION, QUESTIONS, STEP_ORDER, explain } from '../questionnaire.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatToolCall, ToolDeclaration } from './provider.js';
 import type { Channel } from './channels.js';
@@ -117,6 +110,12 @@ export interface ToolContext {
   ledger?: CitationLedger;
   /** The quote journey's pricing, when the chat route enables quotes. */
   quote?: QuoteToolContext;
+  /**
+   * The conversation this turn runs on: the installer's flow, or Sunny's own
+   * questions. Built once per turn from the tenant (`flowForTenant`), so a flow
+   * saved mid-conversation governs the next turn.
+   */
+  flow: ResolvedFlow;
 }
 
 export interface ToolResult {
@@ -485,14 +484,27 @@ const DEFINITIONS: ToolDefinition[] = [
       // Only questions that apply. A question whose branch the visitor's answers
       // have ruled out is not "still to be answered" -- asking it would be asking
       // for a figure they have just said they will not give. Answered-but-ruled-out
-      // answers stay in the map; they are simply not offered again.
-      const remaining = Object.entries(QUESTIONS)
+      // answers stay in the map; they are simply not offered again. The
+      // questions are the turn's flow: the installer's, in their order and
+      // wording, with ids and option values stable underneath.
+      const flow = ctx.flow;
+      const remaining = flow.questions
         .filter(
-          ([id]) =>
-            applicability(id, ctx.answers) === 'applies' &&
-            (includeAnswered || ctx.answers[id] === undefined),
+          (q) =>
+            flow.applicability(q.id, ctx.answers) === 'applies' &&
+            (includeAnswered || ctx.answers[q.id] === undefined),
         )
-        .map(([id, q]) => ({ id, step: q.step, prompt: q.prompt, options: q.options ?? [] }));
+        .map((q) => ({
+          id: q.id,
+          step: QUESTIONS[q.id]?.step ?? 'installer',
+          prompt: q.prompt,
+          options: q.options ?? [],
+          // Sunny's own questions read exactly as they always have.
+          ...(flow.custom && q.options
+            ? { labels: Object.fromEntries(q.options.map((o) => [o, q.label(o)])) }
+            : {}),
+          ...(q.freeText ? { answerInOwnWords: true } : {}),
+        }));
       return {
         ok: true,
         data: { version: QUESTIONNAIRE_VERSION, stepOrder: STEP_ORDER, questions: remaining },
@@ -521,7 +533,7 @@ const DEFINITIONS: ToolDefinition[] = [
       // `ctx.answers` is passed because which answers are acceptable now depends
       // on what has already been said: a kWh figure is a real answer from someone
       // who chose to type one and not from someone who chose "I don't know".
-      const verdict = validateAnswer(questionId ?? '', value ?? '', ctx.answers);
+      const verdict = ctx.flow.validate(questionId ?? '', value ?? '', ctx.answers);
       if (!verdict.ok) {
         return {
           ok: false,
@@ -544,7 +556,7 @@ const DEFINITIONS: ToolDefinition[] = [
       // model sees, so the assistant's picture of what is standing cannot drift
       // from the store's (D-31). Done here, at the one place the questionnaire
       // mutates the context, rather than by every reader filtering defensively.
-      const { answers: kept, dropped } = reconcile(ctx.answers);
+      const { answers: kept, dropped } = ctx.flow.reconcile(ctx.answers);
       for (const questionId of Object.keys(ctx.answers)) {
         if (!(questionId in kept)) delete ctx.answers[questionId];
       }

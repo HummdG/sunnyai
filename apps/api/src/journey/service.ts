@@ -11,6 +11,9 @@ import type { QuoteCard } from '@sunny/contracts';
 import type { PricingSource } from '@sunny/quote-engine';
 import { toRoofAssessmentSummary, type SunScanService } from '@sunny/sunscan-adapter';
 
+import { getPublishedPriceList } from '../catalogue/price-list-service.js';
+import { effectsFor } from '../flow/effects.js';
+import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import type { Store } from '../store.js';
 
 import { applyProposals, extractAnswers, type AppliedAnswers, type Proposal } from './extract.js';
@@ -43,6 +46,15 @@ export interface JourneyDeps {
   pricing: PricingSource;
   roof: RoofLookupFn;
   now: () => number;
+  /**
+   * The conversation a tenant's journey follows, read per call so a flow the
+   * installer saves applies from the next request. Absent means Sunny's own.
+   */
+  flow?: (tenantId: string) => ResolvedFlow;
+}
+
+function flowOf(deps: JourneyDeps, tenantId: string): ResolvedFlow {
+  return deps.flow?.(tenantId) ?? resolveFlow(null);
 }
 
 /** The roof lookup backed by the SunScan service (routes/sunscan.ts). */
@@ -99,7 +111,7 @@ export async function journeyView(
 ): Promise<JourneyView> {
   const { answers, roof, pending } = await loadJourney(deps, tenantId, sessionId);
   const quoted = (await deps.store.listQuotes(tenantId, sessionId)).length > 0;
-  return journeyStatus(answers, roof, { roofPending: pending, quoted });
+  return journeyStatus(answers, roof, { roofPending: pending, quoted }, flowOf(deps, tenantId));
 }
 
 /** Link an assessment to the session, if it is this session's. */
@@ -130,23 +142,27 @@ export async function submitAnswers(
   sessionId: string,
   input: { proposals?: readonly Proposal[]; text?: string },
 ): Promise<SubmitResult> {
+  const flow = flowOf(deps, tenantId);
   const before = await loadJourney(deps, tenantId, sessionId);
-  const current = journeyStatus(before.answers, before.roof, {
-    roofPending: before.pending,
-  }).nextQuestionId;
+  const current = journeyStatus(
+    before.answers,
+    before.roof,
+    { roofPending: before.pending },
+    flow,
+  ).nextQuestionId;
   const proposals: Proposal[] = [
     ...(input.proposals ?? []),
-    ...(input.text ? extractAnswers(input.text, current) : []),
+    ...(input.text ? extractAnswers(input.text, current, flow) : []),
   ];
   // An explicit answer wins over one read from the same message.
   const unique = proposals.filter(
     (p, i) => proposals.findIndex((q) => q.questionId === p.questionId) === i,
   );
 
-  let result = applyProposals(before.answers, unique);
+  let result = applyProposals(before.answers, unique, flow);
   if (result.answers['roof_confirmed'] === 'no') {
     // "That's not my roof": stop trusting the mapping and ask the roof questions.
-    result = { ...result, answers: rejectRoof(result.answers) };
+    result = { ...result, answers: flow.reconcile(rejectRoof(result.answers)).answers };
   }
   const removed = Object.keys(before.answers).filter((k) => !(k in result.answers));
   const patch = Object.fromEntries(
@@ -170,11 +186,22 @@ export async function createQuote(
   tenantId: string,
   sessionId: string,
 ): Promise<CreateQuoteResult> {
+  // The flow in force now, whichever one the earlier answers were given under.
+  const flow = flowOf(deps, tenantId);
   const { answers, roof, pending } = await loadJourney(deps, tenantId, sessionId);
-  const status = journeyStatus(answers, roof, { roofPending: pending });
+  const status = journeyStatus(answers, roof, { roofPending: pending }, flow);
   const pricing = await deps.pricing.forTenant(tenantId);
-  const qa = status.canQuote ? quoteAnswers(answers, roof, pricing) : null;
+  const qa = status.canQuote ? quoteAnswers(answers, roof, pricing, flow) : null;
   if (!qa) return { ok: false, missing: status.missing, next: status.nextQuestionId };
+  // An installer's flow can change the quote: what the answers add, remove and
+  // swap is priced from the same published list the pricing came from.
+  const custom = flow.custom
+    ? {
+        flow,
+        effects: effectsFor(flow.stored, answers),
+        priceList: await getPublishedPriceList(deps.store, tenantId),
+      }
+    : {};
   const quote = buildQuote({
     id: `q_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
     tenantId,
@@ -183,6 +210,7 @@ export async function createQuote(
     answers: qa,
     roof,
     pricing,
+    ...custom,
   });
   await deps.store.saveQuote(quote);
   return { ok: true, quote };

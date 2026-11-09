@@ -1,4 +1,4 @@
-import { widgetConfigSchema, type WidgetConfig } from '@sunny/contracts';
+import { widgetConfigSchema, type ConversationFlow, type WidgetConfig } from '@sunny/contracts';
 
 import type { SavingsModel } from './agent/savings.js';
 import type { AddonConfig, AddonKey, BillingState } from './entitlements.js';
@@ -35,6 +35,11 @@ export interface Tenant {
     email?: EmailChannelConfig;
     /** The installer's saved logo branding; never reaches the browser as-is. */
     branding?: StoredBranding;
+    /**
+     * The installer's quote conversation (Sunny Studio). Absent means Sunny's
+     * own questions. Server-only: `configFor` drops it on the way out.
+     */
+    conversation?: ConversationFlow;
   };
   /**
    * The installer's registered website domains (Blueprint §4.6). When set, a

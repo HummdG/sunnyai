@@ -31,6 +31,7 @@ import {
   type JourneyDeps,
   type RoofLookupFn,
 } from '../journey/service.js';
+import { flowForTenant } from '../flow/tenant.js';
 import { verifySessionToken } from '../sessions.js';
 import type { Store } from '../store.js';
 import type { TenantRegistry } from '../tenants.js';
@@ -96,6 +97,8 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     pricing: deps.pricing,
     roof: deps.roof,
     now: deps.now,
+    // The widget's quote journey is Sunny's chat: it follows the installer's flow.
+    flow: (tenantId) => flowForTenant(deps.tenants.byId(tenantId)),
   };
 
   function caller(request: FastifyRequest, sessionId?: string) {
