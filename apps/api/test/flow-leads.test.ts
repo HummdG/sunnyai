@@ -149,6 +149,21 @@ describe('leads carry the installer questions and answers', () => {
     ]);
   });
 
+  it('leaves out what Sunny set itself (the roof mapping confidence)', async () => {
+    const store = await tempStore();
+    const ctx = context(store, tenantWith(FLOW), {
+      address: '164 Norwich Drive, Norwich NR4 7TJ',
+      roof_confidence: 'high',
+      roof_confirmed: 'yes',
+      ownership: 'own',
+    });
+    await executeTool({ name: 'create_lead', args: { consent: true, email: 'a@b.example' } }, ctx);
+    const [lead] = await store.listAllLeads(DEMO_TENANT.id);
+    const ids = lead?.flowAnswers?.map((a) => a.id);
+    expect(ids).toEqual(['address', 'roof_confirmed', 'ownership']);
+    expect(ids).not.toContain('roof_confidence');
+  });
+
   it('a callback request carries them too, and unanswered questions are left out', async () => {
     const store = await tempStore();
     const ctx = context(store, tenantWith(FLOW), { ownership: 'rent' });

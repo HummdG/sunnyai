@@ -2,6 +2,8 @@ import type { LeadFlowAnswer } from '@sunny/contracts';
 
 import { QUESTIONS, optionLabel } from '../questionnaire.js';
 
+import { SYSTEM_SET } from './presets.js';
+
 import type { ResolvedFlow } from './resolve.js';
 
 /** Journey bookkeeping kept beside the answers (see `JOURNEY_KEYS`); not something the visitor said. */
@@ -16,7 +18,9 @@ const BOOKKEEPING = /^journey_/;
  * question the flow no longer lists (the installer saved a new flow mid
  * conversation, or its follow-up's parent was removed) is still the visitor's
  * answer, so it follows, in Sunny's own wording for a known preset and as the
- * bare id and value for anything else.
+ * bare id and value for anything else. Answers Sunny sets itself
+ * (`SYSTEM_SET`, such as the roof mapping's confidence) are not the visitor's
+ * and are left out.
  */
 export function flowAnswersFor(
   flow: ResolvedFlow,
@@ -26,7 +30,7 @@ export function flowAnswersFor(
   const emitted = new Set<string>();
   for (const question of flow.questions) {
     const value = answers[question.id];
-    if (value === undefined || value.trim() === '') continue;
+    if (SYSTEM_SET.has(question.id) || value === undefined || value.trim() === '') continue;
     emitted.add(question.id);
     out.push({
       id: question.id,
@@ -37,7 +41,8 @@ export function flowAnswersFor(
     });
   }
   for (const [id, value] of Object.entries(answers)) {
-    if (emitted.has(id) || BOOKKEEPING.test(id) || value.trim() === '') continue;
+    if (emitted.has(id) || SYSTEM_SET.has(id) || BOOKKEEPING.test(id) || value.trim() === '')
+      continue;
     const preset = QUESTIONS[id];
     if (!preset) {
       out.push({ id, question: id, value, answer: value, mode: 'lead' });

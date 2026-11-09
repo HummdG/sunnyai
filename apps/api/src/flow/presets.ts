@@ -13,6 +13,13 @@
 export const FIXED_START = ['address', 'roof_confidence', 'roof_confirmed'] as const;
 
 /**
+ * Fixed-start answers Sunny sets itself, never asked of the visitor (how sure
+ * the roof mapping is). They steer the conversation but are not something the
+ * visitor told the installer, so a lead's answers leave them out.
+ */
+export const SYSTEM_SET: ReadonlySet<string> = new Set(['roof_confidence']);
+
+/**
  * Presets that travel with another preset: placed right after it, and removed
  * with it. The key is the preset a stored flow lists; the members follow.
  *
