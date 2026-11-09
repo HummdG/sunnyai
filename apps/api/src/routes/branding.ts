@@ -8,7 +8,7 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
-import type { BrandAssetMeta } from '../branding/meta.js';
+import { brandingIds, pruneQuietly, type BrandAssetMeta } from '../branding/meta.js';
 import { LogoImageError } from '../branding/image.js';
 import { processLogo, type LogoKind } from '../branding/process.js';
 import type { BrandAssetStore } from '../branding/store.js';
@@ -39,6 +39,7 @@ export interface BrandAssetView {
   outline: string | null;
   availableEffects: LogoEffect[];
   suggestedColors: { primary: string; glow: string } | null;
+  plate: 'light' | 'dark';
   url: string;
   maskUrl: string | null;
 }
@@ -72,6 +73,8 @@ export function brandAssetView(tenantId: string, meta: BrandAssetMeta): BrandAss
     outline: meta.outline,
     availableEffects: meta.availableEffects,
     suggestedColors: meta.suggestedColors,
+    // Uploads from before the chip existed have none recorded.
+    plate: meta.plate ?? 'light',
     url: `${base}/${meta.id}.png`,
     maskUrl: meta.hasMask ? `${base}/${meta.id}-mask.png` : null,
   };
@@ -104,6 +107,7 @@ export function publicBrand(
     effects: branding.effects,
     colors: branding.colors ??
       icon.suggestedColors ?? { primary: tenant.config.primaryColor, glow: '#FFFFFF' },
+    plate: icon.plate ?? 'light',
   };
   const checked = brandSchema.safeParse(brand);
   if (checked.success) return checked.data;
@@ -170,6 +174,9 @@ export function registerBrandingRoutes(app: FastifyInstance, deps: BrandingRoute
         `${meta.id}.json`,
         new TextEncoder().encode(JSON.stringify(meta)),
       );
+      // Uploads tried and never saved are cleared once they are a day old.
+      const keep = brandingIds(tenant.config.branding).add(meta.id);
+      await pruneQuietly(brandAssets, tenant.id, keep, deps.now(), request.log);
       return { asset: brandAssetView(tenant.id, meta) };
     },
   );

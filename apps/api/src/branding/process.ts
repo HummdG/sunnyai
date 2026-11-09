@@ -8,6 +8,7 @@ import {
   encodePng,
   extractMask,
   maskToPng,
+  plateFor,
   suggestColors,
 } from './image.js';
 import { outlinePath, traceMask, verifyTrace } from './trace.js';
@@ -24,6 +25,8 @@ export interface ProcessedLogo {
   outline: string | null;
   availableEffects: LogoEffect[];
   suggestedColors: { primary: string; glow: string } | null;
+  /** The chip the logo sits on (see `plateFor`). */
+  plate: 'light' | 'dark';
 }
 
 const MIN_IOU = 0.98;
@@ -70,5 +73,6 @@ export function processLogo(bytes: Uint8Array, kind: LogoKind): ProcessedLogo {
     outline,
     availableEffects: LOGO_EFFECTS.filter((e) => effects.has(e)),
     suggestedColors: mask ? suggestColors(image, mask) : null,
+    plate: plateFor(image),
   };
 }

@@ -153,6 +153,8 @@ describe('search_catalogue', () => {
     expect(result.data.products).toEqual([]);
     expect(result.data.catalogueSize).toBe(0);
     expect(result.summary).toMatch(/no product list/i);
+    // The assistant may have the installer's own name, so it never says "Sunny".
+    expect(result.summary).not.toMatch(/sunny/i);
   });
 });
 
@@ -254,6 +256,7 @@ describe('validate_compatibility', () => {
 
     expect(result.data.catalogueSize).toBe(0);
     expect(result.data.notes?.join(' ')).toMatch(/nothing about the hardware could be checked/i);
+    expect(result.data.notes?.join(' ')).not.toMatch(/sunny/i);
     // The visitor's own answers still produce caveats; those do not need a
     // catalogue to be true.
     expect(result.data.notes?.join(' ')).toMatch(/shad|survey/i);

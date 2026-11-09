@@ -231,6 +231,17 @@ export function styles(): string {
 /* The installer's logo. Its effects are redrawn like Sunny is, so it is not a
    hit target either; echo rings draw past the image, so nothing here clips. */
 .launcher .logo-host { pointer-events: none; display: block; width: 100%; height: 100%; }
+/* An installer's logo sits on a round chip with a soft shadow, so a dark logo
+   never vanishes over a dark band of the page (or a pale one over white) as the
+   visitor scrolls. Inset so echo rings still have room inside the button. */
+.launcher[data-plate] {
+  background: #fff; padding: 16px;
+  box-shadow: 0 6px 20px rgba(15,18,30,.18), 0 0 0 1px rgba(15,18,30,.06);
+}
+.launcher[data-plate="dark"] {
+  background: #1d2129;
+  box-shadow: 0 6px 20px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.08);
+}
 .logo-fallback { display: block; width: 100%; height: 100%; border-radius: 50%; }
 .logo-host img, .avatar img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .wordmark { display: block; height: 22px; width: auto; max-width: 100%; object-fit: contain; object-position: left; }

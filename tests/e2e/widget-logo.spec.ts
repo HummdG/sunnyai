@@ -191,6 +191,16 @@ test('shows the logo on the launcher, and never Sunny', async ({ page }) => {
   expect(await sawSunny(page)).toBe(false);
 });
 
+test('the launcher logo sits on a chip, so it reads over any page', async ({ page }) => {
+  await stubConfig(page, { ...BRAND, plate: 'dark' });
+  await page.goto('/');
+  const launcher = page.locator(HOST).locator('button.launcher');
+  await expect(launcher).toHaveAttribute('data-plate', 'dark');
+  expect(await launcher.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+    'rgb(29, 33, 41)',
+  );
+});
+
 test('animates the header logo while busy, and stills it after', async ({ page }) => {
   await stubConfig(page, BRAND);
   await stubTurn(page);
@@ -222,6 +232,11 @@ test('a second visit shows the logo even when the config cannot be read', async 
   await expect(launcher).toBeVisible();
   await expect(launcher.locator('.logo-host img, .logo-host svg')).toHaveCount(1);
   await expect(launcher).toHaveAttribute('aria-label', 'Open Nova');
+  // The header is never left blank: the remembered wordmark names it.
+  await expect(page.locator(HOST).locator('.header .name img.wordmark')).toHaveAttribute(
+    'alt',
+    'Nova',
+  );
   await page.waitForTimeout(500);
   expect(await sawSunny(page)).toBe(false);
 });

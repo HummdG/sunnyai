@@ -280,8 +280,11 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
       .evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
   expect(await css('.logo-preview-header', 'background-color')).toBe('rgb(255, 241, 229)');
   expect(await css('.logo-preview-header', 'color')).toBe('rgb(23, 23, 23)');
-  expect(await css('.logo-preview-launcher', 'background-color')).toBe('rgba(0, 0, 0, 0)');
-  expect(await css('.logo-preview-launcher', 'padding-top')).toBe('0px');
+  // The launcher sits on the widget's chip (light or dark by the logo), as on a site.
+  expect(['rgb(255, 255, 255)', 'rgb(29, 33, 41)']).toContain(
+    await css('.logo-preview-launcher', 'background-color'),
+  );
+  expect(await css('.logo-preview-launcher', 'padding-top')).toBe('16px');
 
   // An SVG is rasterised in the browser: the server only ever receives a PNG.
   const uploaded = page.waitForResponse(

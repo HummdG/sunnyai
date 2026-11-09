@@ -199,6 +199,9 @@ export class SunnyWidget {
       this.#showSunny();
     } else if (remembered) {
       this.#applyNames(remembered.assistantName);
+      // Until the config answers (or if it never does) the header shows the
+      // remembered wordmark, else the assistant's name, never a blank.
+      this.#applyTitle(remembered.brand.wordmark, remembered.assistantName);
       void this.#showLogo(remembered.brand);
     } else {
       this.#launcher.classList.add('pending');
@@ -302,7 +305,7 @@ export class SunnyWidget {
     const header = el('div', { class: 'header' }, [
       this.#avatar,
       el('div', { class: 'titles' }, [
-        el('div', { class: 'name', text: '' }),
+        el('div', { class: 'name', text: 'Sunny' }),
         el('div', { class: 'tagline', text: 'Solar assistant' }),
       ]),
       closeButton,
@@ -381,6 +384,7 @@ export class SunnyWidget {
     for (const view of this.#logoViews) view.destroy();
     this.#logoViews = [];
     this.#brand = null;
+    delete this.#launcher.dataset.plate;
     for (const host of [this.#launcherArt, this.#avatar]) {
       host.replaceChildren();
       delete host.dataset.logoEffect;
@@ -425,6 +429,8 @@ export class SunnyWidget {
       host.replaceChildren(img);
     }
     this.#launcherArt.className = 'logo-host';
+    // The logo sits on a chip so it reads over any page as the visitor scrolls.
+    this.#launcher.dataset.plate = brand.plate;
     this.#launcher.classList.add('ready');
     this.#launcher.classList.remove('pending');
 
@@ -448,6 +454,23 @@ export class SunnyWidget {
    * Name the launcher and the panel after the assistant. Sunny keeps the
    * generic labels a Sunny tenant has always had.
    */
+  /** The header title: the wordmark when there is one, else `text`, which also names it. */
+  #applyTitle(wordmark: Brand['wordmark'], text: string): void {
+    const name = this.#root.querySelector('.header .name');
+    if (!name) return;
+    name.replaceChildren(
+      wordmark
+        ? el('img', {
+            class: 'wordmark',
+            src: this.#options.apiUrl.replace(/\/+$/, '') + wordmark.path,
+            alt: text,
+            width: wordmark.width,
+            height: wordmark.height,
+          })
+        : text,
+    );
+  }
+
   #applyNames(name: string): void {
     const named = name !== 'Sunny';
     this.#launcher.setAttribute('aria-label', named ? `Open ${name}` : 'Open the solar assistant');
@@ -497,22 +520,8 @@ export class SunnyWidget {
     if (brand) void this.#showLogo(brand);
     else if (this.#brand) this.#showSunny();
 
-    const name = this.#root.querySelector('.header .name');
+    this.#applyTitle(brand?.wordmark ?? null, config.companyName);
     const tagline = this.#root.querySelector('.header .tagline');
-    const wordmark = brand?.wordmark;
-    if (name) {
-      name.replaceChildren(
-        wordmark
-          ? el('img', {
-              class: 'wordmark',
-              src: this.#options.apiUrl.replace(/\/+$/, '') + wordmark.path,
-              alt: config.companyName,
-              width: wordmark.width,
-              height: wordmark.height,
-            })
-          : config.companyName,
-      );
-    }
     if (tagline) tagline.textContent = config.tagline;
 
     this.#animator = this.#reportingAnimator({

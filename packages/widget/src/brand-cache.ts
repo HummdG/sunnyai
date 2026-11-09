@@ -42,7 +42,7 @@ const isSize = (value: unknown, max: number): value is number =>
 /** A brand that passes the contracts' rules, copied field by field; anything else is null. */
 export function safeBrand(value: unknown): Brand | null {
   if (!isObject(value)) return null;
-  const { icon, wordmark, effects, colors } = value;
+  const { icon, wordmark, effects, colors, plate } = value;
 
   if (!isObject(icon)) return null;
   const { path, maskPath, width, height, outline } = icon;
@@ -65,12 +65,15 @@ export function safeBrand(value: unknown): Brand | null {
   if (!isObject(colors) || !matches(HEX, colors.primary) || !matches(HEX, colors.glow)) {
     return null;
   }
+  // Absent on brands saved before the chip existed: those get the light one.
+  if (!(plate === undefined || plate === 'light' || plate === 'dark')) return null;
 
   return {
     icon: { path, maskPath, width, height, outline },
     wordmark: mark,
     effects: [...effects] as LogoEffect[],
     colors: { primary: colors.primary, glow: colors.glow },
+    plate: plate ?? 'light',
   };
 }
 

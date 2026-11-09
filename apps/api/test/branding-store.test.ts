@@ -39,6 +39,21 @@ describe.each([
     expect(await store.get('t1', 'ffffffffffffffff.png')).toBeNull();
   });
 
+  it("lists and deletes one tenant's files", async () => {
+    const store = await make();
+    await store.put('t1', `${NAME}.png`, new Uint8Array([1]));
+    await store.put('t1', `${NAME}.json`, new Uint8Array([2]));
+    await store.put('t2', `${NAME}.png`, new Uint8Array([3]));
+    const names = (await store.list('t1')).map((f) => f.name).sort();
+    expect(names).toEqual([`${NAME}.json`, `${NAME}.png`]);
+    for (const file of await store.list('t1')) expect(file.createdAt).toBeGreaterThan(0);
+    await store.delete('t1', `${NAME}.png`);
+    await store.delete('t1', `${NAME}.png`);
+    expect(await store.get('t1', `${NAME}.png`)).toBeNull();
+    expect(await store.get('t2', `${NAME}.png`)).toEqual(new Uint8Array([3]));
+    expect(await store.list('nobody')).toEqual([]);
+  });
+
   it('rejects names outside the key shape', async () => {
     const store = await make();
     for (const bad of ['../x.png', 'x.png', `${NAME}.gif`, `${NAME}.png/..`, `${NAME}.PNG`]) {
@@ -132,6 +147,46 @@ describe('GCS brand asset store', () => {
     expect(await make(404).get('t', `${NAME}.png`)).toBeNull();
     await expect(make(500).get('t', `${NAME}.png`)).rejects.toThrow();
     await expect(make(500).put('t', `${NAME}.png`, new Uint8Array([1]))).rejects.toThrow();
+  });
+
+  it('lists every page of the tenant folder and deletes by object name', async () => {
+    const calls: { url: string; method: string }[] = [];
+    const pages = [
+      {
+        items: [
+          { name: `brand/t/${NAME}.png`, timeCreated: '2026-11-08T10:00:00.000Z' },
+          { name: 'brand/t/stray.txt', timeCreated: '2026-11-08T10:00:00.000Z' },
+        ],
+        nextPageToken: 'p2',
+      },
+      { items: [{ name: `brand/t/${NAME}.json`, timeCreated: '2026-11-08T11:00:00.000Z' }] },
+    ];
+    const impl = ((url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? 'GET' });
+      if (init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 404 }));
+      return Promise.resolve(Response.json(pages.shift()));
+    }) as typeof fetch;
+    const store = new GcsBrandAssetStore({
+      bucket: 'b',
+      endpoint: 'http://gcs.test',
+      token: null,
+      fetch: impl,
+    });
+    const files = await store.list('t');
+    expect(files).toEqual([
+      { name: `${NAME}.png`, createdAt: Date.parse('2026-11-08T10:00:00.000Z') },
+      { name: `${NAME}.json`, createdAt: Date.parse('2026-11-08T11:00:00.000Z') },
+    ]);
+    expect(calls[0]!.url).toContain(`prefix=${encodeURIComponent('brand/t/')}`);
+    expect(calls[1]!.url).toContain('pageToken=p2');
+    await store.delete('t', `${NAME}.png`);
+    expect(calls[2]).toEqual({
+      url: `http://gcs.test/storage/v1/b/b/o/${encodeURIComponent(`brand/t/${NAME}.png`)}`,
+      method: 'DELETE',
+    });
+    const failing = new GcsBrandAssetStore({ bucket: 'b', token: null, fetch: fake(500).impl });
+    await expect(failing.delete('t', `${NAME}.png`)).rejects.toThrow();
+    await expect(failing.list('t')).rejects.toThrow();
   });
 
   it('rejects bad names before any request', async () => {

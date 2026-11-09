@@ -35,6 +35,7 @@ const brand: Brand = {
   wordmark: { path: `/v1/widget/brand/${PUBLIC_ID}/fedcba9876543210.png`, width: 600, height: 120 },
   effects: ['shimmer', 'comet'],
   colors: { primary: '#112233', glow: '#AABBCC' },
+  plate: 'light',
 };
 
 /** A `Storage` held in a map, which is all the widget asks of one. */
@@ -173,6 +174,9 @@ describe('safeBrand', () => {
     ['a named colour', { ...brand, colors: { primary: 'red', glow: '#000000' } }],
     ['no colours', { ...brand, colors: undefined }],
     ['a string width', { ...brand, icon: { ...brand.icon, width: '128' } }],
+    ['a dark chip', { ...brand, plate: 'dark' }],
+    ['no chip, from before chips', { ...brand, plate: undefined }],
+    ['an unknown chip', { ...brand, plate: 'glass' }],
   ];
   for (const [name, value] of cases) {
     it(`agrees with the contracts' schema: ${name}`, () => {

@@ -55,6 +55,12 @@ export const brandSchema = z.object({
     .nullable(),
   effects: z.array(z.enum(LOGO_EFFECTS)).max(7),
   colors: z.object({ primary: hex, glow: hex }),
+  /**
+   * The chip behind the logo on the chat button, so it reads over any page:
+   * light for a dark or colourful logo, dark for a pale one. Brands saved
+   * before this existed have none and get the light chip.
+   */
+  plate: z.enum(['light', 'dark']).default('light'),
 });
 export type Brand = z.infer<typeof brandSchema>;
 

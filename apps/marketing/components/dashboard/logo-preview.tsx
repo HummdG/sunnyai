@@ -16,12 +16,14 @@ function LogoView({
   busy,
   className,
   label,
+  plate,
 }: {
   art: LogoArt;
   effects: readonly LogoEffect[];
   busy: boolean;
   className: string;
   label?: string;
+  plate?: 'light' | 'dark';
 }) {
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<ReturnType<typeof createLogoView> | null>(null);
@@ -45,7 +47,7 @@ function LogoView({
     view.current?.setBusy(busy);
   }, [busy, key]);
 
-  return <div className={className} ref={host} />;
+  return <div className={className} ref={host} data-plate={plate} />;
 }
 
 /**
@@ -100,6 +102,7 @@ export function LogoPreview({
         effects={effects}
         busy={active}
         label="Chat button"
+        plate={icon.plate ?? 'light'}
       />
       <button
         type="button"
