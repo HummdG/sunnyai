@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { LOGO_EFFECTS, OUTLINE_EFFECTS, STENCIL_EFFECTS } from '@sunny/contracts';
 
-import { EFFECT_PERIOD_MS, effectMarkup, logoSvg, stillMarkup } from '../src/index.js';
+import {
+  EFFECT_PERIOD_MS,
+  effectMarkup,
+  logoSvg,
+  stillMarkup,
+  usableEffects,
+} from '../src/index.js';
 import type { LogoArt } from '../src/index.js';
 
 /**
@@ -13,7 +19,9 @@ import type { LogoArt } from '../src/index.js';
  * uploaded can break out of an attribute.
  */
 
-const OUTLINE = 'M10 10 L90 10 L90 90 L10 90 Z M30 30 L70 30 L70 70 L30 70 Z';
+const OUTER = 'M10 10 L90 10 L90 90 L10 90 Z';
+const INNER = 'M30 30 L70 30 L70 70 L30 70 Z';
+const OUTLINE = `${OUTER} ${INNER}`;
 
 function art(overrides: Partial<LogoArt> = {}): LogoArt {
   return {
@@ -49,9 +57,52 @@ describe('effectMarkup', () => {
 
   it.each(OUTLINE_EFFECTS)('%s draws the given outline', (effect) => {
     const out = effectMarkup(effect, art(), 'a');
-    expect(out).toContain(`d="${OUTLINE}"`);
+    if (effect === 'rings') expect(out).toContain(`d="${OUTLINE}"`);
+    else for (const piece of [OUTER, INNER]) expect(out).toContain(`d="${piece}"`);
     expect(out).toContain('pathLength="100"');
     expect(out).not.toContain(art().maskSrc!);
+  });
+
+  it.each(['comet', 'draw', 'march'] as const)(
+    '%s dashes each subpath of the outline as a path of its own',
+    (effect) => {
+      // One pathLength across two pieces would restart the dash on each, so the
+      // small piece blinks and the main one goes dark for most of the period.
+      const out = effectMarkup(effect, art(), 'a');
+      const dashed = [...out.matchAll(/<path [^>]*stroke-dasharray[^>]*>/g)].map(([p]) => p);
+      expect(dashed).toHaveLength(2);
+      for (const path of dashed) expect(path).toContain('pathLength="100"');
+      expect(dashed[0]).toContain(`d="${OUTER}"`);
+      expect(dashed[1]).toContain(`d="${INNER}"`);
+    },
+  );
+
+  it.each(LOGO_EFFECTS)('%s offsets phases with negative delays only', (effect) => {
+    // Markup is rewritten on every render, so a positive delay would show the
+    // unanimated state each time before the motion began.
+    const out = effectMarkup(effect, art(), 'a');
+    expect(out).not.toContain('animation-delay');
+    for (const [, decl] of out.matchAll(/animation:([^;"]+)/g)) {
+      const times = [...decl!.matchAll(/(-?\d+(?:\.\d+)?)ms/g)].map(([, t]) => Number(t));
+      for (const delay of times.slice(1)) expect(delay).toBeLessThanOrEqual(0);
+    }
+  });
+
+  it.each(LOGO_EFFECTS)('%s never paints a flat colour fill', (effect) => {
+    // Any fill a visitor sees is the uploaded image. Only strokes take a brand
+    // colour. White is allowed for the shimmer's light and for the charge wave,
+    // which is a mask and never painted itself.
+    const out = effectMarkup(effect, art(), 'a');
+    for (const [, fill] of out.matchAll(/\bfill="([^"]+)"/g)) {
+      expect(['none', '#ffffff']).toContain(fill);
+    }
+  });
+
+  it('segments has no tint over the bands', () => {
+    const out = effectMarkup('segments', art(), 'a');
+    expect(out).not.toContain(art().colors.glow);
+    expect(out).not.toContain(art().colors.primary);
+    expect(out.match(/<g clip-path="url\(#b\d-a\)" mask="url\(#m-a\)"/g)).toHaveLength(5);
   });
 
   it.each(OUTLINE_EFFECTS)('%s fills the outline, if at all, even-odd', (effect) => {
@@ -109,6 +160,30 @@ describe('effectMarkup', () => {
   });
 });
 
+describe('usableEffects', () => {
+  it('keeps every effect when the art has both an outline and a mask', () => {
+    expect(usableEffects(LOGO_EFFECTS, art())).toEqual([...LOGO_EFFECTS]);
+  });
+
+  it('drops outline effects when the outline is unverified', () => {
+    expect(usableEffects(LOGO_EFFECTS, art({ outline: null }))).toEqual([...STENCIL_EFFECTS]);
+  });
+
+  it('drops stencil effects when there is no mask', () => {
+    expect(usableEffects(['comet', 'shimmer', 'march'], art({ maskSrc: null }))).toEqual([
+      'comet',
+      'march',
+    ]);
+  });
+
+  it('leaves nothing to throw: every usable effect renders', () => {
+    for (const a of [art({ outline: null }), art({ maskSrc: null })]) {
+      for (const e of usableEffects(LOGO_EFFECTS, a))
+        expect(() => effectMarkup(e, a, 'a')).not.toThrow();
+    }
+  });
+});
+
 describe('stillMarkup', () => {
   it('is only the uploaded image', () => {
     const out = stillMarkup(art(), 'a');
@@ -117,6 +192,12 @@ describe('stillMarkup', () => {
 });
 
 describe('logoSvg', () => {
+  it('does not clip, so echo rings show past the image', () => {
+    const out = logoSvg(art(), effectMarkup('rings', art(), 'a'));
+    expect(out).toMatch(/^<svg [^>]*overflow="visible"/);
+    expect(out).toMatch(/^<svg [^>]*style="overflow:visible"/);
+  });
+
   it('wraps markup in a viewBox matching the image', () => {
     const out = logoSvg(art(), stillMarkup(art(), 'a'), 'Acme');
     expect(out).toMatch(/^<svg [^>]*viewBox="0 0 120 100"/);

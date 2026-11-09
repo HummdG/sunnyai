@@ -61,12 +61,28 @@ export function stillMarkup(art: LogoArt, _uid: string): string {
   return image(art.src, art);
 }
 
-/** Wraps effect or still markup in an SVG whose viewBox is the image itself. */
+/**
+ * Wraps effect or still markup in an SVG whose viewBox is the image itself. It
+ * does not clip: echo rings grow past the image, and an uploaded logo has only a
+ * few pixels of padding to grow into.
+ */
 export function logoSvg(art: LogoArt, inner: string, label?: string): string {
   const a11y = label ? `role="img" aria-label="${attr(label)}"` : 'aria-hidden="true"';
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${art.width} ${art.height}" ` +
-    `width="100%" height="100%" preserveAspectRatio="xMidYMid meet" ${a11y}>${inner}</svg>`
+    `width="100%" height="100%" preserveAspectRatio="xMidYMid meet" overflow="visible" ` +
+    `style="overflow:visible" ${a11y}>${inner}</svg>`
+  );
+}
+
+/**
+ * The enabled effects this art can actually draw: outline effects need a
+ * verified outline and stencil effects need a mask. Anything else would throw
+ * when its turn came.
+ */
+export function usableEffects(effects: readonly LogoEffect[], art: LogoArt): LogoEffect[] {
+  return effects.filter((e) =>
+    OUTLINE_EFFECTS.includes(e) ? art.outline !== null : art.maskSrc !== null,
   );
 }
 
@@ -88,6 +104,18 @@ function outlineOf(art: LogoArt, effect: LogoEffect): string {
 }
 
 /**
+ * The outline's subpaths, one per polygon. A dash pattern restarts at every
+ * subpath while `pathLength` spans them all, so dashed effects draw each piece
+ * as a path of its own and every piece is traced once per period.
+ */
+function pieces(outline: string): string[] {
+  return outline
+    .split(/(?=M)/)
+    .map((piece) => piece.trim())
+    .filter((piece) => piece.length > 0);
+}
+
+/**
  * The markup for one effect, to sit inside `logoSvg`. `periodMs` stretches every
  * timing in proportion; reduced motion uses it to play shimmer at 3 s.
  */
@@ -103,9 +131,19 @@ export function effectMarkup(
   const sw = n(big * 0.025);
   const p = `${Math.round(periodMs)}ms`;
   const ms = (fraction: number) => `${Math.round(periodMs * fraction)}ms`;
+  // Phase offsets are negative delays: the animation starts part-way through
+  // rather than sitting at its unanimated state until the delay runs out, which
+  // would flash on every render.
+  const lead = (fraction: number) =>
+    fraction === 0 ? '0ms' : `-${Math.round(periodMs * fraction)}ms`;
   const k = (name: string) => `${name}-${uid}`;
   const base = image(art.src, art);
-  const d = OUTLINE_EFFECTS.includes(effect) ? attr(outlineOf(art, effect)) : '';
+  const outline = OUTLINE_EFFECTS.includes(effect) ? outlineOf(art, effect) : '';
+  const d = attr(outline);
+  const each = (path: (d: string) => string) =>
+    pieces(outline)
+      .map((piece) => path(attr(piece)))
+      .join('');
   const style = (css: string) => `<style>${css}</style>`;
 
   switch (effect) {
@@ -113,9 +151,12 @@ export function effectMarkup(
       return (
         style(`@keyframes ${k('comet')} { to { stroke-dashoffset: -100; } }`) +
         base +
-        `<path d="${d}" pathLength="100" fill="none" stroke="${glow}" stroke-width="${sw}" ` +
-        `stroke-linecap="round" stroke-dasharray="14 86" ` +
-        `style="animation:${k('comet')} ${p} linear infinite; filter:drop-shadow(0 0 ${n(big * 0.03)}px ${primary})"/>`
+        each(
+          (piece) =>
+            `<path d="${piece}" pathLength="100" fill="none" stroke="${glow}" stroke-width="${sw}" ` +
+            `stroke-linecap="round" stroke-dasharray="14 86" ` +
+            `style="animation:${k('comet')} ${p} linear infinite; filter:drop-shadow(0 0 ${n(big * 0.03)}px ${primary})"/>`,
+        )
       );
 
     case 'draw':
@@ -125,9 +166,12 @@ export function effectMarkup(
             `@keyframes ${k('fill')} { 0%,30% { opacity: 0; } 45%,58% { opacity: 1; } 72%,100% { opacity: 0; } }`,
         ) +
         image(art.src, art, ` style="animation:${k('fill')} ${p} ease-in-out infinite"`) +
-        `<path d="${d}" pathLength="100" fill="none" stroke="${primary}" stroke-width="${sw}" ` +
-        `stroke-linejoin="round" stroke-dasharray="100" ` +
-        `style="animation:${k('draw')} ${p} ease-in-out infinite"/>`
+        each(
+          (piece) =>
+            `<path d="${piece}" pathLength="100" fill="none" stroke="${primary}" stroke-width="${sw}" ` +
+            `stroke-linejoin="round" stroke-dasharray="100" ` +
+            `style="animation:${k('draw')} ${p} ease-in-out infinite"/>`,
+        )
       );
 
     case 'charge': {
@@ -179,7 +223,8 @@ export function effectMarkup(
 
     case 'rings': {
       // Copies of the outline ripple out from the centre and fade, half a period
-      // apart, with the logo itself in front at its natural size.
+      // apart, with the logo itself in front at its natural size. They show past
+      // its edges, which is why `logoSvg` does not clip.
       const origin = `transform-origin:${n(w / 2)}px ${n(h / 2)}px`;
       const ring = (delay: string) =>
         `<path d="${d}" pathLength="100" fill="none" stroke="${primary}" stroke-width="${sw}" ` +
@@ -189,7 +234,7 @@ export function effectMarkup(
           `@keyframes ${k('ring')} { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(1.45); opacity: 0; } }`,
         ) +
         ring('0ms') +
-        ring(ms(0.5)) +
+        ring(lead(0.5)) +
         base
       );
     }
@@ -201,13 +246,17 @@ export function effectMarkup(
             `@keyframes ${k('faint')} { 0%,100% { opacity: 0.25; } 50% { opacity: 0.45; } }`,
         ) +
         image(art.src, art, ` style="animation:${k('faint')} ${ms(2)} ease-in-out infinite"`) +
-        `<path d="${d}" pathLength="100" fill="none" stroke="${primary}" stroke-width="${sw}" ` +
-        `stroke-linecap="round" stroke-dasharray="6 4" style="animation:${k('march')} ${p} linear infinite"/>`
+        each(
+          (piece) =>
+            `<path d="${piece}" pathLength="100" fill="none" stroke="${primary}" stroke-width="${sw}" ` +
+            `stroke-linecap="round" stroke-dasharray="6 4" style="animation:${k('march')} ${p} linear infinite"/>`,
+        )
       );
 
     case 'segments': {
-      // The logo is cut into five vertical bands that light up in turn: each band
-      // is the real image, brightened by the glow colour inside the logo's mask.
+      // The logo is cut into five vertical bands that light up in turn. Every
+      // band is the real image, inside the logo's mask: dim when unlit, at full
+      // opacity when lit.
       const s = stencil(art, uid);
       const bandW = w / 5;
       const clips: string[] = [];
@@ -217,9 +266,8 @@ export function effectMarkup(
           `<clipPath id="b${i}-${uid}"><rect x="${n(i * bandW)}" y="0" width="${n(bandW)}" height="${h}"/></clipPath>`,
         );
         bands.push(
-          `<g clip-path="url(#b${i}-${uid})" style="animation:${k('seg')} ${p} ease-in-out ${ms(i * 0.15)} infinite">` +
-            base +
-            `<rect x="0" y="0" width="${w}" height="${h}" fill="${glow}" opacity="0.35" mask="${s.ref}"/></g>`,
+          `<g clip-path="url(#b${i}-${uid})" mask="${s.ref}" ` +
+            `style="animation:${k('seg')} ${p} ease-in-out ${lead(i * 0.15)} infinite">${base}</g>`,
         );
       }
       return (

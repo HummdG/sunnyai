@@ -2,7 +2,7 @@ import type { LogoEffect } from '@sunny/contracts';
 
 import { createCycle } from './cycle.js';
 import type { LogoMotion } from './cycle.js';
-import { effectMarkup, logoSvg, stillMarkup } from './markup.js';
+import { effectMarkup, logoSvg, stillMarkup, usableEffects } from './markup.js';
 import type { LogoArt } from './markup.js';
 
 /**
@@ -27,7 +27,7 @@ export function createLogoView(
 ): LogoView {
   const uid = `le${(views++).toString(36)}`;
   return createCycle({
-    effects,
+    effects: usableEffects(effects, art),
     ...(options.random ? { random: options.random } : {}),
     render(effect, periodMs) {
       const inner =
