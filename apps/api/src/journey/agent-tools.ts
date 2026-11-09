@@ -39,6 +39,7 @@ function depsFor(ctx: ToolContext): JourneyDeps | null {
     now: () => Date.now(),
     // The turn's flow, so the journey and the tools agree on what is asked.
     flow: () => ctx.flow,
+    tenant: () => ctx.tenant,
   };
 }
 

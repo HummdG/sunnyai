@@ -99,6 +99,7 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     now: deps.now,
     // The widget's quote journey is Sunny's chat: it follows the installer's flow.
     flow: (tenantId) => flowForTenant(deps.tenants.byId(tenantId)),
+    tenant: (tenantId) => deps.tenants.byId(tenantId),
   };
 
   function caller(request: FastifyRequest, sessionId?: string) {

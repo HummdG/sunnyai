@@ -14,7 +14,10 @@ import { toRoofAssessmentSummary, type SunScanService } from '@sunny/sunscan-ada
 import { getPublishedPriceList } from '../catalogue/price-list-service.js';
 import { effectsFor } from '../flow/effects.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
+import { reasonsFor } from '../proposal/reasons.js';
+import { snapshotFor } from '../proposal/snapshot.js';
 import type { Store } from '../store.js';
+import type { Tenant } from '../tenants.js';
 
 import { applyProposals, extractAnswers, type AppliedAnswers, type Proposal } from './extract.js';
 import {
@@ -51,6 +54,8 @@ export interface JourneyDeps {
    * installer saves applies from the next request. Absent means Sunny's own.
    */
   flow?: (tenantId: string) => ResolvedFlow;
+  /** The tenant, for the quotation snapshot a new quote carries. */
+  tenant?: (tenantId: string) => Tenant | null | undefined;
 }
 
 function flowOf(deps: JourneyDeps, tenantId: string): ResolvedFlow {
@@ -195,12 +200,9 @@ export async function createQuote(
   if (!qa) return { ok: false, missing: status.missing, next: status.nextQuestionId };
   // An installer's flow can change the quote: what the answers add, remove and
   // swap is priced from the same published list the pricing came from.
+  const effects = flow.custom ? effectsFor(flow.stored, answers) : [];
   const custom = flow.custom
-    ? {
-        flow,
-        effects: effectsFor(flow.stored, answers),
-        priceList: await getPublishedPriceList(deps.store, tenantId),
-      }
+    ? { flow, effects, priceList: await getPublishedPriceList(deps.store, tenantId) }
     : {};
   const quote = buildQuote({
     id: `q_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
@@ -212,6 +214,14 @@ export async function createQuote(
     pricing,
     ...custom,
   });
+  // Fixed now: the settings in force at this moment, and why each item is here.
+  const tenant = deps.tenant?.(tenantId);
+  if (tenant) quote.quotation = snapshotFor(tenant, tenant.config.quotation);
+  const reasons: Record<string, string> = {};
+  for (const option of quote.options) {
+    Object.assign(reasons, reasonsFor(effects, flow, answers, option));
+  }
+  quote.reasons = reasons;
   await deps.store.saveQuote(quote);
   return { ok: true, quote };
 }

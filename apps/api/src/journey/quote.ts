@@ -38,6 +38,8 @@ import {
 import { PRESET_TOPICS, PRESET_WARNINGS } from '../flow/presets.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
 
+import type { QuotationSnapshot } from '../proposal/snapshot.js';
+
 import type { MappedRoof } from './roof.js';
 
 export const QUOTE_DISCLAIMER =
@@ -137,6 +139,10 @@ export interface QuoteRecord {
   /** The option the visitor chose ("Choose this package"); absent until they do. */
   chosenOptionId?: string | null;
   chosenAt?: string | null;
+  /** The installer's quotation settings when this quote was made; absent on older quotes. */
+  quotation?: QuotationSnapshot;
+  /** Why an item is on the quote, by line-item sku; absent on older quotes. */
+  reasons?: Record<string, string>;
 }
 
 function round(n: number, dp = 0): number {
