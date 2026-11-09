@@ -36,7 +36,13 @@ import {
 import { JOURNEY_KEYS } from '../journey/journey.js';
 import { ONBOARDING_STEPS, type Tenant, type TenantRegistry } from '../tenants.js';
 import { isStaleJob } from '../ingest/sync.js';
-import { loadBrandAsset, type BrandAssetMeta, type StoredBranding } from '../branding/meta.js';
+import {
+  brandingIds,
+  loadBrandAsset,
+  pruneQuietly,
+  type BrandAssetMeta,
+  type StoredBranding,
+} from '../branding/meta.js';
 import type { BrandAssetStore } from '../branding/store.js';
 import { brandAssetView } from './branding.js';
 import type { PortalConfig } from './portal-config.js';
@@ -640,6 +646,10 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
       };
     }
     const saved = await tenants.save(next);
+    if (body.branding !== undefined) {
+      const keep = brandingIds(saved.config.branding);
+      await pruneQuietly(brandAssets, saved.id, keep, now(), request.log);
+    }
     return { tenant: tenantView(saved, portal, membership.role, now()) };
   });
 

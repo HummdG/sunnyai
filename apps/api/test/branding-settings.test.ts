@@ -68,6 +68,12 @@ class ForgetfulStore implements BrandAssetStore {
   get(tenantId: string, name: string) {
     return this.lost.has(name) ? Promise.resolve(null) : this.inner.get(tenantId, name);
   }
+  list(tenantId: string) {
+    return this.inner.list(tenantId);
+  }
+  delete(tenantId: string, name: string) {
+    return this.inner.delete(tenantId, name);
+  }
 }
 
 async function setup(brandAssets: BrandAssetStore = new MemoryBrandAssetStore()) {
@@ -275,7 +281,13 @@ describe('branding settings', () => {
 
     for (const id of [iconId, stale]) {
       const back = await save(app, tenant.id, {
-        branding: { mode: 'sunny', iconId: id, wordmarkId: null, effects: ['shimmer'], colors: null },
+        branding: {
+          mode: 'sunny',
+          iconId: id,
+          wordmarkId: null,
+          effects: ['shimmer'],
+          colors: null,
+        },
       });
       expect(back.statusCode).toBe(200);
       const branding = back.json<{ tenant: { branding: { mode: string; icon: { id: string } } } }>()
@@ -295,7 +307,9 @@ describe('branding settings', () => {
 
     const again = await save(app, tenant.id, logo(iconId, ['shimmer']));
     expect(again.statusCode).toBe(200);
-    const body = (await publicConfig(app, tenant.publicId)).json<{ brand: { icon: { path: string } } }>();
+    const body = (await publicConfig(app, tenant.publicId)).json<{
+      brand: { icon: { path: string } };
+    }>();
     expect(body.brand.icon.path).toContain(iconId);
   });
 
@@ -308,6 +322,50 @@ describe('branding settings', () => {
     const response = await save(app, tenant.id, logo(iconId, ['shimmer']));
     expect(response.statusCode).toBe(400);
     expect(message(response)).toBe(EXPIRED);
+  });
+
+  it('clears uploads that were never saved once they are a day old', async () => {
+    let clock = NOW - 2 * 86_400_000;
+    const assets = new MemoryBrandAssetStore(() => clock);
+    const { app } = await setup(assets);
+    const tenant = await signUp(app);
+    const old = await uploadIcon(app, tenant.id, discPng(12));
+    clock = NOW - 3_600_000;
+    const saved = await uploadIcon(app, tenant.id, discPng());
+    const recent = await uploadIcon(app, tenant.id, discPng(16));
+    clock = NOW;
+
+    expect((await save(app, tenant.id, logo(saved, ['shimmer']))).statusCode).toBe(200);
+    const ids = new Set((await assets.list(tenant.id)).map((f) => f.name.slice(0, 16)));
+    expect(ids.has(old)).toBe(false);
+    expect(ids.has(saved)).toBe(true);
+    expect(ids.has(recent)).toBe(true);
+  });
+
+  it('keeps the saved logo through cleanup in Sunny mode too', async () => {
+    let clock = NOW - 2 * 86_400_000;
+    const assets = new MemoryBrandAssetStore(() => clock);
+    const { app } = await setup(assets);
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    await save(app, tenant.id, logo(iconId, ['shimmer']));
+    await save(app, tenant.id, {
+      branding: { mode: 'sunny', iconId: null, wordmarkId: null, effects: [], colors: null },
+    });
+    clock = NOW;
+    await uploadIcon(app, tenant.id, discPng(10));
+    const names = (await assets.list(tenant.id)).map((f) => f.name);
+    expect(names).toContain(`${iconId}.png`);
+    expect(names).toContain(`${iconId}.json`);
+  });
+
+  it('a failed cleanup never fails the save', async () => {
+    const assets = new MemoryBrandAssetStore();
+    const { app } = await setup(assets);
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    vi.spyOn(assets, 'list').mockRejectedValue(new Error('storage down'));
+    expect((await save(app, tenant.id, logo(iconId, ['shimmer']))).statusCode).toBe(200);
   });
 
   it('names the assistant in the config and the prompt', async () => {

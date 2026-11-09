@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { googleTokens, type TokenProvider } from '../google/auth.js';
@@ -8,9 +8,19 @@ import { googleTokens, type TokenProvider } from '../google/auth.js';
  * tenant. The API reads the bytes and serves them through its own
  * tenant-scoped routes; nothing is ever public.
  */
+/** One stored file: its name and when it was written (ms since the epoch). */
+export interface StoredBrandFile {
+  name: string;
+  createdAt: number;
+}
+
 export interface BrandAssetStore {
   put(tenantId: string, name: string, bytes: Uint8Array): Promise<void>;
   get(tenantId: string, name: string): Promise<Uint8Array | null>;
+  /** The tenant's files, in no particular order. */
+  list(tenantId: string): Promise<StoredBrandFile[]>;
+  /** Remove one file; a file already gone is not an error. */
+  delete(tenantId: string, name: string): Promise<void>;
 }
 
 /** The only key shape: a 16-hex id, then `.png`, `-mask.png` or `.json`. */
@@ -38,17 +48,37 @@ function contentType(name: string): string {
 
 /** Brand assets in memory, for tests. */
 export class MemoryBrandAssetStore implements BrandAssetStore {
-  readonly #objects = new Map<string, Uint8Array>();
+  readonly #objects = new Map<string, { bytes: Uint8Array; createdAt: number }>();
+
+  constructor(private readonly now: () => number = Date.now) {}
 
   put(tenantId: string, name: string, bytes: Uint8Array): Promise<void> {
     if (!NAME_PATTERN.test(name)) return Promise.reject(new Error('Invalid brand asset name.'));
-    this.#objects.set(JSON.stringify([tenantId, name]), new Uint8Array(bytes));
+    this.#objects.set(JSON.stringify([tenantId, name]), {
+      bytes: new Uint8Array(bytes),
+      createdAt: this.now(),
+    });
     return Promise.resolve();
   }
 
   get(tenantId: string, name: string): Promise<Uint8Array | null> {
     if (!NAME_PATTERN.test(name)) return Promise.reject(new Error('Invalid brand asset name.'));
-    return Promise.resolve(this.#objects.get(JSON.stringify([tenantId, name])) ?? null);
+    return Promise.resolve(this.#objects.get(JSON.stringify([tenantId, name]))?.bytes ?? null);
+  }
+
+  list(tenantId: string): Promise<StoredBrandFile[]> {
+    const files: StoredBrandFile[] = [];
+    for (const [key, value] of this.#objects) {
+      const [tenant, name] = JSON.parse(key) as [string, string];
+      if (tenant === tenantId) files.push({ name, createdAt: value.createdAt });
+    }
+    return Promise.resolve(files);
+  }
+
+  delete(tenantId: string, name: string): Promise<void> {
+    if (!NAME_PATTERN.test(name)) return Promise.reject(new Error('Invalid brand asset name.'));
+    this.#objects.delete(JSON.stringify([tenantId, name]));
+    return Promise.resolve();
   }
 }
 
@@ -77,6 +107,29 @@ export class FileBrandAssetStore implements BrandAssetStore {
     } catch {
       return null;
     }
+  }
+
+  async list(tenantId: string): Promise<StoredBrandFile[]> {
+    const folder = join(this.dir, tenantSegment(tenantId));
+    let names: string[];
+    try {
+      names = await readdir(folder);
+    } catch {
+      return [];
+    }
+    const files: StoredBrandFile[] = [];
+    for (const name of names.filter((n) => NAME_PATTERN.test(n))) {
+      try {
+        files.push({ name, createdAt: (await stat(join(folder, name))).mtimeMs });
+      } catch {
+        // Removed between the listing and the stat: nothing to report.
+      }
+    }
+    return files;
+  }
+
+  async delete(tenantId: string, name: string): Promise<void> {
+    await rm(this.#path(tenantId, name), { force: true });
   }
 }
 
@@ -149,6 +202,49 @@ export class GcsBrandAssetStore implements BrandAssetStore {
       throw new Error(`Cloud Storage read failed (${response.status}) for ${name}.`);
     }
     return new Uint8Array(await response.arrayBuffer());
+  }
+
+  async list(tenantId: string): Promise<StoredBrandFile[]> {
+    const folder = `${this.#prefix}/${tenantSegment(tenantId)}/`;
+    const files: StoredBrandFile[] = [];
+    let pageToken: string | undefined;
+    do {
+      const url =
+        `${this.#endpoint}/storage/v1/b/${encodeURIComponent(this.#bucket)}/o` +
+        `?prefix=${encodeURIComponent(folder)}&fields=items(name,timeCreated),nextPageToken` +
+        (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+      const response = await this.#fetch(url, {
+        headers: await this.#headers(),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) throw new Error(`Cloud Storage listing failed (${response.status}).`);
+      const page = (await response.json()) as {
+        items?: Array<{ name?: string; timeCreated?: string }>;
+        nextPageToken?: string;
+      };
+      for (const item of page.items ?? []) {
+        const name = item.name?.slice(folder.length) ?? '';
+        const createdAt = Date.parse(item.timeCreated ?? '');
+        if (NAME_PATTERN.test(name) && Number.isFinite(createdAt)) files.push({ name, createdAt });
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+    return files;
+  }
+
+  async delete(tenantId: string, name: string): Promise<void> {
+    const object = this.objectName(tenantId, name);
+    const url =
+      `${this.#endpoint}/storage/v1/b/${encodeURIComponent(this.#bucket)}/o/` +
+      encodeURIComponent(object);
+    const response = await this.#fetch(url, {
+      method: 'DELETE',
+      headers: await this.#headers(),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Cloud Storage delete failed (${response.status}) for ${name}.`);
+    }
   }
 }
 

@@ -8,7 +8,7 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
-import type { BrandAssetMeta } from '../branding/meta.js';
+import { brandingIds, pruneQuietly, type BrandAssetMeta } from '../branding/meta.js';
 import { LogoImageError } from '../branding/image.js';
 import { processLogo, type LogoKind } from '../branding/process.js';
 import type { BrandAssetStore } from '../branding/store.js';
@@ -170,6 +170,9 @@ export function registerBrandingRoutes(app: FastifyInstance, deps: BrandingRoute
         `${meta.id}.json`,
         new TextEncoder().encode(JSON.stringify(meta)),
       );
+      // Uploads tried and never saved are cleared once they are a day old.
+      const keep = brandingIds(tenant.config.branding).add(meta.id);
+      await pruneQuietly(brandAssets, tenant.id, keep, deps.now(), request.log);
       return { asset: brandAssetView(tenant.id, meta) };
     },
   );
