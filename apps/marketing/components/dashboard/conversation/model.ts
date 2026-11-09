@@ -36,9 +36,6 @@ export interface Context {
 export const MAX_DEPTH = 2;
 export const MAX_CHOICES = 12;
 
-/** Units whose quantity the installer sets: anything not counted per panel. */
-const QUANTITY_UNITS = new Set(['metre', 'roof', 'unit', 'side', 'storey', 'kwh', 'job']);
-
 function randomTail(length: number): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   const bytes = new Uint8Array(length);
@@ -203,8 +200,9 @@ export function tagOf(step: FlowStep): string {
   return step.mode === 'quote' ? 'Changes the quote' : 'Lead only';
 }
 
+/** Whether adding this item needs a quantity: the server decides, as the quote does. */
 export function needsQuantity(item: PriceItemView): boolean {
-  return !item.packageUnit && QUANTITY_UNITS.has(item.unitLabel);
+  return item.needsQuantity;
 }
 
 export function unitsWord(unit: string, quantity = 2): string {

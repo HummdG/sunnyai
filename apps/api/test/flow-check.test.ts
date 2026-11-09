@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConversationFlow, FlowEffect, FlowStep } from '@sunny/contracts';
 
 import type { PriceItem, PriceList } from '../src/catalogue/price-list.js';
-import { PACKAGE_UNITS, checkFlow } from '../src/flow/check.js';
+import { PACKAGE_UNITS, checkFlow, isFixedQuantity } from '../src/flow/check.js';
 
 function item(over: Partial<PriceItem> & Pick<PriceItem, 'key' | 'name' | 'pricing'>): PriceItem {
   return {
@@ -206,6 +206,56 @@ describe('checkFlow', () => {
       { code: 'needs_quantity', message: 'Set how many kWh of Extra storage to add.' },
     ]);
     expect(add(5)).toEqual([]);
+  });
+
+  it('asks no quantity for an inverter or battery priced per unit, which the package places', () => {
+    const inverter = item({
+      key: 'INV-HYBRID',
+      name: 'Hybrid inverter',
+      category: 'inverter',
+      pricing: { kind: 'per_unit', unit: 'unit', amountMinor: 90000, flatMinor: 0 },
+    });
+    const battery = item({
+      key: 'BATT-KWH',
+      name: 'Battery storage',
+      category: 'battery',
+      pricing: { kind: 'per_unit', unit: 'kwh', amountMinor: 40000, flatMinor: 0 },
+    });
+    const list: PriceList = { ...LIST, items: [...LIST.items, inverter, battery] };
+    expect(isFixedQuantity(inverter)).toBe(false);
+    expect(isFixedQuantity(battery)).toBe(false);
+    expect(
+      codes(
+        flowOf(
+          custom('c_aaaaaa', [
+            { kind: 'add', itemKey: 'INV-HYBRID' },
+            { kind: 'add', itemKey: 'BATT-KWH' },
+          ]),
+        ),
+        list,
+      ),
+    ).toEqual([]);
+    // The same units on an extra still need one: the quote prices that quantity.
+    expect(isFixedQuantity(LIST.items.find((i) => i.key === 'TRENCH')!)).toBe(true);
+    expect(isFixedQuantity(LIST.items.find((i) => i.key === 'OPT-TIGO')!)).toBe(false);
+  });
+
+  it('flags a choice question with no answers, which the journey could never get past', () => {
+    const empty = custom('c_aaaaaa', [], { choices: [] });
+    expect(checkFlow(flowOf(empty), LIST)).toEqual([
+      {
+        stepId: 'c_aaaaaa',
+        code: 'no_choices',
+        message: 'Add at least one answer to this question.',
+      },
+    ]);
+    // Also as a follow-up, and never for a free-text question.
+    const nested = custom('c_bbbbbb', [], {
+      followUps: [{ when: ['yes'], step: custom('c_cccccc', [], { choices: [] }) }],
+    });
+    expect(codes(flowOf(nested))).toEqual(['no_choices']);
+    const text = custom('c_dddddd', [], { mode: 'lead', answer: 'text', choices: [] });
+    expect(codes(flowOf(text))).toEqual([]);
   });
 
   it('checks the effects of a preset step by answer value', () => {

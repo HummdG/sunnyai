@@ -22,7 +22,14 @@ import {
   type PriceList,
 } from '../catalogue/price-list.js';
 import { getPublishedPriceList } from '../catalogue/price-list-service.js';
-import { PACKAGE_UNITS, checkFlow, targetIssue, unitOf, type FlowIssue } from '../flow/check.js';
+import {
+  PACKAGE_UNITS,
+  checkFlow,
+  isFixedQuantity,
+  targetIssue,
+  unitOf,
+  type FlowIssue,
+} from '../flow/check.js';
 import { effectsFor } from '../flow/effects.js';
 import { FIXED_START, PRESET_GROUPS, PRESET_WARNINGS } from '../flow/presets.js';
 import { resolveFlow } from '../flow/resolve.js';
@@ -56,6 +63,12 @@ export interface PriceItemView {
   category: string;
   unitLabel: string;
   packageUnit: boolean;
+  /**
+   * An answer adds this item in a quantity the installer sets (`isFixedQuantity`),
+   * so Studio asks for one. Package-counted items and an inverter or battery
+   * priced per unit do not need one.
+   */
+  needsQuantity: boolean;
   mandatory: boolean;
   targetable: boolean;
   priceText: string;
@@ -107,6 +120,7 @@ function priceItemViews(list: PriceList | null): PriceItemView[] {
       category: item.category,
       unitLabel: unitLabel(item),
       packageUnit: unit !== null && PACKAGE_UNITS.includes(unit),
+      needsQuantity: isFixedQuantity(item),
       mandatory: item.mandatory,
       targetable: targetIssue(item) === null,
       priceText: describePricing(item, list!.currency),

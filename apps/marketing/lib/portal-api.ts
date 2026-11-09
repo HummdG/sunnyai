@@ -335,6 +335,8 @@ export interface PriceItemView {
   unitLabel: string;
   /** Priced per panel: the quantity comes from each package. */
   packageUnit: boolean;
+  /** An answer adds this item in a quantity the installer sets (the server's rule). */
+  needsQuantity: boolean;
   mandatory: boolean;
   targetable: boolean;
   priceText: string;
@@ -350,7 +352,8 @@ export interface FlowIssue {
     | 'not_targetable'
     | 'needs_quantity'
     | 'bad_parent'
-    | 'duplicate_id';
+    | 'duplicate_id'
+    | 'no_choices';
   message: string;
 }
 

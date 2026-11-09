@@ -26,9 +26,9 @@ import type {
 } from '@sunny/quote-engine';
 
 import { priceFor, type PriceItem, type PriceList } from '../catalogue/price-list.js';
-import { EXTRA_CATEGORIES, extraCategory, pounds } from '../journey/catalogue-pricing.js';
+import { extraCategory, pounds } from '../journey/catalogue-pricing.js';
 
-import { PACKAGE_UNITS, targetIssue, unitOf } from './check.js';
+import { isFixedQuantity, targetIssue } from './check.js';
 import { resolveFlow } from './resolve.js';
 
 export interface AppliedEffect {
@@ -135,15 +135,6 @@ type Target =
    * price the item at that quantity.
    */
   | { kind: 'extra'; key: string; name: string; extra?: CatalogueExtra };
-
-/**
- * An extra priced per metre, side, storey (anything but a package unit), which
- * an effect adds in the fixed quantity the installer set.
- */
-function isFixedQuantity(item: PriceItem): boolean {
-  const unit = unitOf(item);
-  return unit !== null && !PACKAGE_UNITS.includes(unit) && EXTRA_CATEGORIES.includes(item.category);
-}
 
 /** The catalogue SKU of a fixed-quantity item's line at one quantity. */
 function fixedSku(key: string, quantity: number): string {

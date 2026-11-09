@@ -122,6 +122,7 @@ interface View {
     category: string;
     unitLabel: string;
     packageUnit: boolean;
+    needsQuantity: boolean;
     mandatory: boolean;
     targetable: boolean;
     priceText: string;
@@ -179,6 +180,25 @@ describe('GET /conversation', () => {
     expect(view.priceItems.some((i) => i.packageUnit)).toBe(true);
   });
 
+  it('says which items need a quantity, by the rule the quote applies', async () => {
+    const { app, store, tenantId } = await setup();
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    const response = await app.inject({ method: 'GET', url: url(tenantId), headers: as(VIEWER) });
+    const items = response.json<View>().priceItems;
+    const byKey = (key: string) => items.find((i) => i.key === key)!;
+    // An extra priced per roof: the installer sets how many.
+    expect(byKey('STRUCT-FLATROOF-SURVEY')).toMatchObject({
+      unitLabel: 'roof',
+      needsQuantity: true,
+    });
+    // Per panel (the package counts) and flat items never ask.
+    expect(byKey('OPT-TIGO-PART')).toMatchObject({ packageUnit: true, needsQuantity: false });
+    expect(byKey(EV).needsQuantity).toBe(false);
+    for (const item of items.filter((i) => i.needsQuantity)) {
+      expect(['scaffold', 'electrical', 'optional', 'admin', 'other']).toContain(item.category);
+    }
+  });
+
   it('has no price items before a list is published', async () => {
     const { app, tenantId } = await setup();
     const response = await app.inject({ method: 'GET', url: url(tenantId), headers: as(VIEWER) });
@@ -229,6 +249,16 @@ describe('PUT /conversation', () => {
 
     const read = await app.inject({ method: 'GET', url: url(tenantId), headers: as(OWNER) });
     expect(read.json<View>().flow).toBeNull();
+  });
+
+  it('refuses a choice question with no answers', async () => {
+    const { app, store, tenantId } = await setup();
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    const response = await put(app, tenantId, OWNER, flowOf([{ ...evStep, choices: [] }]));
+    expect(response.statusCode).toBe(400);
+    const body = response.json<{ error: { message: string }; issues: Array<{ code: string }> }>();
+    expect(body.issues.map((i) => i.code)).toEqual(['no_choices']);
+    expect(body.error.message).toBe('Add at least one answer to this question.');
   });
 
   it('refuses a body that is not a conversation flow', async () => {

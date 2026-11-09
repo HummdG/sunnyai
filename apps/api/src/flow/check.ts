@@ -9,6 +9,7 @@
 import type { ConversationFlow, FlowEffect, FlowFollowUp, FlowStep } from '@sunny/contracts';
 
 import type { PriceItem, PriceList } from '../catalogue/price-list.js';
+import { EXTRA_CATEGORIES } from '../journey/catalogue-pricing.js';
 import { QUESTIONS } from '../questionnaire.js';
 
 export interface FlowIssue {
@@ -20,7 +21,8 @@ export interface FlowIssue {
     | 'not_targetable'
     | 'needs_quantity'
     | 'bad_parent'
-    | 'duplicate_id';
+    | 'duplicate_id'
+    | 'no_choices';
   message: string;
 }
 
@@ -35,6 +37,19 @@ export const PACKAGE_UNITS: readonly string[] = ['panel'];
 export function unitOf(item: PriceItem): string | null {
   const p = item.pricing;
   return p.kind === 'per_unit' || p.kind === 'tiered' ? p.unit : null;
+}
+
+/**
+ * Whether an answer adds this item in a fixed quantity the installer sets: an
+ * extra (scaffolding, electrical, optional, admin, other) priced per metre,
+ * side, storey or any unit but a package one. Shared by the Studio check (which
+ * asks for the quantity), the quote (which prices that quantity) and Studio's
+ * item list, so the editor never asks for a quantity the quote would ignore.
+ * An inverter or battery priced per unit is placed by the package instead.
+ */
+export function isFixedQuantity(item: PriceItem): boolean {
+  const unit = unitOf(item);
+  return unit !== null && !PACKAGE_UNITS.includes(unit) && EXTRA_CATEGORIES.includes(item.category);
 }
 
 /**
@@ -90,9 +105,9 @@ function checkEffect(
       push('missing_item', `${t.key} is no longer on your price list.`);
     } else if (issue) {
       push(issue.code, issue.message);
-    } else if (t.adds) {
+    } else if (t.adds && isFixedQuantity(item) && t.quantity === undefined) {
       const unit = unitOf(item);
-      if (unit && !PACKAGE_UNITS.includes(unit) && t.quantity === undefined) {
+      if (unit) {
         const units = unit === 'kwh' ? 'kWh' : `${unit}s`;
         push('needs_quantity', `Set how many ${units} of ${item.name} to add.`);
       }
@@ -135,6 +150,13 @@ export function checkFlow(flow: ConversationFlow, list: PriceList | null): FlowI
     }
 
     if (step.kind === 'custom') {
+      if (step.answer === 'choice' && step.choices.length === 0) {
+        issues.push({
+          stepId: step.id,
+          code: 'no_choices',
+          message: 'Add at least one answer to this question.',
+        });
+      }
       for (const c of step.choices) {
         for (const e of c.effects) {
           issues.push(...checkEffect(e, list, { stepId: step.id, choice: c.value }));
