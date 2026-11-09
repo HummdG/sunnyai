@@ -71,6 +71,7 @@ import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
 import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
+import { registerConversationRoutes } from './routes/conversation.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
@@ -2122,6 +2123,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     brandAssets,
     enforceRateLimit,
+  });
+
+  // The installer's quote conversation in Studio (routes/conversation.ts).
+  registerConversationRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
   });
 
   // The Email Assistant add-on (routes/email.ts).
