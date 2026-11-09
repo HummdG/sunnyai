@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 
+import { assistantNameOf } from '../../lib/assistant-name.js';
 import { api, tenantPath, type TenantView } from '../../lib/portal-api.js';
 import { BrandSection, draftFrom, type BrandDraft } from './brand-section.js';
 import { LogoPreview } from './logo-preview.js';
@@ -134,6 +135,8 @@ export function StudioForm({
   const shownBrand = brandPart ? brand : draftFrom(tenant);
   const shownColour = brandPart ? colour : tenant.primaryColor;
   const shownGreeting = settingsPart ? greeting : tenant.greeting;
+  // The assistant's name as typed, so the hints follow a rename before it is saved.
+  const shownName = assistantNameOf(settingsPart ? assistantName : tenant.assistantName);
 
   return (
     <div className="studio">
@@ -215,8 +218,8 @@ export function StudioForm({
               </span>
               {/* Read as the field's description, not as part of its name. */}
               <span className="hint" id="starter-buttons-hint" aria-hidden="true">
-                Buttons visitors can tap to start a chat. These are what visitors ask Sunny, not
-                what Sunny asks them.
+                Buttons visitors can tap to start a chat. These are what visitors ask {shownName},
+                not what {shownName} asks them.
               </span>
               <textarea
                 value={suggestions}

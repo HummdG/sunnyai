@@ -16,6 +16,7 @@ import type {
   PresetView,
   PriceItemView,
 } from '../../../lib/portal-api.js';
+import { possessive } from '../../../lib/assistant-name.js';
 
 export type PresetStep = Extract<FlowStep, { kind: 'preset' }>;
 export type CustomStep = Extract<FlowStep, { kind: 'custom' }>;
@@ -30,6 +31,8 @@ export interface Draft {
 export interface Context {
   presets: Map<string, PresetView>;
   items: PriceItemView[];
+  /** What the installer calls the assistant ("Sunny" until renamed). */
+  assistant: string;
 }
 
 /** How deep follow-ups may nest (FLOW_LIMITS.followUpDepth). */
@@ -195,8 +198,8 @@ export function changesQuote(step: FlowStep): boolean {
   return step.kind === 'preset' || step.mode === 'quote';
 }
 
-export function tagOf(step: FlowStep): string {
-  if (step.kind === 'preset') return "Sunny's question";
+export function tagOf(step: FlowStep, ctx: Context): string {
+  if (step.kind === 'preset') return `${possessive(ctx.assistant)} question`;
   return step.mode === 'quote' ? 'Changes the quote' : 'Lead only';
 }
 
@@ -371,14 +374,14 @@ export type EditorIssue = Pick<FlowIssue, 'stepId' | 'choice' | 'message'> & {
  * Problems the editor can see before asking the server, beside their question.
  * Pass every root (`rootsOf`), so follow-ups under group members are checked too.
  */
-export function localIssues(steps: FlowStep[]): EditorIssue[] {
+export function localIssues(steps: FlowStep[], assistant: string): EditorIssue[] {
   const issues: EditorIssue[] = [];
   walkSteps(steps, (step) => {
     if (step.kind !== 'custom') return;
     if (step.prompt.trim() === '') {
       issues.push({
         stepId: step.id,
-        message: 'Write the question Sunny should ask.',
+        message: `Write the question ${assistant} should ask.`,
         local: true,
       });
     }

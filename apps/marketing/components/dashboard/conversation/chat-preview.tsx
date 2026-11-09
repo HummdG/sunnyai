@@ -74,7 +74,12 @@ export function ChatPreview({
   return (
     <div className="chat-preview">
       {playing ? (
-        <PlayThrough tenantId={tenantId} flow={flow} onStop={() => setPlaying(false)} />
+        <PlayThrough
+          tenantId={tenantId}
+          flow={flow}
+          assistant={ctx.assistant}
+          onStop={() => setPlaying(false)}
+        />
       ) : (
         <Selected
           key={selectedId ?? ''}
@@ -84,7 +89,9 @@ export function ChatPreview({
           selectedId={selectedId}
         />
       )}
-      <p className="preview-note small">Sunny may phrase this more naturally in the chat.</p>
+      <p className="preview-note small">
+        {ctx.assistant} may phrase this more naturally in the chat.
+      </p>
       {playing ? null : (
         <button type="button" className="link-button" onClick={() => setPlaying(true)}>
           Play the whole conversation
@@ -145,7 +152,7 @@ function Selected({
   if (!chain) {
     return (
       <p className="muted small">
-        Pick a question in the flow or the list to see how Sunny asks it.
+        Pick a question in the flow or the list to see how {ctx.assistant} asks it.
       </p>
     );
   }
@@ -199,10 +206,12 @@ function Selected({
 function PlayThrough({
   tenantId,
   flow,
+  assistant,
   onStop,
 }: {
   tenantId: string;
   flow: ConversationFlow;
+  assistant: string;
   onStop: () => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>(START);
@@ -297,7 +306,7 @@ function PlayThrough({
         </>
       ) : (
         <p className="ok-note">
-          Then Sunny shows the quote, and asks for consent and contact details.
+          Then {assistant} shows the quote, and asks for consent and contact details.
         </p>
       )}
       {result ? (

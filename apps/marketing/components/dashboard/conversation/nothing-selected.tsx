@@ -1,9 +1,10 @@
 'use client';
 
+import { possessive } from '../../../lib/assistant-name.js';
 import { groupMembers, newQuestion } from './model.js';
 import type { SelectedProps } from './selected-question.js';
 
-/** The side column with nothing picked: a prompt, "+ Add a question", and Sunny's removed ones. */
+/** The side column with nothing picked: a prompt, "+ Add a question", and the assistant's removed ones. */
 export function NothingSelected({ draft, ctx, readOnly, onDraft, onSelect }: SelectedProps) {
   const listed = new Set(draft.steps.map((s) => s.id));
   const members = groupMembers(ctx.presets.values());
@@ -32,7 +33,7 @@ export function NothingSelected({ draft, ctx, readOnly, onDraft, onSelect }: Sel
           </button>
           {removed.length > 0 ? (
             <label className="field compact">
-              <span>Bring back one of Sunny&apos;s questions</span>
+              <span>Bring back one of {possessive(ctx.assistant)} questions</span>
               <select
                 value=""
                 onChange={(event) => {

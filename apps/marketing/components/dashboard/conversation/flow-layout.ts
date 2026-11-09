@@ -235,7 +235,7 @@ export function layoutFlow(
       stepId: step.id,
       kind: depth === 0 ? 'top' : 'branch',
       label: nameOf(step, ctx),
-      tag: tagOf(step),
+      tag: tagOf(step, ctx),
       tone: toneOf(step),
       index,
       depth,

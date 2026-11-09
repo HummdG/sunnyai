@@ -157,7 +157,7 @@ function StepEditor({
       </div>
       <div className="chip-row">
         <span className="flow-tag" data-tone={toneOf(step)}>
-          {tagOf(step)}
+          {tagOf(step, ctx)}
         </span>
         {attention ? <Chip tone="danger">Needs attention</Chip> : null}
       </div>
@@ -387,7 +387,11 @@ function StepEditor({
           aria-label={`Remove ${name}?`}
           tabIndex={-1}
         >
-          <p>{preset?.warning ?? 'This also removes the follow-ups under it.'}</p>
+          <p>
+            {/* The server words each warning as "Sunny uses this...": the installer's name for it. */}
+            {preset?.warning?.replace(/^Sunny\b/, ctx.assistant) ??
+              'This also removes the follow-ups under it.'}
+          </p>
           <div className="actions">
             <button
               type="button"
