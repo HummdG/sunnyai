@@ -222,6 +222,11 @@ test('a second visit shows the logo even when the config cannot be read', async 
   await expect(launcher).toBeVisible();
   await expect(launcher.locator('.logo-host img, .logo-host svg')).toHaveCount(1);
   await expect(launcher).toHaveAttribute('aria-label', 'Open Nova');
+  // The header is never left blank: the remembered wordmark names it.
+  await expect(page.locator(HOST).locator('.header .name img.wordmark')).toHaveAttribute(
+    'alt',
+    'Nova',
+  );
   await page.waitForTimeout(500);
   expect(await sawSunny(page)).toBe(false);
 });
