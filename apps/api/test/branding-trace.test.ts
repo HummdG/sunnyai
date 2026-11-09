@@ -127,6 +127,22 @@ describe('processLogo', () => {
     expect(p.availableEffects).toEqual(['charge', 'shimmer', 'segments']);
   });
 
+  it('a dense dot grid skips verification once the outline is too long', () => {
+    const r = blank(512, 512, [0, 0, 0, 0]);
+    for (let y = 1; y + 3 < 512; y += 5)
+      for (let x = 1; x + 3 < 512; x += 5)
+        for (let dy = 0; dy < 3; dy++)
+          for (let dx = 0; dx < 3; dx++) set(r, x + dx, y + dy, [...LIME, 255]);
+    const bytes = encodePng(r);
+    const start = performance.now();
+    const p = processLogo(bytes, 'icon');
+    const elapsed = performance.now() - start;
+    expect(p.maskPng).not.toBeNull();
+    expect(p.outline).toBeNull();
+    expect(p.availableEffects).toEqual(['charge', 'shimmer', 'segments']);
+    expect(elapsed).toBeLessThan(2000);
+  });
+
   it('noise has no mask and no effects', () => {
     const p = processLogo(encodePng(noise()), 'icon');
     expect(p.maskPng).toBeNull();

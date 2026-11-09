@@ -29,6 +29,9 @@ export interface ProcessedLogo {
 const MIN_IOU = 0.98;
 const MAX_OUTLINE = 60000;
 
+const passes = (v: { iou: number; farMismatch: number }): boolean =>
+  v.iou >= MIN_IOU && v.farMismatch === 0;
+
 /**
  * Decode, crop and fit an uploaded PNG, then work out which effects it can
  * carry. Outline effects need a trace that provably matches the logo; stencil
@@ -50,8 +53,8 @@ export function processLogo(bytes: Uint8Array, kind: LogoKind): ProcessedLogo {
     STENCIL_EFFECTS.forEach((e) => effects.add(e));
     const polys = traceMask(mask);
     const path = outlinePath(polys);
-    const { iou, farMismatch } = verifyTrace(polys, mask);
-    if (iou >= MIN_IOU && farMismatch === 0 && path.length <= MAX_OUTLINE) {
+    // Too long to serve means failed; checked first so a busy mask never pays for verification.
+    if (path.length <= MAX_OUTLINE && passes(verifyTrace(polys, mask))) {
       outline = path;
       OUTLINE_EFFECTS.forEach((e) => effects.add(e));
     }
