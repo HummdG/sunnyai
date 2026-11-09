@@ -1,19 +1,22 @@
 /**
  * The portal routes behind Studio's conversation editor: read the installer's
- * flow with everything the editor needs to draw it, save it, reset it, and
- * preview what a set of answers would do. Every plan; admin and owner edit,
- * viewer reads. Prices come only from the published price list.
+ * flow with everything the editor needs to draw it, save it, reset it,
+ * preview what a set of answers would do, and suggest each answer's price
+ * changes. Every plan; admin and owner edit, viewer reads. Prices come only
+ * from the published price list.
  */
 
 import {
   ApiError,
+  FLOW_LIMITS,
   conversationFlowSchema,
   type ConversationFlow,
   type FlowEffect,
 } from '@sunny/contracts';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
+import type { ChatProvider } from '../agent/provider.js';
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import {
   describePricing,
@@ -33,7 +36,9 @@ import {
 import { effectsFor } from '../flow/effects.js';
 import { FIXED_START, PRESET_GROUPS, PRESET_WARNINGS } from '../flow/presets.js';
 import { resolveFlow } from '../flow/resolve.js';
+import { suggestEffects } from '../flow/suggest.js';
 import { QUESTIONS, optionLabel } from '../questionnaire.js';
+import type { RateLimitRule } from '../ratelimit.js';
 import type { MemberRole, Store } from '../store.js';
 import type { TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
@@ -44,6 +49,15 @@ export interface ConversationRouteDeps {
   portal: PortalConfig;
   sessionSecret: string;
   now: () => number;
+  /** The model that works out an answer's price changes (the one email uses). */
+  getProvider: () => Promise<ChatProvider>;
+  enforceRateLimit: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    scope: string,
+    subject: string,
+    rule: RateLimitRule,
+  ) => void;
 }
 
 export interface PresetView {
@@ -85,6 +99,25 @@ export interface ConversationView {
 const BY_INSTALLER = 'Priced by your installer';
 
 const FIXED = new Set<string>(FIXED_START);
+
+/**
+ * Suggestions per installer: Studio asks once a question stops changing, so a
+ * busy editing session asks a few dozen times at most.
+ */
+const SUGGEST_RULE: RateLimitRule = { limit: 120, windowMs: 10 * 60_000 };
+
+const suggestBody = z.object({
+  prompt: z.string().trim().min(1).max(FLOW_LIMITS.promptChars),
+  choices: z
+    .array(
+      z.object({
+        value: z.string().trim().min(1).max(120),
+        label: z.string().trim().min(1).max(FLOW_LIMITS.labelChars),
+      }),
+    )
+    .min(1)
+    .max(FLOW_LIMITS.choices),
+});
 
 const previewBody = z.object({
   flow: conversationFlowSchema,
@@ -241,25 +274,54 @@ export function registerConversationRoutes(
         issues,
       });
     }
-    // Merged into the tenant as the store holds it now, not this instance's
-    // cached copy, so a settings save made elsewhere is not undone.
-    const current = (await tenants.fresh(tenant.id)) ?? tenant;
-    // The version and time are the server's: whatever the client sent is ignored.
-    const flow: ConversationFlow = {
-      ...body.data.flow,
-      version: (storedFlow(current.config)?.version ?? 0) + 1,
-      updatedAt: new Date(deps.now()).toISOString(),
-    };
-    await tenants.save({ ...current, config: { ...current.config, conversation: flow } });
-    return view(tenant.id, flow);
+    // Applied to the tenant as the store holds it now, not this instance's
+    // cached copy, so a settings save made elsewhere is not undone, and the
+    // version counts on from the flow actually stored. `mutate` may run more
+    // than once (a retried transaction); the flow from its last run is the one
+    // written.
+    const written: { flow: ConversationFlow | null } = { flow: null };
+    const saved = await tenants.update(tenant.id, (current) => {
+      // The version and time are the server's: whatever the client sent is ignored.
+      const flow: ConversationFlow = {
+        ...body.data.flow,
+        version: (storedFlow(current.config)?.version ?? 0) + 1,
+        updatedAt: new Date(deps.now()).toISOString(),
+      };
+      written.flow = flow;
+      return { ...current, config: { ...current.config, conversation: flow } };
+    });
+    if (!saved) throw new ApiError('not_found', 'No such installer.');
+    return view(tenant.id, written.flow);
   });
 
   app.delete('/v1/portal/tenants/:tenantId/conversation', async (request) => {
     const tenant = await member(request, 'admin');
-    const current = (await tenants.fresh(tenant.id)) ?? tenant;
-    const { conversation: _removed, ...config } = current.config;
-    await tenants.save({ ...current, config });
+    const saved = await tenants.update(tenant.id, (current) => {
+      const { conversation: _removed, ...config } = current.config;
+      return { ...current, config };
+    });
+    if (!saved) throw new ApiError('not_found', 'No such installer.');
     return view(tenant.id, null);
+  });
+
+  // What Sunny would have each answer do, from the published list only. A
+  // problem with the model answers with no suggestion rather than an error.
+  app.post('/v1/portal/tenants/:tenantId/conversation/suggest', async (request, reply) => {
+    const tenant = await member(request, 'admin');
+    const body = suggestBody.safeParse(request.body);
+    if (!body.success) {
+      throw new ApiError('bad_request', 'Give the question and at least one answer.');
+    }
+    deps.enforceRateLimit(request, reply, 'flow-suggest', tenant.id, SUGGEST_RULE);
+    const list = await getPublishedPriceList(store, tenant.id);
+    if (!list) return { effects: {} };
+    let provider: ChatProvider;
+    try {
+      provider = await deps.getProvider();
+    } catch {
+      return { effects: {} };
+    }
+    return suggestEffects(provider, body.data, list);
   });
 
   app.post('/v1/portal/tenants/:tenantId/conversation/preview', async (request) => {

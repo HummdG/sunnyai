@@ -1,8 +1,13 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { widgetConfigSchema } from '@sunny/contracts';
 
 import { assertProductionReady, loadConfig } from '../src/config.js';
+import { FileStore } from '../src/store.js';
 import { DEMO_TENANT, SANDBOX_TENANT, TenantRegistry, defaultTenants } from '../src/tenants.js';
 
 /**
@@ -83,5 +88,41 @@ describe('the sandbox tenant', () => {
     });
     expect(assertProductionReady(config).join(' ')).toContain('SUNNY_SANDBOX_TENANT');
     expect(assertProductionReady(loadConfig())).toEqual([]);
+  });
+});
+
+describe('TenantRegistry.update', () => {
+  it('applies a change to the stored tenant, not to a stale cached copy', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-registry-'));
+    try {
+      const store = new FileStore(dir);
+      const one = await TenantRegistry.load(store, [DEMO_TENANT]);
+      const two = await TenantRegistry.load(store, [DEMO_TENANT]);
+      await one.update(DEMO_TENANT.id, (t) => ({ ...t, websiteUrl: 'https://one.test' }));
+      const saved = await two.update(DEMO_TENANT.id, (t) => ({
+        ...t,
+        config: { ...t.config, tagline: 'From two' },
+      }));
+      expect(saved?.websiteUrl).toBe('https://one.test');
+      expect(saved?.config.tagline).toBe('From two');
+      expect(saved?.updatedAt).toBeTruthy();
+      // The cache is refreshed with what was written.
+      expect(two.byId(DEMO_TENANT.id)?.websiteUrl).toBe('https://one.test');
+      expect((await store.getTenant(DEMO_TENANT.id))?.sunscanUrl).toBeNull();
+      expect(await two.update('t_nobody', (t) => t)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('changes the cached copy of a registry with no store', async () => {
+    const registry = new TenantRegistry([DEMO_TENANT]);
+    const saved = await registry.update(DEMO_TENANT.id, (t) => ({
+      ...t,
+      websiteUrl: 'https://x.test',
+    }));
+    expect(saved?.websiteUrl).toBe('https://x.test');
+    expect(registry.byId(DEMO_TENANT.id)?.websiteUrl).toBe('https://x.test');
+    expect(await registry.update('t_nobody', (t) => t)).toBeNull();
   });
 });

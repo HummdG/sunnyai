@@ -544,3 +544,181 @@ test("reset restores Sunny's questions after confirming", async ({ page }) => {
   await expect(box(page, USAGE)).toBeVisible();
   await expect(box(page, EV)).toHaveCount(0);
 });
+
+// ── the assistant's own name, and Sunny working out the price changes ──────
+
+const avaPreview = (page: Page) => editor(page).getByRole('region', { name: 'How Ava asks it' });
+/** Set to a folder to save the two screenshots of suggestions (git-ignored `.cache/shots`). */
+const SHOTS = process.env.SUNNY_SHOTS_DIR;
+
+/**
+ * Sunny's suggestions, scripted: the e2e API has no model, so the editor's
+ * request is answered here, by the answer's label (added questions) or value
+ * (Sunny's own), and the questions asked are recorded.
+ */
+async function scriptSuggestions(page: Page): Promise<{ asked: string[] }> {
+  const asked: string[] = [];
+  await page.route('**/conversation/suggest', async (route) => {
+    const body = route.request().postDataJSON() as {
+      prompt: string;
+      choices: Array<{ value: string; label: string }>;
+    };
+    asked.push(body.prompt);
+    const ev = [{ kind: 'add', itemKey: 'EV-7KW' }];
+    const cable = (quantity: number) => [{ kind: 'add', itemKey: 'CABLE-RUN', quantity }];
+    const effects = Object.fromEntries(
+      body.choices.map((c) => {
+        if (/electric car/i.test(body.prompt)) {
+          return [c.value, /^(yes|planning)/i.test(c.label) ? ev : []];
+        }
+        if (c.value === 'heavy') return [c.value, cable(10)];
+        if (c.value === 'trees') return [c.value, cable(5)];
+        return [c.value, []];
+      }),
+    );
+    await route.fulfill({ json: { effects } });
+  });
+  return { asked };
+}
+
+async function shoot(page: Page, target: Locator, name: string): Promise<void> {
+  if (!SHOTS) return;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await target.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${SHOTS}/${name}.png` });
+  await page.setViewportSize({ width: 1440, height: 1400 });
+}
+
+test('a renamed assistant is called by its name across Studio, without a reload', async ({
+  page,
+}) => {
+  await openAs(page, OWNER);
+  await expect(box(page, SHADING)).toContainText("Sunny's question");
+  await page.getByRole('tab', { name: 'Assistant settings' }).click();
+  const settings = page.getByRole('tabpanel', { name: 'Assistant settings' });
+  await settings.getByLabel('Assistant name').fill('Ava');
+  await settings.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('Saved');
+  await expect(settings).toContainText('These are what visitors ask Ava, not what Ava asks them.');
+
+  await page.getByRole('tab', { name: 'Your conversation' }).click();
+  await expect(box(page, SHADING)).toContainText("Ava's question");
+  await expect(avaPreview(page)).toBeVisible();
+  await expect(
+    editor(page).getByRole('button', { name: "Reset to Ava's questions" }),
+  ).toBeVisible();
+  await box(page, SHADING).click();
+  await expect(avaPreview(page)).toContainText('Ava may phrase this more naturally in the chat.');
+  // The product keeps its name.
+  await expect(page.getByRole('heading', { name: 'Sunny Studio' })).toBeVisible();
+  await expect(page.getByText('The preview is the real Ava.')).toBeVisible();
+});
+
+test('an added question has its price changes worked out, and a manual edit is kept', async ({
+  page,
+}) => {
+  const script = await scriptSuggestions(page);
+  await openAs(page, OWNER);
+  await card(page).getByRole('button', { name: '+ Add a question' }).click();
+  await card(page).getByLabel('Question text').fill(EV);
+
+  const yes = card(page).getByRole('group', { name: 'Answer Yes' });
+  const no = card(page).getByRole('group', { name: 'Answer No' });
+  await expect(yes).toContainText('Adds 7kW EV charger, £899');
+  await expect(yes).toContainText('Worked out by Ava');
+  await expect(no).toContainText('No price change');
+  await expect(canvas(page).locator('.flow-pill', { hasText: EV_PILL })).toBeVisible();
+  // Asked once, after the typing stopped.
+  expect(script.asked).toEqual([EV]);
+  await shoot(page, card(page), 'worked-out-effect');
+
+  // Change opens the picker on the worked-out line.
+  await yes.getByRole('button', { name: /^Change price change: Adds 7kW EV charger/ }).click();
+  const item = yes.getByLabel('Item from your price list');
+  await expect(item).toHaveValue('EV-7KW');
+  await item.selectOption('CABLE-RUN');
+  await yes.getByLabel('How many metres').fill('5');
+  await yes.getByRole('button', { name: 'Update', exact: true }).click();
+  await expect(yes).toContainText('Adds 5 metres of Extra cable run, £40 per metre');
+  await expect(yes).not.toContainText('Worked out by');
+
+  // Remove takes it off; adding one by hand is still there.
+  await yes.getByRole('button', { name: /^Remove price change: Adds 5 metres/ }).click();
+  await expect(yes).toContainText('No price change');
+  await expect(yes.getByRole('button', { name: '+ Add a price change' })).toBeVisible();
+
+  // A new answer asks again: it is filled, and the installer's "Yes" is not.
+  await card(page).getByRole('button', { name: '+ Add an answer' }).click();
+  await card(page)
+    .getByRole('group', { name: 'Answer', exact: true })
+    .getByLabel('Answer', { exact: true })
+    .fill('Planning to get one');
+  const planning = card(page).getByRole('group', { name: 'Answer Planning to get one' });
+  await expect(planning).toContainText('Adds 7kW EV charger, £899');
+  await expect(planning).toContainText('Worked out by Ava');
+  expect(script.asked).toHaveLength(2);
+  await expect(yes).toContainText('No price change');
+  await expect(yes).not.toContainText('EV charger');
+
+  await editor(page).getByRole('button', { name: 'Save conversation' }).click();
+  await expect(editor(page).getByRole('status')).toContainText('Saved. Ava asks these questions');
+});
+
+test("Sunny's own question is offered a suggestion, applied only on Use", async ({ page }) => {
+  const script = await scriptSuggestions(page);
+  await openAs(page, OWNER);
+  await box(page, SHADING).click();
+  const heavy = card(page).getByRole('group', { name: 'Answer Heavily shaded' });
+  const offer = heavy.getByRole('group', { name: 'Ava suggests' });
+  await expect(offer).toContainText(
+    'Ava suggests: adds 10 metres of Extra cable run, £40 per metre. Use this?',
+  );
+  // Offered, not applied.
+  await expect(heavy).toContainText('No price change');
+  expect(script.asked).toEqual([SHADING]);
+  await shoot(page, offer, 'preset-suggestion');
+
+  await offer.getByRole('button', { name: 'Use', exact: true }).click();
+  await expect(heavy).toContainText('Adds 10 metres of Extra cable run, £40 per metre');
+  await expect(offer).toHaveCount(0);
+
+  const trees = card(page).getByRole('group', { name: 'Answer Trees' });
+  const treesOffer = trees.getByRole('group', { name: 'Ava suggests' });
+  await treesOffer.getByRole('button', { name: 'No thanks' }).click();
+  await expect(treesOffer).toHaveCount(0);
+  await expect(trees).toContainText('No price change');
+
+  // Asked once a session: opening it again does not ask again.
+  await box(page, USAGE).click();
+  await box(page, SHADING).click();
+  await expect(heavy).toBeVisible();
+  expect(script.asked).toEqual([SHADING, USAGE]);
+});
+
+test('a saved question keeps its answers when reworded; only a new answer is filled', async ({
+  page,
+}) => {
+  const script = await scriptSuggestions(page);
+  await openAs(page, OWNER);
+  await box(page, EV).click();
+  const yes = card(page).getByRole('group', { name: 'Answer Yes', exact: true });
+  // Saved with no price change on purpose (the test above removed it).
+  await expect(yes).toContainText('No price change');
+
+  await card(page)
+    .getByLabel('Question text')
+    .fill(`${EV.slice(0, -1)} at home?`);
+  await expect.poll(() => script.asked.length).toBe(1);
+  await card(page).getByRole('button', { name: '+ Add an answer' }).click();
+  await card(page)
+    .getByRole('group', { name: 'Answer', exact: true })
+    .getByLabel('Answer', { exact: true })
+    .fill('Yes, a hybrid');
+  const hybrid = card(page).getByRole('group', { name: 'Answer Yes, a hybrid' });
+  await expect(hybrid).toContainText('Adds 7kW EV charger, £899');
+  await expect(hybrid).toContainText('Worked out by Ava');
+  expect(script.asked).toHaveLength(2);
+  // The saved "Yes" was answered for twice, and left as the installer saved it.
+  await expect(yes).toContainText('No price change');
+  await expect(yes).not.toContainText('Worked out by');
+});

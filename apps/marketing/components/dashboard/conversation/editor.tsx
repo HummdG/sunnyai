@@ -10,6 +10,7 @@ import {
   type ConversationView,
   type FlowStep,
 } from '../../../lib/portal-api.js';
+import { possessive } from '../../../lib/assistant-name.js';
 import { SunnyLoading } from '../kit.js';
 import { ErrorNote, errorText } from '../ui.js';
 import { ChatPreview } from './chat-preview.js';
@@ -29,15 +30,25 @@ import {
 } from './model.js';
 import { QuestionList } from './question-list.js';
 import { SelectedQuestion } from './selected-question.js';
+import { useSuggestions } from './suggestions.js';
 import { useFlowView, type FlowView } from './view-switch.js';
 
 /**
- * Studio's "Your conversation": the questions Sunny asks before a quote, in the
+ * Studio's "Your conversation": the questions the assistant asks before a quote, in the
  * installer's order and words, with what each answer does to the price. The
  * flow (or the compact list) and the side column share one draft and one
  * selection. Admins and owners edit and save; viewers see it all read-only.
  */
-export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; canEdit: boolean }) {
+export function ConversationEditor({
+  tenantId,
+  canEdit,
+  assistant,
+}: {
+  tenantId: string;
+  canEdit: boolean;
+  /** What the installer calls the assistant: a rename on another tab shows here at once. */
+  assistant: string;
+}) {
   const [view, setView] = useState<ConversationView | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -84,10 +95,29 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
   const ctx: Context | null = useMemo(
     () =>
       view
-        ? { presets: new Map(view.presets.map((p) => [p.id, p])), items: view.priceItems }
+        ? {
+            presets: new Map(view.presets.map((p) => [p.id, p])),
+            items: view.priceItems,
+            assistant,
+          }
         : null,
-    [view],
+    [view, assistant],
   );
+
+  function edit(fn: (current: Draft) => Draft): void {
+    setDraft((current) => (current ? fn(current) : current));
+    setDirty(true);
+    setSaved(null);
+  }
+
+  const suggestions = useSuggestions({
+    tenantId,
+    draft,
+    ctx,
+    enabled: canEdit,
+    selectedId,
+    onDraft: edit,
+  });
 
   if (!view || !draft || !ctx) {
     return error ? <ErrorNote error={error} /> : <SunnyLoading text="Loading your conversation…" />;
@@ -95,12 +125,6 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
 
   const flow = flowFrom(draft, ctx, view.flow);
   const readOnly = !canEdit;
-
-  function edit(fn: (current: Draft) => Draft): void {
-    setDraft((current) => (current ? fn(current) : current));
-    setDirty(true);
-    setSaved(null);
-  }
 
   function onEdit(id: string, change: (step: FlowStep) => FlowStep): void {
     edit((d) => editStep(d, ctx!, id, change));
@@ -145,7 +169,7 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
   async function save(): Promise<void> {
     setError(null);
     setSaved(null);
-    const local = localIssues(rootsOf(draft!, ctx!));
+    const local = localIssues(rootsOf(draft!, ctx!), assistant);
     if (local.length > 0) {
       // Kept beside the server's own flags (a stale price link, say), not instead of them.
       setIssues((current) => [...current.filter((i) => !i.local), ...local]);
@@ -155,7 +179,7 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
     setBusy(true);
     try {
       adopt(await saveConversation(tenantId, flow));
-      setSaved('Saved. Sunny asks these questions from the next conversation.');
+      setSaved(`Saved. ${assistant} asks these questions from the next conversation.`);
     } catch (failure) {
       const found = flowIssuesOf(failure);
       setIssues(found);
@@ -173,7 +197,7 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
     try {
       adopt(await resetConversation(tenantId));
       select(null);
-      setSaved("Back to Sunny's questions.");
+      setSaved(`Back to ${possessive(assistant)} questions.`);
     } catch (failure) {
       setError(errorText(failure));
     } finally {
@@ -198,7 +222,7 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
         <p className="muted small flow-bar-lead">
           {readOnly
             ? 'You can look through the conversation. Ask an admin to change it.'
-            : 'The questions Sunny asks before a quote, in your order and your words.'}
+            : `The questions ${assistant} asks before a quote, in your order and your words.`}
         </p>
         {readOnly ? null : (
           <div className="flow-bar-actions">
@@ -209,7 +233,7 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
               disabled={busy}
               onClick={() => setConfirmReset(true)}
             >
-              Reset to Sunny&apos;s questions
+              Reset to {possessive(assistant)} questions
             </button>
             <button type="button" className="button" disabled={busy} onClick={() => void save()}>
               {busy ? 'Saving…' : 'Save conversation'}
@@ -218,10 +242,15 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
         )}
       </div>
       {confirmReset ? (
-        <div className="flow-confirm" role="alertdialog" aria-label="Reset to Sunny's questions?">
+        <div
+          className="flow-confirm"
+          role="alertdialog"
+          aria-label={`Reset to ${possessive(assistant)} questions?`}
+        >
           <p>
-            This replaces your questions with Sunny&apos;s own, in Sunny&apos;s order and wording.
-            Your added questions and price links are removed.
+            This replaces your questions with {possessive(assistant)} own, in{' '}
+            {possessive(assistant)} order and wording. Your added questions and price links are
+            removed.
           </p>
           <div className="actions">
             <button type="button" className="button danger" onClick={() => void reset()}>
@@ -255,13 +284,14 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
           <SelectedQuestion
             {...shared}
             onEdit={onEdit}
+            suggestions={suggestions}
             removing={removing}
             onRemove={askRemove}
             onConfirmRemove={removeNow}
             onCancelRemove={() => setRemoving(null)}
           />
-          <section className="flow-card" aria-label="How Sunny asks it">
-            <h3>How Sunny asks it</h3>
+          <section className="flow-card" aria-label={`How ${assistant} asks it`}>
+            <h3>How {assistant} asks it</h3>
             <ChatPreview tenantId={tenantId} flow={flow} ctx={ctx} selectedId={selectedId} />
           </section>
         </aside>

@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { issueDevToken } from '../src/auth/dev.js';
@@ -108,12 +109,21 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-async function setup(options: { google?: boolean; fetch?: typeof fetch } = {}) {
+async function setup(
+  options: {
+    google?: boolean;
+    fetch?: typeof fetch;
+    /** Another instance's store and email state: this one's tenant cache is loaded from it. */
+    shared?: { store: FileStore; state: MemoryEmailState };
+  } = {},
+) {
   const dir = await mkdtemp(join(tmpdir(), 'sunny-email-routes-'));
   dirs.push(dir);
-  const store = new FileStore(dir);
-  const tenants = new TenantRegistry([entitled, notEntitled]);
-  const state = new MemoryEmailState();
+  const store = options.shared?.store ?? new FileStore(dir);
+  const tenants = options.shared
+    ? await TenantRegistry.load(store, [entitled, notEntitled])
+    : new TenantRegistry([entitled, notEntitled]);
+  const state = options.shared?.state ?? new MemoryEmailState();
   const mailbox = new FakeMailbox();
   const app = buildServer({
     config: makeConfig(dir),
@@ -470,5 +480,86 @@ describe('the installer’s email settings', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ watching: 'help@northwind.example', expiration: '1791900000000' });
     expect(await state.tenantForMailbox('help@northwind.example')).toBe(entitled.id);
+  });
+});
+
+describe('two instances changing the same installer', () => {
+  it('email saves on a stale instance keep what another instance saved', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-email-shared-'));
+    dirs.push(dir);
+    const shared = { store: new FileStore(dir), state: new MemoryEmailState() };
+    const fakeFetch = (async (url: string | URL) => {
+      if (String(url).startsWith('https://oauth2.googleapis.com/token')) {
+        return new Response(
+          JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600, scope: '' }),
+          { status: 200 },
+        );
+      }
+      if (String(url).endsWith('/profile')) {
+        return new Response(
+          JSON.stringify({ emailAddress: 'help@northwind.example', historyId: '1' }),
+          { status: 200 },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    }) as typeof fetch;
+    const a = await setup({ shared, google: true, fetch: fakeFetch });
+    // Loaded now, so everything saved through `a` below is newer than its cache.
+    const b = await setup({ shared, google: true, fetch: fakeFetch });
+    const tagline = async (text: string) => {
+      const res = await a.app.inject({
+        method: 'POST',
+        url: `/v1/portal/tenants/${entitled.id}/settings`,
+        headers: owner,
+        payload: { tagline: text },
+      });
+      expect(res.statusCode).toBe(200);
+    };
+    const stored = () => shared.store.getTenant(entitled.id);
+    const callback = (app: FastifyInstance) =>
+      app.inject({
+        method: 'GET',
+        url: `/v1/email/oauth/callback?code=c&state=${signState(SECRET, {
+          tenantId: entitled.id,
+          provider: 'gmail',
+          returnTo: '/',
+          exp: NOW + 60_000,
+        })}`,
+      });
+
+    // A mailbox connected on `a`, then auto-send turned on through stale `b`.
+    await tagline('One');
+    expect((await callback(a.app)).headers.location).toContain('email=connected');
+    const settings = await b.app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${entitled.id}/email/settings`,
+      headers: owner,
+      payload: { autoSend: true },
+    });
+    expect(settings.statusCode).toBe(200);
+    expect(settings.json()).toMatchObject({ email: { autoSend: true, provider: 'gmail' } });
+    expect((await stored())?.config.tagline).toBe('One');
+    expect((await stored())?.config.email).toMatchObject({
+      autoSend: true,
+      provider: 'gmail',
+      tokenRef: `email-state:${entitled.id}`,
+    });
+
+    // A disconnect through `b` keeps a later tagline.
+    await tagline('Two');
+    const off = await b.app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${entitled.id}/email/disconnect`,
+      headers: owner,
+    });
+    expect(off.statusCode).toBe(200);
+    expect((await stored())?.config.tagline).toBe('Two');
+    expect((await stored())?.config.email?.tokenRef).toBeUndefined();
+
+    // And so does a connection completed on `b`.
+    await tagline('Three');
+    expect((await callback(b.app)).headers.location).toContain('email=connected');
+    expect((await stored())?.config.tagline).toBe('Three');
+    expect((await stored())?.config.email?.tokenRef).toBe(`email-state:${entitled.id}`);
   });
 });

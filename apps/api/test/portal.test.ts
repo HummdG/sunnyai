@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { FastifyInstance } from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { issueDevToken } from '../src/auth/dev.js';
 import { createFirebaseVerifier } from '../src/auth/firebase.js';
@@ -888,5 +888,205 @@ describe('Stripe billing', () => {
     } finally {
       globalThis.fetch = original;
     }
+  });
+});
+
+describe('two instances changing the same installer', () => {
+  /**
+   * A second API instance over the same store, its tenant cache loaded now: from
+   * here on, a save made through the first instance is newer than its cache.
+   */
+  async function secondInstance(store: FileStore, knowledgeSync: KnowledgeSyncConnector = {}) {
+    const tenants = await TenantRegistry.load(store, defaultTenants(false));
+    const app = buildServer({
+      config: makeConfig(),
+      store,
+      tenants,
+      now: () => NOW,
+      portal: portalConfig(),
+      knowledgeSync,
+    });
+    await app.ready();
+    return app;
+  }
+
+  const settings = (app: FastifyInstance, tenantId: string, email: string, payload: object) =>
+    app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${tenantId}/settings`,
+      headers: as(email),
+      payload,
+    });
+
+  it('a knowledge sync started on a stale instance keeps what another instance saved', async () => {
+    const { app, store } = await setup({ knowledgeSync: {} });
+    const t = await signUp(app, 'owner@two-k.test');
+    const other = await secondInstance(store);
+
+    // Saved through the first instance after the other cached the tenant.
+    expect((await settings(app, t.id, 'owner@two-k.test', { tagline: 'Fresh' })).statusCode).toBe(
+      200,
+    );
+    const website = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${t.id}/knowledge/website`,
+      headers: as('owner@two-k.test'),
+      payload: { url: 'https://two-k.test' },
+    });
+    expect(website.statusCode).toBe(200);
+
+    const drive = await other.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${t.id}/knowledge/drive`,
+      headers: as('owner@two-k.test'),
+      payload: { folder: 'abcdefghijkl' },
+    });
+    expect(drive.statusCode).toBe(200);
+    let stored = await store.getTenant(t.id);
+    expect(stored?.config.tagline).toBe('Fresh');
+    expect(stored?.websiteUrl).toBe('https://two-k.test');
+    expect(stored?.domains).toContain('two-k.test');
+    expect(stored?.sync?.website?.status).toBe('pending');
+    expect(stored?.gdriveFolderId).toBe('abcdefghijkl');
+    expect(stored?.sync?.drive?.status).toBe('pending');
+
+    // A website connection on the stale instance adds its domain to the stored
+    // list rather than to the cached one.
+    await settings(app, t.id, 'owner@two-k.test', { domains: ['kept.test'] });
+    await other.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${t.id}/knowledge/website`,
+      headers: as('owner@two-k.test'),
+      payload: { url: 'https://moved.test' },
+    });
+    stored = await store.getTenant(t.id);
+    expect(stored?.domains).toEqual(expect.arrayContaining(['kept.test', 'moved.test']));
+    expect(stored?.gdriveFolderId).toBe('abcdefghijkl');
+    await other.close();
+  });
+
+  it('a Stripe event handled on a stale instance keeps settings saved on another', async () => {
+    const { app, store } = await setup();
+    const t = await signUp(app, 'owner@two-b.test');
+    const other = await secondInstance(store);
+    expect((await settings(app, t.id, 'owner@two-b.test', { tagline: 'Fresh' })).statusCode).toBe(
+      200,
+    );
+
+    const deliver = (target: FastifyInstance, event: Record<string, unknown>) => {
+      const raw = JSON.stringify(event);
+      return target.inject({
+        method: 'POST',
+        url: '/v1/billing/webhook',
+        headers: {
+          'content-type': 'application/json',
+          'stripe-signature': stripeSignatureHeader(WHSEC, Math.floor(NOW / 1000), raw),
+        },
+        payload: raw,
+      });
+    };
+    const checkout = await deliver(other, {
+      id: 'evt_two_checkout',
+      type: 'checkout.session.completed',
+      created: NOW / 1000,
+      data: {
+        object: {
+          client_reference_id: t.id,
+          customer: 'cus_two',
+          subscription: 'sub_two',
+          metadata: { tenant_id: t.id, plan: 'email' },
+        },
+      },
+    });
+    expect(checkout.json<{ outcome: string }>().outcome).toBe('applied');
+    const stored = await store.getTenant(t.id);
+    expect(stored?.config.tagline).toBe('Fresh');
+    expect(stored?.stripeCustomerId).toBe('cus_two');
+    expect(stored?.config.addons?.email_assistant).toBe(true);
+
+    // The staleness check reads the stored billing state, not the cached one:
+    // the first instance applied a newer event the other has not seen.
+    const failed = (id: string, created: number) => ({
+      id,
+      type: 'invoice.payment_failed',
+      created,
+      data: { object: { client_reference_id: t.id, metadata: { tenant_id: t.id } } },
+    });
+    expect(
+      (await deliver(app, failed('evt_two_new', NOW / 1000 + 50))).json<{ outcome: string }>()
+        .outcome,
+    ).toBe('applied');
+    const late = await deliver(other, failed('evt_two_old', NOW / 1000 + 10));
+    expect(late.json<{ outcome: string }>().outcome).toBe('stale');
+    await other.close();
+  });
+
+  it('a Stripe event for a customer the instance has not cached yet is found in the store', async () => {
+    const { app, store } = await setup();
+    // Loaded before the sign-up: this instance has never seen the installer.
+    const other = await secondInstance(store);
+    const t = await signUp(app, 'owner@two-c.test');
+
+    const deliver = (target: FastifyInstance, event: Record<string, unknown>) => {
+      const raw = JSON.stringify(event);
+      return target.inject({
+        method: 'POST',
+        url: '/v1/billing/webhook',
+        headers: {
+          'content-type': 'application/json',
+          'stripe-signature': stripeSignatureHeader(WHSEC, Math.floor(NOW / 1000), raw),
+        },
+        payload: raw,
+      });
+    };
+    const checkout = await deliver(app, {
+      id: 'evt_two_c_checkout',
+      type: 'checkout.session.completed',
+      created: NOW / 1000,
+      data: {
+        object: {
+          client_reference_id: t.id,
+          customer: 'cus_two_c',
+          subscription: 'sub_two_c',
+          metadata: { tenant_id: t.id, plan: 'email' },
+        },
+      },
+    });
+    expect(checkout.json<{ outcome: string }>().outcome).toBe('applied');
+
+    // Named only by its customer id, which the other instance's cache lacks.
+    const failed = (id: string, customer: string) => ({
+      id,
+      type: 'invoice.payment_failed',
+      created: NOW / 1000 + 20,
+      data: { object: { customer } },
+    });
+    const found = await deliver(other, failed('evt_two_c_failed', 'cus_two_c'));
+    expect(found.json<{ outcome: string }>().outcome).toBe('applied');
+    expect((await store.getTenant(t.id))?.billing?.status).toBe('past_due');
+
+    // A customer no store holds: unknown, and the claim is given back so a
+    // redelivery is processed rather than skipped as a duplicate.
+    const unknown = failed('evt_two_c_unknown', 'cus_nobody');
+    expect((await deliver(other, unknown)).json<{ outcome: string }>().outcome).toBe(
+      'unknown_tenant',
+    );
+    expect((await deliver(other, unknown)).json<{ outcome: string }>().outcome).toBe(
+      'unknown_tenant',
+    );
+
+    // An event type billing does not act on is ignored before any lookup: the
+    // store is not read to find a tenant it would never change.
+    const reads = vi.spyOn(store, 'listTenants');
+    const otherType = await deliver(other, {
+      id: 'evt_two_c_customer',
+      type: 'customer.created',
+      created: NOW / 1000 + 30,
+      data: { object: { customer: 'cus_nobody' } },
+    });
+    expect(otherType.json<{ outcome: string }>().outcome).toBe('ignored');
+    expect(reads).not.toHaveBeenCalled();
+    reads.mockRestore();
+    await other.close();
   });
 });

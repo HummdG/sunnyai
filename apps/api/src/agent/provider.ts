@@ -70,6 +70,12 @@ export interface ChatProvider {
    * rules alone (channels/email/category.ts).
    */
   emailCategory?(prompt: string, signal?: AbortSignal): Promise<unknown>;
+  /**
+   * Suggested price changes for a Studio question, as the model's parsed JSON
+   * (`{ choices: [{ value, effects }] }` when it behaves). Optional:
+   * a provider without it suggests nothing (flow/suggest.ts).
+   */
+  priceSuggestions?(prompt: string, signal?: AbortSignal): Promise<unknown>;
 }
 
 export class ProviderUnavailableError extends Error {
@@ -239,6 +245,50 @@ export class GeminiProvider implements ChatProvider {
             },
           },
           required: ['category'],
+        },
+        ...(signal ? { abortSignal: signal } : {}),
+      },
+    });
+    return JSON.parse(response.text ?? '{}') as unknown;
+  }
+
+  async priceSuggestions(prompt: string, signal?: AbortSignal): Promise<unknown> {
+    const { Type } = await import('@google/genai');
+    const ai = await this.#client();
+    const effect = {
+      type: Type.OBJECT,
+      properties: {
+        kind: { type: Type.STRING, enum: ['add', 'remove', 'swap'] },
+        itemKey: { type: Type.STRING },
+        fromKey: { type: Type.STRING },
+        toKey: { type: Type.STRING },
+        quantity: { type: Type.INTEGER },
+      },
+      required: ['kind'],
+    };
+    const response = await ai.models.generateContent({
+      model: this.model,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0,
+        maxOutputTokens: 1024,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            choices: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  value: { type: Type.STRING },
+                  effects: { type: Type.ARRAY, items: effect },
+                },
+                required: ['value', 'effects'],
+              },
+            },
+          },
+          required: ['choices'],
         },
         ...(signal ? { abortSignal: signal } : {}),
       },

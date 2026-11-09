@@ -261,7 +261,7 @@ function Row({
       {summary ? <span className="flow-li-eff">{summary}</span> : null}
       {note ? <span className="flow-li-note">{note}</span> : null}
       <span className="flow-tag" data-tone={toneOf(step)}>
-        {tagOf(step)}
+        {tagOf(step, ctx)}
       </span>
       {attention ? <Chip tone="danger">Needs attention</Chip> : null}
       {readOnly || member ? null : (

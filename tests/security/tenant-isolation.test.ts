@@ -1081,6 +1081,17 @@ const ROUTES: RouteSpec[] = [
   },
   {
     method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/conversation/suggest',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/conversation/suggest`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({
+      prompt: 'Do you have an electric car?',
+      choices: [{ value: 'yes', label: 'Yes' }],
+    }),
+  },
+  {
+    method: 'POST',
     pattern: '/v1/portal/tenants/:tenantId/conversation/preview',
     url: (ids) => `/v1/portal/tenants/${ids.tenantId}/conversation/preview`,
     kind: 'installer',

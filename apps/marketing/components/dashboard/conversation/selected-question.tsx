@@ -6,6 +6,7 @@ import type { FlowEffect, FlowStep } from '../../../lib/portal-api.js';
 import { Chip } from '../ui.js';
 import { Effects } from './effect-picker.js';
 import { NothingSelected } from './nothing-selected.js';
+import type { Suggestions } from './suggestions.js';
 import { toneOf } from './flow-layout.js';
 import {
   MAX_CHOICES,
@@ -40,6 +41,8 @@ export interface SelectedProps {
   onDraft: (change: (draft: Draft) => Draft) => void;
   /** A change to one question, wherever it sits (its issues clear: it was edited). */
   onEdit: (id: string, change: (step: FlowStep) => FlowStep) => void;
+  /** What Sunny worked out or suggests for each answer's price changes. */
+  suggestions: Suggestions;
   /** The question waiting for "Remove" to be confirmed, if any. */
   removing: string | null;
   onRemove: (id: string) => void;
@@ -70,6 +73,7 @@ function StepEditor({
   onSelect,
   onDraft,
   onEdit,
+  suggestions,
   removing,
   onRemove,
   onConfirmRemove,
@@ -109,7 +113,9 @@ function StepEditor({
     );
   }
 
+  /** The installer's own change: Sunny never overwrites this answer again. */
   function setEffects(value: string, effects: FlowEffect[]): void {
+    suggestions.markEdited(step.id, value);
     update((s) =>
       s.kind === 'preset'
         ? { ...s, effects: { ...s.effects, [value]: effects } }
@@ -157,7 +163,7 @@ function StepEditor({
       </div>
       <div className="chip-row">
         <span className="flow-tag" data-tone={toneOf(step)}>
-          {tagOf(step)}
+          {tagOf(step, ctx)}
         </span>
         {attention ? <Chip tone="danger">Needs attention</Chip> : null}
       </div>
@@ -250,6 +256,9 @@ function StepEditor({
           ) : null}
         </p>
       ) : null}
+      {quote && suggestions.checking(step.id) ? (
+        <p className="muted small flow-checking">{ctx.assistant} is checking your price list…</p>
+      ) : null}
       {choices.map((choice) => (
         <fieldset key={choice.value} className="flow-answer" aria-label={`Answer ${choice.label}`}>
           <div className="flow-answer-head">
@@ -277,6 +286,14 @@ function StepEditor({
               readOnly={readOnly}
               effects={choice.effects}
               onChange={(effects) => setEffects(choice.value, effects)}
+              workedOut={suggestions.origin(step.id, choice.value) === 'suggested'}
+              offer={choice.effects.length === 0 ? suggestions.offer(step.id, choice.value) : null}
+              onUse={(effects) => {
+                setEffects(choice.value, effects);
+                suggestions.dismiss(step.id, choice.value);
+              }}
+              onDismiss={() => suggestions.dismiss(step.id, choice.value)}
+              onPick={() => suggestions.markEdited(step.id, choice.value)}
             />
           ) : null}
           {issues
@@ -387,7 +404,11 @@ function StepEditor({
           aria-label={`Remove ${name}?`}
           tabIndex={-1}
         >
-          <p>{preset?.warning ?? 'This also removes the follow-ups under it.'}</p>
+          <p>
+            {/* The server words each warning as "Sunny uses this...": the installer's name for it. */}
+            {preset?.warning?.replace(/^Sunny\b/, ctx.assistant) ??
+              'This also removes the follow-ups under it.'}
+          </p>
           <div className="actions">
             <button
               type="button"

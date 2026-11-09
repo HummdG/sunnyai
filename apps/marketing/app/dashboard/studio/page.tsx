@@ -16,6 +16,7 @@ import { SkeletonRows } from '../../../components/dashboard/kit.js';
 import { PortalShell, usePortal } from '../../../components/dashboard/portal.js';
 import { StudioForm, type StudioPart } from '../../../components/dashboard/studio-form.js';
 import { Card, PageHeader } from '../../../components/dashboard/ui.js';
+import { assistantNameOf } from '../../../lib/assistant-name.js';
 
 const TABS = [
   { key: 'brand', title: 'Your brand' },
@@ -41,6 +42,8 @@ function nextIndex(key: string, at: number, count: number): number | null {
 function Studio() {
   const { tenant, setTenant } = usePortal();
   const canEdit = tenant.role === 'admin' || tenant.role === 'owner';
+  // The assistant's name, not the product's: renamed on Assistant settings, every tab follows.
+  const assistant = assistantNameOf(tenant.assistantName);
   const params = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() => tabFrom(params.get('tab')));
   // A tab is mounted the first time it opens and then kept, so an unsaved
@@ -78,13 +81,20 @@ function Studio() {
       // Keyed by installer: an unsaved draft never follows the owner to another one.
       <StudioForm key={tenant.id} tenant={tenant} onSaved={setTenant} part={part} />
     ) : (
-      <p className="muted">Ask an admin to change how Sunny looks.</p>
+      <p className="muted">Ask an admin to change how {assistant} looks.</p>
     );
 
   const panels: Record<TabKey, ReactNode> = {
     brand: <Card>{form('brand')}</Card>,
     // Keyed by installer: a draft never follows the owner to another one.
-    conversation: <ConversationEditor key={tenant.id} tenantId={tenant.id} canEdit={canEdit} />,
+    conversation: (
+      <ConversationEditor
+        key={tenant.id}
+        tenantId={tenant.id}
+        canEdit={canEdit}
+        assistant={assistant}
+      />
+    ),
     settings: <Card>{form('settings')}</Card>,
   };
 
@@ -92,7 +102,7 @@ function Studio() {
     <>
       <PageHeader
         title="Sunny Studio"
-        lead="Your colour, your greeting, your questions. The preview is the real Sunny."
+        lead={`Your colour, your greeting, your questions. The preview is the real ${assistant}.`}
       />
       <div className="studio-tabs" role="tablist" aria-label="Studio" onKeyDown={onKeyDown}>
         {TABS.map((t, index) => (

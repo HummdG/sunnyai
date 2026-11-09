@@ -51,6 +51,7 @@ const ctx: Context = {
     ].map((p) => [p.id, p]),
   ),
   items: [EV],
+  assistant: 'Sunny',
 };
 
 const LONG =

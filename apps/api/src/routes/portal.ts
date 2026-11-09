@@ -596,61 +596,67 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
       throw new ApiError('bad_request', BAD_NAME);
     }
     const body = parse(settingsSchema, request.body);
-    // The whole tenant is written back, so the change is merged into the tenant
-    // as the store holds it now: this instance's cached copy may predate a save
-    // made on another instance (a new conversation flow, say), and writing it
-    // would undo that save.
-    const tenant = (await tenants.fresh(cached.id)) ?? cached;
-    const config = { ...tenant.config };
-    if (body.companyName !== undefined) config.companyName = body.companyName;
-    if (body.tagline !== undefined) config.tagline = body.tagline;
-    if (body.greeting !== undefined) config.greeting = body.greeting;
-    if (body.primaryColor !== undefined) config.primaryColor = body.primaryColor.toUpperCase();
-    if (body.position !== undefined) config.position = body.position;
-    if (body.suggestions !== undefined) config.suggestions = body.suggestions;
-    if (body.supportContact !== undefined) {
-      const contact = Object.fromEntries(
-        Object.entries(body.supportContact).filter(([, v]) => v !== undefined && v !== ''),
-      );
-      config.supportContact = contact;
-    }
-    if (body.email !== undefined) {
-      // Merged over what is there: the OAuth token reference is written by the
-      // connect flow (routes/email.ts), never by a form, and a partial update
-      // must not reset auto-send.
-      const current = tenant.config.email ?? { provider: 'forwarding' as const, autoSend: false };
-      const { signatureName, ...rest } = body.email;
-      const merged = { ...current, ...rest };
-      if (signatureName !== undefined) {
-        if (signatureName === '') delete merged.signatureName;
-        else merged.signatureName = signatureName;
+    // The branding check reads the logo already saved, so it reads the tenant as
+    // the store holds it now: this instance's cached copy may predate a save made
+    // on another instance.
+    const branding =
+      body.branding !== undefined
+        ? await resolveBranding((await tenants.fresh(cached.id)) ?? cached, body.branding)
+        : undefined;
+    // Only the fields this form sent are changed, on the tenant as the store
+    // holds it at the moment of writing, so a save made elsewhere (a new
+    // conversation flow, an email connection, billing) is never undone.
+    const saved = await tenants.update(cached.id, (tenant) => {
+      const config = { ...tenant.config };
+      if (body.companyName !== undefined) config.companyName = body.companyName;
+      if (body.tagline !== undefined) config.tagline = body.tagline;
+      if (body.greeting !== undefined) config.greeting = body.greeting;
+      if (body.primaryColor !== undefined) config.primaryColor = body.primaryColor.toUpperCase();
+      if (body.position !== undefined) config.position = body.position;
+      if (body.suggestions !== undefined) config.suggestions = body.suggestions;
+      if (body.supportContact !== undefined) {
+        const contact = Object.fromEntries(
+          Object.entries(body.supportContact).filter(([, v]) => v !== undefined && v !== ''),
+        );
+        config.supportContact = contact;
       }
-      config.email = merged;
-    }
-    if (body.assistantName !== undefined) config.assistantName = body.assistantName;
-    if (body.branding !== undefined) {
-      config.branding = await resolveBranding(tenant, body.branding);
-    }
-    const next: Tenant = { ...tenant, config };
-    if (body.websiteUrl !== undefined) next.websiteUrl = body.websiteUrl;
-    if (body.domains !== undefined) next.domains = [...new Set(body.domains)];
-    // The site the installer connects is where the widget will live, so its
-    // host is registered as a widget domain too (without the "www." so the bare
-    // domain and its subdomains both match). Explicit domains are kept.
-    const siteHost = hostOf(next.websiteUrl);
-    if (siteHost && !(next.domains ?? []).includes(siteHost)) {
-      next.domains = [...(next.domains ?? []), siteHost];
-    }
-    if (body.onboardingStep !== undefined) {
-      next.onboarding = {
-        step: body.onboardingStep,
-        completedAt:
-          body.onboardingStep === 'live'
-            ? (tenant.onboarding?.completedAt ?? new Date(now()).toISOString())
-            : (tenant.onboarding?.completedAt ?? null),
-      };
-    }
-    const saved = await tenants.save(next);
+      if (body.email !== undefined) {
+        // Merged over what is there: the OAuth token reference is written by the
+        // connect flow (routes/email.ts), never by a form, and a partial update
+        // must not reset auto-send.
+        const current = tenant.config.email ?? { provider: 'forwarding' as const, autoSend: false };
+        const { signatureName, ...rest } = body.email;
+        const merged = { ...current, ...rest };
+        if (signatureName !== undefined) {
+          if (signatureName === '') delete merged.signatureName;
+          else merged.signatureName = signatureName;
+        }
+        config.email = merged;
+      }
+      if (body.assistantName !== undefined) config.assistantName = body.assistantName;
+      if (branding !== undefined) config.branding = branding;
+      const next: Tenant = { ...tenant, config };
+      if (body.websiteUrl !== undefined) next.websiteUrl = body.websiteUrl;
+      if (body.domains !== undefined) next.domains = [...new Set(body.domains)];
+      // The site the installer connects is where the widget will live, so its
+      // host is registered as a widget domain too (without the "www." so the bare
+      // domain and its subdomains both match). Explicit domains are kept.
+      const siteHost = hostOf(next.websiteUrl);
+      if (siteHost && !(next.domains ?? []).includes(siteHost)) {
+        next.domains = [...(next.domains ?? []), siteHost];
+      }
+      if (body.onboardingStep !== undefined) {
+        next.onboarding = {
+          step: body.onboardingStep,
+          completedAt:
+            body.onboardingStep === 'live'
+              ? (tenant.onboarding?.completedAt ?? new Date(now()).toISOString())
+              : (tenant.onboarding?.completedAt ?? null),
+        };
+      }
+      return next;
+    });
+    if (!saved) throw new ApiError('not_found', 'No such installer.');
     if (body.branding !== undefined) {
       const keep = brandingIds(saved.config.branding);
       await pruneQuietly(brandAssets, saved.id, keep, now(), request.log);
@@ -994,7 +1000,18 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
     };
   });
 
-  async function startSync(tenant: Tenant, kind: 'website' | 'drive'): Promise<Tenant> {
+  /**
+   * Start a knowledge sync and record its state. `tenant` is the tenant as the
+   * sync should see it (with the connection just made); `connect` applies that
+   * same connection to the stored tenant. Only the connection and this kind's
+   * sync state are written, onto the tenant as the store holds it now, so a save
+   * made on another instance is not undone.
+   */
+  async function startSync(
+    tenant: Tenant,
+    kind: 'website' | 'drive',
+    connect: (current: Tenant) => Tenant = (current) => current,
+  ): Promise<Tenant> {
     const at = new Date(now()).toISOString();
     const target = kind === 'website' ? tenant.websiteUrl : tenant.gdriveFolderId;
     const sync =
@@ -1016,7 +1033,12 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
         };
       }
     }
-    return await tenants.save({ ...tenant, sync: { ...tenant.sync, [kind]: state } });
+    const saved = await tenants.update(tenant.id, (current) => {
+      const connected = connect(current);
+      return { ...connected, sync: { ...connected.sync, [kind]: state } };
+    });
+    if (!saved) throw new ApiError('not_found', 'No such installer.');
+    return saved;
   }
 
   app.post('/v1/portal/tenants/:tenantId/knowledge/website', async (request) => {
@@ -1024,11 +1046,15 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
     const { url } = parse(websiteSchema, request.body);
     // Connecting the website also registers it as the widget's domain.
     const host = hostOf(url);
-    const domains =
-      host && !(tenant.domains ?? []).includes(host)
-        ? [...(tenant.domains ?? []), host]
-        : (tenant.domains ?? []);
-    const saved = await startSync({ ...tenant, websiteUrl: url, domains }, 'website');
+    const connect = (current: Tenant): Tenant => ({
+      ...current,
+      websiteUrl: url,
+      domains:
+        host && !(current.domains ?? []).includes(host)
+          ? [...(current.domains ?? []), host]
+          : (current.domains ?? []),
+    });
+    const saved = await startSync(connect(tenant), 'website', connect);
     return { website: saved.sync?.website ?? null };
   });
 
@@ -1042,7 +1068,8 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
         'That does not look like a Google Drive folder link or id.',
       );
     }
-    const saved = await startSync({ ...tenant, gdriveFolderId: folderId }, 'drive');
+    const connect = (current: Tenant): Tenant => ({ ...current, gdriveFolderId: folderId });
+    const saved = await startSync(connect(tenant), 'drive', connect);
     return { drive: saved.sync?.drive ?? null, folderId };
   });
 

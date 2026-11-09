@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ConversationFlow, FlowStep } from '@sunny/contracts';
 
+import type { ChatChunk, ChatProvider } from '../src/agent/provider.js';
 import { issueDevToken } from '../src/auth/dev.js';
 import { priceFor } from '../src/catalogue/price-list.js';
 import { getPublishedPriceList, publishExample } from '../src/catalogue/price-list-service.js';
@@ -57,7 +58,7 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-async function setup() {
+async function setup(provider?: ChatProvider) {
   const dir = await mkdtemp(join(tmpdir(), 'sunny-conversation-'));
   dirs.push(dir);
   const store = new FileStore(dir);
@@ -66,6 +67,7 @@ async function setup() {
     config: makeConfig(),
     store,
     tenants,
+    ...(provider ? { provider } : {}),
     now: () => NOW,
     portal: { ...loadPortalConfig({}, 'test'), devAuth: true },
   });
@@ -499,5 +501,97 @@ describe('two instances saving the same installer', () => {
     expect(after?.config.tagline).toBe('Solar for Norfolk');
     expect(after?.config.conversation).toBeUndefined();
     await other.close();
+  });
+});
+
+/** A model that only suggests price changes, from a fixed answer, counting its calls. */
+class Suggesting implements ChatProvider {
+  readonly kind = 'scripted';
+  readonly model = 'scripted-1';
+  calls = 0;
+  constructor(private readonly answer: () => Promise<unknown>) {}
+  priceSuggestions(): Promise<unknown> {
+    this.calls += 1;
+    return this.answer();
+  }
+  // eslint-disable-next-line require-yield, @typescript-eslint/require-await
+  async *stream(): AsyncIterable<ChatChunk> {
+    throw new Error('not a chat');
+  }
+}
+
+describe('POST /conversation/suggest', () => {
+  const question = {
+    prompt: 'Do you have an electric car?',
+    choices: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no', label: 'No' },
+    ],
+  };
+  const suggest = (app: FastifyInstance, tenantId: string, email: string, payload: object) =>
+    app.inject({ method: 'POST', url: url(tenantId, '/suggest'), headers: as(email), payload });
+
+  it('returns the checked suggestion: off-list, mandatory and system items dropped', async () => {
+    const model = new Suggesting(() =>
+      Promise.resolve({
+        choices: [
+          {
+            value: 'yes',
+            effects: [
+              { kind: 'add', itemKey: EV },
+              { kind: 'add', itemKey: 'NOT-ON-THE-LIST' },
+              { kind: 'remove', itemKey: FEE },
+            ],
+          },
+          { value: 'no', effects: [] },
+        ],
+        explanation: 'An electric car needs a charger.',
+      }),
+    );
+    const { app, store, tenantId } = await setup(model);
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    const response = await suggest(app, tenantId, OWNER, question);
+    expect(response.statusCode).toBe(200);
+    // Only the checked effects: anything else the model says is not passed on.
+    expect(response.json()).toEqual({ effects: { yes: [{ kind: 'add', itemKey: EV }], no: [] } });
+    expect(model.calls).toBe(1);
+  });
+
+  it('is for admins: a viewer is refused', async () => {
+    const model = new Suggesting(() => Promise.resolve({ choices: [] }));
+    const { app, store, tenantId } = await setup(model);
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    expect((await suggest(app, tenantId, VIEWER, question)).statusCode).toBe(403);
+    expect(model.calls).toBe(0);
+  });
+
+  it('suggests nothing, without asking the model, when no list is published', async () => {
+    const model = new Suggesting(() => Promise.resolve({ choices: [] }));
+    const { app, tenantId } = await setup(model);
+    const response = await suggest(app, tenantId, OWNER, question);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ effects: {} });
+    expect(model.calls).toBe(0);
+  });
+
+  it('suggests nothing when the model fails, or when none is configured', async () => {
+    const failing = new Suggesting(() => Promise.reject(new Error('quota')));
+    const { app, store, tenantId } = await setup(failing);
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    const response = await suggest(app, tenantId, OWNER, question);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ effects: {} });
+    expect(failing.calls).toBe(1);
+
+    const unconfigured = await setup();
+    await publishExample(unconfigured.store, unconfigured.tenantId, '2026-11-09T09:00:00Z');
+    const none = await suggest(unconfigured.app, unconfigured.tenantId, OWNER, question);
+    expect(none.json()).toEqual({ effects: {} });
+  });
+
+  it('refuses a question without answers', async () => {
+    const { app, tenantId } = await setup();
+    const response = await suggest(app, tenantId, OWNER, { prompt: 'Hello?', choices: [] });
+    expect(response.statusCode).toBe(400);
   });
 });
