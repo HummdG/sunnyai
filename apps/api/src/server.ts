@@ -2136,6 +2136,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
     sessionSecret: config.sessionSecret,
     now,
+    getProvider,
+    enforceRateLimit,
   });
 
   // The Email Assistant add-on (routes/email.ts).

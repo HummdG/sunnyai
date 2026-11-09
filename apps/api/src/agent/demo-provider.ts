@@ -16,6 +16,16 @@ export class DemoProvider implements ChatProvider {
   readonly kind = 'demo-scripted';
   readonly model = 'scripted-demo';
 
+  /**
+   * Canned price suggestions, by keyword: a "yes" to a question about an
+   * electric car, a battery or birds adds the first matching item on the list.
+   * Not a model's judgement, only enough to show Studio's suggestions in a demo.
+   */
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async priceSuggestions(prompt: string): Promise<unknown> {
+    return demoSuggestions(prompt);
+  }
+
   async *stream(request: ChatTurnRequest): AsyncIterable<ChatChunk> {
     const available = new Set(request.tools.map((t) => t.name));
     const results: Record<string, unknown>[] = [];
@@ -112,6 +122,42 @@ export class DemoProvider implements ChatProvider {
       );
     }
   }
+}
+
+const DEMO_TOPICS: Array<{ asked: RegExp; item: RegExp }> = [
+  { asked: /electric (car|vehicle)|\bev\b|charg/i, item: /\bev\b|charger/i },
+  { asked: /batter/i, item: /batter/i },
+  { asked: /bird|pigeon/i, item: /bird/i },
+];
+
+/** The demo's suggestions for the prompt flow/suggest.ts writes. */
+export function demoSuggestions(prompt: string): unknown {
+  // Each data block is one line of JSON between its tags.
+  const block = (tag: string): unknown => {
+    const lines = prompt.split('\n');
+    const at = lines.indexOf(`<${tag}>`);
+    try {
+      return at >= 0 ? (JSON.parse(lines[at + 1] ?? '') as unknown) : null;
+    } catch {
+      return null;
+    }
+  };
+  const question = block('question') as {
+    question?: string;
+    answers?: Array<{ value: string; label: string }>;
+  } | null;
+  const items = (block('price_list') ?? []) as Array<{ key: string; name: string }>;
+  const topic = DEMO_TOPICS.find((t) => t.asked.test(question?.question ?? ''));
+  const item = topic ? items.find((i) => topic.item.test(`${i.key} ${i.name}`)) : undefined;
+  return {
+    choices: (question?.answers ?? []).map((a) => ({
+      value: a.value,
+      effects: item && /^yes\b/i.test(a.label) ? [{ kind: 'add', itemKey: item.key }] : [],
+    })),
+    explanation: item
+      ? `A yes adds ${item.name}.`
+      : 'Nothing on the price list fits this question.',
+  };
 }
 
 /** The visitor's words from the guardrail sandwich, unescaped. */
