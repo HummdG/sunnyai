@@ -943,4 +943,59 @@ describe('an installer flow', () => {
       ],
     });
   });
+
+  it('a follow-up on a multi-select preset opens when any picked value matches', () => {
+    const charger: FlowStep = {
+      kind: 'custom',
+      id: 'c_charger',
+      prompt: 'Would you like a car charger?',
+      mode: 'quote',
+      answer: 'choice',
+      choices: [
+        { value: 'yes', label: 'Yes', effects: [] },
+        { value: 'no', label: 'No', effects: [] },
+      ],
+    };
+    const resolved = resolveFlow(
+      flow([preset('lifestyle', { followUps: [{ when: ['ev_now'], step: charger }] })]),
+    );
+    const picked = { lifestyle: 'ev_now,heatpump_planned' };
+    expect(resolved.applicability('c_charger', picked)).toBe('applies');
+    expect(resolved.validate('c_charger', 'yes', picked)).toMatchObject({ ok: true });
+    expect(resolved.reconcile({ ...picked, c_charger: 'yes' }).dropped).toEqual([]);
+    expect(
+      resolved.applicability('c_charger', { lifestyle: 'heatpump_planned,home_daytime' }),
+    ).toBe('conflicts');
+  });
+
+  it('a follow-up on a fixed-start preset is asked where the installer listed it', () => {
+    const why: FlowStep = {
+      kind: 'custom',
+      id: 'c_roofwrong',
+      prompt: 'What looks wrong about the roof?',
+      mode: 'lead',
+      answer: 'text',
+      choices: [],
+    };
+    const resolved = resolveFlow(
+      flow([
+        preset('property_type'),
+        preset('roof_confirmed', { followUps: [{ when: ['no'], step: why }] }),
+        preset('ownership'),
+      ]),
+    );
+    expect(resolved.questions.map((q) => q.id)).toEqual([
+      ...FIXED_START,
+      'property_type',
+      'c_roofwrong',
+      'ownership',
+    ]);
+    expect(resolved.question('c_roofwrong')!.parent).toEqual({
+      id: 'roof_confirmed',
+      anyOf: ['no'],
+    });
+    const base = { address: 'x', roof_confidence: 'high', property_type: 'semi' };
+    expect(resolved.next({ ...base, roof_confirmed: 'no' })).toBe('c_roofwrong');
+    expect(resolved.next({ ...base, roof_confirmed: 'yes' })).toBe('ownership');
+  });
 });

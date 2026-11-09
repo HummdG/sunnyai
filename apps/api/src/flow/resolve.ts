@@ -24,6 +24,9 @@ import {
 } from '../questionnaire.js';
 import { FIXED_START, PRESET_GROUPS } from './presets.js';
 
+// Never read QUESTIONS at module level here: questionnaire.ts imports this
+// module, so at load time QUESTIONS may not exist yet (circular import).
+
 /** The longest free-text answer a lead-only question accepts. */
 export const FREE_TEXT_MAX = 500;
 
@@ -46,7 +49,10 @@ export interface ResolvedQuestion {
 export interface ResolvedFlow {
   /** False for Sunny's own questions (no stored flow). */
   custom: boolean;
-  /** Fixed start, then the middle in order (follow-ups right after their parent). */
+  /**
+   * Fixed start, then the middle in order. A follow-up comes right after its
+   * parent, except that a group head's own group members come first.
+   */
   questions: ResolvedQuestion[];
   /** Sunny's questions the installer removed, in the question set's order. */
   removedPresets: string[];
@@ -172,8 +178,19 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
     for (const f of step?.followUps ?? []) walk([f.step], { id: parentId, anyOf: [...f.when] });
   };
 
+  // A fixed-start question is placed at the start, but the follow-ups an
+  // installer hangs on it are asked where they listed it (first listing only).
+  const fixedWalked = new Set<string>();
+
   function walk(list: FlowStep[], enclosing: Parent): void {
     for (const step of list) {
+      if (step.kind === 'preset' && FIXED.has(step.id)) {
+        if (!fixedWalked.has(step.id)) {
+          fixedWalked.add(step.id);
+          walkFollowUps(step, step.id);
+        }
+        continue;
+      }
       if (emitted.has(step.id)) continue; // a duplicate id: the first one stands
       if (step.kind === 'custom') {
         emit(customQuestion(step, enclosing));
@@ -182,11 +199,6 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
       }
       // Unknown presets are ignored; group members are placed by their head.
       if (!QUESTIONS[step.id] || GROUP_MEMBERS.has(step.id)) continue;
-      if (FIXED.has(step.id)) {
-        // Already placed at the start; its own follow-ups sit where it was listed.
-        walkFollowUps(step, step.id);
-        continue;
-      }
       emit(presetQuestion(step.id, wording.get(step.id), enclosing));
       for (const member of PRESET_GROUPS[step.id] ?? []) {
         if (emitted.has(member)) continue;
@@ -214,7 +226,9 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
     if (!gate) return 'applies';
     const given = answers[gate.id];
     if (given === undefined) return 'pending';
-    return gate.anyOf.includes(given) ? 'applies' : 'conflicts';
+    // A multi-select parent stores a comma list; any picked value opens the gate.
+    const picked = byId.get(gate.id)?.multi ? given.split(',').map((part) => part.trim()) : [given];
+    return picked.some((value) => gate.anyOf.includes(value)) ? 'applies' : 'conflicts';
   }
 
   function outstanding(answers: Record<string, string>): string[] {
