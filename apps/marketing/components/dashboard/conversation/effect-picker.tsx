@@ -25,6 +25,7 @@ export function Effects({
   offer = null,
   onUse,
   onDismiss,
+  onPick,
 }: {
   ctx: Context;
   readOnly: boolean;
@@ -36,9 +37,15 @@ export function Effects({
   offer?: FlowEffect[] | null;
   onUse?: (effects: FlowEffect[]) => void;
   onDismiss?: () => void;
+  /** The installer opened the picker: from now on the answer is theirs, not Sunny's to fill. */
+  onPick?: () => void;
 }) {
   // The picker is open to add (`'new'`) or to change the effect at an index.
-  const [picking, setPicking] = useState<'new' | number | null>(null);
+  const [picking, setPickingState] = useState<'new' | number | null>(null);
+  const setPicking = (next: 'new' | number | null) => {
+    if (next !== null) onPick?.();
+    setPickingState(next);
+  };
   return (
     <div className="flow-effects">
       {workedOut ? <p className="flow-worked">Worked out by {ctx.assistant}</p> : null}

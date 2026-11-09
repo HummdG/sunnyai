@@ -293,6 +293,7 @@ function StepEditor({
                 suggestions.dismiss(step.id, choice.value);
               }}
               onDismiss={() => suggestions.dismiss(step.id, choice.value)}
+              onPick={() => suggestions.markEdited(step.id, choice.value)}
             />
           ) : null}
           {issues

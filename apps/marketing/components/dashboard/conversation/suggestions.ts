@@ -22,7 +22,8 @@ import {
  * answers or what it does to the quote): the result fills in every answer the
  * installer has not touched, and refreshes answers Sunny filled earlier. An
  * answer whose price changes the installer added, changed or removed is
- * theirs, and is never overwritten. Sunny's own questions are offered a
+ * theirs, and is never overwritten; so is every answer of a question saved
+ * before Studio opened, price change or none. Sunny's own questions are offered a
  * suggestion instead ("Use this?"), since applying one would quietly change
  * quotes for installers already live. None of this is saved: the stored flow
  * is the same whoever chose the price changes.
@@ -48,6 +49,13 @@ export interface Suggestions {
 type Question = { prompt: string; choices: Array<{ value: string; label: string }> };
 
 const answerKey = (stepId: string, value: string) => `${stepId}\n${value}`;
+
+/** An answer's suggested effects, own keys only: an answer may be called "constructor". */
+function ownEffects(effects: Record<string, FlowEffect[]>, value: string): FlowEffect[] | null {
+  if (!Object.hasOwn(effects, value)) return null;
+  const list = effects[value];
+  return Array.isArray(list) ? list : null;
+}
 
 /** The question as Sunny is asked it, or null when there is nothing to ask yet. */
 function questionOf(step: FlowStep, ctx: Context): Question | null {
@@ -113,8 +121,17 @@ export function useSuggestions({
   latest.current = { draft, ctx, origins, onDraft };
   /** Each added question's signature when last seen: a change from it asks again. */
   const seen = useRef<Map<string, string> | null>(null);
+  /**
+   * Every answer of a question saved before Studio opened: as the installer
+   * left it, price change or none, so Sunny never fills one. Only answers
+   * added since (new answers, new questions) are Sunny's to fill.
+   */
+  const saved = useRef(new Set<string>());
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const asked = useRef(new Set<string>());
+  /** Sunny's own questions whose ask failed: asked again when next selected. */
+  const failed = useRef(new Set<string>());
+  const lastSelected = useRef<string | null>(null);
 
   useEffect(() => {
     const pending = timers.current;
@@ -136,15 +153,17 @@ export function useSuggestions({
     const { draft: now, ctx: c, origins: who, onDraft: change } = latest.current;
     const step = now && c ? findStep(now, c, id) : undefined;
     if (!c || step?.kind !== 'custom') return;
-    const fill: Record<string, FlowEffect[]> = {};
+    const fill = new Map<string, FlowEffect[]>();
     for (const choice of step.choices) {
-      const suggested = effects[choice.value];
+      const suggested = ownEffects(effects, choice.value);
       if (!suggested) continue;
-      const origin = who.get(answerKey(id, choice.value));
-      if (origin === 'edited' || (origin === undefined && choice.effects.length > 0)) continue;
-      fill[choice.value] = suggested;
+      const key = answerKey(id, choice.value);
+      const origin = who.get(key);
+      if (saved.current.has(key) || origin === 'edited') continue;
+      if (origin === undefined && choice.effects.length > 0) continue;
+      fill.set(choice.value, suggested);
     }
-    const values = Object.keys(fill);
+    const values = [...fill.keys()];
     if (values.length === 0) return;
     setOrigins((current) => {
       const next = new Map(current);
@@ -152,7 +171,8 @@ export function useSuggestions({
       return next;
     });
     const same = step.choices.every(
-      (ch) => !fill[ch.value] || JSON.stringify(fill[ch.value]) === JSON.stringify(ch.effects),
+      (ch) =>
+        !fill.has(ch.value) || JSON.stringify(fill.get(ch.value)) === JSON.stringify(ch.effects),
     );
     if (same) return;
     change((d) =>
@@ -160,9 +180,10 @@ export function useSuggestions({
         s.kind === 'custom'
           ? {
               ...s,
-              choices: s.choices.map((ch) =>
-                fill[ch.value] ? { ...ch, effects: fill[ch.value]! } : ch,
-              ),
+              choices: s.choices.map((ch) => {
+                const effects = fill.get(ch.value);
+                return effects ? { ...ch, effects } : ch;
+              }),
             }
           : s,
       ),
@@ -177,7 +198,19 @@ export function useSuggestions({
       // A saved flow's questions are not asked about on opening: their answers
       // are already as the installer left them.
       seen.current = new Map(steps.map((s) => [s.id, signatureOf(s)]));
+      for (const step of steps) {
+        if (step.kind !== 'custom') continue;
+        for (const c of step.choices) saved.current.add(answerKey(step.id, c.value));
+      }
       return;
+    }
+    // A question removed while waiting is not asked about.
+    const present = new Set(steps.map((s) => s.id));
+    for (const [id, timer] of timers.current) {
+      if (present.has(id)) continue;
+      clearTimeout(timer);
+      timers.current.delete(id);
+      seen.current.delete(id);
     }
     for (const step of steps) {
       const signature = signatureOf(step);
@@ -209,6 +242,11 @@ export function useSuggestions({
 
   // Sunny's own questions: asked once a session, when first opened.
   useEffect(() => {
+    if (selectedId !== lastSelected.current) {
+      lastSelected.current = selectedId;
+      // A failed ask is tried again only when the question is selected again.
+      if (selectedId && failed.current.delete(selectedId)) asked.current.delete(selectedId);
+    }
     if (!enabled || !draft || !ctx || !selectedId || asked.current.has(selectedId)) return;
     const step = findStep(draft, ctx, selectedId);
     if (step?.kind !== 'preset') return;
@@ -219,7 +257,7 @@ export function useSuggestions({
     startChecking(id, 'preset');
     suggestPriceChanges(tenantId, question)
       .then((result) => setOffers((current) => new Map(current).set(id, result.effects)))
-      .catch(() => asked.current.delete(id))
+      .catch(() => failed.current.add(id))
       .finally(() => stopChecking(id, 'preset'));
   }, [selectedId, draft, ctx, enabled, tenantId]);
 
@@ -234,7 +272,8 @@ export function useSuggestions({
       ),
     offer: (stepId, value) => {
       if (dismissed.has(answerKey(stepId, value))) return null;
-      const effects = offers.get(stepId)?.[value];
+      const all = offers.get(stepId);
+      const effects = all ? ownEffects(all, value) : null;
       return effects && effects.length > 0 ? effects : null;
     },
     dismiss: (stepId, value) =>

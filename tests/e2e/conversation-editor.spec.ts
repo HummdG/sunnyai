@@ -694,3 +694,31 @@ test("Sunny's own question is offered a suggestion, applied only on Use", async 
   await expect(heavy).toBeVisible();
   expect(script.asked).toEqual([SHADING, USAGE]);
 });
+
+test('a saved question keeps its answers when reworded; only a new answer is filled', async ({
+  page,
+}) => {
+  const script = await scriptSuggestions(page);
+  await openAs(page, OWNER);
+  await box(page, EV).click();
+  const yes = card(page).getByRole('group', { name: 'Answer Yes', exact: true });
+  // Saved with no price change on purpose (the test above removed it).
+  await expect(yes).toContainText('No price change');
+
+  await card(page)
+    .getByLabel('Question text')
+    .fill(`${EV.slice(0, -1)} at home?`);
+  await expect.poll(() => script.asked.length).toBe(1);
+  await card(page).getByRole('button', { name: '+ Add an answer' }).click();
+  await card(page)
+    .getByRole('group', { name: 'Answer', exact: true })
+    .getByLabel('Answer', { exact: true })
+    .fill('Yes, a hybrid');
+  const hybrid = card(page).getByRole('group', { name: 'Answer Yes, a hybrid' });
+  await expect(hybrid).toContainText('Adds 7kW EV charger, £899');
+  await expect(hybrid).toContainText('Worked out by Ava');
+  expect(script.asked).toHaveLength(2);
+  // The saved "Yes" was answered for twice, and left as the installer saved it.
+  await expect(yes).toContainText('No price change');
+  await expect(yes).not.toContainText('Worked out by');
+});
