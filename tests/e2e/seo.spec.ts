@@ -23,6 +23,7 @@ const PAGES = [
   { path: '/resources', title: 'Resources' },
   { path: '/privacy', title: 'Privacy policy' },
   { path: '/terms', title: 'Terms of service' },
+  { path: '/bot', title: 'SunnyBot' },
 ];
 
 const meta = (page: Page, key: string) =>
@@ -107,4 +108,18 @@ test('the web manifest names Sunny in its colours', async ({ page, request }) =>
   const manifest = (await (await request.get(href ?? '')).json()) as Record<string, unknown>;
   expect(manifest).toMatchObject({ name: 'Sunny', short_name: 'Sunny', theme_color: '#ff7900' });
   expect(await meta(page, 'theme-color')).toBe('#ff7900');
+});
+
+test('the page SunnyBot links to says what it is and how to allow or block it', async ({
+  page,
+}) => {
+  await page.goto('/bot');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About SunnyBot');
+  const text = await page.locator('main').innerText();
+  // Exactly the user agent the crawler sends (apps/api/src/ingest/fetcher.ts).
+  expect(text).toContain(
+    'SunnyBot/1.0 (+https://heysunny.co.uk/bot; knowledge sync for the site owner)',
+  );
+  expect(text).toContain('User-agent: SunnyBot');
+  expect(text).toContain('Disallow: /');
 });
