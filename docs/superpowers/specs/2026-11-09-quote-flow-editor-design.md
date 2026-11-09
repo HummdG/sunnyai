@@ -41,6 +41,7 @@ a quote that reflects their answers.
   generation, savings and payback always match the kit the visitor is
   quoted for (owner agreed). A swap whose item is not in a given package
   does nothing to that package (my call).
+
 - **Follow-ups** can hang off any answer, preset or added (owner agreed).
   The owner's own example: an installer links Sunny's existing "I have an
   electric car" lifestyle answer straight to their EV charger, so the

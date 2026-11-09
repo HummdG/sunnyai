@@ -67,15 +67,15 @@ lookups. Every other machine state (`idle`, `listening`, `celebrating`,
 `confused`, `relaxing`, `playing`, `error`) shows the still logo, so a
 typing visitor or an error never looks like "working on it". (My call.)
 
-| Effect | What it does | Kind |
-|---|---|---|
-| Comet trace | Logo solid; a bright spark runs round its outline | outline |
-| Draw and undraw | Outline writes itself in one line, fills, erases, loops | outline |
-| Charge up | Logo dim, fills from the bottom with a gentle wave | stencil |
-| Shimmer | A band of light sweeps across, only inside the logo | stencil |
-| Echo rings | Logo still; copies of its outline ripple out and fade | outline |
-| Marching outline | Fill fades back; dashes chase round the outline | outline |
-| Segment chase | Regions of the logo light up in turn | stencil |
+| Effect           | What it does                                            | Kind    |
+| ---------------- | ------------------------------------------------------- | ------- |
+| Comet trace      | Logo solid; a bright spark runs round its outline       | outline |
+| Draw and undraw  | Outline writes itself in one line, fills, erases, loops | outline |
+| Charge up        | Logo dim, fills from the bottom with a gentle wave      | stencil |
+| Shimmer          | A band of light sweeps across, only inside the logo     | stencil |
+| Echo rings       | Logo still; copies of its outline ripple out and fade   | outline |
+| Marching outline | Fill fades back; dashes chase round the outline         | outline |
+| Segment chase    | Regions of the logo light up in turn                    | stencil |
 
 (Spark burst was shown and rejected.)
 

@@ -36,31 +36,33 @@
 
 ## File Structure
 
-| Path | Responsibility |
-|---|---|
-| `packages/contracts/src/brand.ts` (new) | Effect names, public `brandSchema`, path/outline regexes |
-| `packages/contracts/src/widget.ts` | `assistantName`, `brand` on `widgetConfigSchema` |
-| `apps/api/src/branding/image.ts` (new) | Decode, mask extraction, crop/downscale, colours, PNG encode |
-| `apps/api/src/branding/trace.ts` (new) | Marching squares, simplification, rasterised verification |
-| `apps/api/src/branding/process.ts` (new) | `processLogo`: the whole upload pipeline, pure |
-| `apps/api/src/branding/store.ts` (new) | `BrandAssetStore` (memory, file, GCS) and `brandAssetStoreFromEnv` |
-| `apps/api/src/routes/branding.ts` (new) | Upload, portal asset read, public asset read, `publicBrand()` |
-| `apps/api/src/routes/portal.ts`, `server.ts`, `tenants.ts`, `agent/prompt.ts` | Settings, tenant view, config route, prompt name |
-| `packages/logo-effects/` (new) | Effect markup (pure), cycle scheduler (pure), `createLogoView` (DOM) |
-| `packages/widget/src/brand-cache.ts` (new), `logo.ts` (new lazy entry), `widget.ts` | Remembered brand, launcher/header logo, busy wiring |
-| `apps/marketing/components/dashboard/brand-section.tsx` (new), `logo-preview.tsx` (new), `studio-form.tsx` | Studio UI |
-| `infrastructure/terraform/branding.tf` (new), `main.tf` | Bucket, IAM, env |
+| Path                                                                                                       | Responsibility                                                       |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `packages/contracts/src/brand.ts` (new)                                                                    | Effect names, public `brandSchema`, path/outline regexes             |
+| `packages/contracts/src/widget.ts`                                                                         | `assistantName`, `brand` on `widgetConfigSchema`                     |
+| `apps/api/src/branding/image.ts` (new)                                                                     | Decode, mask extraction, crop/downscale, colours, PNG encode         |
+| `apps/api/src/branding/trace.ts` (new)                                                                     | Marching squares, simplification, rasterised verification            |
+| `apps/api/src/branding/process.ts` (new)                                                                   | `processLogo`: the whole upload pipeline, pure                       |
+| `apps/api/src/branding/store.ts` (new)                                                                     | `BrandAssetStore` (memory, file, GCS) and `brandAssetStoreFromEnv`   |
+| `apps/api/src/routes/branding.ts` (new)                                                                    | Upload, portal asset read, public asset read, `publicBrand()`        |
+| `apps/api/src/routes/portal.ts`, `server.ts`, `tenants.ts`, `agent/prompt.ts`                              | Settings, tenant view, config route, prompt name                     |
+| `packages/logo-effects/` (new)                                                                             | Effect markup (pure), cycle scheduler (pure), `createLogoView` (DOM) |
+| `packages/widget/src/brand-cache.ts` (new), `logo.ts` (new lazy entry), `widget.ts`                        | Remembered brand, launcher/header logo, busy wiring                  |
+| `apps/marketing/components/dashboard/brand-section.tsx` (new), `logo-preview.tsx` (new), `studio-form.tsx` | Studio UI                                                            |
+| `infrastructure/terraform/branding.tf` (new), `main.tf`                                                    | Bucket, IAM, env                                                     |
 
 ---
 
 ### Task 1: Brand contract
 
 **Files:**
+
 - Create: `packages/contracts/src/brand.ts`
 - Modify: `packages/contracts/src/widget.ts` (`widgetConfigSchema`), `packages/contracts/src/index.ts` (export)
 - Test: `packages/contracts/test/brand.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `LOGO_EFFECTS = ['comet','draw','charge','shimmer','rings','march','segments'] as const`, `type LogoEffect`
   - `OUTLINE_EFFECTS: readonly LogoEffect[] = ['comet','draw','rings','march']`, `STENCIL_EFFECTS = ['charge','shimmer','segments']`
@@ -82,11 +84,13 @@
 ### Task 2: Image decode, mask and colours
 
 **Files:**
+
 - Create: `apps/api/src/branding/image.ts`
 - Modify: `apps/api/package.json` (add `"pngjs": "7.0.0"`, dev `"@types/pngjs": "^6.0.5"`, same versions as `packages/sunscan-engine`)
 - Test: `apps/api/test/branding-image.test.ts` (fixtures built in-test with `PNG.sync.write`)
 
 **Interfaces:**
+
 - Produces:
   - `interface Raster { width: number; height: number; data: Uint8Array /* RGBA */ }`
   - `class LogoImageError extends Error { code: 'not_png' | 'too_large' | 'empty' }`
@@ -98,6 +102,7 @@
   - `suggestColors(r: Raster, m: Mask): { primary: string; glow: string }` (`#RRGGBB`)
 
 `extractMask` algorithm (pin this):
+
 1. Border ring = all pixels on the outermost row/column. If ≥ 50 % have alpha < 128, **alpha mode**: coverage = alpha / 255.
 2. Otherwise take border pixels with alpha ≥ 200; bg = per-channel median. If ≥ 90 % of them are within RGB distance 24 of bg, **background mode**: coverage = clamp((d − 12) / (48 − 12), 0, 1) × alpha/255, where d = RGB distance to bg.
 3. Otherwise return `null` (photo-like: shown still, no effects).
@@ -124,10 +129,12 @@
 ### Task 3: Trace and verify, and the processing pipeline
 
 **Files:**
+
 - Create: `apps/api/src/branding/trace.ts`, `apps/api/src/branding/process.ts`
 - Test: `apps/api/test/branding-trace.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 2's `Raster`, `Mask`, `decodePng`, `extractMask`, `cropAndFit`, `encodePng`, `maskToPng`, `suggestColors`.
 - Produces:
   - `traceMask(m: Mask): Array<Array<[number, number]>>` (closed polygons, pixel coordinates)
@@ -138,6 +145,7 @@
   - `processLogo(bytes: Uint8Array, kind: LogoKind): ProcessedLogo`
 
 Algorithm (pin this):
+
 - `traceMask`: marching squares at iso 0.5 with linear interpolation on edges, saddle cases resolved by the cell's average. Drop polygons with |area| < 4 px². Douglas-Peucker with ε = 0.35 px.
 - `verifyTrace`: rasterise the polygons with the even-odd rule at the mask's size, 4 × 4 supersampling. Binarise both (≥ 0.5). `iou` = |A∩B| / |A∪B|. `farMismatch` = count of XOR pixels whose distance to the nearest boundary pixel of the binarised mask is > 1.5 px.
 - Pass when `iou ≥ 0.98 && farMismatch === 0 && outline.length ≤ 60000`.
@@ -161,10 +169,12 @@ Algorithm (pin this):
 ### Task 4: Brand asset store
 
 **Files:**
+
 - Create: `apps/api/src/branding/store.ts`
 - Test: `apps/api/test/branding-store.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `interface BrandAssetStore { put(tenantId: string, name: string, bytes: Uint8Array): Promise<void>; get(tenantId: string, name: string): Promise<Uint8Array | null> }`
   - `name` must match `^[a-f0-9]{16}(-mask\.png|\.png|\.json)$`, otherwise throw. That is the only key shape.
@@ -182,11 +192,13 @@ Algorithm (pin this):
 ### Task 5: Upload and asset routes
 
 **Files:**
+
 - Create: `apps/api/src/routes/branding.ts`
 - Modify: `apps/api/src/server.ts` (`ServerDeps.brandAssets?: BrandAssetStore`, defaulting to `brandAssetStoreFromEnv` with the same `dataDir` the SunScan service uses; register routes), `tests/security/tenant-isolation.test.ts`
 - Test: `apps/api/test/branding-routes.test.ts`
 
 **Interfaces:**
+
 - Consumes: `processLogo`, `BrandAssetStore`, portal `member(request, role)` auth used in `routes/portal.ts`.
 - Produces:
   - `POST /v1/portal/tenants/:tenantId/brand/:kind` (`kind` = `icon` | `wordmark`), admin, `bodyLimit` 4 MB, body `{ png: string /* base64, decoded ≤ 3 MB */ }`. Stores `<id>.png`, `<id>-mask.png` (if any), `<id>.json` (`ProcessedLogo` minus bytes). Returns `{ asset: BrandAssetView }`.
@@ -209,10 +221,12 @@ Algorithm (pin this):
 ### Task 6: Settings, tenant view, public config, assistant name
 
 **Files:**
+
 - Modify: `apps/api/src/tenants.ts` (`Tenant.config.branding?: StoredBranding`), `apps/api/src/routes/portal.ts` (`settingsSchema`, settings handler, `tenantView`), `apps/api/src/server.ts` (config route), `apps/api/src/agent/prompt.ts:40`
 - Test: `apps/api/test/branding-settings.test.ts`, extend the existing `buildSystemInstruction` test file (find with `grep -rln buildSystemInstruction apps/api/test`)
 
 **Interfaces:**
+
 - Consumes: `loadBrandAsset` (Task 5), `brandSchema`, `assistantNameSchema` (Task 1).
 - Produces:
   - `interface StoredBranding { mode: 'sunny' | 'logo'; icon: BrandAssetMeta | null; wordmark: BrandAssetMeta | null; effects: LogoEffect[]; colors: { primary: string; glow: string } | null }`. Server-only, like `addons`: `configFor` drops it through `widgetConfigSchema`.
@@ -221,7 +235,7 @@ Algorithm (pin this):
   - `publicBrand(tenant: Tenant): Brand | undefined` in `routes/branding.ts`: undefined unless mode is `logo` with an icon. Builds paths `/v1/widget/brand/<publicId>/<id>.png`. Colours fall back to `suggestedColors`, then `primaryColor` + white.
   - The config route returns `{ ...widgetConfig, assistantName: config.assistantName ?? 'Sunny', brand: publicBrand(tenant) }`, still `max-age=60`.
   - `tenantView` adds `assistantName` and `branding: StoredBranding & { icon: BrandAssetView | null; wordmark: BrandAssetView | null }`.
-  - The prompt says ``You are ${tenant.config.assistantName ?? 'Sunny'}, a customer assistant for ${company}.``
+  - The prompt says `You are ${tenant.config.assistantName ?? 'Sunny'}, a customer assistant for ${company}.`
 
 - [ ] **Step 1: Write the failing tests**:
   - save `mode: 'logo'` with an uploaded icon id and effects `['comet','shimmer']` → the config route returns `brand.effects` `['comet','shimmer']` and a valid `brandSchema`;
@@ -241,11 +255,13 @@ Algorithm (pin this):
 ### Task 7: `@sunny/logo-effects`
 
 **Files:**
+
 - Create: `packages/logo-effects/package.json` (shape of `packages/character/package.json`, depends on `@sunny/contracts`), `src/index.ts`, `src/markup.ts`, `src/cycle.ts`, `src/view.ts`
 - Modify: `tsconfig.json` paths, `vitest.config.ts` alias
 - Test: `packages/logo-effects/test/markup.test.ts`, `test/cycle.test.ts`
 
 **Interfaces:**
+
 - Consumes: `LogoEffect`, `OUTLINE_EFFECTS`, `Brand` (Task 1).
 - Produces:
   - `interface LogoArt { src: string; maskSrc: string | null; width: number; height: number; outline: string | null; colors: { primary: string; glow: string } }`
@@ -281,11 +297,13 @@ Algorithm (pin this):
 ### Task 8: Widget
 
 **Files:**
+
 - Create: `packages/widget/src/brand-cache.ts`, `packages/widget/src/logo.ts` (lazy entry: re-exports `createLogoView`)
 - Modify: `packages/widget/src/widget.ts`, `packages/widget/scripts/build.mjs` (second lazy build like `sunny-roof.js`), `scripts/widget-bundle.mjs` (`LAZY_PARTS` += `'sunny-logo.js'`), `packages/widget/src/styles.ts`
 - Test: `packages/widget/test/brand-cache.test.ts`, `tests/e2e/widget-logo.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `brandSchema`, `Brand` (Task 1); `createLogoView`, `LogoArt` (Task 7).
 - Produces:
   - `readBrand(storage: Storage | null, publicId: string): { brand: Brand; assistantName: string } | null`
@@ -294,6 +312,7 @@ Algorithm (pin this):
   - `toArt(brand: Brand, apiUrl: string): LogoArt`: paths resolved against `apiUrl`.
 
 Behaviour in `widget.ts`:
+
 - **Mount with a remembered brand:** draw the icon `<img>` on the launcher and header immediately. Never create the Sunny views.
 - **Mount without one, `data-launcher` not `none`:** the launcher gets class `pending` (`visibility: hidden`) until the config resolves or 4000 ms pass.
 - **After the config:** `safeBrand(config.brand)`.
@@ -329,11 +348,13 @@ Behaviour in `widget.ts`:
 ### Task 9: Sunny Studio
 
 **Files:**
+
 - Create: `apps/marketing/components/dashboard/brand-section.tsx`, `apps/marketing/components/dashboard/logo-preview.tsx`
 - Modify: `apps/marketing/components/dashboard/studio-form.tsx`, `apps/marketing/lib/portal-api.ts` (`TenantView.assistantName`, `TenantView.branding`, `BrandAssetView`), `apps/marketing/next.config.mjs` (`transpilePackages` += `'@sunny/logo-effects'`), `apps/marketing/package.json` (dep `@sunny/logo-effects`)
 - Test: extend `tests/e2e/dashboard.spec.ts`
 
 **Interfaces:**
+
 - Consumes: the upload and portal asset routes (Task 5), the settings `branding`/`assistantName` (Task 6), `createLogoView`/`effectMarkup` (Task 7).
 - Produces:
   - `BrandSection({ tenant, value, onChange })`, where `value: BrandDraft = { mode; icon: BrandAssetView | null; wordmark: BrandAssetView | null; effects: LogoEffect[]; colors: {primary; glow} | null }`.
@@ -342,6 +363,7 @@ Behaviour in `widget.ts`:
   - `StudioForm` sends `assistantName` and `branding: { mode, iconId, wordmarkId, effects, colors }` with the existing fields. On a name change it replaces `I'm <oldName>` in the greeting with `I'm <newName>` (exact substring only).
 
 Layout and copy (the approved mockup; no em dashes):
+
 - Section heading "Your logo".
 - Radio "Use Sunny" / "Use my logo".
 - **Icon slot:** label "Icon", hint "For the chat button and the top of the chat. Square PNG or SVG, at least 256 × 256. A simple mark works best."
@@ -372,10 +394,12 @@ Layout and copy (the approved mockup; no em dashes):
 ### Task 10: Infrastructure
 
 **Files:**
+
 - Create: `infrastructure/terraform/branding.tf`
 - Modify: `infrastructure/terraform/main.tf` (API env, next to the `SUNSCAN_ARTEFACT_*` envs at ~line 329)
 
 **Interfaces:**
+
 - Produces:
   - bucket `google_storage_bucket.brand_assets`, named `"${var.project_id}-brand-${local.name_suffix}"`. Private, uniform access, `public_access_prevention = "enforced"`, `force_destroy = false`, same labels, `depends_on` storage API (defined in `sunscan.tf`).
   - `google_storage_bucket_iam_member.api_writes_brand` (`roles/storage.objectAdmin` for the API service account).

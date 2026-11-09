@@ -54,29 +54,63 @@
 ### Task 1: The flow contract
 
 **Files:**
+
 - Create: `packages/contracts/src/conversation-flow.ts`
 - Modify: `packages/contracts/src/index.ts` (export)
 - Test: `packages/contracts/test/conversation-flow.test.ts`
 
 **Interfaces:**
+
 - Produces:
+
   ```ts
   export type FlowEffect =
     | { kind: 'add'; itemKey: string; quantity?: number }
     | { kind: 'remove'; itemKey: string }
     | { kind: 'swap'; fromKey: string; toKey: string; quantity?: number };
-  export interface FlowChoice { value: string; label: string; effects: FlowEffect[] }
+  export interface FlowChoice {
+    value: string;
+    label: string;
+    effects: FlowEffect[];
+  }
   export type FlowStep =
-    | { kind: 'preset'; id: string; prompt?: string; labels?: Record<string, string>;
-        effects?: Record<string, FlowEffect[]>; followUps?: FlowFollowUp[] }
-    | { kind: 'custom'; id: string; prompt: string; mode: 'quote' | 'lead';
-        answer: 'choice' | 'text'; choices: FlowChoice[]; followUps?: FlowFollowUp[] };
-  export interface FlowFollowUp { when: string[]; step: FlowStep }   // `when` = parent answer values
-  export interface ConversationFlow { version: number; updatedAt: string; steps: FlowStep[] }
+    | {
+        kind: 'preset';
+        id: string;
+        prompt?: string;
+        labels?: Record<string, string>;
+        effects?: Record<string, FlowEffect[]>;
+        followUps?: FlowFollowUp[];
+      }
+    | {
+        kind: 'custom';
+        id: string;
+        prompt: string;
+        mode: 'quote' | 'lead';
+        answer: 'choice' | 'text';
+        choices: FlowChoice[];
+        followUps?: FlowFollowUp[];
+      };
+  export interface FlowFollowUp {
+    when: string[];
+    step: FlowStep;
+  } // `when` = parent answer values
+  export interface ConversationFlow {
+    version: number;
+    updatedAt: string;
+    steps: FlowStep[];
+  }
   export const conversationFlowSchema: z.ZodType<ConversationFlow>;
   export const CUSTOM_ID: RegExp; // /^c_[a-z0-9]{6,24}$/
-  export const FLOW_LIMITS = { steps: 60, choices: 12, followUpDepth: 2, promptChars: 300, labelChars: 80 };
+  export const FLOW_LIMITS = {
+    steps: 60,
+    choices: 12,
+    followUpDepth: 2,
+    promptChars: 300,
+    labelChars: 80,
+  };
   ```
+
   `steps` lists the middle section only (fixed start and end are implied). A preset absent from `steps` is removed.
 
 - [ ] **Step 1: Write the failing tests** in `conversation-flow.test.ts`:
@@ -94,11 +128,13 @@
 ### Task 2: Presets and the resolved flow
 
 **Files:**
+
 - Create: `apps/api/src/flow/presets.ts`, `apps/api/src/flow/resolve.ts`
 - Modify: `apps/api/src/questionnaire.ts` (re-implement its exported functions over `resolveFlow(null)`, keeping signatures)
 - Test: `apps/api/test/flow-resolve.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 types; `QUESTIONS`, `OPTION_LABELS` from `questionnaire.ts`.
 - Produces:
   ```ts
@@ -107,19 +143,30 @@
   export const PRESET_WARNINGS: Readonly<Record<string, string>>; // removal warning per price-dependent preset
   export const PRESET_GROUPS: Readonly<Record<string, readonly string[]>>; // e.g. usage_source -> [annual_kwh, monthly_cost, household_size]; roof_size/roof_direction travel together
   // resolve.ts
-  export interface ResolvedQuestion { id: string; prompt: string; options: string[] | null;
-    multi: boolean; numeric: NumericRule | null; freeText: boolean; mode: 'quote' | 'lead' | 'preset';
-    parent: { id: string; anyOf: string[] } | null; label(value: string): string }
+  export interface ResolvedQuestion {
+    id: string;
+    prompt: string;
+    options: string[] | null;
+    multi: boolean;
+    numeric: NumericRule | null;
+    freeText: boolean;
+    mode: 'quote' | 'lead' | 'preset';
+    parent: { id: string; anyOf: string[] } | null;
+    label(value: string): string;
+  }
   export interface ResolvedFlow {
-    custom: boolean;                 // false for the default flow
-    questions: ResolvedQuestion[];   // fixed start, then middle in order (follow-ups right after their parent)
+    custom: boolean; // false for the default flow
+    questions: ResolvedQuestion[]; // fixed start, then middle in order (follow-ups right after their parent)
     removedPresets: string[];
     question(id: string): ResolvedQuestion | undefined;
-    applicability(id: string, answers: Record<string,string>): Applicability;
-    outstanding(answers: Record<string,string>): string[];
-    next(answers: Record<string,string>): string | null;
-    validate(id: string, value: string, answers?: Record<string,string>): AnswerVerdict;
-    reconcile(answers: Record<string,string>): { answers: Record<string,string>; dropped: DroppedAnswer[] };
+    applicability(id: string, answers: Record<string, string>): Applicability;
+    outstanding(answers: Record<string, string>): string[];
+    next(answers: Record<string, string>): string | null;
+    validate(id: string, value: string, answers?: Record<string, string>): AnswerVerdict;
+    reconcile(answers: Record<string, string>): {
+      answers: Record<string, string>;
+      dropped: DroppedAnswer[];
+    };
   }
   export function resolveFlow(stored: ConversationFlow | null | undefined): ResolvedFlow;
   ```
@@ -150,19 +197,32 @@
 ### Task 3: Checking a flow against the price list
 
 **Files:**
+
 - Create: `apps/api/src/flow/check.ts`
 - Test: `apps/api/test/flow-check.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ConversationFlow`; `PriceList`, `PriceItem` from `apps/api/src/catalogue/price-list.ts`.
 - Produces:
+
   ```ts
-  export interface FlowIssue { stepId: string; choice?: string; code:
-    'missing_item' | 'mandatory_item' | 'not_targetable' | 'needs_quantity' | 'bad_parent' | 'duplicate_id';
-    message: string }   // plain English, shown in Studio
+  export interface FlowIssue {
+    stepId: string;
+    choice?: string;
+    code:
+      | 'missing_item'
+      | 'mandatory_item'
+      | 'not_targetable'
+      | 'needs_quantity'
+      | 'bad_parent'
+      | 'duplicate_id';
+    message: string;
+  } // plain English, shown in Studio
   export function checkFlow(flow: ConversationFlow, list: PriceList | null): FlowIssue[];
   export const PACKAGE_UNITS: readonly string[]; // ['panel','kwh'] plus kWp if the list has it
   ```
+
   Not targetable: categories `pv` and `panel_uplift`, and pricing kind `quote_only`. Messages, exact:
   - missing_item: "{item} is no longer on your price list."
   - mandatory_item: "{item} is on every quote, so an answer cannot remove or swap it."
@@ -180,19 +240,34 @@
 ### Task 4: Answer effects in the quote
 
 **Files:**
+
 - Create: `apps/api/src/flow/effects.ts`
 - Modify: `packages/quote-engine/src/recommend/optionTypes.ts` (add `adjustConfig?: (config: SystemConfig) => SystemConfig` to `OptionSetInput`), `packages/quote-engine/src/recommend/buildOptionSet.ts` (apply it to each preset before candidates are built; also wherever `buildBudgetLadder.ts` builds its own configs), `apps/api/src/journey/quote.ts` (`buildQuote` input gains `flow?: ResolvedFlow`; record gains `estimatedFrom: string[]`; effect warnings appended to `warnings`), `apps/api/src/journey/journey.ts` (`journeyStatus` and `quoteAnswers` take a `ResolvedFlow`, default `resolveFlow(null)`).
 - Test: `apps/api/test/flow-effects.test.ts`, `packages/quote-engine/test/adjust-config.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 2 `ResolvedFlow`, Task 3 rules; `SystemConfig`, `PricingCatalogue` from `@sunny/quote-engine`.
 - Produces:
+
   ```ts
-  export interface AppliedEffect { effect: FlowEffect; questionId: string; value: string }
-  export function effectsFor(flow: ConversationFlow | null, answers: Record<string,string>): AppliedEffect[]; // flow order
-  export function applyEffects(config: SystemConfig, effects: AppliedEffect[], catalogue: PricingCatalogue,
-    warn: (message: string) => void): SystemConfig;
+  export interface AppliedEffect {
+    effect: FlowEffect;
+    questionId: string;
+    value: string;
+  }
+  export function effectsFor(
+    flow: ConversationFlow | null,
+    answers: Record<string, string>,
+  ): AppliedEffect[]; // flow order
+  export function applyEffects(
+    config: SystemConfig,
+    effects: AppliedEffect[],
+    catalogue: PricingCatalogue,
+    warn: (message: string) => void,
+  ): SystemConfig;
   ```
+
   Routing by catalogue: a panel item sets `panelSku`, an inverter sets `inverterSku`, a battery sets or clears `battery`, a mounting item sets `mountingSku`, a scaffold extra goes in `scaffoldingExtras`, a `general_electrical`/structural extra in `electricalExtras`, any other extra in `optionalExtras`. Add of an item already present does nothing. An effect whose item is missing or mandatory is skipped with the warning "{item} could not be added from your answers, so your installer will confirm it." (or "removed"/"swapped").
   `estimatedFrom` lists the `flow.removedPresets` that are keys of `PRESET_WARNINGS`. When it is non-empty the quote's `warnings` gain, exactly: "Some figures use typical values because your installer does not ask about {list}." where {list} is the presets' prompts in lower case joined with ", " and " and ".
 
@@ -216,11 +291,13 @@
 ### Task 5: Sunny's chat follows the installer's flow
 
 **Files:**
+
 - Modify: `apps/api/src/tenants.ts` (`config.conversation?: ConversationFlow`), `apps/api/src/agent/tools.ts` (`get_questionnaire`, `save_answer` use `ctx.flow`), the tool context type (add `flow: ResolvedFlow`, built once per turn from the tenant), `apps/api/src/journey/agent-tools.ts` (labels and replies from `flow.question(id).label`), `apps/api/src/journey/extract.ts` (validation and label matching via the flow; a reply matching no choice stores nothing), `apps/api/src/journey/service.ts` (pass the flow to `journeyStatus` and `buildQuote`).
 - Unchanged by design: `POST /v1/qualification/answer` in `server.ts` keeps the default flow.
 - Test: `apps/api/test/flow-chat.test.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 2 and 4.
 - Produces: `ToolContext.flow: ResolvedFlow`.
 
@@ -239,11 +316,13 @@
 ### Task 6: Portal routes and preview
 
 **Files:**
+
 - Create: `apps/api/src/routes/conversation.ts` (registered in `server.ts` beside the branding routes)
 - Modify: `tests/security/tenant-isolation.test.ts` (add the three routes)
 - Test: `apps/api/test/conversation-routes.test.ts`
 
 **Interfaces:**
+
 - Produces (all under `/v1/portal/tenants/:tenantId/conversation`):
   - `GET ` (viewer): `{ flow: ConversationFlow | null, presets: PresetView[], priceItems: PriceItemView[], issues: FlowIssue[] }` where `PresetView = { id, prompt, options: {value,label}[], fixed: boolean, warning: string | null, group: string[] }` and `PriceItemView = { key, name, category, unitLabel, packageUnit: boolean, mandatory, targetable, priceText }` from the published list.
   - `PUT ` (admin): body `{ flow: ConversationFlow }`; zod, then `checkFlow`; any issue → 400 with `{ error, issues }`; else saves `tenant.config.conversation` (bumps `version`) and returns the GET shape.
@@ -259,10 +338,12 @@
 ### Task 7: Leads carry the installer's questions
 
 **Files:**
+
 - Modify: the lead record type in `packages/contracts/src/leads.ts` and where a lead is created from the conversation (search `createLead`/`saveLead` callers in `apps/api/src`), the lead notification email renderer, `apps/marketing/components/dashboard/lead-detail.tsx`.
 - Test: `apps/api/test/flow-leads.test.ts`, extend the lead-detail e2e in `tests/e2e/dashboard.spec.ts`.
 
 **Interfaces:**
+
 - Produces: `LeadRecord.flowAnswers?: Array<{ id: string; question: string; value: string; answer: string; mode: 'preset' | 'quote' | 'lead' }>` (question and answer in the installer's wording; `id` and `value` stable). Also `LeadRecord.flowVersion?: number`, the `ConversationFlow.version` the visitor was asked with (absent for the default flow).
 
 - [ ] **Step 1: Write the failing tests:** a lead from a custom flow lists every answered question in flow order with the installer's wording and the stable id/value; a lead-only free-text answer appears; the lead email contains the custom question and answer; the dashboard lead page shows them.
@@ -274,11 +355,13 @@
 ### Task 8: The Studio editor
 
 **Files:**
+
 - Create: `apps/marketing/components/dashboard/conversation/editor.tsx` (state, save, reset), `question-list.tsx` (drag to reorder, open in place, add question and follow-up, effect picker), `flow-diagram.tsx` (SVG drawn from the same state; selection shared), `chat-preview.tsx` (calls `POST /preview`), `panel.tsx` (collapsible panel wrapper; collapsed state per panel in `localStorage` key `sunny:flow-panels`, wrapped in try/catch)
 - Modify: `apps/marketing/lib/portal-api.ts` (types and calls for Task 6), the Studio page to add a "Your conversation" section, `apps/marketing/app/dashboard.css`
 - Test: `tests/e2e/conversation-editor.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Task 6 routes.
 - Behaviour fixed by the spec: three panels side by side at ≥ 1100 px, tabs below that; each panel minimisable; fixed start and end shown locked; tags "Sunny's question", "Changes the quote", "Lead only"; removing a preset with a warning shows the warning and asks to confirm; effects chosen only from `priceItems` where `targetable`; a non-package unit asks for a quantity; follow-ups indented under their answer; diagram selection and list selection stay in step; preview shows the installer's wording with the note "Sunny may phrase this more naturally in the chat." and the exact price effect; Save shows each issue's message beside its question; "Reset to Sunny's questions" confirms first; viewers see everything read-only. Drag also works by keyboard (move up / move down buttons).
 
@@ -291,6 +374,7 @@
 ### Task 9: End to end and the whole suite
 
 **Files:**
+
 - Test: `tests/e2e/conversation-flow.spec.ts`
 
 - [ ] **Step 1: Write the test:** an installer saves a flow with an electric-car question linked to the EV charger; a visitor in the widget answers "yes"; the quote shows the EV charger line at its listed price in every option; the lead in the dashboard shows the question and answer.
