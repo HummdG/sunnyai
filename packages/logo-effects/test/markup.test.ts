@@ -90,18 +90,22 @@ describe('effectMarkup', () => {
 
   it.each(LOGO_EFFECTS)('%s never paints a flat colour fill', (effect) => {
     // Any fill a visitor sees is the uploaded image. Only strokes take a brand
-    // colour. White is allowed for the shimmer's light and for the charge wave,
-    // which is a mask and never painted itself.
+    // colour. Allowed: white for the charge wave, which is a mask and never
+    // painted itself, and the shimmer's soft-edged light, a gradient of the glow.
     const out = effectMarkup(effect, art(), 'a');
     for (const [, fill] of out.matchAll(/\bfill="([^"]+)"/g)) {
-      expect(['none', '#ffffff']).toContain(fill);
+      expect(['none', '#ffffff', 'url(#g-a)']).toContain(fill);
     }
   });
 
-  it('segments has no tint over the bands', () => {
+  it('segments lights the logo by screening its own pixels, never covering them', () => {
     const out = effectMarkup('segments', art(), 'a');
-    expect(out).not.toContain(art().colors.glow);
-    expect(out).not.toContain(art().colors.primary);
+    // Screen only ever lightens, so a dark mark lights up in its highlight and a
+    // pale one goes paler; the result is clipped back to the logo's own alpha.
+    expect(out).toContain(`<feFlood flood-color="${art().colors.primary}"`);
+    expect(out).toContain('mode="screen"');
+    expect(out).toContain('operator="in"');
+    expect(out).not.toContain(`fill="${art().colors.primary}"`);
     expect(out.match(/<g clip-path="url\(#b\d-a\)" mask="url\(#m-a\)"/g)).toHaveLength(5);
   });
 
@@ -143,9 +147,16 @@ describe('effectMarkup', () => {
     expect(effectMarkup('shimmer', art(), 'a', 3000)).toContain('3000ms');
   });
 
-  it('scales stroke widths to 2.5 % of the longer side', () => {
-    expect(effectMarkup('comet', art({ width: 200, height: 80 }), 'a')).toContain(
-      'stroke-width="5"',
+  it('scales stroke widths to the longer side', () => {
+    const wide = art({ width: 200, height: 80 });
+    expect(effectMarkup('draw', wide, 'a')).toContain('stroke-width="5"');
+    // The comet is a touch heavier so its spark reads at button size.
+    expect(effectMarkup('comet', wide, 'a')).toContain('stroke-width="7"');
+  });
+
+  it('draw keeps a faint copy of the logo, so its shape is never gone', () => {
+    expect(effectMarkup('draw', art(), 'a')).toContain(
+      `<image href="${art().src}" x="0" y="0" width="120" height="100" opacity="0.18"/>`,
     );
   });
 

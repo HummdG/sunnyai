@@ -384,6 +384,7 @@ export class SunnyWidget {
     for (const view of this.#logoViews) view.destroy();
     this.#logoViews = [];
     this.#brand = null;
+    delete this.#launcher.dataset.plate;
     for (const host of [this.#launcherArt, this.#avatar]) {
       host.replaceChildren();
       delete host.dataset.logoEffect;
@@ -428,6 +429,8 @@ export class SunnyWidget {
       host.replaceChildren(img);
     }
     this.#launcherArt.className = 'logo-host';
+    // The logo sits on a chip so it reads over any page as the visitor scrolls.
+    this.#launcher.dataset.plate = brand.plate;
     this.#launcher.classList.add('ready');
     this.#launcher.classList.remove('pending');
 

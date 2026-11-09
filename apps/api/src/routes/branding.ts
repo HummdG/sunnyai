@@ -39,6 +39,7 @@ export interface BrandAssetView {
   outline: string | null;
   availableEffects: LogoEffect[];
   suggestedColors: { primary: string; glow: string } | null;
+  plate: 'light' | 'dark';
   url: string;
   maskUrl: string | null;
 }
@@ -72,6 +73,8 @@ export function brandAssetView(tenantId: string, meta: BrandAssetMeta): BrandAss
     outline: meta.outline,
     availableEffects: meta.availableEffects,
     suggestedColors: meta.suggestedColors,
+    // Uploads from before the chip existed have none recorded.
+    plate: meta.plate ?? 'light',
     url: `${base}/${meta.id}.png`,
     maskUrl: meta.hasMask ? `${base}/${meta.id}-mask.png` : null,
   };
@@ -104,6 +107,7 @@ export function publicBrand(
     effects: branding.effects,
     colors: branding.colors ??
       icon.suggestedColors ?? { primary: tenant.config.primaryColor, glow: '#FFFFFF' },
+    plate: icon.plate ?? 'light',
   };
   const checked = brandSchema.safeParse(brand);
   if (checked.success) return checked.data;

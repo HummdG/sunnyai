@@ -159,9 +159,9 @@ export function effectMarkup(
         base +
         each(
           (piece) =>
-            `<path d="${piece}" pathLength="100" fill="none" stroke="${glow}" stroke-width="${sw}" ` +
-            `stroke-linecap="round" stroke-dasharray="14 86" ` +
-            `style="animation:${k('comet')} ${p} linear infinite; filter:drop-shadow(0 0 ${n(big * 0.03)}px ${primary})"/>`,
+            `<path d="${piece}" pathLength="100" fill="none" stroke="${primary}" stroke-width="${n(big * 0.035)}" ` +
+            `stroke-linecap="round" stroke-dasharray="12 88" ` +
+            `style="animation:${k('comet')} ${p} linear infinite; filter:drop-shadow(0 0 ${n(big * 0.03)}px ${glow})"/>`,
         )
       );
 
@@ -171,11 +171,12 @@ export function effectMarkup(
           `@keyframes ${k('draw')} { 0% { stroke-dashoffset: 100; } 45%,55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }` +
             `@keyframes ${k('fill')} { 0%,30% { opacity: 0; } 45%,58% { opacity: 1; } 72%,100% { opacity: 0; } }`,
         ) +
+        image(art.src, art, ' opacity="0.18"') +
         image(art.src, art, ` style="animation:${k('fill')} ${p} ease-in-out infinite"`) +
         each(
           (piece) =>
             `<path d="${piece}" pathLength="100" fill="none" stroke="${primary}" stroke-width="${sw}" ` +
-            `stroke-linejoin="round" stroke-dasharray="100" ` +
+            `stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="100" ` +
             `style="animation:${k('draw')} ${p} ease-in-out infinite"/>`,
         )
       );
@@ -205,7 +206,7 @@ export function effectMarkup(
         `</mask></defs>` +
         image(art.src, art, ' opacity="0.22"') +
         `<g mask="url(#w-${uid})">${base}</g>` +
-        `<g mask="${s.ref}">${motion(`<path d="${crest}" fill="none" stroke="${glow}" stroke-width="${sw}" stroke-linecap="round"/>`)}</g>`
+        `<g mask="${s.ref}">${motion(`<path d="${crest}" fill="none" stroke="${primary}" stroke-width="${n(big * 0.035)}" stroke-linecap="round"/>`)}</g>`
       );
     }
 
@@ -220,10 +221,13 @@ export function effectMarkup(
           `@keyframes ${k('sweep')} { 0% { transform: translateX(${n(-band - lean)}px) skewX(-20deg); } ` +
             `100% { transform: translateX(${n(w + lean)}px) skewX(-20deg); } }`,
         ) +
-        `<defs>${s.def}</defs>` +
+        `<defs>${s.def}<linearGradient id="g-${uid}">` +
+        `<stop offset="0" stop-color="${glow}" stop-opacity="0"/>` +
+        `<stop offset="0.5" stop-color="${glow}" stop-opacity="0.95"/>` +
+        `<stop offset="1" stop-color="${glow}" stop-opacity="0"/></linearGradient></defs>` +
         base +
         `<g mask="${s.ref}"><rect x="0" y="${n(-h * 0.1)}" width="${n(band)}" height="${n(h * 1.2)}" ` +
-        `fill="#ffffff" opacity="0.55" style="animation:${k('sweep')} ${p} ease-in-out infinite"/></g>`
+        `fill="url(#g-${uid})" style="animation:${k('sweep')} ${p} ease-in-out infinite"/></g>`
       );
     }
 
@@ -263,7 +267,7 @@ export function effectMarkup(
       // The logo is cut into five vertical bands that light up in turn. The real
       // image is always drawn whole beneath them, so none of the logo's own
       // pixels ever vanish (a tile behind the mark included). Each lit band is
-      // the same image again, brightened, inside the logo's mask.
+      // the same image again, lit, inside the logo's mask.
       const s = stencil(art, uid);
       const bandW = w / 5;
       const lit = `lit-${uid}`;
@@ -279,12 +283,15 @@ export function effectMarkup(
             `${image(art.src, art, ` filter="url(#${lit})"`)}</g>`,
         );
       }
-      // An SVG filter rather than CSS brightness(), which Safari ignores on SVG elements.
-      const slope = (c: string) => `<feFunc${c} type="linear" slope="1.35"/>`;
+      // Lit means the highlight screened over the logo's own pixels: a dark mark
+      // lights up in its accent and a light one goes paler, never darker. An SVG
+      // filter rather than CSS blending, which Safari ignores on SVG elements.
       return (
         style(`@keyframes ${k('seg')} { 0%,100% { opacity: 0; } 20%,40% { opacity: 1; } }`) +
         `<defs>${s.def}${clips.join('')}<filter id="${lit}" color-interpolation-filters="sRGB">` +
-        `<feComponentTransfer>${slope('R')}${slope('G')}${slope('B')}</feComponentTransfer></filter></defs>` +
+        `<feFlood flood-color="${primary}" result="c"/>` +
+        `<feBlend in="SourceGraphic" in2="c" mode="screen" result="s"/>` +
+        `<feComposite in="s" in2="SourceAlpha" operator="in"/></filter></defs>` +
         base +
         bands.join('')
       );

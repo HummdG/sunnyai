@@ -314,12 +314,71 @@ export function suggestColors(r: Raster, m: Mask): { primary: string; glow: stri
   let top: { score: number; n: number; r: number; g: number; b: number } | undefined;
   for (const b of buckets.values()) if (!top || b.score > top.score) top = b;
   if (!top) return { primary: '#888888', glow: '#d3d3d3' };
-  const pr = top.r / top.n;
-  const pg = top.g / top.n;
-  const pb = top.b / top.n;
-  const mix = (c: number): number => c + (255 - c) * 0.65;
+  // The logo's own colour is a poor highlight: motion drawn in it vanishes on
+  // the logo, and a dark or pale logo gives a muddy glow. The highlight keeps
+  // the logo's hue but is vivid and mid-light, so it reads on the mark and on
+  // white or dark pages alike; the glow is a pale tint of it. A grey or black
+  // logo has no hue to keep, so it stays neutral.
+  const [h, sat, light] = toHsl(top.r / top.n, top.g / top.n, top.b / top.n);
+  const neutral = sat < 0.12 || light < 0.04;
+  const s = neutral ? 0 : Math.max(sat, 0.78);
+  const l = Math.min(Math.max(light, 0.55), 0.62);
   return {
-    primary: `#${hex(pr)}${hex(pg)}${hex(pb)}`,
-    glow: `#${hex(mix(pr))}${hex(mix(pg))}${hex(mix(pb))}`,
+    primary: fromHsl(h, s, neutral ? 0.5 : l),
+    glow: fromHsl(h, neutral ? 0 : 1, 0.87),
   };
+}
+
+/** RGB 0..255 to hue (degrees), saturation and lightness (0..1). */
+function toHsl(r: number, g: number, b: number): [number, number, number] {
+  const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h: number;
+  if (max === rn) h = ((gn - bn) / d) % 6;
+  else if (max === gn) h = (bn - rn) / d + 2;
+  else h = (rn - gn) / d + 4;
+  return [(h * 60 + 360) % 360, s, l];
+}
+
+function fromHsl(h: number, s: number, l: number): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] =
+    h < 60
+      ? [c, x, 0]
+      : h < 120
+        ? [x, c, 0]
+        : h < 180
+          ? [0, c, x]
+          : h < 240
+            ? [0, x, c]
+            : h < 300
+              ? [x, 0, c]
+              : [c, 0, x];
+  return `#${hex((r + m) * 255)}${hex((g + m) * 255)}${hex((b + m) * 255)}`;
+}
+
+/**
+ * Which chip the logo sits on so it stands out: a dark chip for a pale logo
+ * (mostly white or very light), a light one for everything else. Measured as
+ * the alpha-weighted mean luminance of the visible pixels.
+ */
+export function plateFor(r: Raster): 'light' | 'dark' {
+  let sum = 0;
+  let weight = 0;
+  for (let i = 0; i < r.width * r.height; i++) {
+    const a = r.data[i * 4 + 3]! / 255;
+    if (a < 0.5) continue;
+    const lum =
+      (0.2126 * r.data[i * 4]! + 0.7152 * r.data[i * 4 + 1]! + 0.0722 * r.data[i * 4 + 2]!) / 255;
+    sum += lum * a;
+    weight += a;
+  }
+  return weight > 0 && sum / weight > 0.72 ? 'dark' : 'light';
 }

@@ -133,7 +133,7 @@ function useUid(prefix: string): string {
 function Thumb({ asset, colour }: { asset: BrandAssetView; colour: string }) {
   const icon = asset.kind === 'icon';
   return (
-    <div className={`brand-thumb${icon ? '' : ' wide'}`}>
+    <div className={`brand-thumb${icon ? '' : ' wide'}`} data-plate={asset.plate ?? 'light'}>
       <img src={portalUrl(asset.url)} alt="" width={asset.width} height={asset.height} />
       {asset.outline ? (
         <svg
@@ -359,7 +359,7 @@ export function BrandSection({
               <fieldset className="field">
                 <legend>Animations</legend>
                 <p className="hint">Your logo plays these while the assistant is busy.</p>
-                <div className="effect-choices">
+                <div className="effect-choices" data-plate={icon.plate ?? 'light'}>
                   {EFFECTS.map((effect) => (
                     <EffectChoice
                       key={effect}

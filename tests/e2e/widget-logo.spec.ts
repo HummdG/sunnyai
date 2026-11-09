@@ -191,6 +191,16 @@ test('shows the logo on the launcher, and never Sunny', async ({ page }) => {
   expect(await sawSunny(page)).toBe(false);
 });
 
+test('the launcher logo sits on a chip, so it reads over any page', async ({ page }) => {
+  await stubConfig(page, { ...BRAND, plate: 'dark' });
+  await page.goto('/');
+  const launcher = page.locator(HOST).locator('button.launcher');
+  await expect(launcher).toHaveAttribute('data-plate', 'dark');
+  expect(await launcher.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+    'rgb(29, 33, 41)',
+  );
+});
+
 test('animates the header logo while busy, and stills it after', async ({ page }) => {
   await stubConfig(page, BRAND);
   await stubTurn(page);

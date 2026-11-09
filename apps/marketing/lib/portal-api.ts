@@ -74,6 +74,8 @@ export interface BrandAssetView {
   outline: string | null;
   availableEffects: LogoEffect[];
   suggestedColors: BrandColors | null;
+  /** The chip the logo sits on: light for a dark or colourful logo, dark for a pale one. */
+  plate?: 'light' | 'dark';
   url: string;
   maskUrl: string | null;
 }

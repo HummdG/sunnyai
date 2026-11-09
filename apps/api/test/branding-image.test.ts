@@ -10,6 +10,7 @@ import {
   extractMask,
   LogoImageError,
   maskToPng,
+  plateFor,
   suggestColors,
   type Raster,
 } from '../src/branding/image.js';
@@ -327,5 +328,60 @@ describe('encoders and colours', () => {
     const p = [1, 3, 5].map((i) => parseInt(primary.slice(i, i + 2), 16));
     expect(Math.hypot(p[0]! - LIME[0], p[1]! - LIME[1], p[2]! - LIME[2])).toBeLessThan(20);
     expect(glow).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  /** A solid disc of one colour on transparency. */
+  function solid(rgb: [number, number, number]): Raster {
+    const r = blank(64, 64, [0, 0, 0, 0]);
+    for (let y = 0; y < 64; y++)
+      for (let x = 0; x < 64; x++)
+        if ((x - 32) ** 2 + (y - 32) ** 2 <= 20 ** 2) set(r, x, y, [...rgb, 255]);
+    return r;
+  }
+  const rgbOf = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const lightness = (hex: string) => {
+    const c = rgbOf(hex);
+    return (Math.max(...c) + Math.min(...c)) / 510;
+  };
+  const hue = (hex: string) => {
+    const [r, g, b] = rgbOf(hex).map((v) => v / 255) as [number, number, number];
+    const max = Math.max(r, g, b);
+    const d = max - Math.min(r, g, b);
+    const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
+  };
+
+  it('lifts a dark logo to a vivid highlight in its own hue, so motion shows on it', () => {
+    const navy: [number, number, number] = [23, 24, 68];
+    const { primary, glow } = suggestColors(solid(navy), extractMask(solid(navy))!);
+    expect(lightness(primary)).toBeGreaterThan(0.5);
+    expect(Math.abs(hue(primary) - hue('#171844'))).toBeLessThan(8);
+    expect(lightness(glow)).toBeGreaterThan(0.8);
+    // Vivid, not grey.
+    const p = rgbOf(primary);
+    expect(Math.max(...p) - Math.min(...p)).toBeGreaterThan(120);
+  });
+
+  it('gives a pale logo a deeper highlight', () => {
+    const pale: [number, number, number] = [200, 230, 255];
+    const { primary } = suggestColors(solid(pale), extractMask(solid(pale))!);
+    expect(lightness(primary)).toBeLessThan(0.7);
+  });
+
+  it('puts a pale logo on a dark chip and anything else on a light one', () => {
+    expect(plateFor(solid([250, 250, 250]))).toBe('dark');
+    expect(plateFor(solid([200, 230, 255]))).toBe('dark');
+    expect(plateFor(solid([23, 24, 68]))).toBe('light');
+    // Lime is light enough to wash out on white, so it gets the dark chip too.
+    expect(plateFor(solid([170, 230, 40]))).toBe('dark');
+    expect(plateFor(solid([255, 121, 0]))).toBe('light');
+    expect(plateFor(blank(8, 8, [0, 0, 0, 0]))).toBe('light');
+  });
+
+  it('keeps a black logo neutral rather than inventing a hue', () => {
+    const { primary } = suggestColors(solid([10, 10, 10]), extractMask(solid([10, 10, 10]))!);
+    const p = rgbOf(primary);
+    expect(Math.max(...p) - Math.min(...p)).toBeLessThan(10);
+    expect(lightness(primary)).toBeGreaterThan(0.4);
   });
 });

@@ -270,6 +270,15 @@ describe('branding settings', () => {
     expect((await app.inject({ method: 'GET', url: asset })).statusCode).toBe(404);
   });
 
+  it('tells the widget which chip the logo sits on (dark, for the lime disc)', async () => {
+    const { app } = await setup();
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    await save(app, tenant.id, logo(iconId, ['shimmer']));
+    const body = (await publicConfig(app, tenant.publicId)).json<{ brand: { plate: string } }>();
+    expect(body.brand.plate).toBe('dark');
+  });
+
   it('saves Sunny mode even when an upload it names has expired', async () => {
     const assets = new ForgetfulStore();
     const { app } = await setup(assets);
