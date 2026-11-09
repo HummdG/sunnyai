@@ -154,7 +154,12 @@ export function registerBrandingRoutes(app: FastifyInstance, deps: BrandingRoute
       const tenant = await member(request, 'admin');
       deps.enforceRateLimit(request, reply, 'brand-upload', tenant.id, UPLOAD_RULE);
       const { kind } = request.params as { kind: string };
-      if (kind !== 'icon' && kind !== 'wordmark') {
+      if (
+        kind !== 'icon' &&
+        kind !== 'wordmark' &&
+        kind !== 'pdf-logo' &&
+        kind !== 'accreditation'
+      ) {
         throw new ApiError('not_found', 'No such logo slot.');
       }
       const bytes = decodeUpload(request.body);
@@ -175,7 +180,7 @@ export function registerBrandingRoutes(app: FastifyInstance, deps: BrandingRoute
         new TextEncoder().encode(JSON.stringify(meta)),
       );
       // Uploads tried and never saved are cleared once they are a day old.
-      const keep = brandingIds(tenant.config.branding).add(meta.id);
+      const keep = brandingIds(tenant.config.branding, tenant.config.quotation).add(meta.id);
       await pruneQuietly(brandAssets, tenant.id, keep, deps.now(), request.log);
       return { asset: brandAssetView(tenant.id, meta) };
     },

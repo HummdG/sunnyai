@@ -658,7 +658,7 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
     });
     if (!saved) throw new ApiError('not_found', 'No such installer.');
     if (body.branding !== undefined) {
-      const keep = brandingIds(saved.config.branding);
+      const keep = brandingIds(saved.config.branding, saved.config.quotation);
       await pruneQuietly(brandAssets, saved.id, keep, now(), request.log);
     }
     return { tenant: tenantView(saved, portal, membership.role, now()) };

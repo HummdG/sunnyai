@@ -55,11 +55,22 @@ export async function pruneBrandAssets(
   return [...removed];
 }
 
-/** The asset ids a saved branding still uses. */
-export function brandingIds(branding: StoredBranding | undefined): Set<string> {
+/**
+ * The asset ids a tenant's saved settings still use: the branding's icon and
+ * wordmark, and the quotation PDF's logo and accreditation logos.
+ */
+export function brandingIds(
+  branding: StoredBranding | undefined,
+  quotation?: {
+    logoAssetId: string | null;
+    accreditations: { logoAssetIds: readonly string[] };
+  },
+): Set<string> {
   const ids = new Set<string>();
   if (branding?.icon) ids.add(branding.icon.id);
   if (branding?.wordmark) ids.add(branding.wordmark.id);
+  if (quotation?.logoAssetId) ids.add(quotation.logoAssetId);
+  for (const id of quotation?.accreditations?.logoAssetIds ?? []) ids.add(id);
   return ids;
 }
 

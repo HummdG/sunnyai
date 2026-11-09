@@ -1054,6 +1054,34 @@ const ROUTES: RouteSpec[] = [
     minRole: 'viewer',
     namesRecord: true,
   },
+  // ─── quotation settings (routes/quotation.ts) ──────────────────────────────
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/quotation',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/quotation`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'PUT',
+    pattern: '/v1/portal/tenants/:tenantId/quotation',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/quotation`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({
+      settings: {
+        logoAssetId: null,
+        signer: null,
+        accreditations: { mcsNumber: '', logoAssetIds: [] },
+        sections: { system: true, performance: true, savings: true, terms: false },
+        deposit: { kind: 'none' },
+        balanceDue: 'within 7 days of completion',
+        validityDays: 30,
+        letter: { opening: '', closing: '' },
+        terms: '',
+      },
+    }),
+  },
   // ─── quote conversation editor (routes/conversation.ts) ────────────────────
   {
     method: 'GET',

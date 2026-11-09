@@ -13,7 +13,8 @@ import {
 } from './image.js';
 import { outlinePath, traceMask, verifyTrace } from './trace.js';
 
-export type LogoKind = 'icon' | 'wordmark';
+/** `pdf-logo` and `accreditation` are processed like a wordmark. */
+export type LogoKind = 'icon' | 'wordmark' | 'pdf-logo' | 'accreditation';
 
 export interface ProcessedLogo {
   id: string;

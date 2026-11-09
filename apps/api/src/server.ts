@@ -71,6 +71,7 @@ import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
 import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
+import { registerQuotationRoutes } from './routes/quotation.js';
 import { registerConversationRoutes } from './routes/conversation.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
@@ -2127,6 +2128,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     brandAssets,
     enforceRateLimit,
+  });
+
+  // The installer's quotation PDF settings in Studio (routes/quotation.ts).
+  registerQuotationRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
+    brandAssets,
   });
 
   // The installer's quote conversation in Studio (routes/conversation.ts).

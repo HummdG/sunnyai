@@ -1,4 +1,9 @@
-import { widgetConfigSchema, type ConversationFlow, type WidgetConfig } from '@sunny/contracts';
+import {
+  widgetConfigSchema,
+  type ConversationFlow,
+  type QuotationSettings,
+  type WidgetConfig,
+} from '@sunny/contracts';
 
 import type { SavingsModel } from './agent/savings.js';
 import type { AddonConfig, AddonKey, BillingState } from './entitlements.js';
@@ -40,6 +45,8 @@ export interface Tenant {
      * own questions. Server-only: `configFor` drops it on the way out.
      */
     conversation?: ConversationFlow;
+    /** The installer's quotation PDF settings. Server-only: `configFor` drops it. */
+    quotation?: QuotationSettings;
   };
   /**
    * The installer's registered website domains (Blueprint §4.6). When set, a
