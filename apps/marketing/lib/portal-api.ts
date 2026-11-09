@@ -409,3 +409,18 @@ export function flowIssuesOf(failure: unknown): FlowIssue[] {
   const issues = (failure.body as { issues?: unknown } | null)?.issues;
   return Array.isArray(issues) ? (issues as FlowIssue[]) : [];
 }
+
+/** What Sunny would have each answer of a question do to the price, from the published list. */
+export interface PriceSuggestion {
+  /** Each answer Sunny worked out, by value. An answer missing here was not worked out. */
+  effects: Record<string, FlowEffect[]>;
+  explanation?: string;
+}
+
+/** Ask Sunny for a question's price changes. Admins and owners only; never fails on the model. */
+export function suggestPriceChanges(
+  tenantId: string,
+  question: { prompt: string; choices: Array<{ value: string; label: string }> },
+): Promise<PriceSuggestion> {
+  return api<PriceSuggestion>(conversationPath(tenantId, '/suggest'), { body: question });
+}

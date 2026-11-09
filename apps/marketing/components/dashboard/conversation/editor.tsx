@@ -30,6 +30,7 @@ import {
 } from './model.js';
 import { QuestionList } from './question-list.js';
 import { SelectedQuestion } from './selected-question.js';
+import { useSuggestions } from './suggestions.js';
 import { useFlowView, type FlowView } from './view-switch.js';
 
 /**
@@ -103,18 +104,27 @@ export function ConversationEditor({
     [view, assistant],
   );
 
+  function edit(fn: (current: Draft) => Draft): void {
+    setDraft((current) => (current ? fn(current) : current));
+    setDirty(true);
+    setSaved(null);
+  }
+
+  const suggestions = useSuggestions({
+    tenantId,
+    draft,
+    ctx,
+    enabled: canEdit,
+    selectedId,
+    onDraft: edit,
+  });
+
   if (!view || !draft || !ctx) {
     return error ? <ErrorNote error={error} /> : <SunnyLoading text="Loading your conversation…" />;
   }
 
   const flow = flowFrom(draft, ctx, view.flow);
   const readOnly = !canEdit;
-
-  function edit(fn: (current: Draft) => Draft): void {
-    setDraft((current) => (current ? fn(current) : current));
-    setDirty(true);
-    setSaved(null);
-  }
 
   function onEdit(id: string, change: (step: FlowStep) => FlowStep): void {
     edit((d) => editStep(d, ctx!, id, change));
@@ -274,6 +284,7 @@ export function ConversationEditor({
           <SelectedQuestion
             {...shared}
             onEdit={onEdit}
+            suggestions={suggestions}
             removing={removing}
             onRemove={askRemove}
             onConfirmRemove={removeNow}
