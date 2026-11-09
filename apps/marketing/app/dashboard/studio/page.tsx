@@ -1,7 +1,15 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  Suspense,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 
 import { ConversationEditor } from '../../../components/dashboard/conversation/editor.js';
 import { SkeletonRows } from '../../../components/dashboard/kit.js';
@@ -39,6 +47,12 @@ function Studio() {
   // draft on one tab survives a visit to another.
   const [seen, setSeen] = useState<Set<TabKey>>(() => new Set([tab]));
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
+  // The address leads: a link to Studio (the sidebar, say) opens the tab it names, or the first.
+  const fromAddress = tabFrom(params.get('tab'));
+  useEffect(() => {
+    setTab(fromAddress);
+    setSeen((current) => (current.has(fromAddress) ? current : new Set([...current, fromAddress])));
+  }, [fromAddress]);
   const id = useId();
 
   function open(next: TabKey): void {

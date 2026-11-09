@@ -325,6 +325,69 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   await expect(preview.locator('.sunny-preview')).toHaveCount(1);
 });
 
+test('each Studio tab saves only its own part, and leaves the other as it was', async ({
+  page,
+}) => {
+  interface Saved {
+    primaryColor: string;
+    greeting: string;
+    tagline: string | null;
+    position: string;
+    assistantName: string;
+    suggestions: string[];
+    branding: unknown;
+  }
+  await signIn(page);
+  const headers = { authorization: `Bearer ${await token(page.request)}` };
+  const stored = async (): Promise<Saved> => {
+    const response = await page.request.get(`${API}/v1/portal/tenants/${tenantId}`, { headers });
+    return ((await response.json()) as { tenant: Saved }).tenant;
+  };
+  const saving = () =>
+    page.waitForRequest((r) => r.method() === 'POST' && /\/settings$/.test(r.url()));
+  const before = await stored();
+
+  // The brand tab sends its colour and logo, nothing else.
+  await page.goto(`${SITE}/dashboard/studio`);
+  await page
+    .getByRole('group', { name: 'Brand colour' })
+    .getByRole('button', { name: 'Purple' })
+    .click();
+  const brandSave = saving();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  expect(Object.keys((await brandSave).postDataJSON() as object).sort()).toEqual([
+    'branding',
+    'primaryColor',
+  ]);
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  const afterBrand = await stored();
+  expect(afterBrand.primaryColor).toBe('#7C4DFF');
+  for (const key of ['greeting', 'tagline', 'position', 'assistantName', 'suggestions'] as const) {
+    expect(afterBrand[key]).toEqual(before[key]);
+  }
+
+  // The settings tab sends its own fields, and the colour and logo stay.
+  await page.getByRole('tab', { name: 'Assistant settings' }).click();
+  await page.getByLabel('Tagline under your name').fill('Solar, sorted');
+  const settingsSave = saving();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  expect(Object.keys((await settingsSave).postDataJSON() as object).sort()).toEqual([
+    'assistantName',
+    'greeting',
+    'position',
+    'suggestions',
+    'tagline',
+  ]);
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  const afterSettings = await stored();
+  expect(afterSettings.tagline).toBe('Solar, sorted');
+  expect(afterSettings.primaryColor).toBe('#7C4DFF');
+  expect(afterSettings.branding).toEqual(afterBrand.branding);
+  expect(afterSettings.greeting).toBe(before.greeting);
+  expect(afterSettings.suggestions).toEqual(before.suggestions);
+  expect(afterSettings.assistantName).toBe(before.assistantName);
+});
+
 test('an unsaved logo stays with its installer when the owner switches', async ({ page }) => {
   // A second installer for the same owner, so the dashboard shows its switcher.
   const second = await page.request.post(`${API}/v1/portal/tenants`, {

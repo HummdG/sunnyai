@@ -130,6 +130,11 @@ export function StudioForm({
     }
   }
 
+  // The preview draws this form's draft, and what the other tab owns as last saved.
+  const shownBrand = brandPart ? brand : draftFrom(tenant);
+  const shownColour = brandPart ? colour : tenant.primaryColor;
+  const shownGreeting = settingsPart ? greeting : tenant.greeting;
+
   return (
     <div className="studio">
       <form onSubmit={(event) => void submit(event)}>
@@ -248,12 +253,12 @@ export function StudioForm({
         className="preview-stage"
         aria-label={brandPart ? 'Live preview' : 'How your welcome looks'}
       >
-        {brand.mode === 'logo' ? (
-          <LogoPreview draft={brand} busy={busy} companyName={tenant.companyName} />
+        {shownBrand.mode === 'logo' ? (
+          <LogoPreview draft={shownBrand} busy={busy} companyName={tenant.companyName} />
         ) : (
-          <SunnyPreview colour={colour} />
+          <SunnyPreview colour={shownColour} />
         )}
-        <p className="preview-greeting">{greeting}</p>
+        <p className="preview-greeting">{shownGreeting}</p>
         {settingsPart && starters.length > 0 ? (
           <ul className="preview-starters" aria-label="Starter buttons">
             {starters.map((text, i) => (
