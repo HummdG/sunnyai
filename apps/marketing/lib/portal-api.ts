@@ -323,6 +323,8 @@ export interface PresetView {
   warning: string | null;
   /** The presets asked with this one, moved and removed with it. */
   group: string[];
+  /** The earlier answer this question waits on (a group member's, say), or null. */
+  appearsWhen: { questionId: string; anyOf: string[] } | null;
 }
 
 /** A published price-list item an answer might add, remove or swap. */

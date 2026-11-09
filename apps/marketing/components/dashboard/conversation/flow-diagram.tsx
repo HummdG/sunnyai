@@ -3,7 +3,7 @@
 import type { KeyboardEvent } from 'react';
 
 import type { FlowStep } from '../../../lib/portal-api.js';
-import { choicesOf, effectShort, nameOf, type Context } from './model.js';
+import { choicesOf, effectShort, membersOf, nameOf, type Context, type Draft } from './model.js';
 
 /**
  * The conversation drawn as boxes and lines, from the same draft as the list:
@@ -40,7 +40,7 @@ function clip(text: string, width: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-function layout(steps: FlowStep[], ctx: Context): { nodes: Node[]; height: number } {
+function layout(draft: Draft, ctx: Context): { nodes: Node[]; height: number } {
   const nodes: Node[] = [];
   let y = PAD;
   const push = (node: Omit<Node, 'y' | 'height'>) => {
@@ -50,13 +50,13 @@ function layout(steps: FlowStep[], ctx: Context): { nodes: Node[]; height: numbe
     y = top + height + GAP + node.effects.length * LINE;
   };
 
+  // As Sunny asks them: a question, its group members, then its follow-ups.
   const visit = (step: FlowStep, depth: number, when: string | null) => {
     const choices = choicesOf(step, ctx);
-    const linked = step.kind === 'preset' ? (ctx.presets.get(step.id)?.group.length ?? 0) : 0;
     push({
       id: step.id,
       label: nameOf(step, ctx),
-      note: linked > 0 ? `+ ${linked} linked question${linked === 1 ? '' : 's'}` : null,
+      note: null,
       depth,
       when,
       effects: choices.flatMap((c) =>
@@ -65,6 +65,7 @@ function layout(steps: FlowStep[], ctx: Context): { nodes: Node[]; height: numbe
           : [],
       ),
     });
+    for (const member of membersOf(step, draft, ctx)) visit(member, depth + 1, 'when it applies');
     for (const f of step.followUps ?? []) {
       const labels = f.when.map((w) => choices.find((c) => c.value === w)?.label ?? w);
       visit(f.step, depth + 1, `if ${labels.join(' or ')}`);
@@ -79,7 +80,7 @@ function layout(steps: FlowStep[], ctx: Context): { nodes: Node[]; height: numbe
     when: null,
     effects: [],
   });
-  for (const step of steps) visit(step, 0, null);
+  for (const step of draft.steps) visit(step, 0, null);
   push({
     id: null,
     label: 'Quote, consent and contact',
@@ -92,17 +93,17 @@ function layout(steps: FlowStep[], ctx: Context): { nodes: Node[]; height: numbe
 }
 
 export function FlowDiagram({
-  steps,
+  draft,
   ctx,
   selectedId,
   onSelect,
 }: {
-  steps: FlowStep[];
+  draft: Draft;
   ctx: Context;
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
-  const { nodes, height } = layout(steps, ctx);
+  const { nodes, height } = layout(draft, ctx);
   const spine = PAD + 14;
   const top = nodes[0]!;
   const last = nodes[nodes.length - 1]!;

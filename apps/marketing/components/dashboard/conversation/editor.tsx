@@ -16,8 +16,10 @@ import { ChatPreview } from './chat-preview.js';
 import { FlowDiagram } from './flow-diagram.js';
 import {
   draftFrom,
+  editStep,
   flowFrom,
   localIssues,
+  rootsOf,
   type Context,
   type Draft,
   type EditorIssue,
@@ -43,6 +45,15 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
   const [confirmReset, setConfirmReset] = useState(false);
   const [tab, setTab] = useState<PanelId>('list');
   const [collapsed, toggle] = usePanelState();
+  // A question to scroll into view once it has opened (a new object each time, so it repeats).
+  const [reveal, setReveal] = useState<{ id: string } | null>(null);
+
+  useEffect(() => {
+    if (!reveal) return;
+    const row = document.querySelector(`[data-step-row="${CSS.escape(reveal.id)}"]`);
+    const message = row?.querySelector('.issue-list, [role="alert"]') ?? row;
+    message?.scrollIntoView({ block: 'center' });
+  }, [reveal]);
 
   function adopt(next: ConversationView): void {
     setView(next);
@@ -78,18 +89,29 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
     setSaved(null);
   }
 
-  const onSteps = (fn: (steps: FlowStep[]) => FlowStep[]) =>
-    edit((d) => ({ ...d, steps: fn(d.steps) }));
-  const onMembers = (fn: (m: Draft['members']) => Draft['members']) =>
-    edit((d) => ({ ...d, members: fn(d.members) }));
+  function onEdit(id: string, change: (step: FlowStep) => FlowStep): void {
+    edit((d) => editStep(d, ctx!, id, change));
+    // Edited, so its flags no longer stand; Save checks it again.
+    setIssues((current) => current.filter((i) => i.stepId !== id));
+  }
+
+  /** Show what to fix: open the first flagged question and bring its message on screen. */
+  function showIssues(found: EditorIssue[]): void {
+    setError('Some questions need fixing first. Each one says what to change.');
+    const first = found[0];
+    if (!first) return;
+    setSelectedId(first.stepId);
+    setReveal({ id: first.stepId });
+  }
 
   async function save(): Promise<void> {
     setError(null);
     setSaved(null);
-    const local = localIssues(draft!.steps);
+    const local = localIssues(rootsOf(draft!, ctx!));
     if (local.length > 0) {
-      setIssues(local);
-      setError('Some questions need fixing first. Each one says what to change.');
+      // Kept beside the server's own flags (a stale price link, say), not instead of them.
+      setIssues((current) => [...current.filter((i) => !i.local), ...local]);
+      showIssues(local);
       return;
     }
     setBusy(true);
@@ -99,11 +121,8 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
     } catch (failure) {
       const found = flowIssuesOf(failure);
       setIssues(found);
-      setError(
-        found.length > 0
-          ? 'Some questions need fixing first. Each one says what to change.'
-          : errorText(failure),
-      );
+      if (found.length > 0) showIssues(found);
+      else setError(errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -167,8 +186,8 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
             selectedId={selectedId}
             onSelect={setSelectedId}
             issues={issues}
-            onSteps={onSteps}
-            onMembers={onMembers}
+            onDraft={edit}
+            onEdit={onEdit}
           />
         </Panel>
         <Panel
@@ -177,12 +196,7 @@ export function ConversationEditor({ tenantId, canEdit }: { tenantId: string; ca
           collapsed={collapsed.diagram}
           onToggle={() => toggle('diagram')}
         >
-          <FlowDiagram
-            steps={draft.steps}
-            ctx={ctx}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
+          <FlowDiagram draft={draft} ctx={ctx} selectedId={selectedId} onSelect={setSelectedId} />
         </Panel>
         <Panel
           id="preview"

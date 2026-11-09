@@ -114,6 +114,7 @@ interface View {
     fixed: boolean;
     warning: string | null;
     group: string[];
+    appearsWhen: { questionId: string; anyOf: string[] } | null;
   }>;
   priceItems: Array<{
     key: string;
@@ -161,6 +162,12 @@ describe('GET /conversation', () => {
       'monthly_cost',
       'household_size',
     ]);
+    // Studio's preview answers the question a group member waits on.
+    expect(view.presets.find((p) => p.id === 'household_size')!.appearsWhen).toEqual({
+      questionId: 'usage_source',
+      anyOf: ['household'],
+    });
+    expect(view.presets.find((p) => p.id === 'roof_shading')!.appearsWhen).toBeNull();
 
     const ev = view.priceItems.find((i) => i.key === EV)!;
     expect(ev).toMatchObject({ mandatory: false, targetable: true, packageUnit: false });
@@ -272,7 +279,12 @@ describe('POST /conversation/preview', () => {
     issues: unknown[];
   }
   const preview = (app: FastifyInstance, tenantId: string, email: string, body: object) =>
-    app.inject({ method: 'POST', url: url(tenantId, '/preview'), headers: as(email), payload: body });
+    app.inject({
+      method: 'POST',
+      url: url(tenantId, '/preview'),
+      headers: as(email),
+      payload: body,
+    });
 
   it('prices the EV charger from the published list when the answer is yes', async () => {
     const { app, store, tenantId } = await setup();

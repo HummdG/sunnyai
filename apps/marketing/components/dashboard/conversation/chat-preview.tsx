@@ -110,12 +110,23 @@ function Selected({
   const [effects, setEffects] = useState<Effects | null>(null);
   const [error, setError] = useState<string | null>(null);
   const latest = useLatest();
-  const chain = selectedId ? pathTo(flow.steps, selectedId) : null;
+  // A group member Sunny words as standard is not listed in the flow: preview it alone.
+  const chain = selectedId
+    ? (pathTo(flow.steps, selectedId) ??
+      (ctx.presets.has(selectedId)
+        ? [{ step: { kind: 'preset' as const, id: selectedId }, when: null }]
+        : null))
+    : null;
   const flowJson = JSON.stringify(flow);
 
   useEffect(() => {
     if (!chain || picked === null) return;
     const answers: Record<string, string> = { ...START };
+    // A question that waits on an earlier answer (a group member) gets that answer.
+    for (const link of chain) {
+      const gate = ctx.presets.get(link.step.id)?.appearsWhen;
+      if (gate) answers[gate.questionId] = gate.anyOf[0]!;
+    }
     for (const link of chain.slice(0, -1)) if (link.when) answers[link.step.id] = link.when;
     answers[chain[chain.length - 1]!.step.id] = picked;
     void latest(

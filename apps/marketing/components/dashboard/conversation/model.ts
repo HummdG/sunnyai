@@ -148,8 +148,12 @@ export function flowFrom(
   for (const step of draft.steps) {
     steps.push(cleanStep(step, ctx));
     for (const member of ctx.presets.get(step.id)?.group ?? []) {
-      const reworded = draft.members[member] ? cleanStep(draft.members[member], ctx) : null;
-      if (reworded?.kind === 'preset' && (reworded.prompt || reworded.labels)) steps.push(reworded);
+      const own = draft.members[member] ? cleanStep(draft.members[member], ctx) : null;
+      // Listed only when the installer changed something on it (wording, labels,
+      // effects or follow-ups); otherwise it is asked as Sunny words it.
+      if (own?.kind === 'preset' && (own.prompt || own.labels || own.effects || own.followUps)) {
+        steps.push(own);
+      }
     }
   }
   return {
@@ -341,19 +345,29 @@ export function pathTo(
 }
 
 /** A problem shown beside its question (and answer): the server's or the editor's own. */
-export type EditorIssue = Pick<FlowIssue, 'stepId' | 'choice' | 'message'>;
+export type EditorIssue = Pick<FlowIssue, 'stepId' | 'choice' | 'message'> & {
+  /** Found by the editor before saving, not by the server. */
+  local?: true;
+};
 
-/** Problems the editor can see before asking the server, beside their question. */
+/**
+ * Problems the editor can see before asking the server, beside their question.
+ * Pass every root (`rootsOf`), so follow-ups under group members are checked too.
+ */
 export function localIssues(steps: FlowStep[]): EditorIssue[] {
   const issues: EditorIssue[] = [];
   walkSteps(steps, (step) => {
     if (step.kind !== 'custom') return;
     if (step.prompt.trim() === '') {
-      issues.push({ stepId: step.id, message: 'Write the question Sunny should ask.' });
+      issues.push({
+        stepId: step.id,
+        message: 'Write the question Sunny should ask.',
+        local: true,
+      });
     }
     if (step.answer === 'choice') {
       if (step.choices.length === 0) {
-        issues.push({ stepId: step.id, message: 'Add at least one answer.' });
+        issues.push({ stepId: step.id, message: 'Add at least one answer.', local: true });
       }
       for (const c of step.choices) {
         if (c.label.trim() === '') {
@@ -361,10 +375,87 @@ export function localIssues(steps: FlowStep[]): EditorIssue[] {
             stepId: step.id,
             choice: c.value,
             message: 'Give this answer a label.',
+            local: true,
           });
         }
       }
     }
   });
   return issues;
+}
+
+// ── the whole draft: listed steps and the group members under their heads ──
+
+/** A group member as the draft holds it (untouched members are implied). */
+export function memberStep(draft: Draft, id: string): PresetStep {
+  return draft.members[id] ?? { kind: 'preset', id };
+}
+
+/** The members asked with a listed step, in order. */
+export function membersOf(step: FlowStep, draft: Draft, ctx: Context): PresetStep[] {
+  if (step.kind !== 'preset') return [];
+  return (ctx.presets.get(step.id)?.group ?? []).map((id) => memberStep(draft, id));
+}
+
+/** Every top-level step and every member of a listed head: the roots the editor shows. */
+export function rootsOf(draft: Draft, ctx: Context): FlowStep[] {
+  return draft.steps.flatMap((step) => [step, ...membersOf(step, draft, ctx)]);
+}
+
+/**
+ * The open chain from a listed step down to `id`: a member sits under its
+ * head, a follow-up under its parent (`when` is the answer that opens the next link).
+ */
+export function draftPath(
+  draft: Draft,
+  ctx: Context,
+  id: string,
+): Array<{ step: FlowStep; when: string | null }> | null {
+  const direct = pathTo(draft.steps, id);
+  if (direct) return direct;
+  for (const head of draft.steps) {
+    for (const member of membersOf(head, draft, ctx)) {
+      const below = pathTo([member], id);
+      if (below) return [{ step: head, when: null }, ...below];
+    }
+  }
+  return null;
+}
+
+/** Change one step wherever it sits, a group member or its follow-ups included. */
+export function editStep(
+  draft: Draft,
+  ctx: Context,
+  id: string,
+  change: (s: FlowStep) => FlowStep,
+): Draft {
+  if (pathTo(draft.steps, id)) return { ...draft, steps: mapStep(draft.steps, id, change) };
+  for (const member of groupMembers(ctx.presets.values())) {
+    const root = memberStep(draft, member);
+    if (pathTo([root], id)) {
+      const next = mapStep([root], id, change)[0] as PresetStep;
+      return { ...draft, members: { ...draft.members, [member]: next } };
+    }
+  }
+  return draft;
+}
+
+/** Remove a step wherever it sits (a member itself only goes with its head). */
+export function deleteStep(draft: Draft, id: string): Draft {
+  return {
+    steps: removeStep(draft.steps, id),
+    members: Object.fromEntries(
+      Object.entries(draft.members).map(([m, step]) => [
+        m,
+        removeStep([step], id)[0] as PresetStep,
+      ]),
+    ),
+  };
+}
+
+/** Every step id at or below `step`, its group members' included. */
+export function subtreeIds(step: FlowStep, draft: Draft, ctx: Context): Set<string> {
+  const ids = new Set<string>();
+  walkSteps([step, ...membersOf(step, draft, ctx)], (s) => ids.add(s.id));
+  return ids;
 }

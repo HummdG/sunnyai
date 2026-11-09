@@ -46,6 +46,8 @@ export interface PresetView {
   fixed: boolean;
   warning: string | null;
   group: string[];
+  /** The earlier answer this question waits on (a group member's, say), or null. */
+  appearsWhen: { questionId: string; anyOf: string[] } | null;
 }
 
 export interface PriceItemView {
@@ -84,6 +86,9 @@ function presetViews(): PresetView[] {
     fixed: FIXED.has(id),
     warning: PRESET_WARNINGS[id] ?? null,
     group: [...(PRESET_GROUPS[id] ?? [])],
+    appearsWhen: q.appearsWhen
+      ? { questionId: q.appearsWhen.questionId, anyOf: [...q.appearsWhen.anyOf] }
+      : null,
   }));
 }
 
@@ -137,7 +142,8 @@ function describeEffect(
 ): { label: string; priceText: string } {
   const find = (key: string) => list?.items.find((i) => i.key === key);
   const name = (key: string) => find(key)?.name ?? key;
-  const times = (quantity: number | undefined) => (quantity && quantity > 1 ? ` (x${quantity})` : '');
+  const times = (quantity: number | undefined) =>
+    quantity && quantity > 1 ? ` (x${quantity})` : '';
   switch (effect.kind) {
     case 'add':
       return {

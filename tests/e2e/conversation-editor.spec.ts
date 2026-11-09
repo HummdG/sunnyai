@@ -19,6 +19,8 @@ const VIEWER = `flow-viewer-${RUN}@brightside.test`;
 const EV = 'Do you have an electric car?';
 const SHADING = 'Is the roof shaded by trees or buildings?';
 const USAGE = 'How would you like to tell me about your electricity use?';
+const HOUSEHOLD =
+  'How many people live in the household? Answer 1 to 5, where 5 means five or more.';
 
 const PRICE_LIST = [
   'Category,Key,Name,Pricing,Amount,Unit,From,Percent,Mandatory,Prices include VAT',
@@ -150,6 +152,81 @@ test('an added question whose "Yes" adds the EV charger is saved and still there
   await expect(row(page, EV).getByRole('group', { name: 'Answer Yes' })).toContainText(
     'Adds 7kW EV charger, £899',
   );
+});
+
+test("a linked question's answers can be reworded, priced and followed up, and are saved", async ({
+  page,
+}) => {
+  await openAs(page, OWNER);
+  await row(page, USAGE).getByRole('button', { name: USAGE, exact: true }).click();
+  const member = row(page, HOUSEHOLD);
+  await expect(member).toBeVisible();
+  // It travels with its head: nothing moves or removes it on its own.
+  await expect(member.getByRole('button', { name: `Remove: ${HOUSEHOLD}` })).toHaveCount(0);
+  await expect(member.getByRole('button', { name: `Move up: ${HOUSEHOLD}` })).toHaveCount(0);
+  await expect(member.locator('.flow-drag')).toHaveCount(0);
+
+  await member.getByRole('button', { name: HOUSEHOLD, exact: true }).click();
+  await member
+    .getByRole('group', { name: 'Answer 5' })
+    .getByLabel('Answer', { exact: true })
+    .fill('Five or more');
+  const five = member.getByRole('group', { name: 'Answer Five or more' });
+  await addPriceChange(five, 'EV-7KW');
+  await expect(five).toContainText('Adds 7kW EV charger, £899');
+  await five.getByRole('button', { name: '+ Add a follow-up' }).click();
+  await row(page, 'New question').getByLabel('Question text').fill('Does anyone work from home?');
+  await expect(five.getByRole('listitem', { name: 'Does anyone work from home?' })).toBeVisible();
+  await expect(diagram(page).getByRole('button', { name: HOUSEHOLD })).toBeVisible();
+  await expect(
+    diagram(page).getByRole('button', { name: 'Does anyone work from home?' }),
+  ).toBeVisible();
+
+  // The preview answers what the linked question waits on, so its effect is exact.
+  await member.getByRole('button', { name: HOUSEHOLD, exact: true }).click();
+  await preview(page).getByRole('button', { name: 'Five or more' }).click();
+  await expect(preview(page)).toContainText('Adds 7kW EV charger');
+
+  await editor(page).getByRole('button', { name: 'Save conversation' }).click();
+  await expect(editor(page).getByRole('status')).toContainText('Saved');
+  await page.reload();
+  await row(page, USAGE).getByRole('button', { name: USAGE, exact: true }).click();
+  await row(page, HOUSEHOLD).getByRole('button', { name: HOUSEHOLD, exact: true }).click();
+  const saved = row(page, HOUSEHOLD).getByRole('group', { name: 'Answer Five or more' });
+  await expect(saved).toContainText('Adds 7kW EV charger, £899');
+  await expect(saved.getByRole('listitem', { name: 'Does anyone work from home?' })).toBeVisible();
+});
+
+test('a problem on a follow-up is flagged on its closed parent, and Save opens it', async ({
+  page,
+}) => {
+  await openAs(page, OWNER);
+  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
+  await row(page, EV)
+    .getByRole('group', { name: 'Answer No' })
+    .getByRole('button', { name: '+ Add a follow-up' })
+    .click();
+  // Leave the follow-up without its question, and close its parent.
+  await row(page, SHADING).getByRole('button', { name: SHADING, exact: true }).click();
+  await expect(row(page, 'New question')).toHaveCount(0);
+
+  await editor(page).getByRole('button', { name: 'Save conversation' }).click();
+  const message = row(page, 'New question').getByText('Write the question Sunny should ask.');
+  await expect(message).toBeVisible();
+  await expect(message).toBeInViewport();
+
+  // Closed again, the parent still says something below it needs attention.
+  const evHead = row(page, EV).locator('.flow-row-head').first();
+  await row(page, SHADING).getByRole('button', { name: SHADING, exact: true }).click();
+  await expect(evHead).toContainText('Needs attention');
+
+  // Editing the question clears its flag until the next save.
+  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
+  await row(page, 'New question')
+    .getByRole('button', { name: 'New question', exact: true })
+    .click();
+  await row(page, 'New question').getByLabel('Question text').fill('Is it charged at home?');
+  await expect(evHead).not.toContainText('Needs attention');
 });
 
 test('dragging the question above roof shading reorders the diagram too, and so do the buttons', async ({
