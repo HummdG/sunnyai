@@ -528,7 +528,7 @@ describe('POST /conversation/suggest', () => {
       { value: 'no', label: 'No' },
     ],
   };
-  const suggest = (app: FastifyInstance, tenantId: string, email: string, payload: unknown) =>
+  const suggest = (app: FastifyInstance, tenantId: string, email: string, payload: object) =>
     app.inject({ method: 'POST', url: url(tenantId, '/suggest'), headers: as(email), payload });
 
   it('returns the checked suggestion: off-list, mandatory and system items dropped', async () => {
