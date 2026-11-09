@@ -238,7 +238,7 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   const boxes = animations.getByRole('checkbox');
   await expect(boxes).toHaveCount(7);
   for (const box of await boxes.all()) await box.uncheck();
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(
     page.getByRole('alert').filter({ hasText: 'Choose at least one animation.' }),
   ).toBeVisible();
@@ -261,7 +261,7 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   expect((await validity()).valid).toBe(true);
   await page.getByLabel('Assistant name').fill('Volt');
   await expect(page.getByLabel('Greeting')).toHaveValue(/I'm Volt/);
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
   const branded = await widgetConfig(request);
   expect(branded['assistantName']).toBe('Volt');
@@ -303,7 +303,7 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
 
   await logo.getByLabel('Use Sunny').check();
   const saving = page.waitForResponse((r) => /\/settings$/.test(r.url()));
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   expect((await saving).ok()).toBe(true);
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
   await expect.poll(async () => 'brand' in (await widgetConfig(request))).toBe(false);

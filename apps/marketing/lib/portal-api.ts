@@ -4,9 +4,17 @@
  * cookie to the API; the API resolves the caller's role on every request.
  */
 
-import type { LeadFlowAnswer, LogoEffect } from '@sunny/contracts';
+import type {
+  ConversationFlow,
+  FlowChoice,
+  FlowEffect,
+  FlowFollowUp,
+  FlowStep,
+  LeadFlowAnswer,
+  LogoEffect,
+} from '@sunny/contracts';
 
-export type { LogoEffect };
+export type { ConversationFlow, FlowChoice, FlowEffect, FlowFollowUp, FlowStep, LogoEffect };
 export type Role = 'viewer' | 'sales' | 'admin' | 'owner';
 export type AddonKey = 'web_chat' | 'email_assistant';
 export type Channel = 'chat' | 'email';
@@ -206,6 +214,8 @@ export class ApiFailure extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** The error response's whole body, for routes that explain more than one thing. */
+    readonly body: unknown = null,
   ) {
     super(message);
   }
@@ -232,6 +242,7 @@ export async function api<T>(
     throw new ApiFailure(
       response.status,
       body?.error?.message ?? `Request failed (${response.status})`,
+      body,
     );
   }
   const type = response.headers.get('content-type') ?? '';
@@ -297,4 +308,98 @@ export async function download(path: string, fileName: string): Promise<void> {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+// ── the quote conversation (Studio's "Your conversation") ─────────────────
+
+/** One of Sunny's own questions, as the editor draws it. */
+export interface PresetView {
+  id: string;
+  prompt: string;
+  options: Array<{ value: string; label: string }>;
+  /** Part of the fixed start: shown locked. */
+  fixed: boolean;
+  /** What the quote loses without it, shown before removal; null when it feeds only the lead. */
+  warning: string | null;
+  /** The presets asked with this one, moved and removed with it. */
+  group: string[];
+}
+
+/** A published price-list item an answer might add, remove or swap. */
+export interface PriceItemView {
+  key: string;
+  name: string;
+  category: string;
+  unitLabel: string;
+  /** Priced per panel: the quantity comes from each package. */
+  packageUnit: boolean;
+  mandatory: boolean;
+  targetable: boolean;
+  priceText: string;
+}
+
+/** Something in a flow the installer must fix, placed beside its question. */
+export interface FlowIssue {
+  stepId: string;
+  choice?: string;
+  code:
+    | 'missing_item'
+    | 'mandatory_item'
+    | 'not_targetable'
+    | 'needs_quantity'
+    | 'bad_parent'
+    | 'duplicate_id';
+  message: string;
+}
+
+export interface ConversationView {
+  /** Null while the installer uses Sunny's own questions. */
+  flow: ConversationFlow | null;
+  presets: PresetView[];
+  priceItems: PriceItemView[];
+  issues: FlowIssue[];
+}
+
+export interface ConversationPreview {
+  next: { id: string; prompt: string; options: Array<{ value: string; label: string }> } | null;
+  effects: Array<{ label: string; priceText: string }>;
+  issues: FlowIssue[];
+}
+
+const conversationPath = (tenantId: string, rest = '') =>
+  tenantPath(tenantId, `/conversation${rest}`);
+
+export function getConversation(tenantId: string): Promise<ConversationView> {
+  return api<ConversationView>(conversationPath(tenantId));
+}
+
+/** Save a flow. A 400 carries `issues` in the `ApiFailure` body; see `flowIssuesOf`. */
+export function saveConversation(
+  tenantId: string,
+  flow: ConversationFlow,
+): Promise<ConversationView> {
+  return api<ConversationView>(conversationPath(tenantId), { method: 'PUT', body: { flow } });
+}
+
+/** Back to Sunny's own questions. */
+export function resetConversation(tenantId: string): Promise<ConversationView> {
+  return api<ConversationView>(conversationPath(tenantId), { method: 'DELETE' });
+}
+
+/** What Sunny asks next and what the answers do to the quote. No chat runs. */
+export function previewConversation(
+  tenantId: string,
+  flow: ConversationFlow,
+  answers: Record<string, string>,
+): Promise<ConversationPreview> {
+  return api<ConversationPreview>(conversationPath(tenantId, '/preview'), {
+    body: { flow, answers },
+  });
+}
+
+/** The issues a rejected save explained, or none. */
+export function flowIssuesOf(failure: unknown): FlowIssue[] {
+  if (!(failure instanceof ApiFailure)) return [];
+  const issues = (failure.body as { issues?: unknown } | null)?.issues;
+  return Array.isArray(issues) ? (issues as FlowIssue[]) : [];
 }
