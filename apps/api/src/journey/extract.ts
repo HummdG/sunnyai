@@ -19,6 +19,7 @@
  * rather than guessing.
  */
 
+import { carriesEffects } from '../flow/effects.js';
 import { resolveFlow, type ResolvedFlow, type ResolvedQuestion } from '../flow/resolve.js';
 import { optionLabel, QUESTIONS } from '../questionnaire.js';
 
@@ -74,8 +75,21 @@ export function budgetBand(text: string): string | null {
   return '15k_plus';
 }
 
-/** Yes / no / unsure, as the visitor might say it. */
-function polarity(text: string): 'yes' | 'no' | 'unsure' | null {
+/** A word that, before a label, means the visitor is saying they do not want it. */
+const NEGATION = /\b(no|not|don'?t|dont|haven'?t|havent|without|never)\b/;
+
+/** "ok", "sure", "right": a yes only as the whole reply ("ok", "sure, thanks"). */
+const LONE_ASSENT = /^(ok|okay|right|sure)( (please|thanks|thank you))?$/;
+
+/**
+ * Yes / no / unsure, as the visitor might say it.
+ *
+ * `strict` is for a question whose answer changes the quote (an installer's own
+ * question, or a preset the installer linked to items): there a leading "ok" or
+ * "right" is how people start a question of their own ("ok, so what does a
+ * charger cost?"), so it only counts as yes when it is the whole reply.
+ */
+function polarity(text: string, strict = false): 'yes' | 'no' | 'unsure' | null {
   if (has(text, /\b(not sure|unsure|don'?t know|no idea|dunno|maybe|not certain)\b/))
     return 'unsure';
   if (has(text, /^\s*(no|nope|nah|not really|that'?s wrong|wrong|incorrect)\b/)) return 'no';
@@ -83,10 +97,19 @@ function polarity(text: string): 'yes' | 'no' | 'unsure' | null {
   if (
     has(
       text,
-      /^\s*(yes|yeah|yep|yup|correct|right|sure|absolutely|definitely|that'?s right|looks right|spot on|ok|okay)\b/,
+      strict
+        ? /^\s*(yes|yeah|yep|yup|correct|absolutely|definitely|that'?s right|looks right|spot on)\b/
+        : /^\s*(yes|yeah|yep|yup|correct|right|sure|absolutely|definitely|that'?s right|looks right|spot on|ok|okay)\b/,
     )
   ) {
     return 'yes';
+  }
+  if (strict) {
+    const bare = text
+      .replace(/[^a-z' ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (LONE_ASSENT.test(bare)) return 'yes';
   }
   return null;
 }
@@ -102,13 +125,20 @@ function direction(text: string): string | null {
   return null;
 }
 
-/** Whether the visitor's words name a label: the whole reply, or the label's words within it. */
-function names(text: string, label: string): boolean {
+/**
+ * Whether the visitor's words name a label: the whole reply, or the label's
+ * words within it. `strict` (see `polarity`) ignores a label the visitor
+ * negates ("no electric car" does not name "Electric car").
+ */
+function names(text: string, label: string, strict = false): boolean {
   const wanted = label.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!wanted) return false;
   const reply = text.trim().replace(/[.!?]+$/, '');
   if (reply === wanted) return true;
-  return wanted.length > 3 && text.includes(` ${wanted} `.replace(/\s+/g, ' ').trim());
+  if (wanted.length <= 3) return false;
+  const at = text.indexOf(wanted);
+  if (at === -1) return false;
+  return !(strict && NEGATION.test(text.slice(0, at)));
 }
 
 /**
@@ -122,9 +152,9 @@ function choiceFor(text: string, question: ResolvedQuestion): string | null {
     (o) => text.trim() === o.toLowerCase() || text.trim() === o.toLowerCase().replace(/_/g, ' '),
   );
   if (exact) return exact;
-  const named = options.filter((o) => names(text, question.label(o)));
+  const named = options.filter((o) => names(text, question.label(o), true));
   if (named.length === 1) return named[0]!;
-  const p = polarity(text);
+  const p = polarity(text, true);
   if (p) {
     // A choice "says" yes when its value or label starts with the word ("Yes please").
     const says = (o: string) =>
@@ -166,7 +196,9 @@ export function extractAnswers(
   // ── the question just asked: bare replies and option words ──────────────
   if (current && QUESTIONS[current]) {
     const q = QUESTIONS[current];
-    const p = polarity(text);
+    // A preset the installer linked to items is read as carefully as their own.
+    const strict = carriesEffects(flow.stored, current);
+    const p = polarity(text, strict);
     if (current === 'roof_confirmed' && (p === 'yes' || p === 'no')) add(current, p);
     if (current === 'finance_interest') {
       if (has(text, /\b(tell me more|learn more|more info|how does it work)\b/))
@@ -208,7 +240,7 @@ export function extractAnswers(
       else if (has(text, /\b(people|household|family|how many live|live here)\b/))
         add(current, 'household');
     }
-    if (current === 'ownership' && polarity(text) === 'yes') add(current, 'own');
+    if (current === 'ownership' && p === 'yes') add(current, 'own');
     // Budgets arrive as figures ("about £9k", "£8,000 to £10,000"); a range is
     // placed by its top end, which is the most the visitor said they'd spend.
     if (current === 'budget_band') {
@@ -220,7 +252,7 @@ export function extractAnswers(
     if (q.options) {
       const named = q.options.filter((o) => {
         const labels = new Set([optionLabel(o), asked?.label(o) ?? optionLabel(o)]);
-        return [...labels].some((label) => names(text, label));
+        return [...labels].some((label) => names(text, label, strict));
       });
       if (named.length === 1 && named[0]) add(current, named[0]);
     }

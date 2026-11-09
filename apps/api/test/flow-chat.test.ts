@@ -11,8 +11,10 @@ import type { PricingSource } from '@sunny/quote-engine';
 import { runTurn, type TurnEvent } from '../src/agent/agent.js';
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
 import { publishExample } from '../src/catalogue/price-list-service.js';
+import { resolveFlow } from '../src/flow/resolve.js';
 import { flowForTenant } from '../src/flow/tenant.js';
 import { catalogueBackedPricing } from '../src/journey/catalogue-pricing.js';
+import { extractAnswers } from '../src/journey/extract.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import { optionLabel } from '../src/questionnaire.js';
 import { buildServer } from '../src/server.js';
@@ -488,5 +490,76 @@ describe('the host-page route', () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+describe('reading a reply to a question that changes the quote', () => {
+  const carQuestion: FlowStep = {
+    kind: 'custom',
+    id: 'c_car1',
+    prompt: 'Which car do you drive?',
+    mode: 'quote',
+    answer: 'choice',
+    choices: [
+      { value: 'ev', label: 'Electric car', effects: [{ kind: 'add', itemKey: EV }] },
+      { value: 'petrol', label: 'Petrol car', effects: [] },
+    ],
+  };
+  const flow = resolveFlow({
+    version: 1,
+    updatedAt: '2026-11-09T10:00:00Z',
+    steps: [
+      evQuestion,
+      carQuestion,
+      // A preset the installer linked to an item: read as carefully as their own.
+      {
+        kind: 'preset',
+        id: 'finance_interest',
+        effects: { yes: [{ kind: 'add', itemKey: EV }] },
+      },
+    ],
+  });
+
+  it('a leading "ok" that starts a question of their own stores nothing', () => {
+    expect(extractAnswers('ok, so what does a charger cost?', 'c_evcharger1', flow)).toEqual([]);
+    expect(extractAnswers('ok, what does it cost?', 'c_evcharger1', flow)).toEqual([]);
+    expect(extractAnswers('right, and how long does fitting take?', 'c_evcharger1', flow)).toEqual(
+      [],
+    );
+    expect(extractAnswers('ok, what does it cost?', 'finance_interest', flow)).toEqual([]);
+  });
+
+  it('"ok" alone, "sure thanks" and "yes please" still mean yes', () => {
+    for (const reply of ['ok', 'OK.', 'okay please', 'sure, thanks!', 'yes please']) {
+      expect(extractAnswers(reply, 'c_evcharger1', flow), reply).toEqual([
+        { questionId: 'c_evcharger1', value: 'yes' },
+      ]);
+    }
+    expect(extractAnswers('ok', 'finance_interest', flow)).toEqual([
+      { questionId: 'finance_interest', value: 'yes' },
+    ]);
+  });
+
+  it('a negated label is not picked', () => {
+    for (const reply of [
+      'no electric car',
+      'not an electric car',
+      "I don't have an electric car",
+      'we drive without an electric car',
+    ]) {
+      expect(extractAnswers(reply, 'c_car1', flow), reply).toEqual([]);
+    }
+    expect(extractAnswers('we have an electric car', 'c_car1', flow)).toEqual([
+      { questionId: 'c_car1', value: 'ev' },
+    ]);
+  });
+
+  it("Sunny's own questions, with no items linked, read a reply as before", () => {
+    expect(extractAnswers('ok, what does it cost?', 'finance_interest')).toEqual([
+      { questionId: 'finance_interest', value: 'yes' },
+    ]);
+    expect(extractAnswers('sure, why not', 'ownership')).toEqual([
+      { questionId: 'ownership', value: 'own' },
+    ]);
   });
 });

@@ -64,6 +64,13 @@ function effectsById(
   return into;
 }
 
+/** Whether any answer to this question changes the kit in the stored flow. */
+export function carriesEffects(flow: ConversationFlow | null, questionId: string): boolean {
+  if (!flow) return false;
+  const effects = effectsById(flow.steps).get(questionId) ?? {};
+  return Object.values(effects).some((list) => list.length > 0);
+}
+
 /**
  * The effects the answers trigger, in flow order: question by question as the
  * conversation asks them, and within a multi-select answer in the question's
