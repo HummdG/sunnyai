@@ -1,9 +1,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
- * Sunny Studio's "Your conversation" editor, end to end: the installer adds
- * their own question whose answer adds their EV charger, reorders, removes a
- * preset (with its warning), adds a follow-up, minimises a panel, and resets.
+ * Sunny Studio's "Your conversation" tab, end to end: the installer adds their
+ * own question whose answer adds their EV charger, reorders on the flow and in
+ * the list, removes a preset (with its warning), adds a follow-up, zooms the
+ * flow, flips to the question list, and resets.
  *
  * Runs against the real API with development sign-in (SUNNY_DEV_AUTH=1 in
  * playwright.config.ts) and a small price list published through the API.
@@ -21,6 +22,7 @@ const SHADING = 'Is the roof shaded by trees or buildings?';
 const USAGE = 'How would you like to tell me about your electricity use?';
 const HOUSEHOLD =
   'How many people live in the household? Answer 1 to 5, where 5 means five or more.';
+const EV_PILL = 'Yes · +£899 7kW EV charger';
 
 const PRICE_LIST = [
   'Category,Key,Name,Pricing,Amount,Unit,From,Percent,Mandatory,Prices include VAT',
@@ -33,48 +35,66 @@ const PRICE_LIST = [
 ].join('\n');
 
 test.describe.configure({ mode: 'serial' });
-// Tall enough that the whole question list fits on screen, so a drag can reach any row.
-test.use({ viewport: { width: 1280, height: 1600 } });
+// Tall enough that the whole flow and the side column fit on screen.
+test.use({ viewport: { width: 1440, height: 1400 } });
 
 let tenantId = '';
 
-async function openAs(page: Page, email: string): Promise<void> {
-  const target = '/dashboard/studio';
+async function signInAs(page: Page, email: string, target: string): Promise<void> {
   await page.goto(`${SITE}/sign-in?next=${encodeURIComponent(target)}`);
   await page.evaluate((id) => window.localStorage.setItem('sunny.portal.tenant', id), tenantId);
   await page.getByLabel('Work email').fill(email);
   await page.getByRole('button', { name: /^sign in$/i }).click();
-  await page.waitForURL((url) => url.pathname === target);
-  await expect(questions(page).getByRole('listitem', { name: SHADING })).toBeVisible();
+  await page.waitForURL((url) => url.pathname === '/dashboard/studio');
 }
 
-const editor = (page: Page) => page.getByRole('region', { name: 'Your conversation' });
-const questions = (page: Page) => editor(page).getByRole('region', { name: 'Questions' });
-const diagram = (page: Page) => editor(page).getByRole('region', { name: 'Flow diagram' });
-const preview = (page: Page) => editor(page).getByRole('region', { name: 'Chat preview' });
-const row = (page: Page, name: string) =>
-  questions(page).getByRole('listitem', { name, exact: true });
+/** Straight to the conversation tab, by its address. */
+async function openAs(page: Page, email: string): Promise<void> {
+  await signInAs(page, email, '/dashboard/studio?tab=conversation');
+  await expect(box(page, SHADING)).toBeVisible();
+}
 
-/** The diagram's question boxes, top to bottom. */
-async function diagramOrder(page: Page): Promise<string[]> {
-  return diagram(page)
-    .locator('[data-step-id]')
-    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('aria-label') ?? ''));
+const editor = (page: Page) => page.getByRole('tabpanel', { name: 'Your conversation' });
+const canvas = (page: Page) => editor(page).getByRole('region', { name: 'Flow' });
+const list = (page: Page) => editor(page).getByRole('region', { name: 'Questions' });
+const card = (page: Page) => editor(page).getByRole('region', { name: 'Selected question' });
+const preview = (page: Page) => editor(page).getByRole('region', { name: 'How Sunny asks it' });
+const exactly = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+/** A question's box on the flow: a button named by its text, then its tags. */
+const box = (page: Page, name: string) =>
+  canvas(page)
+    .getByRole('button')
+    .filter({ has: page.locator('.flow-node-text', { hasText: exactly(name) }) });
+const row = (page: Page, name: string) => list(page).getByRole('listitem', { name, exact: true });
+const view = (page: Page, name: 'Flow' | 'Questions') =>
+  editor(page).getByRole('button', { name, exact: true });
+
+/** The listed questions on the flow's spine, top to bottom. */
+async function flowOrder(page: Page): Promise<string[]> {
+  return canvas(page)
+    .locator('[data-kind="top"] .flow-node-text')
+    .evaluateAll((nodes) => nodes.map((n) => n.textContent ?? ''));
+}
+
+/** The listed questions in the list, top to bottom. */
+async function listOrder(page: Page): Promise<string[]> {
+  return list(page)
+    .locator('[data-step-row][data-depth="0"]')
+    .evaluateAll((rows) => rows.map((r) => r.getAttribute('aria-label') ?? ''));
 }
 
 /**
  * A native drag with the mouse, in small steps so the browser starts it (a
  * single jump, as `dragTo` makes, does not start this one).
  */
-async function drag(page: Page, source: Locator, target: Locator): Promise<void> {
-  await questions(page).evaluate((list) => list.scrollIntoView({ block: 'start' }));
+async function drag(page: Page, source: Locator, target: Locator, dy = 0): Promise<void> {
   const from = (await source.boundingBox())!;
   const to = (await target.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width / 2, from.y - 10, { steps: 5 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
-  await page.mouse.move(to.x + to.width / 2 + 2, to.y + to.height / 2 + 2, { steps: 2 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2 + dy, { steps: 10 });
+  await page.mouse.move(to.x + to.width / 2 + 2, to.y + to.height / 2 + dy + 2, { steps: 2 });
   await page.mouse.up();
 }
 
@@ -117,23 +137,45 @@ test.beforeAll(async ({ request }) => {
 test('an added question whose "Yes" adds the EV charger is saved and still there after a reload', async ({
   page,
 }) => {
-  await openAs(page, OWNER);
-  // The fixed start and end are shown, locked.
-  const start = row(page, 'Address and roof check');
-  await expect(start).toContainText('Always asked first');
-  await expect(start.getByRole('button', { name: /Remove/ })).toHaveCount(0);
-  await expect(row(page, 'Quote, consent and contact details')).toContainText('Always asked last');
-  await expect(row(page, SHADING)).toContainText("Sunny's question");
-
-  await questions(page).getByRole('button', { name: '+ Add a question' }).click();
-  const added = row(page, 'New question');
-  await added.getByLabel('Question text').fill(EV);
-  const ev = row(page, EV);
-  await expect(ev).toContainText('Changes the quote');
-  await addPriceChange(ev.getByRole('group', { name: 'Answer Yes' }), 'EV-7KW');
-  await expect(ev.getByRole('group', { name: 'Answer Yes' })).toContainText(
-    'Adds 7kW EV charger, £899',
+  // Studio opens on its first tab; the conversation is a tab of its own.
+  await signInAs(page, OWNER, '/dashboard/studio');
+  await expect(page.getByRole('tab', { name: 'Your brand' })).toHaveAttribute(
+    'aria-selected',
+    'true',
   );
+  await page.getByRole('tab', { name: 'Your conversation' }).click();
+  await expect(page).toHaveURL(/[?&]tab=conversation/);
+  await expect(box(page, SHADING)).toBeVisible();
+  // Arrow keys move along the tabs.
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Assistant settings' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(editor(page)).toBeHidden();
+  await page.keyboard.press('ArrowLeft');
+  await expect(box(page, SHADING)).toBeVisible();
+
+  // The fixed start and end are drawn, locked: nothing to click or drag.
+  await expect(canvas(page)).toContainText('Address and roof check');
+  await expect(canvas(page)).toContainText('Quote, then contact details');
+  await expect(canvas(page).getByRole('button', { name: 'Address and roof check' })).toHaveCount(0);
+  await expect(box(page, SHADING)).toContainText("Sunny's question");
+
+  await card(page).getByRole('button', { name: '+ Add a question' }).click();
+  await card(page).getByLabel('Question text').fill(EV);
+  await expect(box(page, EV)).toContainText('Changes the quote');
+  await expect(box(page, EV)).toHaveAttribute('aria-pressed', 'true');
+  // Its name says what its tag says, not only the question.
+  await expect(box(page, EV)).toHaveAccessibleName(
+    /^Do you have an electric car\?\s*Changes the quote$/,
+  );
+  const yes = card(page).getByRole('group', { name: 'Answer Yes' });
+  await addPriceChange(yes, 'EV-7KW');
+  await expect(yes).toContainText('Adds 7kW EV charger, £899');
+
+  // The flow shows what "Yes" does, on a pill under the question.
+  await expect(canvas(page).locator('.flow-pill', { hasText: EV_PILL })).toBeVisible();
 
   // The preview shows the installer's wording and exactly what "Yes" does.
   await expect(preview(page)).toContainText(EV);
@@ -141,130 +183,202 @@ test('an added question whose "Yes" adds the EV charger is saved and still there
   await preview(page).getByRole('button', { name: 'Yes', exact: true }).click();
   await expect(preview(page)).toContainText('Adds 7kW EV charger');
   await expect(preview(page)).toContainText('£899');
-  await expect(diagram(page)).toContainText('Yes +£899');
 
   await editor(page).getByRole('button', { name: 'Save conversation' }).click();
   await expect(editor(page).getByRole('status')).toContainText('Saved');
 
   await page.reload();
-  await expect(row(page, EV)).toBeVisible();
-  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
-  await expect(row(page, EV).getByRole('group', { name: 'Answer Yes' })).toContainText(
+  await expect(box(page, EV)).toBeVisible();
+  await box(page, EV).click();
+  await expect(card(page).getByRole('group', { name: 'Answer Yes' })).toContainText(
     'Adds 7kW EV charger, £899',
   );
+});
+
+test('every box shows its whole question, never cut short', async ({ page }) => {
+  await openAs(page, OWNER);
+  await box(page, USAGE).click();
+  for (const name of [SHADING, USAGE, HOUSEHOLD, EV]) {
+    const text = box(page, name).locator('.flow-node-text');
+    await expect(text).toHaveText(name);
+    const clipped = await text.evaluate(
+      (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1,
+    );
+    expect(clipped).toBe(false);
+  }
+  // No two boxes overlap.
+  const rects = await canvas(page)
+    .locator('.flow-node')
+    .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().toJSON() as DOMRect));
+  for (const a of rects)
+    for (const b of rects) {
+      if (a === b) continue;
+      const overlap =
+        a.left < b.right - 1 &&
+        b.left < a.right - 1 &&
+        a.top < b.bottom - 1 &&
+        b.top < a.bottom - 1;
+      expect(overlap).toBe(false);
+    }
 });
 
 test("a linked question's answers can be reworded, priced and followed up, and are saved", async ({
   page,
 }) => {
   await openAs(page, OWNER);
-  await row(page, USAGE).getByRole('button', { name: USAGE, exact: true }).click();
-  const member = row(page, HOUSEHOLD);
-  await expect(member).toBeVisible();
-  // It travels with its head: nothing moves or removes it on its own.
-  await expect(member.getByRole('button', { name: `Remove: ${HOUSEHOLD}` })).toHaveCount(0);
-  await expect(member.getByRole('button', { name: `Move up: ${HOUSEHOLD}` })).toHaveCount(0);
-  await expect(member.locator('.flow-drag')).toHaveCount(0);
+  await box(page, USAGE).click();
+  await expect(card(page).getByRole('group', { name: 'Linked questions' })).toContainText(
+    HOUSEHOLD,
+  );
+  // A linked question has its own box, branching off the one it is asked with.
+  const head = (await box(page, USAGE).boundingBox())!;
+  const member = (await box(page, HOUSEHOLD).boundingBox())!;
+  expect(member.x).toBeGreaterThan(head.x + head.width);
 
-  await member.getByRole('button', { name: HOUSEHOLD, exact: true }).click();
-  await member
+  await box(page, HOUSEHOLD).click();
+  // It travels with its head: nothing moves or removes it on its own.
+  await expect(card(page).getByRole('button', { name: `Remove: ${HOUSEHOLD}` })).toHaveCount(0);
+  await expect(card(page).getByRole('button', { name: `Move up: ${HOUSEHOLD}` })).toHaveCount(0);
+  await expect(box(page, HOUSEHOLD)).not.toHaveAttribute('data-draggable', 'true');
+
+  await card(page)
     .getByRole('group', { name: 'Answer 5' })
     .getByLabel('Answer', { exact: true })
     .fill('Five or more');
-  const five = member.getByRole('group', { name: 'Answer Five or more' });
+  const five = card(page).getByRole('group', { name: 'Answer Five or more' });
   await addPriceChange(five, 'EV-7KW');
   await expect(five).toContainText('Adds 7kW EV charger, £899');
   await five.getByRole('button', { name: '+ Add a follow-up' }).click();
-  await row(page, 'New question').getByLabel('Question text').fill('Does anyone work from home?');
-  await expect(five.getByRole('listitem', { name: 'Does anyone work from home?' })).toBeVisible();
-  await expect(diagram(page).getByRole('button', { name: HOUSEHOLD })).toBeVisible();
-  await expect(
-    diagram(page).getByRole('button', { name: 'Does anyone work from home?' }),
-  ).toBeVisible();
+  await card(page).getByLabel('Question text').fill('Does anyone work from home?');
+  await expect(box(page, 'Does anyone work from home?')).toBeVisible();
 
   // The preview answers what the linked question waits on, so its effect is exact.
-  await member.getByRole('button', { name: HOUSEHOLD, exact: true }).click();
+  await box(page, HOUSEHOLD).click();
+  await expect(
+    five.getByRole('button', { name: 'Follow-up: Does anyone work from home?' }),
+  ).toBeVisible();
   await preview(page).getByRole('button', { name: 'Five or more' }).click();
   await expect(preview(page)).toContainText('Adds 7kW EV charger');
 
   await editor(page).getByRole('button', { name: 'Save conversation' }).click();
   await expect(editor(page).getByRole('status')).toContainText('Saved');
   await page.reload();
-  await row(page, USAGE).getByRole('button', { name: USAGE, exact: true }).click();
-  await row(page, HOUSEHOLD).getByRole('button', { name: HOUSEHOLD, exact: true }).click();
-  const saved = row(page, HOUSEHOLD).getByRole('group', { name: 'Answer Five or more' });
+  await box(page, HOUSEHOLD).click();
+  const saved = card(page).getByRole('group', { name: 'Answer Five or more' });
   await expect(saved).toContainText('Adds 7kW EV charger, £899');
-  await expect(saved.getByRole('listitem', { name: 'Does anyone work from home?' })).toBeVisible();
+  await expect(
+    saved.getByRole('button', { name: 'Follow-up: Does anyone work from home?' }),
+  ).toBeVisible();
 });
 
-test('a problem on a follow-up is flagged on its closed parent, and Save opens it', async ({
-  page,
-}) => {
+test('a problem on a follow-up is flagged on its parent, and Save opens it', async ({ page }) => {
   await openAs(page, OWNER);
-  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
-  await row(page, EV)
+  await box(page, EV).click();
+  await card(page)
     .getByRole('group', { name: 'Answer No' })
     .getByRole('button', { name: '+ Add a follow-up' })
     .click();
-  // Leave the follow-up without its question, and close its parent.
-  await row(page, SHADING).getByRole('button', { name: SHADING, exact: true }).click();
-  await expect(row(page, 'New question')).toHaveCount(0);
+  // Leave the follow-up without its question, and pick another one.
+  await box(page, SHADING).click();
 
   await editor(page).getByRole('button', { name: 'Save conversation' }).click();
-  const message = row(page, 'New question').getByText('Write the question Sunny should ask.');
+  const message = card(page).getByText('Write the question Sunny should ask.');
   await expect(message).toBeVisible();
   await expect(message).toBeInViewport();
+  await expect(box(page, 'New question')).toHaveAttribute('aria-pressed', 'true');
+  // The follow-up's own box is flagged too, not only its parent's.
+  await expect(box(page, 'New question')).toContainText('Needs attention');
 
-  // Closed again, the parent still says something below it needs attention.
-  const evHead = row(page, EV).locator('.flow-row-head').first();
-  await row(page, SHADING).getByRole('button', { name: SHADING, exact: true }).click();
-  await expect(evHead).toContainText('Needs attention');
+  // The parent says something below it needs attention, on the flow and in the list.
+  await expect(box(page, EV)).toContainText('Needs attention');
+  await view(page, 'Questions').click();
+  await expect(row(page, EV)).toContainText('Needs attention');
 
   // Editing the question clears its flag until the next save.
-  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
-  await row(page, 'New question')
-    .getByRole('button', { name: 'New question', exact: true })
-    .click();
-  await row(page, 'New question').getByLabel('Question text').fill('Is it charged at home?');
-  await expect(evHead).not.toContainText('Needs attention');
+  await card(page).getByLabel('Question text').fill('Is it charged at home?');
+  await expect(row(page, EV)).not.toContainText('Needs attention');
 });
 
-test('dragging the question above roof shading reorders the diagram too, and so do the buttons', async ({
-  page,
-}) => {
+test('dragging on the flow and in the list reorders, and so do the buttons', async ({ page }) => {
   await openAs(page, OWNER);
-  let order = await diagramOrder(page);
+  let order = await flowOrder(page);
+
+  // A finger on a box scrolls the canvas; it never drags the question.
+  const ev = (await box(page, EV).boundingBox())!;
+  for (const [type, y] of [
+    ['pointerdown', ev.y + 10],
+    ['pointermove', ev.y - 200],
+    ['pointerup', ev.y - 200],
+  ] as const) {
+    await box(page, EV).dispatchEvent(type, {
+      pointerType: 'touch',
+      pointerId: 7,
+      isPrimary: true,
+      button: 0,
+      clientX: ev.x + 20,
+      clientY: y,
+    });
+  }
+  expect(await flowOrder(page)).toEqual(order);
+
+  // Escape puts a dragged box back, and the next click still selects.
+  await page.mouse.move(ev.x + ev.width / 2, ev.y + ev.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(ev.x + ev.width / 2, ev.y - 120, { steps: 6 });
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  expect(await flowOrder(page)).toEqual(order);
+  await box(page, SHADING).click();
+  await expect(box(page, SHADING)).toHaveAttribute('aria-pressed', 'true');
   expect(order.indexOf(EV)).toBeGreaterThan(order.indexOf(SHADING));
 
-  // The handle is for a mouse; the move buttons below do the same by keyboard.
-  await drag(page, row(page, EV).locator('.flow-drag'), row(page, SHADING));
-  order = await diagramOrder(page);
+  // On the flow: drag the box up the spine, above roof shading (the whole flow in view).
+  await canvas(page).getByRole('button', { name: 'Fit the flow in view' }).click();
+  await drag(page, box(page, EV), box(page, SHADING), -12);
+  order = await flowOrder(page);
   expect(order.indexOf(EV)).toBe(order.indexOf(SHADING) - 1);
 
-  await row(page, EV)
-    .getByRole('button', { name: `Move down: ${EV}` })
-    .click();
-  order = await diagramOrder(page);
-  expect(order.indexOf(EV)).toBe(order.indexOf(SHADING) + 1);
+  // In the list: drag roof shading's grip back onto the electric car row.
+  await view(page, 'Questions').click();
+  expect(await listOrder(page)).toEqual(order);
+  await drag(page, row(page, SHADING).locator('.flow-drag'), row(page, EV));
+  order = await listOrder(page);
+  expect(order.indexOf(SHADING)).toBe(order.indexOf(EV) - 1);
+
+  // The move buttons do the same by keyboard, in the list and in the side column.
   await row(page, EV)
     .getByRole('button', { name: `Move up: ${EV}` })
     .click();
-  order = await diagramOrder(page);
+  order = await listOrder(page);
   expect(order.indexOf(EV)).toBe(order.indexOf(SHADING) - 1);
+  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
+  await card(page)
+    .getByRole('button', { name: `Move down: ${EV}` })
+    .click();
+  order = await listOrder(page);
+  expect(order.indexOf(EV)).toBe(order.indexOf(SHADING) + 1);
 });
 
 test('removing electricity use shows its warning first, and the preview never asks it', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await openAs(page, OWNER);
+  await view(page, 'Questions').click();
   await row(page, USAGE)
     .getByRole('button', { name: `Remove: ${USAGE}` })
     .click();
-  const confirm = row(page, USAGE).getByRole('alertdialog');
+  const confirm = card(page).getByRole('alertdialog');
   await expect(confirm).toContainText('Sunny uses this to work out savings.');
+  // The choice is on screen by itself (nothing here scrolls to it), and has focus.
+  await expect(confirm).toBeFocused();
+  const shown = (await confirm.boundingBox())!;
+  expect(shown.y).toBeGreaterThanOrEqual(0);
+  expect(shown.y + shown.height).toBeLessThanOrEqual(900);
   await confirm.getByRole('button', { name: 'Remove question' }).click();
   await expect(row(page, USAGE)).toHaveCount(0);
-  expect(await diagramOrder(page)).not.toContain(USAGE);
+  await view(page, 'Flow').click();
+  expect(await flowOrder(page)).not.toContain(USAGE);
 
   await preview(page).getByRole('button', { name: 'Play the whole conversation' }).click();
   const asked: string[] = [];
@@ -285,64 +399,98 @@ test('removing electricity use shows its warning first, and the preview never as
   expect(asked).not.toContain(USAGE);
 });
 
-test('a follow-up sits indented under its answer and in the diagram, selection kept in step', async ({
+test('a follow-up branches off its answer on the flow and sits indented in the list', async ({
   page,
 }) => {
   await openAs(page, OWNER);
-  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
-  // The follow-up has a "Yes" of its own once it opens: the first is the parent's.
-  const yes = row(page, EV).getByRole('group', { name: 'Answer Yes' }).first();
-  await yes.getByRole('button', { name: '+ Add a follow-up' }).click();
-  await row(page, 'New question').getByLabel('Question text').fill('Is it a Tesla?');
+  await box(page, EV).click();
+  await card(page)
+    .getByRole('group', { name: 'Answer Yes' })
+    .getByRole('button', { name: '+ Add a follow-up' })
+    .click();
+  await card(page).getByLabel('Question text').fill('Is it a Tesla?');
 
-  const followUp = yes.getByRole('listitem', { name: 'Is it a Tesla?' });
-  await expect(followUp).toBeVisible();
-  const parentBox = await row(page, EV).boundingBox();
-  const childBox = await followUp.boundingBox();
-  expect(childBox!.x).toBeGreaterThan(parentBox!.x + 10);
-
-  await expect(diagram(page).getByRole('button', { name: 'Is it a Tesla?' })).toBeVisible();
-  await expect(diagram(page)).toContainText('if Yes');
+  // On the flow: to the right of its parent, on a priced branch whose pill names the answer.
+  const parent = (await box(page, EV).boundingBox())!;
+  const child = (await box(page, 'Is it a Tesla?').boundingBox())!;
+  expect(child.x).toBeGreaterThan(parent.x + parent.width);
+  const pill = canvas(page).locator('.flow-pill', { hasText: EV_PILL });
+  await expect(pill).toHaveAttribute('data-price', 'true');
+  await expect(box(page, 'Is it a Tesla?')).not.toHaveAttribute('data-draggable', 'true');
 
   // The preview of the follow-up shows what its own answer does, not the EV
   // charger its parent's "Yes" (given on the way to it) adds.
-  await diagram(page).getByRole('button', { name: 'Is it a Tesla?' }).click();
   await preview(page).getByRole('button', { name: 'Yes', exact: true }).click();
   await expect(preview(page)).toContainText('No change to the quote.');
   await expect(preview(page)).not.toContainText('Adds 7kW EV charger');
 
-  // Picking in the diagram selects in the list, and the reverse.
-  await diagram(page).getByRole('button', { name: SHADING }).click();
-  await expect(row(page, SHADING)).toHaveAttribute('aria-current', 'true');
-  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
-  await expect(diagram(page).getByRole('button', { name: EV })).toHaveAttribute(
-    'aria-pressed',
+  // In the list: indented under its parent, after the answer that opens it.
+  await view(page, 'Questions').click();
+  const followUp = row(page, 'Is it a Tesla?');
+  await expect(followUp).toContainText('↳ if Yes:');
+  await expect(followUp).toHaveAttribute('aria-current', 'true');
+  const parentRow = (await row(page, EV).boundingBox())!;
+  const childRow = (await followUp.boundingBox())!;
+  expect(childRow.x).toBeGreaterThan(parentRow.x + 10);
+  await expect(row(page, EV)).toContainText(`Yes: +£899 7kW EV charger`);
+
+  // Picking in the list selects on the flow, and the reverse.
+  await row(page, SHADING).getByRole('button', { name: SHADING, exact: true }).click();
+  await view(page, 'Flow').click();
+  await expect(box(page, SHADING)).toHaveAttribute('aria-pressed', 'true');
+  await box(page, EV).click();
+  await view(page, 'Questions').click();
+  await expect(row(page, EV)).toHaveAttribute('aria-current', 'true');
+});
+
+test('the Flow or Questions choice is remembered, and the flow zooms', async ({ page }) => {
+  await openAs(page, OWNER);
+  const stage = canvas(page).locator('.flow-stage');
+  const scale = async () => Number(await stage.getAttribute('data-scale'));
+  const start = await scale();
+  // It opens at full size, or a little smaller when the branches would not fit.
+  expect(start).toBeGreaterThanOrEqual(0.9);
+  expect(start).toBeLessThanOrEqual(1);
+  // Typing a long question does not re-zoom the flow under the owner's hands.
+  await card(page).getByRole('button', { name: '+ Add a question' }).click();
+  await card(page)
+    .getByLabel('Question text')
+    .fill('Would you like a quote for a battery, an EV charger and a hot water diverter too?');
+  expect(await scale()).toBe(start);
+  await card(page).getByRole('button', { name: 'Close the selected question' }).click();
+  const before = (await box(page, SHADING).boundingBox())!;
+  await canvas(page).getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(scale).toBeCloseTo(start * 1.2, 1);
+  const after = (await box(page, SHADING).boundingBox())!;
+  expect(after.width).toBeGreaterThan(before.width * 1.1);
+  await canvas(page).getByRole('button', { name: 'Zoom out' }).click();
+  await canvas(page).getByRole('button', { name: 'Zoom out' }).click();
+  await expect.poll(scale).toBeCloseTo(start / 1.2, 1);
+  await canvas(page).getByRole('button', { name: 'Fit the flow in view' }).click();
+  await expect.poll(scale).not.toBeCloseTo(start / 1.2, 2);
+
+  await view(page, 'Questions').click();
+  await expect(row(page, SHADING)).toBeVisible();
+  await expect(canvas(page)).toHaveCount(0);
+  await page.reload();
+  await expect(row(page, SHADING)).toBeVisible();
+  await expect(view(page, 'Questions')).toHaveAttribute('aria-pressed', 'true');
+  await expect(canvas(page)).toHaveCount(0);
+  await view(page, 'Flow').click();
+  await expect(box(page, SHADING)).toBeVisible();
+
+  // Sunny Studio in the sidebar opens Studio's first tab, wherever it was.
+  await page.getByRole('link', { name: 'Sunny Studio' }).click();
+  await expect(page.getByRole('tab', { name: 'Your brand' })).toHaveAttribute(
+    'aria-selected',
     'true',
   );
 });
 
-test('minimising the diagram keeps the list and the preview, and is remembered', async ({
-  page,
-}) => {
-  await openAs(page, OWNER);
-  await editor(page).getByRole('button', { name: 'Minimise Flow diagram' }).click();
-  await expect(diagram(page).locator('svg.flow-diagram')).toBeHidden();
-  await expect(row(page, SHADING)).toBeVisible();
-  await expect(
-    preview(page).getByText('Sunny may phrase this more naturally in the chat.'),
-  ).toBeVisible();
-
-  await page.reload();
-  await expect(row(page, SHADING)).toBeVisible();
-  await expect(diagram(page).locator('svg.flow-diagram')).toBeHidden();
-  await editor(page).getByRole('button', { name: 'Show Flow diagram' }).click();
-  await expect(diagram(page).locator('svg.flow-diagram')).toBeVisible();
-});
-
 test('a mandatory item cannot be picked, and a per-metre item asks how many', async ({ page }) => {
   await openAs(page, OWNER);
-  await row(page, SHADING).getByRole('button', { name: SHADING, exact: true }).click();
-  const heavy = row(page, SHADING).getByRole('group', { name: 'Answer Heavily shaded' });
+  await box(page, SHADING).click();
+  const heavy = card(page).getByRole('group', { name: 'Answer Heavily shaded' });
   await heavy.getByRole('button', { name: /Add a price change/ }).click();
   const item = heavy.getByLabel('Item from your price list');
   // Listed, so the installer sees why, but it cannot be chosen.
@@ -359,27 +507,40 @@ test('a mandatory item cannot be picked, and a per-metre item asks how many', as
 
 test('a viewer sees the conversation but cannot change it', async ({ page }) => {
   await openAs(page, VIEWER);
-  await expect(row(page, EV)).toBeVisible();
+  await expect(box(page, EV)).toBeVisible();
   await expect(editor(page).getByRole('button', { name: 'Save conversation' })).toHaveCount(0);
-  await expect(questions(page).getByRole('button', { name: '+ Add a question' })).toHaveCount(0);
+  await expect(
+    editor(page).getByRole('button', { name: "Reset to Sunny's questions" }),
+  ).toHaveCount(0);
+  await expect(card(page).getByRole('button', { name: '+ Add a question' })).toHaveCount(0);
+  await expect(canvas(page).locator('[data-draggable]')).toHaveCount(0);
+  // A drag on the flow changes nothing.
+  const order = await flowOrder(page);
+  await drag(page, box(page, EV), box(page, SHADING), -12);
+  expect(await flowOrder(page)).toEqual(order);
+
+  await box(page, EV).click();
+  await expect(card(page).getByLabel('Question text')).toBeDisabled();
+  await expect(card(page).getByRole('button', { name: /Add a price change/ })).toHaveCount(0);
+  await expect(card(page).getByRole('button', { name: /Remove|Move/ })).toHaveCount(0);
+
+  await view(page, 'Questions').click();
   await expect(row(page, EV).getByRole('button', { name: /Remove|Move/ })).toHaveCount(0);
-  await expect(row(page, EV).locator('.flow-drag')).toHaveCount(0);
-  await row(page, EV).getByRole('button', { name: EV, exact: true }).click();
-  await expect(row(page, EV).getByLabel('Question text')).toBeDisabled();
-  await expect(row(page, EV).getByRole('button', { name: /Add a price change/ })).toHaveCount(0);
+  await expect(list(page).locator('.flow-drag')).toHaveCount(0);
+  await expect(list(page).getByRole('button', { name: '+ Add a question' })).toHaveCount(0);
 });
 
 test("reset restores Sunny's questions after confirming", async ({ page }) => {
   await openAs(page, OWNER);
-  await expect(row(page, EV)).toBeVisible();
+  await expect(box(page, EV)).toBeVisible();
   await editor(page).getByRole('button', { name: "Reset to Sunny's questions" }).click();
   const confirm = editor(page).getByRole('alertdialog');
   await expect(confirm).toContainText('replaces your questions');
   await confirm.getByRole('button', { name: 'Reset', exact: true }).click();
-  await expect(row(page, EV)).toHaveCount(0);
-  await expect(row(page, USAGE)).toBeVisible();
+  await expect(box(page, EV)).toHaveCount(0);
+  await expect(box(page, USAGE)).toBeVisible();
 
   await page.reload();
-  await expect(row(page, USAGE)).toBeVisible();
-  await expect(row(page, EV)).toHaveCount(0);
+  await expect(box(page, USAGE)).toBeVisible();
+  await expect(box(page, EV)).toHaveCount(0);
 });

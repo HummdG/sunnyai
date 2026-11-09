@@ -73,7 +73,6 @@ export function ChatPreview({
   const [playing, setPlaying] = useState(false);
   return (
     <div className="chat-preview">
-      <p className="preview-note small">Sunny may phrase this more naturally in the chat.</p>
       {playing ? (
         <PlayThrough tenantId={tenantId} flow={flow} onStop={() => setPlaying(false)} />
       ) : (
@@ -85,8 +84,9 @@ export function ChatPreview({
           selectedId={selectedId}
         />
       )}
+      <p className="preview-note small">Sunny may phrase this more naturally in the chat.</p>
       {playing ? null : (
-        <button type="button" className="button secondary" onClick={() => setPlaying(true)}>
+        <button type="button" className="link-button" onClick={() => setPlaying(true)}>
           Play the whole conversation
         </button>
       )}
@@ -144,7 +144,9 @@ function Selected({
 
   if (!chain) {
     return (
-      <p className="muted">Pick a question in the list or the diagram to see how Sunny asks it.</p>
+      <p className="muted small">
+        Pick a question in the flow or the list to see how Sunny asks it.
+      </p>
     );
   }
   const step = chain[chain.length - 1]!.step;

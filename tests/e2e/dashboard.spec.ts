@@ -245,6 +245,13 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
 
   await animations.getByLabel('Comet trace').check();
   await animations.getByLabel('Shimmer').check();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+
+  // The name and greeting are on their own tab, saved by their own button.
+  await page.getByRole('tab', { name: 'Assistant settings' }).click();
+  await expect(page).toHaveURL(/[?&]tab=settings/);
+  await expect(logo).toBeHidden();
   // The browser checks the name the way the API does, and says how in plain words.
   const nameInput = page.getByLabel('Assistant name');
   const validity = () =>
@@ -259,6 +266,13 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   });
   await nameInput.fill("Nova & Co. O'Neil-2");
   expect((await validity()).valid).toBe(true);
+  // Starter buttons are what visitors ask, shown as chips beside the form.
+  const starters = page.getByRole('textbox', { name: /^Starter buttons/ });
+  await expect(starters).toHaveAccessibleDescription(/what visitors ask Sunny/);
+  await starters.fill('How much could I save?\nDo you fit batteries?');
+  await expect(
+    page.getByRole('list', { name: 'Starter buttons' }).getByRole('listitem'),
+  ).toHaveText(['How much could I save?', 'Do you fit batteries?']);
   await page.getByLabel('Assistant name').fill('Volt');
   await expect(page.getByLabel('Greeting')).toHaveValue(/I'm Volt/);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -269,6 +283,7 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   expect((branded['brand'] as { effects: string[] }).effects).toEqual(['comet', 'shimmer']);
 
   // The preview shows the logo, not the character.
+  await page.getByRole('tab', { name: 'Your brand' }).click();
   const preview = page.getByLabel('Live preview');
   await expect(preview.locator('.sunny-preview')).toHaveCount(0);
   await expect(preview.locator('[data-logo-effect]').first()).toBeVisible();
@@ -310,6 +325,69 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   await expect(preview.locator('.sunny-preview')).toHaveCount(1);
 });
 
+test('each Studio tab saves only its own part, and leaves the other as it was', async ({
+  page,
+}) => {
+  interface Saved {
+    primaryColor: string;
+    greeting: string;
+    tagline: string | null;
+    position: string;
+    assistantName: string;
+    suggestions: string[];
+    branding: unknown;
+  }
+  await signIn(page);
+  const headers = { authorization: `Bearer ${await token(page.request)}` };
+  const stored = async (): Promise<Saved> => {
+    const response = await page.request.get(`${API}/v1/portal/tenants/${tenantId}`, { headers });
+    return ((await response.json()) as { tenant: Saved }).tenant;
+  };
+  const saving = () =>
+    page.waitForRequest((r) => r.method() === 'POST' && /\/settings$/.test(r.url()));
+  const before = await stored();
+
+  // The brand tab sends its colour and logo, nothing else.
+  await page.goto(`${SITE}/dashboard/studio`);
+  await page
+    .getByRole('group', { name: 'Brand colour' })
+    .getByRole('button', { name: 'Purple' })
+    .click();
+  const brandSave = saving();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  expect(Object.keys((await brandSave).postDataJSON() as object).sort()).toEqual([
+    'branding',
+    'primaryColor',
+  ]);
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  const afterBrand = await stored();
+  expect(afterBrand.primaryColor).toBe('#7C4DFF');
+  for (const key of ['greeting', 'tagline', 'position', 'assistantName', 'suggestions'] as const) {
+    expect(afterBrand[key]).toEqual(before[key]);
+  }
+
+  // The settings tab sends its own fields, and the colour and logo stay.
+  await page.getByRole('tab', { name: 'Assistant settings' }).click();
+  await page.getByLabel('Tagline under your name').fill('Solar, sorted');
+  const settingsSave = saving();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  expect(Object.keys((await settingsSave).postDataJSON() as object).sort()).toEqual([
+    'assistantName',
+    'greeting',
+    'position',
+    'suggestions',
+    'tagline',
+  ]);
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  const afterSettings = await stored();
+  expect(afterSettings.tagline).toBe('Solar, sorted');
+  expect(afterSettings.primaryColor).toBe('#7C4DFF');
+  expect(afterSettings.branding).toEqual(afterBrand.branding);
+  expect(afterSettings.greeting).toBe(before.greeting);
+  expect(afterSettings.suggestions).toEqual(before.suggestions);
+  expect(afterSettings.assistantName).toBe(before.assistantName);
+});
+
 test('an unsaved logo stays with its installer when the owner switches', async ({ page }) => {
   // A second installer for the same owner, so the dashboard shows its switcher.
   const second = await page.request.post(`${API}/v1/portal/tenants`, {
@@ -319,9 +397,17 @@ test('an unsaved logo stays with its installer when the owner switches', async (
   expect(second.ok()).toBe(true);
 
   await signIn(page);
-  await page.goto(`${SITE}/dashboard/studio`);
-  const logo = page.getByRole('group', { name: 'Your logo' });
+  await page.goto(`${SITE}/dashboard/studio?tab=settings`);
   await expect(page.getByLabel('Assistant name')).toHaveValue('Volt');
+  // Arrow keys move along the Studio tabs, and the open tab is in the address.
+  await page.getByRole('tab', { name: 'Assistant settings' }).focus();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('tab', { name: 'Your brand' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page).toHaveURL(/[?&]tab=brand/);
+  const logo = page.getByRole('group', { name: 'Your logo' });
   await logo.getByLabel('Use my logo').check();
   await logo.getByLabel('Icon file').setInputFiles({
     name: 'tile.png',
