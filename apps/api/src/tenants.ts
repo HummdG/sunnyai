@@ -2,6 +2,7 @@ import { widgetConfigSchema, type WidgetConfig } from '@sunny/contracts';
 
 import type { SavingsModel } from './agent/savings.js';
 import type { AddonConfig, AddonKey, BillingState } from './entitlements.js';
+import type { StoredBranding } from './branding/meta.js';
 import type { Store } from './store.js';
 
 /**
@@ -32,6 +33,8 @@ export interface Tenant {
     supportContact?: SupportContact;
     /** Email Assistant add-on settings (Blueprint §5, Add-On 2). */
     email?: EmailChannelConfig;
+    /** The installer's saved logo branding; never reaches the browser as-is. */
+    branding?: StoredBranding;
   };
   /**
    * The installer's registered website domains (Blueprint §4.6). When set, a
