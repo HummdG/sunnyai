@@ -10,7 +10,7 @@ import { resolveFlow } from '../src/flow/resolve.js';
 import { pricingFromPriceList } from '../src/journey/catalogue-pricing.js';
 import { prefillFromRoof, quoteAnswers } from '../src/journey/journey.js';
 import { buildQuote, type QuoteRecord } from '../src/journey/quote.js';
-import { mapRoof, type RoofAssessmentSummary } from '../src/journey/roof.js';
+import { mapRoof, type MappedRoof, type RoofAssessmentSummary } from '../src/journey/roof.js';
 import { QUESTIONS } from '../src/questionnaire.js';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -111,10 +111,11 @@ function quoteFor(
   flow: ConversationFlow | null,
   answers: Record<string, string>,
   list: PriceList = LIST,
+  roof: MappedRoof = ROOF,
 ): QuoteRecord {
   const pricing = { ...pricingFromPriceList(list)!.pricing, sentinel: null };
   const resolved = resolveFlow(flow);
-  const qa = quoteAnswers(answers, ROOF, pricing, resolved);
+  const qa = quoteAnswers(answers, roof, pricing, resolved);
   expect(qa).not.toBeNull();
   return buildQuote({
     id: 'q_effects',
@@ -122,7 +123,7 @@ function quoteFor(
     sessionId: 's',
     createdAt: '2026-11-09T00:00:00Z',
     answers: qa!,
-    roof: ROOF,
+    roof,
     pricing,
     priceList: list,
     flow: resolved,
@@ -397,6 +398,81 @@ describe('quantities and mandatory items', () => {
       const cable = option.lineItems.filter((l) => l.sku.startsWith(CABLE.key));
       expect(cable).toEqual([expect.objectContaining({ totalGbp: 200 })]);
     }
+  });
+
+  it('a flat-roof survey the answers add is charged once on a flat roof', () => {
+    const flat: MappedRoof = { ...ROOF, roofType: 'flat' };
+    const survey = 'STRUCT-FLATROOF-SURVEY';
+    const flow = flowOf([
+      ...presetSteps(),
+      yesNo('c_survey01', [{ kind: 'add', itemKey: survey, quantity: 1 }]),
+    ]);
+    const plain = quoteFor(flow, answersFor({ c_survey01: 'no' }), LIST, flat);
+    const added = quoteFor(flow, answersFor({ c_survey01: 'yes' }), LIST, flat);
+    for (const quote of [plain, added]) {
+      for (const option of quote.options) {
+        const found = option.lineItems.filter((l) => l.sku.startsWith(survey));
+        expect(found).toEqual([expect.objectContaining({ quantity: 1, totalGbp: 261 })]);
+      }
+    }
+    expect(added.options.map((o) => o.priceGbp)).toEqual(plain.options.map((o) => o.priceGbp));
+  });
+
+  it('an item a package carries under its plain SKU is recognised by remove and by its exclusive group', () => {
+    // Both EPS items priced per unit, so effects take the fixed-quantity path;
+    // the premium package carries EPS-FOX under its plain SKU.
+    const perUnit = (key: string): PriceList['items'][number] => {
+      const i = LIST.items.find((x) => x.key === key)!;
+      const amountMinor = i.pricing.kind === 'flat' ? i.pricing.amountMinor : 0;
+      return { ...i, pricing: { kind: 'per_unit', unit: 'unit', amountMinor, flatMinor: 0 } };
+    };
+    const list: PriceList = {
+      ...LIST,
+      items: LIST.items.map((i) =>
+        i.key === 'EPS-FOX' || i.key === 'EPS-GENERIC' ? perUnit(i.key) : i,
+      ),
+    };
+    const flow = flowOf([
+      ...presetSteps(),
+      yesNo('c_epsoff01', [{ kind: 'remove', itemKey: 'EPS-FOX' }]),
+      yesNo('c_epsgen01', [{ kind: 'add', itemKey: 'EPS-GENERIC', quantity: 2 }]),
+    ]);
+    const eps = (quote: QuoteRecord) =>
+      quote.options.map((o) => o.lineItems.filter((l) => l.sku.startsWith('EPS-')));
+    const plain = quoteFor(flow, answersFor({ c_epsoff01: 'no', c_epsgen01: 'no' }), list);
+    expect(eps(plain).some((found) => found.some((l) => l.sku === 'EPS-FOX'))).toBe(true);
+
+    const removed = quoteFor(flow, answersFor({ c_epsoff01: 'yes', c_epsgen01: 'no' }), list);
+    for (const found of eps(removed)) expect(found).toEqual([]);
+
+    // Two generic EPS units replace the Fox box: one item of the group, never both.
+    const swapped = quoteFor(flow, answersFor({ c_epsoff01: 'no', c_epsgen01: 'yes' }), list);
+    for (const found of eps(swapped)) {
+      expect(found).toEqual([expect.objectContaining({ quantity: 1, totalGbp: 900 })]);
+    }
+  });
+
+  it('an item priced per kWh is quoted at its fixed quantity, at the list price', () => {
+    const storage = extraItem({
+      key: 'STORAGE-KWH',
+      name: 'Extra storage',
+      category: 'optional',
+      pricing: { kind: 'per_unit', unit: 'kwh', amountMinor: 30000, flatMinor: 2500 },
+    });
+    const list: PriceList = { ...LIST, items: [...LIST.items, storage] };
+    const flow = flowOf([
+      ...presetSteps(),
+      yesNo('c_storage1', [{ kind: 'add', itemKey: storage.key, quantity: 5 }]),
+    ]);
+    const quote = quoteFor(flow, answersFor({ c_storage1: 'yes' }), list);
+    for (const option of quote.options) {
+      // priceFor: £25 + 5 × £300 = £1,525.
+      const found = option.lineItems.filter((l) => l.sku.startsWith(storage.key));
+      expect(found).toEqual([
+        expect.objectContaining({ label: 'Extra storage × 5', quantity: 1, totalGbp: 1525 }),
+      ]);
+    }
+    expect(quote.warnings.join(' ')).not.toMatch(/could not be/);
   });
 
   it('a battery or panel made mandatory after linking is skipped with its warning, and the quote still builds', () => {

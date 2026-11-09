@@ -178,7 +178,34 @@ describe('checkFlow', () => {
 
   it('an effect on a per-panel item needs no quantity', () => {
     expect(codes(flowOf(custom('c_aaaaaa', [{ kind: 'add', itemKey: 'OPT-TIGO' }])))).toEqual([]);
-    expect(PACKAGE_UNITS).toEqual(['panel', 'kwh']);
+    expect(PACKAGE_UNITS).toEqual(['panel']);
+  });
+
+  it('asks for a quantity on an add of an item priced per kWh', () => {
+    const list: PriceList = {
+      ...LIST,
+      items: [
+        ...LIST.items,
+        item({
+          key: 'STORAGE-KWH',
+          name: 'Extra storage',
+          pricing: { kind: 'per_unit', unit: 'kwh', amountMinor: 30000, flatMinor: 0 },
+        }),
+      ],
+    };
+    const add = (quantity?: number) =>
+      checkFlow(
+        flowOf(
+          custom('c_aaaaaa', [
+            { kind: 'add', itemKey: 'STORAGE-KWH', ...(quantity ? { quantity } : {}) },
+          ]),
+        ),
+        list,
+      );
+    expect(add()).toMatchObject([
+      { code: 'needs_quantity', message: 'Set how many kWh of Extra storage to add.' },
+    ]);
+    expect(add(5)).toEqual([]);
   });
 
   it('checks the effects of a preset step by answer value', () => {

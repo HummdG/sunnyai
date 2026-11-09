@@ -25,10 +25,11 @@ export interface FlowIssue {
 }
 
 /**
- * Units whose quantity comes from the package (panels, battery kWh). The price
- * list has no kWp unit, so none is added; any other unit needs a fixed quantity.
+ * Units whose quantity comes from the package: panels. The price list has no
+ * kWp unit, and an item priced per kWh is not a battery's own capacity, so any
+ * other unit (kWh included) needs a fixed quantity, priced from the list.
  */
-export const PACKAGE_UNITS: readonly string[] = ['panel', 'kwh'];
+export const PACKAGE_UNITS: readonly string[] = ['panel'];
 
 /** The unit an item is priced per, when it has one. */
 export function unitOf(item: PriceItem): string | null {
@@ -92,7 +93,8 @@ function checkEffect(
     } else if (t.adds) {
       const unit = unitOf(item);
       if (unit && !PACKAGE_UNITS.includes(unit) && t.quantity === undefined) {
-        push('needs_quantity', `Set how many ${unit}s of ${item.name} to add.`);
+        const units = unit === 'kwh' ? 'kWh' : `${unit}s`;
+        push('needs_quantity', `Set how many ${units} of ${item.name} to add.`);
       }
     }
   }

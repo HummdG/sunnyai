@@ -122,9 +122,12 @@ type Target =
   | { kind: 'mounting'; sku: string; name: string; mounting: CatalogueMounting }
   | { kind: 'optimiser'; sku: string; name: string; scope: SystemConfig['optimiserScope'] }
   | { kind: 'bird_mesh'; sku: string; name: string }
-  | { kind: 'extra'; sku: string; name: string; extra: CatalogueExtra; list: ExtraList }
-  /** An item with a fixed quantity, priced as one line for that quantity. */
-  | { kind: 'fixed'; key: string; sku: string; name: string; extra?: CatalogueExtra };
+  /**
+   * An extra, carried under its plain SKU or (with a fixed quantity) as a
+   * `KEY*q` line. `extra` is the line to add; absent when the list cannot
+   * price the item at that quantity.
+   */
+  | { kind: 'extra'; key: string; name: string; extra?: CatalogueExtra };
 
 /**
  * An extra priced per metre, side, storey (anything but a package unit), which
@@ -140,7 +143,27 @@ function fixedSku(key: string, quantity: number): string {
   return `${key}*${quantity}`;
 }
 
-const isFixedLine = (sku: string, key: string) => sku.startsWith(`${key}*`);
+/** Whether a package line is this item, under its plain SKU or as a fixed-quantity line. */
+const isItemLine = (sku: string, key: string) => sku === key || sku.startsWith(`${key}*`);
+
+/**
+ * The item's plain catalogue line when it already costs exactly what the list
+ * gives for this quantity (e.g. one flat-roof survey). Using it keeps the
+ * engine's own checks on that SKU working (the flat-roof survey is added
+ * automatically unless the plain SKU is already in the package).
+ */
+function plainEquivalent(
+  item: PriceItem,
+  quantity: number,
+  catalogue: PricingCatalogue,
+): CatalogueExtra | undefined {
+  const plain = catalogue.extras.find((e) => e.sku === item.key);
+  if (!plain || plain.priceCalc !== 'flat') return undefined;
+  const price = priceFor(item, { quantity });
+  return price.status === 'priced' && plain.baseGbp === pounds(price.amountMinor)
+    ? plain
+    : undefined;
+}
 
 /**
  * The engine catalogue plus one priced line per fixed-quantity item and
@@ -163,7 +186,7 @@ export function effectCatalogue(
     if (!item || targetIssue(item) || !isFixedQuantity(item)) continue;
     const quantity = effect.quantity ?? 1;
     const sku = fixedSku(item.key, quantity);
-    if (seen.has(sku)) continue;
+    if (seen.has(sku) || plainEquivalent(item, quantity, catalogue)) continue;
     const price = priceFor(item, { quantity });
     if (price.status !== 'priced') continue;
     seen.add(sku);
@@ -211,9 +234,11 @@ function locate(key: string, quantity: number | undefined, pricing: EffectPricin
   const name = item.name;
 
   if (isFixedQuantity(item)) {
-    const sku = fixedSku(key, quantity ?? 1);
-    const extra = catalogue.extras.find((e) => e.sku === sku);
-    return { ok: true, target: { kind: 'fixed', key, sku, name, extra } };
+    const q = quantity ?? 1;
+    const extra =
+      plainEquivalent(item, q, catalogue) ??
+      catalogue.extras.find((e) => e.sku === fixedSku(key, q));
+    return { ok: true, target: { kind: 'extra', key, name, extra } };
   }
   if (catalogue.panels.some((p) => p.sku === key)) {
     return { ok: true, target: { kind: 'panel', sku: key, name } };
@@ -234,7 +259,7 @@ function locate(key: string, quantity: number | undefined, pricing: EffectPricin
   if (key === BIRD_MESH) return { ok: true, target: { kind: 'bird_mesh', sku: key, name } };
   // Any other optimiser SKU the engine would silently leave unpriced.
   if (key.startsWith('OPT-TIGO')) return { ok: false, name };
-  return { ok: true, target: { kind: 'extra', sku: key, name, extra, list: listFor(extra) } };
+  return { ok: true, target: { kind: 'extra', key, name, extra } };
 }
 
 function isPresent(config: SystemConfig, t: Target, catalogue: PricingCatalogue): boolean {
@@ -256,10 +281,8 @@ function isPresent(config: SystemConfig, t: Target, catalogue: PricingCatalogue)
     case 'bird_mesh':
       return config.birdMesh;
     case 'extra':
-      return config[t.list].some((x) => x.sku === t.sku);
-    case 'fixed':
-      // At any quantity: an item is added once.
-      return EXTRA_LISTS.some((l) => config[l].some((x) => isFixedLine(x.sku, t.key)));
+      // In any list, at any quantity: an item is carried once.
+      return EXTRA_LISTS.some((l) => config[l].some((x) => isItemLine(x.sku, t.key)));
   }
 }
 
@@ -269,15 +292,22 @@ function withExtra(
   extra: CatalogueExtra,
   catalogue: PricingCatalogue,
 ): SystemConfig {
-  const list = listFor(extra);
   const group = extra.exclusiveGroup;
-  const others = config[list].filter(
-    (x) => !group || catalogue.extras.find((e) => e.sku === x.sku)?.exclusiveGroup !== group,
-  );
+  const out = { ...config };
+  if (group) {
+    // Whichever list the other item of the group sits in.
+    for (const l of EXTRA_LISTS) {
+      out[l] = config[l].filter(
+        (x) => catalogue.extras.find((e) => e.sku === x.sku)?.exclusiveGroup !== group,
+      );
+    }
+  }
+  const list = listFor(extra);
   // Always quantity 1: a flat item ignores any quantity (as the list's
   // `priceFor` does), an item priced per panel takes its count from the
   // package, and a fixed-quantity line is already priced for its quantity.
-  return { ...config, [list]: [...others, { sku: extra.sku, quantity: 1 }] };
+  out[list] = [...out[list], { sku: extra.sku, quantity: 1 }];
+  return out;
 }
 
 function add(config: SystemConfig, t: Target, catalogue: PricingCatalogue): SystemConfig {
@@ -299,8 +329,6 @@ function add(config: SystemConfig, t: Target, catalogue: PricingCatalogue): Syst
     case 'bird_mesh':
       return { ...config, birdMesh: true };
     case 'extra':
-      return withExtra(config, t.extra, catalogue);
-    case 'fixed':
       return t.extra ? withExtra(config, t.extra, catalogue) : config;
   }
 }
@@ -328,11 +356,9 @@ function remove(config: SystemConfig, t: Target, catalogue: PricingCatalogue): S
       return { ...config, optimiserScope: 'none' };
     case 'bird_mesh':
       return { ...config, birdMesh: false };
-    case 'extra':
-      return { ...config, [t.list]: config[t.list].filter((x) => x.sku !== t.sku) };
-    case 'fixed': {
+    case 'extra': {
       const out = { ...config };
-      for (const l of EXTRA_LISTS) out[l] = config[l].filter((x) => !isFixedLine(x.sku, t.key));
+      for (const l of EXTRA_LISTS) out[l] = config[l].filter((x) => !isItemLine(x.sku, t.key));
       return out;
     }
   }
@@ -346,7 +372,7 @@ export function skippedWarning(name: string | null, verb: 'added' | 'removed' | 
 }
 
 /** A fixed-quantity item the list could not price at its quantity has no line to add. */
-const addable = (t: Target) => t.kind !== 'fixed' || t.extra !== undefined;
+const addable = (t: Target) => t.kind !== 'extra' || t.extra !== undefined;
 
 /**
  * One package's kit with the effects applied in order. An effect that cannot
