@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSystemInstruction } from '../src/agent/prompt.js';
 import { issueDevToken } from '../src/auth/dev.js';
-import { MemoryBrandAssetStore } from '../src/branding/store.js';
+import { MemoryBrandAssetStore, type BrandAssetStore } from '../src/branding/store.js';
 import type { ServerConfig } from '../src/config.js';
 import { publicBrand } from '../src/routes/branding.js';
 import { loadPortalConfig } from '../src/routes/portal-config.js';
@@ -58,7 +58,19 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-async function setup() {
+/** A store that can lose an asset's metadata, as when an upload expires. */
+class ForgetfulStore implements BrandAssetStore {
+  readonly inner = new MemoryBrandAssetStore();
+  readonly lost = new Set<string>();
+  put(tenantId: string, name: string, bytes: Uint8Array) {
+    return this.inner.put(tenantId, name, bytes);
+  }
+  get(tenantId: string, name: string) {
+    return this.lost.has(name) ? Promise.resolve(null) : this.inner.get(tenantId, name);
+  }
+}
+
+async function setup(brandAssets: BrandAssetStore = new MemoryBrandAssetStore()) {
   const dir = await mkdtemp(join(tmpdir(), 'sunny-branding-settings-'));
   dirs.push(dir);
   const store = new FileStore(dir);
@@ -69,7 +81,7 @@ async function setup() {
     tenants,
     now: () => NOW,
     portal: { ...loadPortalConfig({}, 'test'), devAuth: true },
-    brandAssets: new MemoryBrandAssetStore(),
+    brandAssets,
   });
   await app.ready();
   return { app, tenants };
@@ -250,6 +262,52 @@ describe('branding settings', () => {
     const body = (await publicConfig(app, tenant.publicId)).json<Record<string, unknown>>();
     expect(body.brand).toBeUndefined();
     expect((await app.inject({ method: 'GET', url: asset })).statusCode).toBe(404);
+  });
+
+  it('saves Sunny mode even when an upload it names has expired', async () => {
+    const assets = new ForgetfulStore();
+    const { app } = await setup(assets);
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    const stale = await uploadIcon(app, tenant.id, discPng(14));
+    await save(app, tenant.id, logo(iconId, ['shimmer']));
+    assets.lost.add(`${iconId}.json`).add(`${stale}.json`);
+
+    for (const id of [iconId, stale]) {
+      const back = await save(app, tenant.id, {
+        branding: { mode: 'sunny', iconId: id, wordmarkId: null, effects: ['shimmer'], colors: null },
+      });
+      expect(back.statusCode).toBe(200);
+      const branding = back.json<{ tenant: { branding: { mode: string; icon: { id: string } } } }>()
+        .tenant.branding;
+      expect(branding.mode).toBe('sunny');
+      expect(branding.icon.id).toBe(iconId);
+    }
+  });
+
+  it('re-saves the saved logo when its upload record is gone', async () => {
+    const assets = new ForgetfulStore();
+    const { app } = await setup(assets);
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    await save(app, tenant.id, logo(iconId, ['shimmer']));
+    assets.lost.add(`${iconId}.json`);
+
+    const again = await save(app, tenant.id, logo(iconId, ['shimmer']));
+    expect(again.statusCode).toBe(200);
+    const body = (await publicConfig(app, tenant.publicId)).json<{ brand: { icon: { path: string } } }>();
+    expect(body.brand.icon.path).toContain(iconId);
+  });
+
+  it('still refuses a logo whose upload has expired', async () => {
+    const assets = new ForgetfulStore();
+    const { app } = await setup(assets);
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    assets.lost.add(`${iconId}.json`);
+    const response = await save(app, tenant.id, logo(iconId, ['shimmer']));
+    expect(response.statusCode).toBe(400);
+    expect(message(response)).toBe(EXPIRED);
   });
 
   it('names the assistant in the config and the prompt', async () => {

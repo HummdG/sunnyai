@@ -315,15 +315,20 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
     tenant: Tenant,
     body: NonNullable<z.infer<typeof settingsSchema>['branding']>,
   ): Promise<StoredBranding> {
-    // An id of the other slot reads exactly like an unknown one, so ids are not told apart.
+    const current = tenant.config.branding;
+    // The logo already saved is kept on the tenant, so re-saving it never
+    // depends on its upload record still being there. An id of the other slot
+    // reads exactly like an unknown one, so ids are not told apart. Sunny mode
+    // shows no logo, so there a lost upload is skipped rather than refused.
     const load = async (id: string | null, kind: 'icon' | 'wordmark') => {
       if (id === null) return null;
+      const saved = current?.[kind];
+      if (saved && saved.id === id && saved.kind === kind) return saved;
       const meta = await loadBrandAsset(brandAssets, tenant.id, id);
-      if (!meta || meta.kind !== kind)
-        throw new ApiError('bad_request', 'That logo upload has expired. Upload it again.');
-      return meta;
+      if (meta && meta.kind === kind) return meta;
+      if (body.mode === 'sunny') return null;
+      throw new ApiError('bad_request', 'That logo upload has expired. Upload it again.');
     };
-    const current = tenant.config.branding;
     const icon = await load(body.iconId, 'icon');
     const wordmark = await load(body.wordmarkId, 'wordmark');
     if (body.mode === 'sunny') {
