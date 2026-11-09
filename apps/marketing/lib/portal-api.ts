@@ -367,7 +367,8 @@ export interface ConversationView {
 
 export interface ConversationPreview {
   next: { id: string; prompt: string; options: Array<{ value: string; label: string }> } | null;
-  effects: Array<{ label: string; priceText: string }>;
+  /** Every effect the answers trigger, in flow order, with the answer that causes it. */
+  effects: Array<{ label: string; priceText: string; questionId: string; value: string }>;
   issues: FlowIssue[];
 }
 

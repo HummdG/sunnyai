@@ -231,7 +231,7 @@ export function effectText(effect: FlowEffect, ctx: Context): string {
     case 'remove':
       return `Removes ${itemName(effect.itemKey, ctx)}`;
     case 'swap':
-      return `Swaps ${itemName(effect.fromKey, ctx)} for ${amount(effect.toKey, effect.quantity)}`;
+      return `Replaces ${itemName(effect.fromKey, ctx)}: ${amount(effect.toKey, effect.quantity)}`;
   }
 }
 

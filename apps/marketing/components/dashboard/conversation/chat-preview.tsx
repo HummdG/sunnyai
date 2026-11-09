@@ -128,11 +128,14 @@ function Selected({
       if (gate) answers[gate.questionId] = gate.anyOf[0]!;
     }
     for (const link of chain.slice(0, -1)) if (link.when) answers[link.step.id] = link.when;
-    answers[chain[chain.length - 1]!.step.id] = picked;
+    const chosenId = chain[chain.length - 1]!.step.id;
+    answers[chosenId] = picked;
     void latest(
       () => previewConversation(tenantId, JSON.parse(flowJson) as ConversationFlow, answers),
       (result) => {
-        setEffects(result.effects);
+        // Only what this answer does: the answers that lead to the question
+        // are given too, and their own effects are not this answer's.
+        setEffects(result.effects.filter((e) => e.questionId === chosenId && e.value === picked));
         setError(null);
       },
       (failure) => setError(errorText(failure)),

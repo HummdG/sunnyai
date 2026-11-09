@@ -28,7 +28,7 @@ const PRICE_LIST = [
   'pv,PV-BASE,Solar PV system by panel count,table,"£3,985",,1,,,',
   'pv,PV-BASE,Solar PV system by panel count,table,"£4,195",,2,,,',
   'optional,EV-7KW,7kW EV charger,flat,£899,,,,,',
-  'trenching,TRENCH,Trenching,per_unit,£40,metre,,,,',
+  'electrical,CABLE-RUN,Extra cable run,per_unit,£40,metre,,,,',
   'admin,ADMIN-FEE,Admin fee,flat,£150,,,,yes,',
 ].join('\n');
 
@@ -304,6 +304,13 @@ test('a follow-up sits indented under its answer and in the diagram, selection k
   await expect(diagram(page).getByRole('button', { name: 'Is it a Tesla?' })).toBeVisible();
   await expect(diagram(page)).toContainText('if Yes');
 
+  // The preview of the follow-up shows what its own answer does, not the EV
+  // charger its parent's "Yes" (given on the way to it) adds.
+  await diagram(page).getByRole('button', { name: 'Is it a Tesla?' }).click();
+  await preview(page).getByRole('button', { name: 'Yes', exact: true }).click();
+  await expect(preview(page)).toContainText('No change to the quote.');
+  await expect(preview(page)).not.toContainText('Adds 7kW EV charger');
+
   // Picking in the diagram selects in the list, and the reverse.
   await diagram(page).getByRole('button', { name: SHADING }).click();
   await expect(row(page, SHADING)).toHaveAttribute('aria-current', 'true');
@@ -342,12 +349,12 @@ test('a mandatory item cannot be picked, and a per-metre item asks how many', as
   await expect(item.locator('option', { hasText: 'Admin fee' })).toHaveJSProperty('disabled', true);
   await expect(item.locator('option', { hasText: 'Solar PV system' })).toHaveCount(0);
 
-  await item.selectOption('TRENCH');
+  await item.selectOption('CABLE-RUN');
   const add = heavy.getByRole('button', { name: 'Add', exact: true });
   await expect(add).toBeDisabled();
   await heavy.getByLabel('How many metres').fill('10');
   await add.click();
-  await expect(heavy).toContainText('Adds 10 metres of Trenching, £40 per metre');
+  await expect(heavy).toContainText('Adds 10 metres of Extra cable run, £40 per metre');
 });
 
 test('a viewer sees the conversation but cannot change it', async ({ page }) => {

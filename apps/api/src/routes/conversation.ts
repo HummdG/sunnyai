@@ -170,8 +170,11 @@ function describeEffect(
         priceText: 'Comes off the quote',
       };
     case 'swap':
+      // The figure is the new item's own price on the list, not a difference:
+      // the label says it replaces the old item so it never reads as the cost
+      // of the swap.
       return {
-        label: `Swaps ${name(effect.fromKey)} for ${name(effect.toKey)}${times(effect.quantity)}`,
+        label: `Replaces ${name(effect.fromKey)}: ${name(effect.toKey)}${times(effect.quantity)}`,
         priceText: priceText(find(effect.toKey), list, effect.quantity),
       };
   }
@@ -281,7 +284,13 @@ export function registerConversationRoutes(
             })),
           }
         : null,
-      effects: effectsFor(flow, answers).map(({ effect }) => describeEffect(effect, list)),
+      // Each effect names the answer that causes it, so Studio can show one
+      // question's effects without those of the answers leading to it.
+      effects: effectsFor(flow, answers).map(({ effect, questionId, value }) => ({
+        ...describeEffect(effect, list),
+        questionId,
+        value,
+      })),
       issues: checkFlow(flow, list),
     };
   });

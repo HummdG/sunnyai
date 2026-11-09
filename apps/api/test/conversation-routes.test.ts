@@ -8,7 +8,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ConversationFlow, FlowStep } from '@sunny/contracts';
 
 import { issueDevToken } from '../src/auth/dev.js';
-import { publishExample } from '../src/catalogue/price-list-service.js';
+import { priceFor } from '../src/catalogue/price-list.js';
+import { getPublishedPriceList, publishExample } from '../src/catalogue/price-list-service.js';
 import type { ServerConfig } from '../src/config.js';
 import { loadPortalConfig } from '../src/routes/portal-config.js';
 import { buildServer } from '../src/server.js';
@@ -305,7 +306,7 @@ describe('DELETE /conversation', () => {
 describe('POST /conversation/preview', () => {
   interface Preview {
     next: { id: string; prompt: string; options: Array<{ value: string; label: string }> } | null;
-    effects: Array<{ label: string; priceText: string }>;
+    effects: Array<{ label: string; priceText: string; questionId: string; value: string }>;
     issues: unknown[];
   }
   const preview = (app: FastifyInstance, tenantId: string, email: string, body: object) =>
@@ -336,6 +337,63 @@ describe('POST /conversation/preview', () => {
       answers: { ...answers, c_evcharger1: 'no' },
     });
     expect(no.json<Preview>().effects).toEqual([]);
+  });
+
+  it('names the answer behind each effect, and labels a swap as replacing the old item', async () => {
+    const { app, store, tenantId } = await setup();
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    const TETHERED = 'EV-PROJECTEV-7KW-TETHERED';
+    const withFollowUp: FlowStep = {
+      ...evStep,
+      followUps: [
+        {
+          when: ['yes'],
+          step: {
+            kind: 'custom',
+            id: 'c_tethered1',
+            prompt: 'Would you like the cable fixed to the charger?',
+            mode: 'quote',
+            answer: 'choice',
+            choices: [
+              {
+                value: 'yes',
+                label: 'Yes',
+                effects: [{ kind: 'swap', fromKey: EV, toKey: TETHERED }],
+              },
+              { value: 'no', label: 'No', effects: [] },
+            ],
+          },
+        },
+      ],
+    };
+    const response = await preview(app, tenantId, VIEWER, {
+      flow: flowOf([withFollowUp]),
+      answers: {
+        address: '1 High St',
+        roof_confidence: 'high',
+        roof_confirmed: 'yes',
+        c_evcharger1: 'yes',
+        c_tethered1: 'yes',
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    const effects = response.json<Preview>().effects;
+    expect(effects.map((e) => [e.questionId, e.value])).toEqual([
+      ['c_evcharger1', 'yes'],
+      ['c_tethered1', 'yes'],
+    ]);
+
+    const list = (await getPublishedPriceList(store, tenantId))!;
+    const from = list.items.find((i) => i.key === EV)!;
+    const to = list.items.find((i) => i.key === TETHERED)!;
+    const price = priceFor(to, {});
+    expect(price.status).toBe('priced');
+    const swap = effects[1]!;
+    expect(swap.label).toBe(`Replaces ${from.name}: ${to.name}`);
+    // The new item's own price from the published list, never a difference.
+    expect(swap.priceText).toBe(
+      `£${((price as { amountMinor: number }).amountMinor / 100).toLocaleString('en-GB')}`,
+    );
   });
 
   it('asks the next question in the installer’s wording', async () => {
