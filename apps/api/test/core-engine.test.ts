@@ -30,6 +30,7 @@ import {
   resetAddonTools,
 } from '../src/agent/tools.js';
 import type { ServerConfig } from '../src/config.js';
+import { resolveFlow } from '../src/flow/resolve.js';
 import { buildServer, originOnDomains } from '../src/server.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry, defaultTenants, type Tenant } from '../src/tenants.js';
@@ -263,6 +264,7 @@ describe('per-channel tools and entitlements', () => {
       events: [],
       sunscanConnected: false,
       knowledge: { sourceCount: 0, chunks: [] },
+      flow: resolveFlow(null),
     };
     const draft = { name: 'create_gmail_draft' as const, args: { subject: 's', body: 'b' } };
     const off = await executeTool(draft, ctx);

@@ -1208,3 +1208,347 @@
 .dash .install-guide {
   margin-bottom: 20px;
 }
+
+/* ── Studio: "Your conversation" (question list, flow diagram, chat preview) ── */
+
+.dash .flow-editor {
+  display: grid;
+  gap: 14px;
+}
+.dash .flow-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dash .flow-tabs [role='tab'] {
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.9rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  cursor: pointer;
+  color: var(--muted-text);
+}
+.dash .flow-tabs [role='tab'][aria-selected='true'] {
+  background: var(--sunny-ink);
+  border-color: var(--sunny-ink);
+  color: #fff;
+}
+.dash .flow-panels {
+  display: grid;
+  gap: 14px;
+  align-items: start;
+}
+.dash .flow-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+  min-width: 0;
+}
+.dash .flow-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.dash .flow-panel-head h3 {
+  font-size: 0.95rem;
+}
+.dash .flow-panel-body {
+  padding: 14px;
+}
+/* Narrow screens: one panel at a time, chosen by the tabs; nothing minimises. */
+@media (max-width: 1099px) {
+  .dash .flow-panels[data-tab='list'] .flow-panel:not([data-panel='list']),
+  .dash .flow-panels[data-tab='diagram'] .flow-panel:not([data-panel='diagram']),
+  .dash .flow-panels[data-tab='preview'] .flow-panel:not([data-panel='preview']) {
+    display: none;
+  }
+  .dash .flow-panel-toggle {
+    display: none;
+  }
+}
+/* Wide screens: three panels side by side, each one minimisable to its title. */
+@media (min-width: 1100px) {
+  .dash .flow-tabs {
+    display: none;
+  }
+  .dash .flow-panels {
+    grid-template-columns: var(--flow-cols);
+  }
+  .dash .flow-panel[data-collapsed='true'] .flow-panel-body {
+    display: none;
+  }
+  .dash .flow-panel[data-collapsed='true'] .flow-panel-head {
+    border-bottom: 0;
+  }
+}
+
+.dash .flow-list,
+.dash .flow-follow-ups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.dash .flow-follow-ups {
+  margin: 8px 0 4px 18px;
+  padding-left: 12px;
+  border-left: 2px solid var(--sunny-brand-orange-pale);
+}
+.dash .flow-follow-ups:empty {
+  display: none;
+}
+.dash .flow-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  background: #fff;
+}
+.dash .flow-row[aria-current='true'] {
+  border-color: var(--sunny-brand-orange);
+  box-shadow: 0 0 0 2px var(--sunny-brand-orange-pale);
+}
+.dash .flow-row[data-dragging='true'] {
+  opacity: 0.5;
+}
+.dash .flow-row-fixed {
+  background: var(--sunny-warm-white);
+  border-style: dashed;
+}
+.dash .flow-row-fixed p {
+  margin-top: 4px;
+}
+.dash .flow-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.dash .flow-row-title {
+  /* The question has its own line; tags and actions wrap below it. */
+  flex: 1 1 calc(100% - 40px);
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.dash .flow-row-name {
+  flex: 1 1 calc(100% - 40px);
+}
+.dash .flow-drag {
+  cursor: grab;
+  color: var(--muted-text);
+  letter-spacing: -2px;
+  user-select: none;
+  padding: 0 2px;
+}
+.dash .flow-lock {
+  color: var(--muted-text);
+  display: inline-flex;
+}
+.dash .flow-row-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dash .flow-icon-button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--radius-pill);
+  width: 28px;
+  height: 28px;
+  font: inherit;
+  cursor: pointer;
+}
+.dash .flow-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.dash .flow-row-body {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+.dash .flow-row .issue-list {
+  margin-top: 6px;
+}
+.dash .flow-answer {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  margin: 0;
+  min-width: 0;
+}
+.dash .flow-answer-head {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+.dash .flow-answer-head .field {
+  flex: 1;
+  margin: 0;
+}
+.dash .flow-effects ul {
+  margin: 6px 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 4px;
+}
+.dash .flow-effects li .link-button {
+  margin-left: 8px;
+  font-size: 0.85rem;
+}
+.dash .flow-picker {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: var(--sunny-warm-white);
+}
+.dash .flow-members {
+  display: grid;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.dash .flow-confirm {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--sunny-brand-orange-pale);
+}
+.dash .flow-confirm .actions {
+  margin-top: 10px;
+}
+.dash .flow-add {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  justify-items: start;
+}
+.dash .flow-save .actions {
+  align-items: center;
+}
+
+.dash .flow-diagram {
+  display: block;
+  max-width: none;
+}
+.dash .flow-diagram .flow-line {
+  fill: none;
+  stroke: rgba(23, 23, 23, 0.25);
+  stroke-width: 1.5;
+}
+.dash .flow-diagram .flow-box rect {
+  fill: #fff;
+  stroke: rgba(23, 23, 23, 0.2);
+  stroke-width: 1.2;
+}
+.dash .flow-diagram .flow-box[role='button'] {
+  cursor: pointer;
+}
+.dash .flow-diagram .flow-box[data-fixed='true'] rect {
+  fill: var(--sunny-warm-white);
+  stroke-dasharray: 4 3;
+}
+.dash .flow-diagram .flow-box[data-selected='true'] rect {
+  fill: var(--sunny-brand-orange-pale);
+  stroke: var(--sunny-brand-orange);
+  stroke-width: 2.4;
+}
+.dash .flow-diagram .flow-box:focus-visible {
+  outline: none;
+}
+.dash .flow-diagram .flow-box:focus-visible rect {
+  stroke: var(--sunny-brand-orange);
+  stroke-width: 3;
+}
+.dash .flow-diagram text {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  fill: var(--sunny-ink);
+}
+.dash .flow-diagram .flow-box-label {
+  font-weight: 650;
+}
+.dash .flow-diagram .flow-box-note,
+.dash .flow-diagram .flow-when {
+  font-size: 11px;
+  fill: var(--muted-text);
+}
+.dash .flow-diagram .flow-effect {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text-orange);
+}
+
+.dash .chat-preview {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.dash .chat-preview .transcript {
+  width: 100%;
+}
+.dash .preview-note {
+  color: var(--muted-text);
+  font-style: italic;
+}
+.dash .preview-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dash .preview-chips .pill {
+  padding: 5px 12px;
+  font-size: 0.9rem;
+}
+.dash .preview-result {
+  width: 100%;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.dash .preview-effects {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.dash .preview-effects li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dash .preview-type {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+.dash .preview-type .field {
+  margin: 0;
+}
+/* The list panel is narrow beside the others: its fields stack, full width. */
+.dash .flow-row-body .field-row {
+  grid-template-columns: 1fr;
+}
+.dash .flow-row-body select,
+.dash .flow-picker select {
+  width: 100%;
+}
+/* The diagram keeps its drawn size (legible text) and scrolls when the panel is narrower. */
+.dash .flow-panel[data-panel='diagram'] .flow-panel-body {
+  overflow-x: auto;
+  padding: 10px 8px;
+}

@@ -4,6 +4,7 @@ import type { AssessmentSummary, SunScanService, SunScanStatus } from '@sunny/su
 
 import { newId, type ConversationTurn, type ModelCall, type Store } from '../store.js';
 import type { Auditor } from '../audit.js';
+import { flowForTenant } from '../flow/tenant.js';
 import type { QuoteToolContext } from '../journey/agent-tools.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatProvider } from './provider.js';
@@ -236,6 +237,9 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     search,
     ledger,
     ...(input.quote ? { quote: input.quote } : {}),
+    // Read from the tenant every turn: a flow saved mid-conversation governs
+    // the next turn, and the answers already given stay.
+    flow: flowForTenant(input.tenant),
   };
 
   let text = '';

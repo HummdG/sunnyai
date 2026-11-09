@@ -1054,6 +1054,42 @@ const ROUTES: RouteSpec[] = [
     minRole: 'viewer',
     namesRecord: true,
   },
+  // ─── quote conversation editor (routes/conversation.ts) ────────────────────
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/conversation',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/conversation`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'PUT',
+    pattern: '/v1/portal/tenants/:tenantId/conversation',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/conversation`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({
+      flow: { version: 0, updatedAt: '2026-01-01T00:00:00Z', steps: [] },
+    }),
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/portal/tenants/:tenantId/conversation',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/conversation`,
+    kind: 'installer',
+    minRole: 'admin',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/conversation/preview',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/conversation/preview`,
+    kind: 'installer',
+    minRole: 'viewer',
+    payload: () => ({
+      flow: { version: 0, updatedAt: '2026-01-01T00:00:00Z', steps: [] },
+      answers: {},
+    }),
+  },
   {
     method: 'GET',
     pattern: '/v1/widget/brand/:publicId/:file',

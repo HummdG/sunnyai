@@ -3,10 +3,10 @@
 // faithful to the original; changes are limited to imports, strictness fixes
 // and removing framework / database / file-system access.
 
-import { buildInclusions, buildTierPresets } from '../pricing/tiers.js';
+import { buildInclusions } from '../pricing/tiers.js';
 import type { PricingContext, SystemConfig } from '../pricing/types.js';
 import { computeSentinel } from './sentinel.js';
-import { buildBudgetLadder } from './buildBudgetLadder.js';
+import { adjustedPresets, buildBudgetLadder } from './buildBudgetLadder.js';
 import { evaluateConfig, type CandidateEval } from './evaluateConfig.js';
 import type {
   OptionKind,
@@ -134,7 +134,7 @@ export function buildOptionSet(input: OptionSetInput): OptionSet {
     annualKwh: input.annualKwh,
     roofType: input.roofType,
   };
-  const presets = buildTierPresets(ctx);
+  const presets = adjustedPresets(input, ctx);
 
   const roofCap = Math.max(1, Math.min(input.roofMaxPanels, input.maxPanels, PV_MAX_PANELS));
   const floor = Math.max(1, Math.min(input.minPanels, roofCap));

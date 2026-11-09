@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
 import { loadConfig } from '../src/config.js';
+import { resolveFlow } from '../src/flow/resolve.js';
 import { createDefaultSunScan } from '../src/routes/sunscan.js';
 import { buildServer } from '../src/server.js';
 import { issueSessionToken } from '../src/sessions.js';
@@ -281,6 +282,7 @@ describe('SunScan tools', () => {
       sunscanConnected: true,
       sunscan: service,
       knowledge: EMPTY_KNOWLEDGE,
+      flow: resolveFlow(null),
     };
   }
 

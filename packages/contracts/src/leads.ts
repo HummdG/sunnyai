@@ -101,3 +101,19 @@ export const deletionResponseSchema = z.object({
 });
 
 export type DeletionResponse = z.infer<typeof deletionResponseSchema>;
+
+/**
+ * One question the visitor answered, as the installer's lead record keeps it.
+ *
+ * `question` and `answer` are the installer's own wording at the time, so the
+ * lead reads the way the visitor saw it. `id` and `value` are the stable
+ * identifiers underneath: they do not change when the installer rewords a
+ * question or an option, so a lead can still be matched to its question later.
+ */
+export interface LeadFlowAnswer {
+  id: string;
+  question: string;
+  value: string;
+  answer: string;
+  mode: 'preset' | 'quote' | 'lead';
+}

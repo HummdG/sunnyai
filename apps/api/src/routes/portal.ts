@@ -589,13 +589,18 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
   });
 
   app.post('/v1/portal/tenants/:tenantId/settings', async (request) => {
-    const { membership, tenant } = await member(request, 'admin');
+    const { membership, tenant: cached } = await member(request, 'admin');
     // A plain answer for the one field an installer types freely, not the schema's pattern.
     const name = (request.body as { assistantName?: unknown } | null)?.assistantName;
     if (name !== undefined && !assistantNameSchema.safeParse(name).success) {
       throw new ApiError('bad_request', BAD_NAME);
     }
     const body = parse(settingsSchema, request.body);
+    // The whole tenant is written back, so the change is merged into the tenant
+    // as the store holds it now: this instance's cached copy may predate a save
+    // made on another instance (a new conversation flow, say), and writing it
+    // would undo that save.
+    const tenant = (await tenants.fresh(cached.id)) ?? cached;
     const config = { ...tenant.config };
     if (body.companyName !== undefined) config.companyName = body.companyName;
     if (body.tagline !== undefined) config.tagline = body.tagline;
@@ -802,6 +807,8 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
         summary: lead.summary,
         createdAt: lead.createdAt,
         conversationId: lead.conversationId,
+        flowAnswers: lead.flowAnswers ?? [],
+        ...(lead.flowVersion !== undefined ? { flowVersion: lead.flowVersion } : {}),
         status: statuses[lead.id] ?? 'new',
         // The lead's own link, or the roof the visitor's quote journey measured.
         assessmentId: await leadAssessmentId(tenantId, lead),

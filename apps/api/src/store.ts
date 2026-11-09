@@ -6,6 +6,7 @@ import type {
   AuditEvent,
   IngestionJob,
   LeadConsent,
+  LeadFlowAnswer,
   Product,
   RecommendationWant,
   WaitlistEntry,
@@ -298,6 +299,14 @@ export interface LeadRecord {
    * that from both directions rather than leaving it to habit.
    */
   consent?: LeadConsent;
+  /**
+   * Every question the visitor answered, in the order the flow asks them: the
+   * installer's wording for the question and the answer, with the stable id and
+   * value underneath. Absent on leads that did not come from the conversation.
+   */
+  flowAnswers?: LeadFlowAnswer[];
+  /** The `ConversationFlow.version` the visitor was asked with; absent for Sunny's own questions. */
+  flowVersion?: number;
 }
 
 /**

@@ -289,6 +289,24 @@ export function storeContract(
       expect(await store.listAllLeads(t)).toHaveLength(1);
     });
 
+    it("keeps the installer's questions and answers on a lead", async () => {
+      const { store, tenant } = await harness();
+      const t = tenant('flow-answers');
+      const flowAnswers = [
+        {
+          id: 'ownership',
+          question: 'Is the home yours?',
+          value: 'own',
+          answer: 'Yes, it is mine',
+          mode: 'preset' as const,
+        },
+      ];
+      await store.saveLead(lead(t, { flowAnswers, flowVersion: 4 }));
+      const [stored] = await store.listAllLeads(t);
+      expect(stored?.flowAnswers).toEqual(flowAnswers);
+      expect(stored?.flowVersion).toBe(4);
+    });
+
     it('scopes the lead idempotency key to its tenant', async () => {
       const { store, tenant } = await harness();
       const a = tenant('key-a');

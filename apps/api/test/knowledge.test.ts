@@ -9,6 +9,7 @@ import type { KnowledgeJobResponse, KnowledgeSourceResponse } from '@sunny/contr
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
 import type { ChatProvider } from '../src/agent/provider.js';
 import type { ServerConfig } from '../src/config.js';
+import { resolveFlow } from '../src/flow/resolve.js';
 import { createKnowledgeLoader } from '../src/knowledge.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
@@ -344,6 +345,7 @@ describe('retrieval over an installer’s documents', () => {
       events,
       sunscanConnected: false,
       knowledge: await load(tenantId),
+      flow: resolveFlow(null),
     };
   }
 

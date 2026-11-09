@@ -6,6 +6,7 @@ import { EMPTY_KNOWLEDGE } from '@sunny/knowledge';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
+import { resolveFlow } from '../src/flow/resolve.js';
 import { fixturePricingSource } from '../src/journey/pricing.js';
 import { optionLabel } from '../src/questionnaire.js';
 import { FileStore } from '../src/store.js';
@@ -57,6 +58,7 @@ function context(store: FileStore, events: ToolEvent[]): ToolContext {
     events,
     sunscanConnected: false,
     knowledge: EMPTY_KNOWLEDGE,
+    flow: resolveFlow(null),
   };
 }
 

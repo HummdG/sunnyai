@@ -1,4 +1,4 @@
-import { widgetConfigSchema, type WidgetConfig } from '@sunny/contracts';
+import { widgetConfigSchema, type ConversationFlow, type WidgetConfig } from '@sunny/contracts';
 
 import type { SavingsModel } from './agent/savings.js';
 import type { AddonConfig, AddonKey, BillingState } from './entitlements.js';
@@ -35,6 +35,11 @@ export interface Tenant {
     email?: EmailChannelConfig;
     /** The installer's saved logo branding; never reaches the browser as-is. */
     branding?: StoredBranding;
+    /**
+     * The installer's quote conversation (Sunny Studio). Absent means Sunny's
+     * own questions. Server-only: `configFor` drops it on the way out.
+     */
+    conversation?: ConversationFlow;
   };
   /**
    * The installer's registered website domains (Blueprint §4.6). When set, a
@@ -244,6 +249,21 @@ export class TenantRegistry {
   async refresh(): Promise<void> {
     if (!this.#store) return;
     for (const tenant of await this.#store.listTenants()) this.#set(tenant);
+  }
+
+  /**
+   * The tenant as the store holds it now, bypassing this instance's cache (and
+   * refreshing it). A route that merges a change into the tenant and writes the
+   * whole document back reads it this way first: the cache can be up to a
+   * refresh old, and writing a stale copy would undo another instance's save.
+   * A registry built in memory has nothing fresher than its cache.
+   */
+  async fresh(tenantId: string): Promise<Tenant | null> {
+    if (!this.#store) return this.byId(tenantId);
+    const stored = await this.#store.getTenant(tenantId);
+    if (!stored) return this.byId(tenantId);
+    this.#set(stored);
+    return this.byId(tenantId);
   }
 
   /** Write a tenant through to the store (when there is one) and the cache. */

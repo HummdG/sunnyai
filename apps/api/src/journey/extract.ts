@@ -11,9 +11,17 @@
  * Bare replies ("yes", "none", "not sure", "the second one") only count for the
  * question that was just asked -- `current` -- so a "yes" is never read as an
  * answer to some other question.
+ *
+ * The flow is the tenant's: a reply is matched against the installer's labels
+ * as well as Sunny's, an installer's own question is read from its choices, and
+ * nothing is proposed for a question the flow does not ask. A reply that matches
+ * none of an added question's choices proposes nothing, so Sunny asks again
+ * rather than guessing.
  */
 
-import { optionLabel, QUESTIONS, reconcile, validateAnswer } from '../questionnaire.js';
+import { carriesEffects } from '../flow/effects.js';
+import { resolveFlow, type ResolvedFlow, type ResolvedQuestion } from '../flow/resolve.js';
+import { optionLabel, QUESTIONS } from '../questionnaire.js';
 
 export interface Proposal {
   questionId: string;
@@ -67,8 +75,21 @@ export function budgetBand(text: string): string | null {
   return '15k_plus';
 }
 
-/** Yes / no / unsure, as the visitor might say it. */
-function polarity(text: string): 'yes' | 'no' | 'unsure' | null {
+/** A word that, before a label, means the visitor is saying they do not want it. */
+const NEGATION = /\b(no|not|don'?t|dont|haven'?t|havent|without|never)\b/;
+
+/** "ok", "sure", "right": a yes only as the whole reply ("ok", "sure, thanks"). */
+const LONE_ASSENT = /^(ok|okay|right|sure)( (please|thanks|thank you))?$/;
+
+/**
+ * Yes / no / unsure, as the visitor might say it.
+ *
+ * `strict` is for a question whose answer changes the quote (an installer's own
+ * question, or a preset the installer linked to items): there a leading "ok" or
+ * "right" is how people start a question of their own ("ok, so what does a
+ * charger cost?"), so it only counts as yes when it is the whole reply.
+ */
+function polarity(text: string, strict = false): 'yes' | 'no' | 'unsure' | null {
   if (has(text, /\b(not sure|unsure|don'?t know|no idea|dunno|maybe|not certain)\b/))
     return 'unsure';
   if (has(text, /^\s*(no|nope|nah|not really|that'?s wrong|wrong|incorrect)\b/)) return 'no';
@@ -76,10 +97,19 @@ function polarity(text: string): 'yes' | 'no' | 'unsure' | null {
   if (
     has(
       text,
-      /^\s*(yes|yeah|yep|yup|correct|right|sure|absolutely|definitely|that'?s right|looks right|spot on|ok|okay)\b/,
+      strict
+        ? /^\s*(yes|yeah|yep|yup|correct|absolutely|definitely|that'?s right|looks right|spot on)\b/
+        : /^\s*(yes|yeah|yep|yup|correct|right|sure|absolutely|definitely|that'?s right|looks right|spot on|ok|okay)\b/,
     )
   ) {
     return 'yes';
+  }
+  if (strict) {
+    const bare = text
+      .replace(/[^a-z' ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (LONE_ASSENT.test(bare)) return 'yes';
   }
   return null;
 }
@@ -95,17 +125,80 @@ function direction(text: string): string | null {
   return null;
 }
 
-export function extractAnswers(message: string, current: string | null): Proposal[] {
+/**
+ * Whether the visitor's words name a label: the whole reply, or the label's
+ * words within it. `strict` (see `polarity`) ignores a label the visitor
+ * negates ("no electric car" does not name "Electric car").
+ */
+function names(text: string, label: string, strict = false): boolean {
+  const wanted = label.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!wanted) return false;
+  const reply = text.trim().replace(/[.!?]+$/, '');
+  if (reply === wanted) return true;
+  if (wanted.length <= 3) return false;
+  const at = text.indexOf(wanted);
+  if (at === -1) return false;
+  return !(strict && NEGATION.test(text.slice(0, at)));
+}
+
+/**
+ * A reply to one of the installer's own choice questions: a choice named by its
+ * value or label, or a plain yes / no / not sure onto the one choice that says
+ * so. Anything else is no answer.
+ */
+function choiceFor(text: string, question: ResolvedQuestion): string | null {
+  const options = question.options ?? [];
+  const exact = options.find(
+    (o) => text.trim() === o.toLowerCase() || text.trim() === o.toLowerCase().replace(/_/g, ' '),
+  );
+  if (exact) return exact;
+  const named = options.filter((o) => names(text, question.label(o), true));
+  if (named.length === 1) return named[0]!;
+  const p = polarity(text, true);
+  if (p) {
+    // A choice "says" yes when its value or label starts with the word ("Yes please").
+    const says = (o: string) =>
+      [o.toLowerCase(), question.label(o).toLowerCase()].some((words) =>
+        p === 'unsure'
+          ? /^(unsure|not sure|don'?t know)\b/.test(words)
+          : words.split(/[^a-z']+/)[0] === p,
+      );
+    const matching = options.filter(says);
+    if (matching.length === 1) return matching[0]!;
+  }
+  return null;
+}
+
+export function extractAnswers(
+  message: string,
+  current: string | null,
+  flow: ResolvedFlow = resolveFlow(null),
+): Proposal[] {
   const text = ` ${message.toLowerCase().replace(/\s+/g, ' ').trim()} `;
   const out: Proposal[] = [];
   const add = (questionId: string, value: string) => {
+    // Never a question this conversation does not ask (a removed preset).
+    if (!flow.question(questionId)) return;
     if (!out.some((p) => p.questionId === questionId)) out.push({ questionId, value });
   };
+
+  // ── the installer's own question, just asked ──────────────────────────────
+  const asked = current ? flow.question(current) : undefined;
+  if (current && asked && !QUESTIONS[current]) {
+    if (asked.freeText) {
+      if (message.trim()) add(current, message.trim());
+    } else {
+      const value = choiceFor(text, asked);
+      if (value) add(current, value);
+    }
+  }
 
   // ── the question just asked: bare replies and option words ──────────────
   if (current && QUESTIONS[current]) {
     const q = QUESTIONS[current];
-    const p = polarity(text);
+    // A preset the installer linked to items is read as carefully as their own.
+    const strict = carriesEffects(flow.stored, current);
+    const p = polarity(text, strict);
     if (current === 'roof_confirmed' && (p === 'yes' || p === 'no')) add(current, p);
     if (current === 'finance_interest') {
       if (has(text, /\b(tell me more|learn more|more info|how does it work)\b/))
@@ -147,18 +240,19 @@ export function extractAnswers(message: string, current: string | null): Proposa
       else if (has(text, /\b(people|household|family|how many live|live here)\b/))
         add(current, 'household');
     }
-    if (current === 'ownership' && polarity(text) === 'yes') add(current, 'own');
+    if (current === 'ownership' && p === 'yes') add(current, 'own');
     // Budgets arrive as figures ("about £9k", "£8,000 to £10,000"); a range is
     // placed by its top end, which is the most the visitor said they'd spend.
     if (current === 'budget_band') {
       const band = budgetBand(text);
       if (band) add(current, band);
     }
-    // A reply naming exactly one option by its visitor-facing label.
+    // A reply naming exactly one option by its visitor-facing label: the
+    // installer's wording or Sunny's.
     if (q.options) {
       const named = q.options.filter((o) => {
-        const label = optionLabel(o).toLowerCase();
-        return label.length > 3 && text.includes(` ${label} `.replace(/\s+/g, ' ').trim());
+        const labels = new Set([optionLabel(o), asked?.label(o) ?? optionLabel(o)]);
+        return [...labels].some((label) => names(text, label, strict));
       });
       if (named.length === 1 && named[0]) add(current, named[0]);
     }
@@ -292,11 +386,10 @@ export interface AppliedAnswers {
 export function applyProposals(
   answers: Record<string, string>,
   proposals: readonly Proposal[],
+  flow: ResolvedFlow = resolveFlow(null),
 ): AppliedAnswers {
   const gates = new Set(
-    Object.values(QUESTIONS)
-      .map((q) => q.appearsWhen?.questionId)
-      .filter((id): id is string => id !== undefined),
+    flow.questions.map((q) => q.parent?.id).filter((id): id is string => id !== undefined),
   );
   const ordered = [...proposals].sort(
     (a, b) => Number(gates.has(b.questionId)) - Number(gates.has(a.questionId)),
@@ -305,7 +398,7 @@ export function applyProposals(
   const accepted: Proposal[] = [];
   const rejected: AppliedAnswers['rejected'] = [];
   for (const proposal of ordered) {
-    const verdict = validateAnswer(proposal.questionId, proposal.value, next);
+    const verdict = flow.validate(proposal.questionId, proposal.value, next);
     if (!verdict.ok) {
       rejected.push({ ...proposal, reason: verdict.error });
       continue;
@@ -313,7 +406,7 @@ export function applyProposals(
     next = { ...next, [verdict.questionId]: verdict.value };
     accepted.push({ questionId: verdict.questionId, value: verdict.value });
   }
-  const reconciled = reconcile(next);
+  const reconciled = flow.reconcile(next);
   return {
     answers: reconciled.answers,
     accepted,

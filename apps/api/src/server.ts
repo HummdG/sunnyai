@@ -71,6 +71,7 @@ import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
 import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
+import { registerConversationRoutes } from './routes/conversation.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
@@ -90,6 +91,8 @@ import {
 } from './auth/account-email.js';
 import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
+import { flowFieldsFor } from './flow/answers.js';
+import { flowForTenant } from './flow/tenant.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
 import { sha256 } from './ingest/prepare.js';
@@ -1001,6 +1004,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       consent: { version: CONSENT_VERSION, surface: 'form', origin: claims.origin ?? null },
       createdAt: new Date(now()).toISOString(),
       clientLeadId: body.data.clientLeadId,
+      // The installer's questions and what the visitor answered, as the chat tool records them.
+      ...flowFieldsFor(flowForTenant(tenant), existing?.answers ?? {}),
     });
 
     if (result.outcome === 'conflict') {
@@ -2122,6 +2127,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     brandAssets,
     enforceRateLimit,
+  });
+
+  // The installer's quote conversation in Studio (routes/conversation.ts).
+  registerConversationRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
   });
 
   // The Email Assistant add-on (routes/email.ts).

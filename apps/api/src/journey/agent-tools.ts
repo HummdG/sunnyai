@@ -37,6 +37,8 @@ function depsFor(ctx: ToolContext): JourneyDeps | null {
     pricing: ctx.quote.pricing,
     roof: sunscanRoofLookup(ctx.sunscan),
     now: () => Date.now(),
+    // The turn's flow, so the journey and the tools agree on what is asked.
+    flow: () => ctx.flow,
   };
 }
 
@@ -91,20 +93,32 @@ function offerReplies(
   multi: boolean,
 ): void {
   const offered = chatOptions(options) ?? [];
+  const label = labelOf(ctx, questionId);
   ctx.events.push({
     kind: 'quick_replies',
     detail: {
       questionId,
       multi,
-      replies: offered.map((value) => ({ value, label: optionLabel(value) })),
+      replies: offered.map((value) => ({ value, label: label(value) })),
     },
   });
 }
 
+/** How an answer to a question reads to the visitor: the installer's label, else Sunny's. */
+function labelOf(ctx: ToolContext, questionId: string | null): (value: string) => string {
+  const question = questionId ? ctx.flow.question(questionId) : undefined;
+  return question ? (value) => question.label(value) : optionLabel;
+}
+
 /** Visitor-facing labels for the offered options, keyed by value. */
-function labelsFor(options: readonly string[] | null): Record<string, string> | null {
+function labelsFor(
+  ctx: ToolContext,
+  questionId: string | null,
+  options: readonly string[] | null,
+): Record<string, string> | null {
   const offered = chatOptions(options);
-  return offered ? Object.fromEntries(offered.map((o) => [o, optionLabel(o)])) : null;
+  const label = labelOf(ctx, questionId);
+  return offered ? Object.fromEntries(offered.map((o) => [o, label(o)])) : null;
 }
 
 export const QUOTE_TOOLS = [
@@ -129,7 +143,7 @@ export const QUOTE_TOOLS = [
           nextQuestionId: view.nextQuestionId,
           ask: view.prompt,
           options: chatOptions(view.options),
-          optionLabels: labelsFor(view.options),
+          optionLabels: labelsFor(ctx, view.nextQuestionId, view.options),
           selectAllThatApply: view.multi,
           roofStillBeingMeasured: view.roofPending,
           roof: view.roof && {
@@ -205,7 +219,7 @@ export const QUOTE_TOOLS = [
           nextQuestionId: result.journey.nextQuestionId,
           ask: result.journey.prompt,
           options: chatOptions(result.journey.options),
-          optionLabels: labelsFor(result.journey.options),
+          optionLabels: labelsFor(ctx, result.journey.nextQuestionId, result.journey.options),
           readyForQuote: result.journey.canQuote,
         },
         summary:
