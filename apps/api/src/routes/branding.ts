@@ -1,4 +1,4 @@
-import { ApiError, BRAND_ASSET_ID, type LogoEffect } from '@sunny/contracts';
+import { ApiError, BRAND_ASSET_ID, type Brand, type LogoEffect } from '@sunny/contracts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
@@ -7,7 +7,7 @@ import { LogoImageError } from '../branding/image.js';
 import { processLogo, type LogoKind } from '../branding/process.js';
 import type { BrandAssetStore } from '../branding/store.js';
 import type { MemberRole, Store } from '../store.js';
-import type { TenantRegistry } from '../tenants.js';
+import type { Tenant, TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
 
 export { loadBrandAsset, type BrandAssetMeta } from '../branding/meta.js';
@@ -58,6 +58,29 @@ export function brandAssetView(tenantId: string, meta: BrandAssetMeta): BrandAss
     suggestedColors: meta.suggestedColors,
     url: `${base}/${meta.id}.png`,
     maskUrl: meta.hasMask ? `${base}/${meta.id}-mask.png` : null,
+  };
+}
+
+/** The logo the widget draws, or undefined while the installer keeps the Sunny character. */
+export function publicBrand(tenant: Tenant): Brand | undefined {
+  const branding = tenant.config.branding;
+  if (!branding || branding.mode !== 'logo' || !branding.icon) return undefined;
+  const { icon, wordmark } = branding;
+  const base = `/v1/widget/brand/${tenant.publicId}`;
+  return {
+    icon: {
+      path: `${base}/${icon.id}.png`,
+      maskPath: icon.hasMask ? `${base}/${icon.id}-mask.png` : null,
+      width: icon.width,
+      height: icon.height,
+      outline: icon.outline,
+    },
+    wordmark: wordmark
+      ? { path: `${base}/${wordmark.id}.png`, width: wordmark.width, height: wordmark.height }
+      : null,
+    effects: branding.effects,
+    colors: branding.colors ??
+      icon.suggestedColors ?? { primary: tenant.config.primaryColor, glow: '#FFFFFF' },
   };
 }
 

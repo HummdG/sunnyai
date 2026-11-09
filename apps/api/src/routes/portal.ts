@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { ApiError } from '@sunny/contracts';
+import { ApiError, assistantNameSchema, BRAND_ASSET_ID, LOGO_EFFECTS } from '@sunny/contracts';
 import { toRoofAssessmentSummary, type SunScanService } from '@sunny/sunscan-adapter';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -36,6 +36,9 @@ import {
 import { JOURNEY_KEYS } from '../journey/journey.js';
 import { ONBOARDING_STEPS, type Tenant, type TenantRegistry } from '../tenants.js';
 import { isStaleJob } from '../ingest/sync.js';
+import { loadBrandAsset, type BrandAssetMeta, type StoredBranding } from '../branding/meta.js';
+import type { BrandAssetStore } from '../branding/store.js';
+import { brandAssetView } from './branding.js';
 import type { PortalConfig } from './portal-config.js';
 import { isStaff } from './admin.js';
 
@@ -69,11 +72,14 @@ export interface PortalDeps {
   /** The SunScan service, for the installer's 3D view of a lead's roof. */
   sunscan?: SunScanService | null;
   fetch?: typeof fetch;
+  /** Where uploaded logos live, to check a saved choice against what was uploaded. */
+  brandAssets: BrandAssetStore;
 }
 
 const PLAN_KEYS = ['base', 'email', 'suite'] as const;
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+const brandAssetId = z.string().regex(BRAND_ASSET_ID);
 const domain = z
   .string()
   .trim()
@@ -101,6 +107,14 @@ const settingsSchema = z
       hours: z.string().trim().max(200).optional(),
     }),
     onboardingStep: z.enum(ONBOARDING_STEPS),
+    assistantName: assistantNameSchema,
+    branding: z.object({
+      mode: z.enum(['sunny', 'logo']),
+      iconId: brandAssetId.nullable(),
+      wordmarkId: brandAssetId.nullable(),
+      effects: z.array(z.enum(LOGO_EFFECTS)).max(7),
+      colors: z.object({ primary: hex, glow: hex }).nullable(),
+    }),
     email: z
       .object({
         provider: z.enum(['gmail', 'outlook', 'forwarding']),
@@ -248,6 +262,19 @@ function installSnippet(portal: PortalConfig, tenant: Tenant): string {
   );
 }
 
+function brandingView(tenant: Tenant) {
+  const stored = tenant.config.branding;
+  const view = (meta: BrandAssetMeta | null | undefined) =>
+    meta ? brandAssetView(tenant.id, meta) : null;
+  return {
+    mode: stored?.mode ?? ('sunny' as const),
+    icon: view(stored?.icon),
+    wordmark: view(stored?.wordmark),
+    effects: stored?.effects ?? [],
+    colors: stored?.colors ?? null,
+  };
+}
+
 /** The tenant as the portal shows it: no internal-only fields beyond what an installer may see. */
 function tenantView(tenant: Tenant, portal: PortalConfig, role: Membership['role'], now: number) {
   return {
@@ -268,13 +295,52 @@ function tenantView(tenant: Tenant, portal: PortalConfig, role: Membership['role
     addons: Object.fromEntries(ADDON_KEYS.map((key) => [key, hasEntitlement(tenant, key, now)])),
     billing: tenant.billing ?? null,
     email: tenant.config.email ?? null,
+    assistantName: tenant.config.assistantName ?? 'Sunny',
+    branding: brandingView(tenant),
     connections: connections(tenant),
     installSnippet: installSnippet(portal, tenant),
   };
 }
 
 export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): void {
-  const { store, tenants, portal, now } = deps;
+  const { store, tenants, portal, now, brandAssets } = deps;
+
+  /**
+   * Check a branding choice against what was uploaded. Sunny mode keeps whatever
+   * was stored, so switching back to a logo later restores it.
+   */
+  async function resolveBranding(
+    tenant: Tenant,
+    body: NonNullable<z.infer<typeof settingsSchema>['branding']>,
+  ): Promise<StoredBranding> {
+    const load = async (id: string | null) => {
+      if (id === null) return null;
+      const meta = await loadBrandAsset(brandAssets, tenant.id, id);
+      if (!meta)
+        throw new ApiError('bad_request', 'That logo upload has expired. Upload it again.');
+      return meta;
+    };
+    const current = tenant.config.branding;
+    const icon = await load(body.iconId);
+    const wordmark = await load(body.wordmarkId);
+    if (body.mode === 'sunny') {
+      return {
+        mode: 'sunny',
+        icon: icon ?? current?.icon ?? null,
+        wordmark: wordmark ?? current?.wordmark ?? null,
+        effects: icon
+          ? body.effects.filter((e) => icon.availableEffects.includes(e))
+          : (current?.effects ?? []),
+        colors: body.colors,
+      };
+    }
+    if (!icon) throw new ApiError('bad_request', 'Upload an icon first.');
+    const effects = body.effects.filter((e) => icon.availableEffects.includes(e));
+    if (effects.length === 0 && icon.availableEffects.length > 0) {
+      throw new ApiError('bad_request', 'Choose at least one animation.');
+    }
+    return { mode: 'logo', icon, wordmark, effects, colors: body.colors };
+  }
 
   /**
    * The roof assessment behind a lead: on the lead itself when the SunScan
@@ -536,6 +602,10 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
         else merged.signatureName = signatureName;
       }
       config.email = merged;
+    }
+    if (body.assistantName !== undefined) config.assistantName = body.assistantName;
+    if (body.branding !== undefined) {
+      config.branding = await resolveBranding(tenant, body.branding);
     }
     const next: Tenant = { ...tenant, config };
     if (body.websiteUrl !== undefined) next.websiteUrl = body.websiteUrl;

@@ -70,7 +70,7 @@ import { newId, type DeletedConversation, type ModelCall, type Store } from './s
 import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
-import { registerBrandingRoutes } from './routes/branding.js';
+import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
@@ -473,8 +473,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // Config is public and cacheable, but briefly: an installer changing its
     // colour expects it live, not after a CDN's hour.
     reply.header('cache-control', 'public, max-age=60');
+    const tenant = tenants.byPublicId(parsed.data);
     return {
       ...widgetConfig,
+      assistantName: tenant?.config.assistantName ?? 'Sunny',
+      brand: tenant ? publicBrand(tenant) : undefined,
       maxInputChars: config.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS,
       ...(config.turnstile ? { turnstileSiteKey: config.turnstile.siteKey } : {}),
     };
@@ -2068,6 +2071,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     mailer: deps.proposalMailer !== undefined ? deps.proposalMailer : mailerFromEnv(process.env),
   });
 
+  const brandAssets = deps.brandAssets ?? brandAssetStoreFromEnv(config.dataDir, process.env);
+
   // The installer portal and billing (routes/portal.ts).
   registerPortalRoutes(app, {
     store,
@@ -2077,6 +2082,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     knowledgeSync: deps.knowledgeSync ?? knowledgePipeline.connector,
     sunscan,
+    brandAssets,
   });
 
   // The staff dashboard: platform usage, health and cost (routes/admin.ts).
@@ -2114,7 +2120,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
     sessionSecret: config.sessionSecret,
     now,
-    brandAssets: deps.brandAssets ?? brandAssetStoreFromEnv(config.dataDir, process.env),
+    brandAssets,
   });
 
   // The Email Assistant add-on (routes/email.ts).
