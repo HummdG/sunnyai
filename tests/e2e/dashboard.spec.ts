@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { PNG } from 'pngjs';
 
 /**
  * The installer portal, end to end (Blueprint §3.1 onboarding; plan §6.3–6.4).
@@ -183,6 +184,103 @@ test('a signed Stripe event switches an add-on on, exactly once', async ({ page,
   await expect(page.locator('.addon-row').filter({ hasText: 'Email Assistant' })).toContainText(
     'Included',
   );
+});
+
+/** A dark opaque tile with a lime bar across the middle: a logo the server can trace. */
+function tilePng(): Buffer {
+  const image = new PNG({ width: 80, height: 80 });
+  for (let y = 0; y < 80; y++)
+    for (let x = 0; x < 80; x++) {
+      const bar = y >= 30 && y < 50 && x >= 15 && x < 65;
+      image.data.set(bar ? [163, 230, 53, 255] : [20, 24, 40, 255], (y * 80 + x) * 4);
+    }
+  return PNG.sync.write(image);
+}
+
+/** A lime disc on nothing, as an SVG: Studio turns it into a PNG before upload. */
+const DISC_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">' +
+  '<circle cx="150" cy="150" r="110" fill="#a3e635"/></svg>';
+
+async function widgetConfig(request: APIRequestContext): Promise<Record<string, unknown>> {
+  const response = await request.get(`${API}/v1/widget/config/${publicId}`);
+  expect(response.ok()).toBe(true);
+  return (await response.json()) as Record<string, unknown>;
+}
+
+test('Studio swaps Sunny for the installer logo and name', async ({ page, request }) => {
+  await signIn(page);
+  await page.goto(`${SITE}/dashboard/studio`);
+  const logo = page.getByRole('group', { name: 'Your logo' });
+  await expect(logo).toBeVisible();
+  await logo.getByLabel('Use my logo').check();
+
+  await logo.getByLabel('Icon file').setInputFiles({
+    name: 'tile.png',
+    mimeType: 'image/png',
+    buffer: tilePng(),
+  });
+  await expect(logo.getByText('Outline traced and checked.')).toBeVisible();
+  // The traced outline is drawn over the uploaded image, and the image loads
+  // through the same-origin proxy.
+  await expect(logo.locator('.brand-slot img').first()).toHaveJSProperty('complete', true);
+  await expect
+    .poll(() =>
+      logo
+        .locator('.brand-slot img')
+        .first()
+        .evaluate((i) => (i as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await expect(logo.locator('.brand-slot svg path').first()).toBeVisible();
+
+  const animations = logo.getByRole('group', { name: 'Animations' });
+  const boxes = animations.getByRole('checkbox');
+  await expect(boxes).toHaveCount(7);
+  for (const box of await boxes.all()) await box.uncheck();
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Choose at least one animation.' }),
+  ).toBeVisible();
+
+  await animations.getByLabel('Comet trace').check();
+  await animations.getByLabel('Shimmer').check();
+  await page.getByLabel('Assistant name').fill('Volt');
+  await expect(page.getByLabel('Greeting')).toHaveValue(/I'm Volt/);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  const branded = await widgetConfig(request);
+  expect(branded['assistantName']).toBe('Volt');
+  expect(branded['greeting']).toContain("I'm Volt");
+  expect((branded['brand'] as { effects: string[] }).effects).toEqual(['comet', 'shimmer']);
+
+  // The preview shows the logo, not the character.
+  const preview = page.getByLabel('Live preview');
+  await expect(preview.locator('.sunny-preview')).toHaveCount(0);
+  await expect(preview.locator('[data-logo-effect]').first()).toBeVisible();
+
+  // An SVG is rasterised in the browser: the server only ever receives a PNG.
+  const uploaded = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && /\/brand\/icon$/.test(r.url()),
+  );
+  await logo.getByLabel('Icon file').setInputFiles({
+    name: 'disc.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(DISC_SVG),
+  });
+  const upload = await uploaded;
+  expect(upload.ok()).toBe(true);
+  const body = upload.request().postDataJSON() as { png: string };
+  expect(body.png.startsWith('iVBORw0KGgo')).toBe(true);
+  await expect(logo.getByText('Outline traced and checked.')).toBeVisible();
+
+  await logo.getByLabel('Use Sunny').check();
+  const saving = page.waitForResponse((r) => /\/settings$/.test(r.url()));
+  await page.getByRole('button', { name: 'Save' }).click();
+  expect((await saving).ok()).toBe(true);
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  await expect.poll(async () => 'brand' in (await widgetConfig(request))).toBe(false);
+  await expect(preview.locator('.sunny-preview')).toHaveCount(1);
 });
 
 test('another installer cannot open this one', async ({ request }) => {

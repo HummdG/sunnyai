@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from 'react';
 
 import { api, tenantPath, type TenantView } from '../../lib/portal-api.js';
+import { BrandSection, draftFrom, type BrandDraft } from './brand-section.js';
+import { LogoPreview } from './logo-preview.js';
 import { SunnyPreview } from './sunny-preview.js';
 import { errorText, ErrorNote } from './ui.js';
 
@@ -14,8 +16,16 @@ const SWATCHES = [
 ];
 
 /**
- * Sunny Studio: the installer's colour, greeting and launcher position, with
- * the real character re-theming live beside the form.
+ * The greeting with the assistant's new name: only the exact words `I'm <old>`
+ * change, so a greeting the installer rewrote is left as they wrote it.
+ */
+export function renameInGreeting(greeting: string, oldName: string, newName: string): string {
+  return greeting.replace(`I'm ${oldName}`, () => `I'm ${newName}`);
+}
+
+/**
+ * Sunny Studio: the installer's logo or colour, greeting and launcher position,
+ * with the real character (or their own logo) re-theming live beside the form.
  */
 export function StudioForm({
   tenant,
@@ -31,9 +41,21 @@ export function StudioForm({
   const [tagline, setTagline] = useState(tenant.tagline ?? '');
   const [position, setPosition] = useState(tenant.position);
   const [suggestions, setSuggestions] = useState(tenant.suggestions.join('\n'));
+  const [brand, setBrand] = useState<BrandDraft>(() => draftFrom(tenant));
+  const [assistantName, setAssistantName] = useState(tenant.assistantName);
+  // The name the greeting currently says: the last saved or typed one that was not empty.
+  const [greetingName, setGreetingName] = useState(tenant.assistantName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  function rename(next: string): void {
+    setAssistantName(next);
+    const trimmed = next.trim();
+    if (trimmed === '') return;
+    setGreeting((current) => renameInGreeting(current, greetingName, trimmed));
+    setGreetingName(trimmed);
+  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -49,6 +71,14 @@ export function StudioForm({
             greeting,
             tagline: tagline.trim() === '' ? null : tagline,
             position,
+            assistantName: assistantName.trim(),
+            branding: {
+              mode: brand.mode,
+              iconId: brand.icon?.id ?? null,
+              wordmarkId: brand.wordmark?.id ?? null,
+              effects: brand.effects,
+              colors: brand.colors,
+            },
             suggestions: suggestions
               .split('\n')
               .map((line) => line.trim())
@@ -69,6 +99,16 @@ export function StudioForm({
   return (
     <div className="studio">
       <form onSubmit={(event) => void submit(event)}>
+        <BrandSection tenant={tenant} value={brand} onChange={setBrand} />
+        <label className="field">
+          <span>Assistant name</span>
+          <input
+            value={assistantName}
+            maxLength={40}
+            required
+            onChange={(event) => rename(event.target.value)}
+          />
+        </label>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: '0 0 14px' }}>
           <legend style={{ fontWeight: 650, marginBottom: 8 }}>Colour</legend>
           <div className="pills" role="group" aria-label="Brand colour">
@@ -151,7 +191,11 @@ export function StudioForm({
         <ErrorNote error={error} />
       </form>
       <div className="preview-stage" aria-label="Live preview">
-        <SunnyPreview colour={colour} />
+        {brand.mode === 'logo' ? (
+          <LogoPreview draft={brand} busy={busy} companyName={tenant.companyName} />
+        ) : (
+          <SunnyPreview colour={colour} />
+        )}
         <p className="preview-greeting">{greeting}</p>
         <span className="muted small">Live preview</span>
       </div>
