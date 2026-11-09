@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, isAbsolute } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -54,6 +54,43 @@ describe('file store tenant ids', () => {
     await store.put('../evil', `${NAME}.png`, new Uint8Array([9]));
     expect(await store.get('../evil', `${NAME}.png`)).toEqual(new Uint8Array([9]));
     expect(await store.get('evil', `${NAME}.png`)).toBeNull();
+  });
+});
+
+describe('dot-segment tenant ids', () => {
+  it.each(['..', '.', '...'])('file store keeps %j inside its own folder', async (tenant) => {
+    const dir = await mkdtemp(join(tmpdir(), 'brand-'));
+    dirs.push(dir);
+    const store = new FileBrandAssetStore(dir);
+    await store.put(tenant, `${NAME}.png`, new Uint8Array([1]));
+    const entries = await readdir(dir, { recursive: true });
+    expect(entries.length).toBeGreaterThan(0);
+    for (const e of entries) {
+      const rel = relative(dir, join(dir, e));
+      expect(rel.startsWith('..') && !rel.startsWith('..' + '%')).toBe(false);
+      expect(isAbsolute(rel)).toBe(false);
+    }
+    expect(await readdir(join(dir, '..'))).not.toContain(`${NAME}.png`);
+    expect(await store.get(tenant, `${NAME}.png`)).toEqual(new Uint8Array([1]));
+    for (const other of ['..', '.', '...', 'x'].filter((t) => t !== tenant)) {
+      expect(await store.get(other, `${NAME}.png`)).toBeNull();
+    }
+  });
+
+  it('refuses an empty tenant id in every store', async () => {
+    const file = await fileStore();
+    await expect(file.put('', `${NAME}.png`, new Uint8Array([1]))).rejects.toThrow();
+    await expect(file.get('', `${NAME}.png`)).rejects.toThrow();
+    const gcs = new GcsBrandAssetStore({ bucket: 'b', token: null });
+    expect(() => gcs.objectName('', `${NAME}.png`)).toThrow();
+  });
+
+  it.each(['..', '.'])('GCS object name for %j is a plain segment', (tenant) => {
+    const gcs = new GcsBrandAssetStore({ bucket: 'b', token: null });
+    const segments = gcs.objectName(tenant, `${NAME}.png`).split('/');
+    expect(segments).toHaveLength(3);
+    expect(segments[1]).not.toMatch(/^\.*$/);
+    expect(gcs.objectName(tenant, `${NAME}.png`)).not.toBe(gcs.objectName('x', `${NAME}.png`));
   });
 });
 

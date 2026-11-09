@@ -20,6 +20,18 @@ function checkName(name: string): void {
   if (!NAME_PATTERN.test(name)) throw new Error('Invalid brand asset name.');
 }
 
+/**
+ * One path or object segment for a tenant id. Percent-encoded, and an id made
+ * only of dots ('.', '..') has its dots encoded too, so it is never a dot
+ * segment. An empty id is refused. Distinct ids stay distinct ('%2E' encodes
+ * to '%252E').
+ */
+export function tenantSegment(tenantId: string): string {
+  if (!tenantId) throw new Error('A tenant id is required.');
+  const encoded = encodeURIComponent(tenantId);
+  return /^\.+$/.test(encoded) ? encoded.replace(/\./g, '%2E') : encoded;
+}
+
 function contentType(name: string): string {
   return name.endsWith('.json') ? 'application/json' : 'image/png';
 }
@@ -46,8 +58,8 @@ export class FileBrandAssetStore implements BrandAssetStore {
 
   #path(tenantId: string, name: string): string {
     checkName(name);
-    // The tenant id is encoded to one path segment, so it cannot climb out of its folder.
-    return join(this.dir, encodeURIComponent(tenantId), name);
+    // One safe segment per tenant (see tenantSegment), so it cannot climb out of its folder.
+    return join(this.dir, tenantSegment(tenantId), name);
   }
 
   async put(tenantId: string, name: string, bytes: Uint8Array): Promise<void> {
@@ -97,10 +109,10 @@ export class GcsBrandAssetStore implements BrandAssetStore {
     this.#fetch = options.fetch ?? fetch;
   }
 
-  /** The object name. The tenant id is encoded: '/' or '..' in it is just text. */
+  /** The object name. The tenant id is one safe segment: '/' or '..' in it is just text. */
   objectName(tenantId: string, name: string): string {
     checkName(name);
-    return `${this.#prefix}/${encodeURIComponent(tenantId)}/${name}`;
+    return `${this.#prefix}/${tenantSegment(tenantId)}/${name}`;
   }
 
   async #headers(extra: Record<string, string> = {}): Promise<Record<string, string>> {
