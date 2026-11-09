@@ -258,6 +258,16 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   const preview = page.getByLabel('Live preview');
   await expect(preview.locator('.sunny-preview')).toHaveCount(0);
   await expect(preview.locator('[data-logo-effect]').first()).toBeVisible();
+  // It looks like the widget: its pale header, and a launcher with no backing disc.
+  const css = (selector: string, prop: string) =>
+    preview
+      .locator(selector)
+      .first()
+      .evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+  expect(await css('.logo-preview-header', 'background-color')).toBe('rgb(255, 241, 229)');
+  expect(await css('.logo-preview-header', 'color')).toBe('rgb(23, 23, 23)');
+  expect(await css('.logo-preview-launcher', 'background-color')).toBe('rgba(0, 0, 0, 0)');
+  expect(await css('.logo-preview-launcher', 'padding-top')).toBe('0px');
 
   // An SVG is rasterised in the browser: the server only ever receives a PNG.
   const uploaded = page.waitForResponse(
