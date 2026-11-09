@@ -160,6 +160,19 @@ export function LeadDetail({
         </div>
       </dl>
       <p className="lead-summary">{lead.summary}</p>
+      {lead.flowAnswers && lead.flowAnswers.length > 0 ? (
+        <section aria-labelledby="answers-title" className="lead-section">
+          <h3 id="answers-title">Their answers</h3>
+          <dl className="lead-facts">
+            {lead.flowAnswers.map((entry) => (
+              <div key={entry.id}>
+                <dt>{entry.question}</dt>
+                <dd>{entry.answer}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
       <div className="actions">
         {lead.conversationId ? (
           <Link className="link-button" href="/dashboard/inbox">

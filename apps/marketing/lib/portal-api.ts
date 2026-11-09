@@ -136,6 +136,15 @@ export interface LeadRow {
   summary: string;
   createdAt: string;
   conversationId: string | null;
+  /** The installer's questions and the visitor's answers, in the flow's order. */
+  flowAnswers?: Array<{
+    id: string;
+    question: string;
+    value: string;
+    answer: string;
+    mode: 'preset' | 'quote' | 'lead';
+  }>;
+  flowVersion?: number;
   status: LeadStatus;
   assessmentId: string | null;
 }

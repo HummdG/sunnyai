@@ -89,15 +89,26 @@ function instruction(tenant: Tenant): string {
   ].join('\n');
 }
 
+/** The installer's questions and the visitor's answers, one per line. */
+function answersRecap(lead: LeadRecord): string | null {
+  const answers = lead.flowAnswers ?? [];
+  if (answers.length === 0) return null;
+  return answers.map((a) => `${a.question} ${a.answer}`).join('\n');
+}
+
 /** What is written when the model is unavailable: plain, and true. */
 function templateBody(lead: LeadRecord, facts: string | null): string {
+  const recap = answersRecap(lead);
   return [
     `Thank you for chatting with us on our website${lead.postcode ? ` about solar for your home in ${lead.postcode}` : ''}. ${lead.summary.trim().replace(/\.?$/, '.')}`,
+    recap ? `What you told us:\n${recap}` : null,
     facts
       ? 'We have kept a copy of the quote options you were shown. They are indicative, and a free survey confirms the right system and the final price.'
       : 'The next step is a free survey, where we confirm the right system for your roof and give you a firm price.',
     'Just reply to this email with a day and time that suits you, or let us know the best number to reach you on.',
-  ].join('\n\n');
+  ]
+    .filter((part): part is string => part !== null)
+    .join('\n\n');
 }
 
 async function writeBody(
@@ -107,9 +118,11 @@ async function writeBody(
   transcript: string,
   facts: string | null,
 ): Promise<string> {
+  const recap = answersRecap(lead);
   const message = [
     `Their name: ${lead.name ?? 'not given'}. Postcode: ${lead.postcode ?? 'not given'}.`,
     `What they want: ${lead.summary}`,
+    recap ? `\nTheir answers to the installer's questions:\n${recap}` : '',
     facts ? `\n${facts}` : '',
     '\nThe conversation:',
     transcript || '(not available)',

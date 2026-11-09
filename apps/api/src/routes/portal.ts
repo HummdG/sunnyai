@@ -802,6 +802,8 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
         summary: lead.summary,
         createdAt: lead.createdAt,
         conversationId: lead.conversationId,
+        flowAnswers: lead.flowAnswers ?? [],
+        ...(lead.flowVersion !== undefined ? { flowVersion: lead.flowVersion } : {}),
         status: statuses[lead.id] ?? 'new',
         // The lead's own link, or the roof the visitor's quote journey measured.
         assessmentId: await leadAssessmentId(tenantId, lead),

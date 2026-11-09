@@ -359,6 +359,59 @@ test('an unsaved logo stays with its installer when the owner switches', async (
   await expect(logo.locator('.brand-slot img')).toHaveCount(0);
 });
 
+test("the lead page shows the installer's questions and the visitor's answers", async ({
+  page,
+}) => {
+  // The list answers with a lead from a customised conversation.
+  await page.route(/\/leads$/, async (route) => {
+    await route.fulfill({
+      json: {
+        leads: [
+          {
+            id: 'lead_flow1',
+            name: 'Sarah Jones',
+            email: 'sarah@customer.example',
+            phone: null,
+            postcode: 'LS6 2AB',
+            summary: 'Wants solar and an EV charger',
+            createdAt: new Date().toISOString(),
+            conversationId: null,
+            status: 'new',
+            assessmentId: null,
+            flowVersion: 3,
+            flowAnswers: [
+              {
+                id: 'c_evcharger1',
+                question: 'Would you like an EV charger fitted at the same time?',
+                value: 'yes',
+                answer: 'Yes please',
+                mode: 'quote',
+              },
+              {
+                id: 'c_evmodel',
+                question: 'Which car is it?',
+                value: 'A blue Polestar 2',
+                answer: 'A blue Polestar 2',
+                mode: 'lead',
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+  await signIn(page);
+  await page.goto(`${SITE}/dashboard/leads/lead_flow1`);
+  const answers = page.getByRole('region', { name: 'Their answers' });
+  await expect(answers).toBeVisible();
+  await expect(
+    answers.getByText('Would you like an EV charger fitted at the same time?'),
+  ).toBeVisible();
+  await expect(answers.getByText('Yes please')).toBeVisible();
+  await expect(answers.getByText('Which car is it?')).toBeVisible();
+  await expect(answers.getByText('A blue Polestar 2')).toBeVisible();
+});
+
 test('another installer cannot open this one', async ({ request }) => {
   const login = await request.post(`${API}/v1/portal/dev-login`, {
     data: { email: `stranger-${RUN}@other.test` },

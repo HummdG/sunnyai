@@ -16,6 +16,7 @@ import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
 import { newId, type LeadRecord, type Store } from '../store.js';
 import type { Auditor } from '../audit.js';
+import { flowFieldsFor } from '../flow/answers.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
 import { QUESTIONNAIRE_VERSION, QUESTIONS, STEP_ORDER, explain } from '../questionnaire.js';
 import type { Tenant } from '../tenants.js';
@@ -979,6 +980,7 @@ const DEFINITIONS: ToolDefinition[] = [
         score: null,
         consent: consentFor(ctx),
         createdAt: new Date().toISOString(),
+        ...flowFieldsFor(ctx.flow, ctx.answers),
       };
       await ctx.store.saveLead(lead);
       ctx.events.push({ kind: 'lead_saved', detail: { leadId: lead.id } });
@@ -1023,6 +1025,7 @@ const DEFINITIONS: ToolDefinition[] = [
         score: null,
         consent: consentFor(ctx),
         createdAt: new Date().toISOString(),
+        ...flowFieldsFor(ctx.flow, ctx.answers),
       };
       await ctx.store.saveLead(lead);
       ctx.events.push({ kind: 'lead_saved', detail: { leadId: lead.id, callback: true } });
