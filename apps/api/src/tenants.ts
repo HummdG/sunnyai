@@ -253,16 +253,45 @@ export class TenantRegistry {
 
   /**
    * The tenant as the store holds it now, bypassing this instance's cache (and
-   * refreshing it). A route that merges a change into the tenant and writes the
-   * whole document back reads it this way first: the cache can be up to a
-   * refresh old, and writing a stale copy would undo another instance's save.
-   * A registry built in memory has nothing fresher than its cache.
+   * refreshing it). For a route that needs to *read* the latest copy before an
+   * `update`, never as the base of a whole-tenant `save`: the cache can be up to
+   * a refresh old. A registry built in memory has nothing fresher than its cache.
    */
   async fresh(tenantId: string): Promise<Tenant | null> {
     if (!this.#store) return this.byId(tenantId);
     const stored = await this.#store.getTenant(tenantId);
     if (!stored) return this.byId(tenantId);
     this.#set(stored);
+    return this.byId(tenantId);
+  }
+
+  /**
+   * Change part of a tenant: `mutate` gets the tenant as the store holds it now
+   * and returns it with only the fields its caller owns changed, and the store
+   * applies it atomically. This, not `save`, is how a route changes an existing
+   * tenant: this instance's cache can be up to a refresh old, and writing back
+   * a whole stale copy would undo whatever another instance saved meanwhile.
+   *
+   * `mutate` may run more than once (a retried transaction), so it must be pure.
+   * Returning `current` unchanged writes nothing. Resolves to the tenant as
+   * saved, or null when it no longer exists.
+   */
+  async update(tenantId: string, mutate: (current: Tenant) => Tenant): Promise<Tenant | null> {
+    const stamp = (current: Tenant): Tenant => {
+      const next = mutate(current);
+      if (next === current) return current;
+      // `sunscanUrl` is resolved from the environment at load, never persisted.
+      return { ...next, updatedAt: new Date().toISOString(), sunscanUrl: null };
+    };
+    if (!this.#store) {
+      const cached = this.byId(tenantId);
+      if (!cached) return null;
+      this.#set(stamp(cached));
+      return this.byId(tenantId);
+    }
+    const saved = await this.#store.updateTenant(tenantId, stamp);
+    if (!saved) return null;
+    this.#set(saved);
     return this.byId(tenantId);
   }
 

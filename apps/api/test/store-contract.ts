@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { FileStore, knowledgeFingerprint } from '../src/store.js';
 import type { Store, Conversation, KnowledgeSourceRecord, LeadRecord } from '../src/store.js';
+import { DEMO_TENANT, type Tenant } from '../src/tenants.js';
 import { productSchema } from '@sunny/contracts';
 import type { AuditEvent, IngestionJob, Product } from '@sunny/contracts';
 
@@ -218,6 +219,76 @@ export function storeContract(
       // that happened to arrive second.
       expect(read?.id).toBe(first.conversation.id);
       expect(read?.createdAt).toBe(first.conversation.createdAt);
+    });
+
+    describe('updateTenant', () => {
+      const profile = (id: string): Tenant => ({
+        ...DEMO_TENANT,
+        id,
+        publicId: `w_${id}`,
+        config: { ...DEMO_TENANT.config, publicId: `w_${id}` },
+        sunscanUrl: null,
+      });
+
+      it('applies the change to the stored tenant and returns it as written', async () => {
+        const { store, tenant } = await harness();
+        const t = tenant('upd');
+        await store.putTenant(profile(t));
+        const updated = await store.updateTenant(t, (current) => ({
+          ...current,
+          config: { ...current.config, tagline: 'Changed' },
+          websiteUrl: undefined,
+        }));
+        expect(updated?.config.tagline).toBe('Changed');
+        // Serialised as `putTenant` stores it: an absent optional field is dropped.
+        expect(updated && 'websiteUrl' in updated).toBe(false);
+        const read = await store.getTenant(t);
+        expect(read?.config.tagline).toBe('Changed');
+        expect(read?.config.companyName).toBe(DEMO_TENANT.config.companyName);
+      });
+
+      it('returns null for a tenant it does not hold, and does not create one', async () => {
+        const { store, tenant } = await harness();
+        const t = tenant('missing');
+        let called = false;
+        const result = await store.updateTenant(t, (current) => {
+          called = true;
+          return current;
+        });
+        expect(result).toBeNull();
+        expect(called).toBe(false);
+        expect(await store.getTenant(t)).toBeNull();
+      });
+
+      it('keeps both of two updates that change different fields', async () => {
+        const { store, tenant } = await harness();
+        const t = tenant('both');
+        await store.putTenant(profile(t));
+        await store.updateTenant(t, (current) => ({
+          ...current,
+          config: { ...current.config, tagline: 'From one' },
+        }));
+        await store.updateTenant(t, (current) => ({ ...current, websiteUrl: 'https://two.test' }));
+        const read = await store.getTenant(t);
+        expect(read?.config.tagline).toBe('From one');
+        expect(read?.websiteUrl).toBe('https://two.test');
+      });
+
+      it('keeps both of two concurrent updates that change different fields', async () => {
+        const { store, tenant } = await harness();
+        const t = tenant('race');
+        await store.putTenant(profile(t));
+        await Promise.all([
+          store.updateTenant(t, (current) => ({
+            ...current,
+            config: { ...current.config, tagline: 'From one' },
+          })),
+          store.updateTenant(t, (current) => ({ ...current, websiteUrl: 'https://two.test' })),
+        ]);
+        const read = await store.getTenant(t);
+        expect(read?.config.tagline).toBe('From one');
+        expect(read?.websiteUrl).toBe('https://two.test');
+      });
     });
 
     it('returns null for a session it has never seen', async () => {

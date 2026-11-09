@@ -925,6 +925,26 @@ export class FirestoreStore implements Store {
     return tenant;
   }
 
+  async updateTenant(
+    tenantId: string,
+    mutate: (current: Tenant) => Tenant,
+  ): Promise<Tenant | null> {
+    const ref = this.#profiles().doc(docId('t', tenantId));
+    // The read and the write in one transaction: a save of another part of the
+    // tenant made between them makes Firestore retry this one against it, rather
+    // than this write silently undoing that one.
+    return await this.#db.runTransaction<Tenant | null>(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) return null;
+      const current = snapshot.data() as Tenant;
+      const updated = mutate(current);
+      if (updated === current) return current;
+      const row = JSON.parse(JSON.stringify(updated)) as Tenant;
+      transaction.set(ref, row as unknown as Record<string, unknown>);
+      return row;
+    });
+  }
+
   #memberships() {
     return this.#db.collection('memberships');
   }

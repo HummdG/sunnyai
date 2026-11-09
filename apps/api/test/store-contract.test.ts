@@ -89,6 +89,12 @@ function firestoreHarness(): StoreHarness {
         await admin
           .recursiveDelete(admin.collection('tenants').doc(encodeURIComponent(id)))
           .catch(() => undefined);
+        // A tenant's profile lives in a collection of its own (see the store).
+        await admin
+          .collection('tenant_profiles')
+          .doc(`t_${encodeURIComponent(id)}`)
+          .delete()
+          .catch(() => undefined);
       }
     },
   };

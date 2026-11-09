@@ -571,6 +571,16 @@ export interface Store {
   getTenant(tenantId: string): Promise<Tenant | null>;
   /** Create or replace a tenant by id. */
   putTenant(tenant: Tenant): Promise<Tenant>;
+  /**
+   * Read a tenant, apply `mutate` to it and write the result, as one atomic step:
+   * no other write to the tenant lands between the read and the write, so a
+   * route that changes one part of the tenant cannot undo another's change to a
+   * different part. `mutate` may run more than once (a retried transaction), so
+   * it must be pure. Returning `current` itself writes nothing. Resolves to the
+   * tenant as written, or null when there is no such tenant: an update never
+   * recreates a deleted one.
+   */
+  updateTenant(tenantId: string, mutate: (current: Tenant) => Tenant): Promise<Tenant | null>;
   /** Every portal this email address belongs to. */
   listMembershipsByEmail(email: string): Promise<Membership[]>;
   listMembers(tenantId: string): Promise<Membership[]>;
@@ -1573,6 +1583,26 @@ export class FileStore implements Store {
       const next = at === -1 ? [...all, tenant] : all.map((row, i) => (i === at ? tenant : row));
       await this.#writeJson(this.#tenantsFile, next);
       return tenant;
+    });
+  }
+
+  updateTenant(tenantId: string, mutate: (current: Tenant) => Tenant): Promise<Tenant | null> {
+    // One process holds the file, and `#exclusively` keeps every tenant write in
+    // it in order, so the read and the write cannot be split by another save.
+    return this.#exclusively(async () => {
+      const all = await this.listTenants();
+      const at = all.findIndex((row) => row.id === tenantId);
+      if (at === -1) return null;
+      const current = all[at]!;
+      const updated = mutate(current);
+      if (updated === current) return current;
+      // Serialised as `putTenant` stores it: absent optional fields dropped.
+      const row = JSON.parse(JSON.stringify(updated)) as Tenant;
+      await this.#writeJson(
+        this.#tenantsFile,
+        all.map((r, i) => (i === at ? row : r)),
+      );
+      return row;
     });
   }
 
