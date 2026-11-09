@@ -17,7 +17,14 @@ import type {
   WidgetConfig,
 } from '@sunny/contracts';
 
-import { readBrand, safeAssistantName, safeBrand, toArt, writeBrand } from './brand-cache.js';
+import {
+  readBrand,
+  safeAssistantName,
+  safeBrand,
+  SUNNY,
+  toArt,
+  writeBrand,
+} from './brand-cache.js';
 import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
@@ -188,7 +195,9 @@ export class SunnyWidget {
     // with a logo -- briefly: a slow API then gets Sunny, and a logo arriving
     // later still replaces it.
     const remembered = readBrand(localStore(), this.#options.publicId);
-    if (remembered) {
+    if (remembered === SUNNY) {
+      this.#showSunny();
+    } else if (remembered) {
       this.#applyNames(remembered.assistantName);
       void this.#showLogo(remembered.brand);
     } else {
@@ -396,8 +405,24 @@ export class SunnyWidget {
     this.#clearCharacter();
     this.#brand = brand;
     const art = toArt(brand, this.#options.apiUrl);
+    // An icon that will not load (a deleted file, a blocked request) leaves a
+    // plain disc in the brand's colour, never Sunny and never an invisible
+    // button. The colour has passed `safeBrand`, so it is a bare `#rrggbb`.
+    const broken = (): void => {
+      if (this.#brand !== brand) return;
+      for (const view of this.#logoViews) view.destroy();
+      this.#logoViews = [];
+      for (const host of [this.#launcherArt, this.#avatar]) {
+        delete host.dataset.logoEffect;
+        host.replaceChildren(
+          el('span', { class: 'logo-fallback', style: `background:${brand.colors.primary}` }),
+        );
+      }
+    };
     for (const host of [this.#launcherArt, this.#avatar]) {
-      host.replaceChildren(el('img', { src: art.src, alt: '' }));
+      const img = el('img', { src: art.src, alt: '' });
+      img.addEventListener('error', broken, { once: true });
+      host.replaceChildren(img);
     }
     this.#launcherArt.className = 'logo-host';
     this.#launcher.classList.add('ready');
@@ -413,7 +438,8 @@ export class SunnyWidget {
     } catch {
       return; // the plain image stays, which is the logo at rest anyway
     }
-    if (this.#brand !== brand) return; // replaced while it loaded
+    // Replaced while it loaded, or the icon would not load.
+    if (this.#brand !== brand || this.#launcherArt.querySelector('.logo-fallback')) return;
     const hosts = this.#launcher.hidden ? [this.#avatar] : [this.#launcherArt, this.#avatar];
     this.#logoViews = hosts.map((host) => logo.createLogoView(host, art, brand.effects));
   }
@@ -466,7 +492,7 @@ export class SunnyWidget {
     // Unvalidated until here, like the colour, and it becomes image URLs.
     const brand = safeBrand(config.brand);
     const assistantName = safeAssistantName(config.assistantName);
-    writeBrand(localStore(), this.#options.publicId, brand ? { brand, assistantName } : null);
+    writeBrand(localStore(), this.#options.publicId, brand ? { brand, assistantName } : SUNNY);
     this.#applyNames(assistantName);
     if (brand) void this.#showLogo(brand);
     else if (this.#brand) this.#showSunny();

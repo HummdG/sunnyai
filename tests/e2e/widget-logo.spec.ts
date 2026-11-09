@@ -82,16 +82,19 @@ async function stubConfig(page: Page, brand: unknown): Promise<void> {
 
 /**
  * Note on `window.__sawSunny` whether the Sunny character is ever in the
- * widget, from the very first frame of the page. Checked every animation frame,
- * which is how often the widget draws.
+ * widget, and on `window.__sawPending` whether the launcher was ever held back,
+ * from the very first frame of the page. Checked every animation frame, which
+ * is how often the widget draws.
  */
 async function watchForSunny(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const w = window as unknown as { __sawSunny: boolean };
+    const w = window as unknown as { __sawSunny: boolean; __sawPending: boolean };
     w.__sawSunny = false;
+    w.__sawPending = false;
     const look = (): void => {
       const root = document.querySelector('[data-sunny-widget]')?.shadowRoot;
       if (root?.querySelector('.svg-host svg')) w.__sawSunny = true;
+      if (root?.querySelector('.launcher.pending')) w.__sawPending = true;
       requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
@@ -100,6 +103,20 @@ async function watchForSunny(page: Page): Promise<void> {
 
 const sawSunny = (page: Page) =>
   page.evaluate(() => (window as unknown as { __sawSunny: boolean }).__sawSunny);
+const sawPending = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __sawPending: boolean }).__sawPending);
+
+/** The config, answered only after `ms`, with `brand` added (or not). */
+async function slowConfig(page: Page, brand: unknown, ms: number): Promise<void> {
+  await page.unroute('**/v1/widget/config/*');
+  await page.route('**/v1/widget/config/*', async (route) => {
+    const response = await route.fetch();
+    const config = (await response.json()) as Record<string, unknown>;
+    if (brand !== undefined) Object.assign(config, { brand, assistantName: 'Nova' });
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    await route.fulfill({ response, json: config });
+  });
+}
 
 /** The header logo's `data-logo-effect` values, recorded as they change. */
 async function recordEffects(page: Page): Promise<void> {
@@ -218,18 +235,68 @@ test('a config without a brand forgets the logo, so the next visit is Sunny', as
   await page.reload();
   await expect(page.locator(HOST).locator('.launcher .svg-host svg')).toBeAttached();
 
-  await page.unroute('**/v1/widget/config/*');
-  await page.route('**/v1/widget/config/*', (route) => route.abort());
-  await page.reload();
-  const launcher = page.locator(HOST).locator('button.launcher');
-  await expect(launcher.locator('.svg-host svg')).toBeAttached({ timeout: 8000 });
-  await expect(launcher).toBeVisible();
-  await expect(launcher.locator('.logo-host')).toHaveCount(0);
+  // Remembered as Sunny, not forgotten: the next visit shows Sunny at once,
+  // without holding the launcher back for a config that is slow to answer.
   const remembered = await page.evaluate(
     (id) => localStorage.getItem(`sunny:brand:${id}`),
     PUBLIC_ID,
   );
-  expect(remembered).toBeNull();
+  expect(remembered).toBe('"sunny"');
+
+  await watchForSunny(page);
+  await slowConfig(page, undefined, 3000);
+  await page.reload();
+  const launcher = page.locator(HOST).locator('button.launcher');
+  await expect(launcher.locator('.svg-host svg')).toBeAttached({ timeout: 1500 });
+  await expect(launcher).toBeVisible({ timeout: 1500 });
+  await expect(launcher.locator('.logo-host')).toHaveCount(0);
+  expect(await sawPending(page)).toBe(false);
+});
+
+test('a returning visitor whose icon will not load sees a plain disc, never Sunny', async ({
+  page,
+}) => {
+  await stubConfig(page, BRAND);
+  await page.goto('/');
+  await expect(page.locator(HOST).locator('button.launcher .logo-host')).toBeAttached();
+
+  await watchForSunny(page);
+  await page.unroute('**/v1/widget/config/*');
+  await page.route('**/v1/widget/config/*', (route) => route.abort());
+  await page.unroute('**/v1/widget/brand/**');
+  await page.route('**/v1/widget/brand/**', (route) => route.fulfill({ status: 404 }));
+  await page.reload();
+
+  const launcher = page.locator(HOST).locator('button.launcher');
+  const disc = launcher.locator('.logo-fallback');
+  await expect(disc).toBeVisible();
+  await expect(disc).toHaveCSS('background-color', 'rgb(163, 230, 53)');
+  await expect(launcher).toBeVisible();
+  const box = await launcher.boundingBox();
+  expect(box?.width).toBeGreaterThan(40);
+  await page.waitForTimeout(500);
+  expect(await sawSunny(page)).toBe(false);
+});
+
+test('a slow first visit shows Sunny after the wait, then the logo once it arrives', async ({
+  page,
+}) => {
+  await watchForSunny(page);
+  await slowConfig(page, BRAND, 5000);
+  await page.goto('/');
+
+  const launcher = page.locator(HOST).locator('button.launcher');
+  // Held back while the config may still name a logo...
+  await page.waitForTimeout(2000);
+  expect(await sawSunny(page)).toBe(false);
+  await expect(launcher).toBeHidden();
+  // ...then Sunny once the ~4 s wait is over, before the config has answered...
+  await expect(launcher.locator('.svg-host svg')).toBeAttached({ timeout: 2800 });
+  await expect(launcher).toBeVisible();
+  // ...and the logo in Sunny's place when it does.
+  await expect(launcher.locator('.logo-host')).toBeAttached({ timeout: 5000 });
+  await expect(launcher.locator('.svg-host')).toHaveCount(0);
+  await expect(launcher).toHaveAttribute('aria-label', 'Open Nova');
 });
 
 test.describe('with reduced motion', () => {

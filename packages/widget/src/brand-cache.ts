@@ -79,12 +79,26 @@ export function safeAssistantName(value: unknown): string {
   return matches(ASSISTANT_NAME, value) ? value : 'Sunny';
 }
 
-/** What was kept for this widget, or null: none kept, unreadable, or storage refused. */
-export function readBrand(storage: Storage | null, publicId: string): RememberedBrand | null {
+/**
+ * What a returning visitor saw last time with no logo: Sunny. Kept as a value of
+ * its own, rather than as no value, so that only a first visit waits for the
+ * config before showing the launcher.
+ */
+export const SUNNY = 'sunny';
+
+/**
+ * What was kept for this widget: its brand, `SUNNY` when it had none, or null
+ * when nothing usable was kept (a first visit, junk, or storage refused).
+ */
+export function readBrand(
+  storage: Storage | null,
+  publicId: string,
+): RememberedBrand | typeof SUNNY | null {
   try {
     const raw = storage?.getItem(KEY + publicId);
     if (!raw) return null;
     const value: unknown = JSON.parse(raw);
+    if (value === SUNNY) return SUNNY;
     if (!isObject(value)) return null;
     const brand = safeBrand(value.brand);
     return brand ? { brand, assistantName: safeAssistantName(value.assistantName) } : null;
@@ -93,11 +107,11 @@ export function readBrand(storage: Storage | null, publicId: string): Remembered
   }
 }
 
-/** Keep this widget's brand for the next visit; null forgets it. Never throws. */
+/** Keep this widget's brand (or `SUNNY`) for the next visit; null forgets it. Never throws. */
 export function writeBrand(
   storage: Storage | null,
   publicId: string,
-  value: RememberedBrand | null,
+  value: RememberedBrand | typeof SUNNY | null,
 ): void {
   try {
     if (value === null) storage?.removeItem(KEY + publicId);
