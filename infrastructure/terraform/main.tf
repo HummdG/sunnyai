@@ -338,6 +338,16 @@ resource "google_cloud_run_v2_service" "api" {
         value = google_storage_bucket.sunscan_artefacts.name
       }
 
+      # Installer logos go to their own private bucket (branding.tf).
+      env {
+        name  = "BRAND_ASSET_STORE"
+        value = "gcs"
+      }
+      env {
+        name  = "BRAND_ASSET_BUCKET"
+        value = google_storage_bucket.brand_assets.name
+      }
+
       # Assessments through Cloud Tasks once the API's public URL is known
       # (var.api_base_url); until then they run in-process.
       dynamic "env" {
