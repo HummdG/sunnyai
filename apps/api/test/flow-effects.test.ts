@@ -510,20 +510,49 @@ describe('quantities and mandatory items', () => {
 // ─── removed presets ─────────────────────────────────────────────────────────
 
 describe('a conversation without some of Sunny’s questions', () => {
-  it('a flow with every price-dependent preset removed still quotes, with estimatedFrom listing them', () => {
-    const dependent = new Set(Object.keys(PRESET_WARNINGS));
-    const flow = flowOf(presetSteps().filter((s) => !dependent.has(s.id)));
-    const answers = Object.fromEntries(
-      Object.entries(answersFor()).filter(
+  const ROOF_FALLBACK = ['roof_size', 'roof_direction'];
+  const dependent = new Set(Object.keys(PRESET_WARNINGS));
+  const everyPresetRemoved = flowOf(presetSteps().filter((s) => !dependent.has(s.id)));
+  const withoutDependent = (answers: Record<string, string>) =>
+    Object.fromEntries(
+      Object.entries(answers).filter(
         ([id]) =>
           !dependent.has(id) && !['annual_kwh', 'monthly_cost', 'household_size'].includes(id),
       ),
     );
-    const quote = quoteFor(flow, answers);
+
+  it('a flow with every price-dependent preset removed still quotes, with estimatedFrom listing them', () => {
+    // A roof that could not be mapped with confidence: the roof questions
+    // would have been asked, so every removed preset is a typical value.
+    const lowRoof = mapRoof({ ...summary(), reliable: false }, { widthMm: 1134, heightMm: 1762 });
+    expect(lowRoof.confidence).toBe('low');
+    const answers = withoutDependent({ ...answersFor(), ...prefillFromRoof({}, lowRoof) });
+    const quote = quoteFor(everyPresetRemoved, answers, LIST, lowRoof);
     expect(quote.priced).toBe(true);
     expect(quote.options).toHaveLength(3);
     for (const option of quote.options) expect(option.priceGbp).toBeGreaterThan(0);
     expect([...quote.estimatedFrom].sort()).toEqual([...dependent].sort());
+    expect(quote.warnings.join(' ')).toContain('roof size');
+  });
+
+  it('a mapped roof never needed the roof size or direction, so they are not called typical values', () => {
+    expect(ROOF.confidence).not.toBe('low');
+    const quote = quoteFor(everyPresetRemoved, withoutDependent(answersFor()));
+    expect(quote.priced).toBe(true);
+    expect([...quote.estimatedFrom].sort()).toEqual(
+      [...dependent].filter((id) => !ROOF_FALLBACK.includes(id)).sort(),
+    );
+    const warning = quote.warnings.find((w) => w.startsWith('Some figures use typical values'));
+    expect(warning).toBeDefined();
+    expect(warning).not.toContain('roof size');
+    expect(warning).not.toContain('which way the roof faces');
+  });
+
+  it('a mapped roof with only the roof questions removed carries no typical-values warning', () => {
+    const flow = flowOf(presetSteps().filter((s) => !ROOF_FALLBACK.includes(s.id)));
+    const quote = quoteFor(flow, answersFor());
+    expect(quote.estimatedFrom).toEqual([]);
+    expect(quote.warnings.some((w) => w.startsWith('Some figures use typical values'))).toBe(false);
   });
 
   it('the default flow’s quote equals today’s quote for the same answers', () => {

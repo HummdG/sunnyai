@@ -334,9 +334,22 @@ function listOf(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-/** The price-dependent presets the installer removed, and the sentence that says so. */
-function estimates(flow: ResolvedFlow | undefined): { ids: string[]; warning: string | null } {
-  const ids = (flow?.removedPresets ?? []).filter((id) => id in PRESET_WARNINGS);
+/** Sunny's roof questions, only asked when the roof could not be mapped with confidence. */
+const ROOF_FALLBACK = new Set(['roof_size', 'roof_direction']);
+
+/**
+ * The price-dependent presets the installer removed, and the sentence that
+ * says so. A mapped roof (confidence not low) never needed the roof size or
+ * direction questions, so their removal is not news to this visitor.
+ */
+function estimates(
+  flow: ResolvedFlow | undefined,
+  roofConfidence: string,
+): { ids: string[]; warning: string | null } {
+  const roofTrusted = roofConfidence !== 'low';
+  const ids = (flow?.removedPresets ?? []).filter(
+    (id) => id in PRESET_WARNINGS && !(roofTrusted && ROOF_FALLBACK.has(id)),
+  );
   if (ids.length === 0) return { ids, warning: null };
   const topics = ids.map((id) => PRESET_TOPICS[id] ?? id);
   return {
@@ -364,7 +377,7 @@ export function buildQuote(input: {
   priceList?: PriceList | null;
 }): QuoteRecord {
   const { answers, roof } = input;
-  const estimated = estimates(input.flow);
+  const estimated = estimates(input.flow, answers.roof.confidence);
   const base = {
     id: input.id,
     tenantId: input.tenantId,
