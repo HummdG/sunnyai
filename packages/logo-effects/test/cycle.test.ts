@@ -66,6 +66,43 @@ describe('createCycle', () => {
     expect(last()).toEqual(['comet', 1600]);
   });
 
+  it('plays one pass on its own when asked, then settles', () => {
+    const cycle = createCycle({ effects: ['comet'], render });
+    cycle.playOnce();
+    expect(last()).toEqual(['comet', 1600]);
+    vi.advanceTimersByTime(1599);
+    expect(last()![0]).toBe('comet');
+    vi.advanceTimersByTime(1);
+    expect(last()).toEqual([null, 0]);
+    vi.advanceTimersByTime(10_000);
+    expect(last()).toEqual([null, 0]);
+  });
+
+  it('a single pass carries on if the assistant becomes busy during it', () => {
+    const cycle = createCycle({ effects: ['comet'], render });
+    cycle.playOnce();
+    vi.advanceTimersByTime(800);
+    cycle.setBusy(true);
+    vi.advanceTimersByTime(1600);
+    expect(last()![0]).toBe('comet');
+  });
+
+  it.each(['reduced', 'off'] as const)('plays no single pass at %s motion', (motion) => {
+    const cycle = createCycle({ effects: ['comet', 'shimmer'], render });
+    cycle.setMotion(motion);
+    const count = frames.length;
+    cycle.playOnce();
+    expect(frames.length).toBe(count);
+  });
+
+  it('a single pass never interrupts one already playing', () => {
+    const cycle = createCycle({ effects: ['comet', 'march'], render, random: () => 0 });
+    cycle.setBusy(true);
+    const count = frames.length;
+    cycle.playOnce();
+    expect(frames.length).toBe(count);
+  });
+
   it('finishes the current pass before settling', () => {
     const cycle = createCycle({ effects: ['comet'], render });
     cycle.setBusy(true);

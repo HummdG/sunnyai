@@ -191,6 +191,19 @@ test('shows the logo on the launcher, and never Sunny', async ({ page }) => {
   expect(await sawSunny(page)).toBe(false);
 });
 
+test('the launcher logo says hello once when the page loads, then stays still', async ({
+  page,
+}) => {
+  await stubConfig(page, BRAND);
+  await page.goto('/');
+  const launcher = page.locator(HOST).locator('button.launcher .logo-host');
+  // One effect pass, then back to the logo at rest, without anyone chatting.
+  await expect(launcher).not.toHaveAttribute('data-logo-effect', 'still', { timeout: 10_000 });
+  await expect(launcher).toHaveAttribute('data-logo-effect', 'still', { timeout: 10_000 });
+  await page.waitForTimeout(3000);
+  await expect(launcher).toHaveAttribute('data-logo-effect', 'still');
+});
+
 test('the launcher logo sits on a chip, so it reads over any page', async ({ page }) => {
   await stubConfig(page, { ...BRAND, plate: 'dark' });
   await page.goto('/');

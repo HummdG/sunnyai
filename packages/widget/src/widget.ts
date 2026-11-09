@@ -108,6 +108,11 @@ export class SunnyWidget {
   #brand: Brand | null = null;
   /** The animated logos (launcher, header), once `sunny-logo.js` has loaded. */
   #logoViews: LogoModule.LogoView[] = [];
+  /** The chat button's logo, and when it plays its one hello pass (null once played). */
+  #launcherLogo: LogoModule.LogoView | null = null;
+  #introAt: number | null = null;
+  /** The hello plays once per page, even when the config redraws the logo. */
+  #introPlayed = false;
   /** Ends a first visit's wait for the config, after which the launcher shows Sunny. */
   #pendingTimer: number | null = null;
   #avatar!: HTMLElement;
@@ -383,6 +388,7 @@ export class SunnyWidget {
     this.#avatarView = null;
     for (const view of this.#logoViews) view.destroy();
     this.#logoViews = [];
+    this.#launcherLogo = null;
     this.#brand = null;
     delete this.#launcher.dataset.plate;
     for (const host of [this.#launcherArt, this.#avatar]) {
@@ -416,6 +422,8 @@ export class SunnyWidget {
       if (this.#brand !== brand) return;
       for (const view of this.#logoViews) view.destroy();
       this.#logoViews = [];
+      this.#launcherLogo = null;
+      this.#launcherLogo = null;
       for (const host of [this.#launcherArt, this.#avatar]) {
         delete host.dataset.logoEffect;
         host.replaceChildren(
@@ -448,6 +456,12 @@ export class SunnyWidget {
     if (this.#brand !== brand || this.#launcherArt.querySelector('.logo-fallback')) return;
     const hosts = this.#launcher.hidden ? [this.#avatar] : [this.#launcherArt, this.#avatar];
     this.#logoViews = hosts.map((host) => logo.createLogoView(host, art, brand.effects));
+    // The button says hello once per page: one effect pass shortly after it
+    // appears, then still until the assistant is busy.
+    this.#launcherLogo = this.#launcher.hidden ? null : this.#logoViews[0]!;
+    if (!this.#introPlayed && this.#launcherLogo) {
+      this.#introAt = performance.now() + LOGO_INTRO_DELAY_MS;
+    }
   }
 
   /**
@@ -680,6 +694,12 @@ export class SunnyWidget {
       for (const view of this.#logoViews) {
         view.setMotion(motion);
         view.setBusy(busy);
+      }
+      // After the motion is set, so reduced motion or intensity "off" skip it.
+      if (this.#introAt !== null && performance.now() >= this.#introAt) {
+        this.#introAt = null;
+        this.#introPlayed = true;
+        if (!this.#launcher.hidden) this.#launcherLogo?.playOnce();
       }
     }
 
@@ -1562,6 +1582,7 @@ export class SunnyWidget {
     if (this.#pendingTimer !== null) clearTimeout(this.#pendingTimer);
     for (const view of this.#logoViews) view.destroy();
     this.#logoViews = [];
+    this.#launcherLogo = null;
     this.#chat?.cancel();
     this.#clearOpenTimers();
     this.#leaveFullScreen?.();
@@ -1581,6 +1602,8 @@ const BUSY_STATES: readonly string[] = ['thinking', 'speaking', 'guiding'];
 
 /** How long a first visit waits for the config before the launcher shows Sunny. */
 const BRAND_WAIT_MS = 4000;
+/** How long after the chat button's logo appears it plays its hello pass. */
+const LOGO_INTRO_DELAY_MS = 1200;
 
 /** The page's local storage, or null where reading it throws (storage switched off). */
 function localStore(): Storage | null {

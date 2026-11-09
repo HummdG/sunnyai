@@ -13,6 +13,7 @@ import type { LogoArt } from './markup.js';
 
 export interface LogoView {
   setBusy(busy: boolean): void;
+  playOnce(): void;
   setMotion(m: LogoMotion): void;
   destroy(): void;
 }
