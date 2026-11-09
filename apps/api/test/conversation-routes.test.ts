@@ -349,3 +349,67 @@ describe('POST /conversation/preview', () => {
     expect(response.statusCode).toBe(400);
   });
 });
+
+describe('two instances saving the same installer', () => {
+  /** A second API instance on the same store, its tenant cache loaded now. */
+  async function secondInstance(store: FileStore) {
+    const tenants = await TenantRegistry.load(store, defaultTenants(false));
+    const app = buildServer({
+      config: makeConfig(),
+      store,
+      tenants,
+      now: () => NOW,
+      portal: { ...loadPortalConfig({}, 'test'), devAuth: true },
+    });
+    await app.ready();
+    return app;
+  }
+
+  const settings = (app: FastifyInstance, tenantId: string, payload: Record<string, unknown>) =>
+    app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${tenantId}/settings`,
+      headers: as(OWNER),
+      payload,
+    });
+
+  it('a settings save on an instance with a stale cache keeps the flow saved on another', async () => {
+    const { app, store, tenantId } = await setup();
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    const other = await secondInstance(store);
+    // The other instance cached the tenant before the flow was saved here.
+    expect((await put(app, tenantId, OWNER, flowOf([evStep]))).statusCode).toBe(200);
+
+    const saved = await settings(other, tenantId, { tagline: 'Solar for Norwich' });
+    expect(saved.statusCode).toBe(200);
+
+    const stored = await store.getTenant(tenantId);
+    expect(stored?.config.tagline).toBe('Solar for Norwich');
+    expect(stored?.config.conversation?.steps.map((s) => s.id)).toEqual(['c_evcharger1']);
+    await other.close();
+  });
+
+  it('a flow save on an instance with a stale cache keeps settings saved on another', async () => {
+    const { app, store, tenantId } = await setup();
+    await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
+    const other = await secondInstance(store);
+    expect((await settings(app, tenantId, { tagline: 'Solar for Norwich' })).statusCode).toBe(200);
+    expect((await put(app, tenantId, OWNER, flowOf([evStep]))).statusCode).toBe(200);
+
+    // The other instance last saw version 0 and the old tagline.
+    const again = await put(other, tenantId, OWNER, flowOf([evStep]));
+    expect(again.statusCode).toBe(200);
+    expect(again.json<View>().flow?.version).toBe(2);
+    const stored = await store.getTenant(tenantId);
+    expect(stored?.config.tagline).toBe('Solar for Norwich');
+
+    // A reset on the stale instance keeps the tagline too.
+    await settings(app, tenantId, { tagline: 'Solar for Norfolk' });
+    const reset = await other.inject({ method: 'DELETE', url: url(tenantId), headers: as(OWNER) });
+    expect(reset.statusCode).toBe(200);
+    const after = await store.getTenant(tenantId);
+    expect(after?.config.tagline).toBe('Solar for Norfolk');
+    expect(after?.config.conversation).toBeUndefined();
+    await other.close();
+  });
+});

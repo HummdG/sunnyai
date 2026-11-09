@@ -251,6 +251,21 @@ export class TenantRegistry {
     for (const tenant of await this.#store.listTenants()) this.#set(tenant);
   }
 
+  /**
+   * The tenant as the store holds it now, bypassing this instance's cache (and
+   * refreshing it). A route that merges a change into the tenant and writes the
+   * whole document back reads it this way first: the cache can be up to a
+   * refresh old, and writing a stale copy would undo another instance's save.
+   * A registry built in memory has nothing fresher than its cache.
+   */
+  async fresh(tenantId: string): Promise<Tenant | null> {
+    if (!this.#store) return this.byId(tenantId);
+    const stored = await this.#store.getTenant(tenantId);
+    if (!stored) return this.byId(tenantId);
+    this.#set(stored);
+    return this.byId(tenantId);
+  }
+
   /** Write a tenant through to the store (when there is one) and the cache. */
   async save(tenant: Tenant): Promise<Tenant> {
     const stamped = { ...tenant, updatedAt: new Date().toISOString() };

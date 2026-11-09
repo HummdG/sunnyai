@@ -224,20 +224,24 @@ export function registerConversationRoutes(
         issues,
       });
     }
+    // Merged into the tenant as the store holds it now, not this instance's
+    // cached copy, so a settings save made elsewhere is not undone.
+    const current = (await tenants.fresh(tenant.id)) ?? tenant;
     // The version and time are the server's: whatever the client sent is ignored.
     const flow: ConversationFlow = {
       ...body.data.flow,
-      version: (storedFlow(tenant.config)?.version ?? 0) + 1,
+      version: (storedFlow(current.config)?.version ?? 0) + 1,
       updatedAt: new Date(deps.now()).toISOString(),
     };
-    await tenants.save({ ...tenant, config: { ...tenant.config, conversation: flow } });
+    await tenants.save({ ...current, config: { ...current.config, conversation: flow } });
     return view(tenant.id, flow);
   });
 
   app.delete('/v1/portal/tenants/:tenantId/conversation', async (request) => {
     const tenant = await member(request, 'admin');
-    const { conversation: _removed, ...config } = tenant.config;
-    await tenants.save({ ...tenant, config });
+    const current = (await tenants.fresh(tenant.id)) ?? tenant;
+    const { conversation: _removed, ...config } = current.config;
+    await tenants.save({ ...current, config });
     return view(tenant.id, null);
   });
 
