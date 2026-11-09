@@ -5,6 +5,7 @@ import { demoSuggestions } from '../src/agent/demo-provider.js';
 import { priceListSchema, type PriceList } from '../src/catalogue/price-list.js';
 import {
   MAX_SUGGESTED_EFFECTS,
+  SUGGEST_TIMEOUT_MS,
   cleanSuggestion,
   suggestEffects,
   suggestPrompt,
@@ -90,9 +91,33 @@ describe('cleanSuggestion', () => {
       QUESTION,
       LIST,
     );
-    expect(out).toEqual({
-      effects: { yes: [{ kind: 'add', itemKey: 'EV-7KW' }], no: [] },
-      explanation: 'A car needs a charger.',
+    // Only the checked effects: anything else the model says is dropped.
+    expect(out).toEqual({ effects: { yes: [{ kind: 'add', itemKey: 'EV-7KW' }], no: [] } });
+  });
+
+  it('keeps an answer whose value is an Object property name', () => {
+    const question: SuggestInput = {
+      prompt: 'Which one?',
+      choices: [
+        { value: 'constructor', label: 'The first' },
+        { value: 'toString', label: 'The second' },
+      ],
+    };
+    const out = cleanSuggestion(
+      {
+        choices: [
+          { value: 'constructor', effects: [{ kind: 'add', itemKey: 'EV-7KW' }] },
+          { value: 'toString', effects: [] },
+          { value: 'constructor', effects: [{ kind: 'add', itemKey: 'BIRD' }] },
+        ],
+      },
+      question,
+      LIST,
+    );
+    // Compared as sent: the first answer for each value, and no inherited keys.
+    expect(JSON.parse(JSON.stringify(out.effects))).toEqual({
+      constructor: [{ kind: 'add', itemKey: 'EV-7KW' }],
+      toString: [],
     });
   });
 
@@ -175,7 +200,6 @@ describe('cleanSuggestion', () => {
           { value: 'yes', effects: [] },
           { value: 'maybe', effects: [{ kind: 'add', itemKey: 'EV-7KW' }] },
         ],
-        explanation: 'One — two',
       },
       QUESTION,
       LIST,
@@ -187,7 +211,6 @@ describe('cleanSuggestion', () => {
       'EPS',
     ]);
     expect(Object.keys(out.effects)).toEqual(['yes']);
-    expect(out.explanation).toBe('One, two');
   });
 
   it('gives nothing for an answer that is not the expected shape', () => {
@@ -247,6 +270,20 @@ describe('suggestEffects', () => {
     expect(await suggestEffects(provider(), QUESTION, LIST)).toEqual({ effects: {} });
     const failing = provider(() => Promise.reject(new Error('down')));
     expect(await suggestEffects(failing, QUESTION, LIST)).toEqual({ effects: {} });
+  });
+
+  it('gives up on a model that never answers and ignores the signal', async () => {
+    let called = false;
+    const hanging = provider(() => {
+      called = true;
+      return new Promise<unknown>(() => undefined);
+    });
+    const started = Date.now();
+    expect(await suggestEffects(hanging, QUESTION, LIST, AbortSignal.timeout(50))).toEqual({
+      effects: {},
+    });
+    expect(called).toBe(true);
+    expect(Date.now() - started).toBeLessThan(SUGGEST_TIMEOUT_MS);
   });
 
   it('the demo assistant adds the EV charger for a yes to an electric car', async () => {

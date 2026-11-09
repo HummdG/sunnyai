@@ -414,7 +414,6 @@ export function flowIssuesOf(failure: unknown): FlowIssue[] {
 export interface PriceSuggestion {
   /** Each answer Sunny worked out, by value. An answer missing here was not worked out. */
   effects: Record<string, FlowEffect[]>;
-  explanation?: string;
 }
 
 /** Ask Sunny for a question's price changes. Admins and owners only; never fails on the model. */

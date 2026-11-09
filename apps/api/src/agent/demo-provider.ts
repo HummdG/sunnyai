@@ -154,9 +154,6 @@ export function demoSuggestions(prompt: string): unknown {
       value: a.value,
       effects: item && /^yes\b/i.test(a.label) ? [{ kind: 'add', itemKey: item.key }] : [],
     })),
-    explanation: item
-      ? `A yes adds ${item.name}.`
-      : 'Nothing on the price list fits this question.',
   };
 }
 

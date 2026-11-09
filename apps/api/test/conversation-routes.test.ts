@@ -552,10 +552,8 @@ describe('POST /conversation/suggest', () => {
     await publishExample(store, tenantId, '2026-11-09T09:00:00Z');
     const response = await suggest(app, tenantId, OWNER, question);
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      effects: { yes: [{ kind: 'add', itemKey: EV }], no: [] },
-      explanation: 'An electric car needs a charger.',
-    });
+    // Only the checked effects: anything else the model says is not passed on.
+    expect(response.json()).toEqual({ effects: { yes: [{ kind: 'add', itemKey: EV }], no: [] } });
     expect(model.calls).toBe(1);
   });
 

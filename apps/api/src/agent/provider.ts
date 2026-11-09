@@ -72,7 +72,7 @@ export interface ChatProvider {
   emailCategory?(prompt: string, signal?: AbortSignal): Promise<unknown>;
   /**
    * Suggested price changes for a Studio question, as the model's parsed JSON
-   * (`{ choices: [{ value, effects }], explanation }` when it behaves). Optional:
+   * (`{ choices: [{ value, effects }] }` when it behaves). Optional:
    * a provider without it suggests nothing (flow/suggest.ts).
    */
   priceSuggestions?(prompt: string, signal?: AbortSignal): Promise<unknown>;
@@ -287,7 +287,6 @@ export class GeminiProvider implements ChatProvider {
                 required: ['value', 'effects'],
               },
             },
-            explanation: { type: Type.STRING },
           },
           required: ['choices'],
         },
