@@ -226,14 +226,14 @@ describe('suggestPrompt', () => {
 });
 
 describe('suggestEffects', () => {
-  const provider = (answer: (prompt: string) => Promise<unknown>): ChatProvider => ({
+  const provider = (answer?: (prompt: string) => Promise<unknown>): ChatProvider => ({
     kind: 'scripted',
     model: null,
     // eslint-disable-next-line require-yield, @typescript-eslint/require-await
     async *stream(): AsyncIterable<ChatChunk> {
       throw new Error('not a chat');
     },
-    priceSuggestions: answer,
+    ...(answer ? { priceSuggestions: answer } : {}),
   });
 
   it('suggests nothing without a list, without the method, or when the model fails', async () => {
@@ -244,8 +244,7 @@ describe('suggestEffects', () => {
     });
     expect(await suggestEffects(ok, QUESTION, null)).toEqual({ effects: {} });
     expect(asked).toEqual([]);
-    const { priceSuggestions: _none, ...without } = ok;
-    expect(await suggestEffects(without, QUESTION, LIST)).toEqual({ effects: {} });
+    expect(await suggestEffects(provider(), QUESTION, LIST)).toEqual({ effects: {} });
     const failing = provider(() => Promise.reject(new Error('down')));
     expect(await suggestEffects(failing, QUESTION, LIST)).toEqual({ effects: {} });
   });
