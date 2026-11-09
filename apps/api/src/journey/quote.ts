@@ -28,6 +28,10 @@ import {
   type TenantPricing,
 } from '@sunny/quote-engine';
 
+import { applyEffects, type AppliedEffect } from '../flow/effects.js';
+import { PRESET_TOPICS, PRESET_WARNINGS } from '../flow/presets.js';
+import type { ResolvedFlow } from '../flow/resolve.js';
+
 import type { MappedRoof } from './roof.js';
 
 export const QUOTE_DISCLAIMER =
@@ -116,6 +120,11 @@ export interface QuoteRecord {
   options: QuoteOptionView[];
   recommendedId: string | null;
   warnings: string[];
+  /**
+   * Sunny's questions the quote depends on that this installer does not ask,
+   * so their figures use the engine's typical values (preset ids).
+   */
+  estimatedFrom: string[];
   disclaimer: string;
   /** Set once the visitor consents and their lead carries this quote. */
   leadId: string | null;
@@ -313,6 +322,23 @@ function unpricedOptions(answers: QuoteAnswers): {
   };
 }
 
+/** "a", "a and b", "a, b and c". */
+function listOf(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/** The price-dependent presets the installer removed, and the sentence that says so. */
+function estimates(flow: ResolvedFlow | undefined): { ids: string[]; warning: string | null } {
+  const ids = (flow?.removedPresets ?? []).filter((id) => id in PRESET_WARNINGS);
+  if (ids.length === 0) return { ids, warning: null };
+  const topics = ids.map((id) => PRESET_TOPICS[id] ?? id);
+  return {
+    ids,
+    warning: `Some figures use typical values because your installer does not ask about ${listOf(topics)}.`,
+  };
+}
+
 export function buildQuote(input: {
   id: string;
   tenantId: string;
@@ -321,8 +347,13 @@ export function buildQuote(input: {
   answers: QuoteAnswers;
   roof: MappedRoof | null;
   pricing: TenantPricing | null;
+  /** The conversation the quote was built from; absent means Sunny's own. */
+  flow?: ResolvedFlow;
+  /** What the visitor's answers add, remove and swap (`effectsFor`), in flow order. */
+  effects?: AppliedEffect[];
 }): QuoteRecord {
   const { answers, roof } = input;
+  const estimated = estimates(input.flow);
   const base = {
     id: input.id,
     tenantId: input.tenantId,
@@ -331,6 +362,7 @@ export function buildQuote(input: {
     assessmentId: roof?.assessmentId ?? null,
     disclaimer: QUOTE_DISCLAIMER,
     leadId: null,
+    estimatedFrom: estimated.ids,
   };
 
   if (!input.pricing) {
@@ -344,13 +376,24 @@ export function buildQuote(input: {
       recommendedId: 'standard',
       warnings: [
         'This installer has not published prices yet, so a specialist will price your system.',
+        ...(estimated.warning ? [estimated.warning] : []),
       ],
     };
   }
 
   const pricing = withShading(input.pricing, answers);
   const { input: engineInput, derived } = buildQuoteInput(answers, pricing);
-  const set = buildOptionSet(engineInput);
+  const effects = input.effects ?? [];
+  const effectWarnings = new Set<string>();
+  const set = buildOptionSet(
+    effects.length === 0
+      ? engineInput
+      : {
+          ...engineInput,
+          adjustConfig: (config) =>
+            applyEffects(config, effects, pricing.catalogue, (m) => effectWarnings.add(m)),
+        },
+  );
   const ctx = {
     roofMaxPanels: engineInput.roofMaxPanels,
     annualKwh: engineInput.annualKwh,
@@ -391,6 +434,10 @@ export function buildQuote(input: {
         : view;
     }),
     recommendedId: set.recommendedId,
-    warnings: set.warnings,
+    warnings: [
+      ...set.warnings,
+      ...effectWarnings,
+      ...(estimated.warning ? [estimated.warning] : []),
+    ],
   };
 }

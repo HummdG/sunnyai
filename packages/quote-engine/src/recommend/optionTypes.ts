@@ -97,4 +97,10 @@ export interface OptionSetInput {
   marginPercent: number;
   /** Upper bound of the homeowner's stated budget band. */
   budgetMaxGbp: number;
+  /**
+   * Changes each tier preset's kit before any candidate is built or priced
+   * (the visitor's answers adding, removing or swapping price-list items).
+   * Absent: the presets are used as they are.
+   */
+  adjustConfig?: (config: SystemConfig) => SystemConfig;
 }

@@ -13,7 +13,8 @@
 
 import type { QuoteAnswers, QuoteUsage, TenantPricing } from '@sunny/quote-engine';
 
-import { nextQuestion, QUESTIONS, reconcile } from '../questionnaire.js';
+import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
+import { QUESTIONS, reconcile } from '../questionnaire.js';
 
 import { confirmationPrompt, FACING_TO_DIRECTION, type MappedRoof } from './roof.js';
 
@@ -97,12 +98,12 @@ export function rejectRoof(answers: Record<string, string>): Record<string, stri
 }
 
 /** Questionnaire answers that are needed before a quote, beyond the questions themselves. */
-function questionnaireComplete(answers: Record<string, string>): string[] {
+function questionnaireComplete(answers: Record<string, string>, flow: ResolvedFlow): string[] {
   const missing: string[] = [];
   let probe: Record<string, string> = { ...answers };
   // Walk the outstanding questions in order; everything outstanding is missing.
-  for (let i = 0; i < Object.keys(QUESTIONS).length; i++) {
-    const next = nextQuestion(probe);
+  for (let i = 0; i < flow.questions.length; i++) {
+    const next = flow.next(probe);
     if (next === null) break;
     missing.push(next);
     probe = { ...probe, [next]: '__probe__' };
@@ -114,6 +115,7 @@ export function journeyStatus(
   answers: Record<string, string>,
   roof: MappedRoof | null,
   options: { roofPending?: boolean; quoted?: boolean } = {},
+  flow: ResolvedFlow = resolveFlow(null),
 ): JourneyView {
   const postcode =
     answers[JOURNEY_KEYS.postcode] ?? roof?.postcode ?? postcodeFrom(answers['address']);
@@ -130,7 +132,7 @@ export function journeyStatus(
         };
   const clean = Object.fromEntries(Object.entries(effective).filter(([, v]) => v !== ''));
 
-  const missing = questionnaireComplete(clean);
+  const missing = questionnaireComplete(clean, flow);
   // While the roof is still being assessed, its confidence is not known yet:
   // skip the roof step for now and keep asking everything else.
   const askable = roofPending
@@ -141,7 +143,7 @@ export function journeyStatus(
   const nextId = !answers['address']
     ? 'address'
     : (askable.find((id) => id !== 'postcode') ?? null);
-  const question = nextId ? QUESTIONS[nextId] : undefined;
+  const question = nextId ? flow.question(nextId) : undefined;
   let prompt = question?.prompt ?? null;
   if (nextId === 'roof_confirmed' && roof) prompt = confirmationPrompt(roof);
   if (nextId === 'address')
@@ -205,8 +207,9 @@ export function quoteAnswers(
   answers: Record<string, string>,
   roof: MappedRoof | null,
   pricing: TenantPricing | null,
+  flow: ResolvedFlow = resolveFlow(null),
 ): QuoteAnswers | null {
-  const view = journeyStatus(answers, roof);
+  const view = journeyStatus(answers, roof, {}, flow);
   if (!view.canQuote || !view.postcode) return null;
 
   const usageSource = answers['usage_source'] ?? null;

@@ -80,6 +80,24 @@ function ladderObjective(ev: CandidateEval, affinity: number): number {
   return ev.score + bonus;
 }
 
+/**
+ * The three tier presets with the input's `adjustConfig` applied, so the option
+ * set and the ladder price the same adjusted kit.
+ */
+export function adjustedPresets(
+  input: OptionSetInput,
+  ctx: PricingContext,
+): Record<PresetTier, SystemConfig> {
+  const presets = buildTierPresets(ctx);
+  const adjust = input.adjustConfig;
+  if (!adjust) return presets;
+  return {
+    essential: adjust(presets.essential),
+    standard: adjust(presets.standard),
+    premium: adjust(presets.premium),
+  };
+}
+
 // ─── Candidate enumeration ───────────────────────────────────────────────────
 /**
  * Battery "lanes": the three tier-preset configurations (which already encode
@@ -89,7 +107,7 @@ function ladderObjective(ev: CandidateEval, affinity: number): number {
  * swept across panel counts; the frontier then picks the best per price.
  */
 function buildLanes(input: OptionSetInput, ctx: PricingContext): SystemConfig[] {
-  const presets = buildTierPresets(ctx);
+  const presets = adjustedPresets(input, ctx);
   const lanes: SystemConfig[] = [presets.essential, presets.standard, presets.premium];
   const premBat = presets.premium.battery;
   if (premBat) {
@@ -225,7 +243,7 @@ export function buildBudgetLadder(input: OptionSetInput): BudgetLadder {
   const steps = shapeFrontier(frontier).map(toStep);
 
   // Tier stops: price each preset at its natural size, map to the nearest step.
-  const presets = buildTierPresets(ctx);
+  const presets = adjustedPresets(input, ctx);
   const tierStops: TierStop[] = (['essential', 'standard', 'premium'] as PresetTier[]).map(
     (tier) => {
       const ev = evaluateConfig(presets[tier], input, ctx);
