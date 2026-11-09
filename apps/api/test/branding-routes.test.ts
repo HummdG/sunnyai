@@ -1,3 +1,4 @@
+import { randomFillSync } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,8 +20,9 @@ const SECRET = 'test-secret-not-used-in-production';
 const OWNER = 'owner@brightside.test';
 const RIVAL = 'rival@other.test';
 const NOT_PNG = "That file isn't a PNG. Upload a PNG or SVG.";
+const TOO_LARGE = 'That image is too big. Use one under 2048 pixels on each side and 3 MB.';
 
-function makeConfig(): ServerConfig {
+function makeConfig(rateLimited = false): ServerConfig {
   return {
     port: 0,
     host: '127.0.0.1',
@@ -34,7 +36,7 @@ function makeConfig(): ServerConfig {
     sandboxTenant: false,
     leadRetentionDays: 730,
     rateLimit: {
-      enabled: false,
+      enabled: rateLimited,
       trustProxyHops: 0,
       rules: {
         session: { limit: 1000, windowMs: 60_000 },
@@ -54,13 +56,13 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-async function setup() {
+async function setup(rateLimited = false) {
   const dir = await mkdtemp(join(tmpdir(), 'sunny-branding-'));
   dirs.push(dir);
   const store = new FileStore(dir);
   const tenants = await TenantRegistry.load(store, defaultTenants(false));
   const app = buildServer({
-    config: makeConfig(),
+    config: makeConfig(rateLimited),
     store,
     tenants,
     now: () => NOW,
@@ -93,6 +95,16 @@ function discPng(): Buffer {
       png.data.set(inside ? [170, 230, 40, 255] : [0, 0, 0, 0], (y * 64 + x) * 4);
     }
   return PNG.sync.write(png);
+}
+
+/** Opaque noise, which deflate cannot shrink: 980 x 980 is about 3.1 MB of PNG. */
+function noisePng(w: number, h: number): Buffer {
+  const png = new PNG({ width: w, height: h });
+  randomFillSync(png.data);
+  for (let i = 3; i < png.data.length; i += 4) png.data[i] = 255;
+  const bytes = PNG.sync.write(png);
+  expect(bytes.length).toBeGreaterThan(3 * 1024 * 1024);
+  return bytes;
 }
 
 interface AssetBody {
@@ -173,9 +185,32 @@ describe('logo upload', () => {
     const tenantId = await signUp(app, OWNER);
     const response = await upload(app, tenantId, OWNER, Buffer.alloc(3 * 1024 * 1024 + 1, 1));
     expect(response.statusCode).toBe(400);
-    expect(message(response)).toBe(
-      'That image is too big. Use one under 4096 pixels on each side and 3 MB.',
-    );
+    expect(message(response)).toBe(TOO_LARGE);
+  });
+
+  it('gives a plain 400 for a real PNG over 3 MB', async () => {
+    const { app } = await setup();
+    const tenantId = await signUp(app, OWNER);
+    const response = await upload(app, tenantId, OWNER, noisePng(980, 980));
+    expect(response.statusCode).toBe(400);
+    expect(message(response)).toBe(TOO_LARGE);
+  });
+
+  it('allows 20 uploads per installer in 10 minutes, then refuses with a 429', async () => {
+    const { app } = await setup(true);
+    const tenantId = await signUp(app, OWNER);
+    const other = await signUp(app, RIVAL);
+    const png = discPng();
+    for (let i = 0; i < 20; i++) {
+      expect((await upload(app, tenantId, OWNER, png)).statusCode).toBe(200);
+    }
+    const refused = await upload(app, tenantId, OWNER, png);
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+    expect(message(refused)).toBe('Too many requests. Please wait a moment and try again.');
+    expect(refused.headers['retry-after']).toBeDefined();
+    // Another installer has its own allowance.
+    expect((await upload(app, other, RIVAL, png)).statusCode).toBe(200);
   });
 });
 

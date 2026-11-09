@@ -167,11 +167,22 @@ describe('decodePng', () => {
   });
 
   it('rejects oversize, non-PNG and fully transparent input', () => {
-    const wide = PNG.sync.write(new PNG({ width: 4097, height: 1 }));
+    const wide = PNG.sync.write(new PNG({ width: 2049, height: 1 }));
     expect(codeOf(() => decodePng(wide))).toBe('too_large');
     const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1]);
     expect(codeOf(() => decodePng(jpeg))).toBe('not_png');
     expect(codeOf(() => decodePng(encodePng(blank(8, 8, [10, 10, 10, 0]))))).toBe('empty');
+  });
+});
+
+describe('decodePng size cap', () => {
+  it('takes a real 2048 px image and refuses a real 2049 px one', () => {
+    const edge = new PNG({ width: 2048, height: 4 });
+    edge.data.fill(255);
+    expect(decodePng(new Uint8Array(PNG.sync.write(edge))).width).toBe(2048);
+    const wide = new PNG({ width: 2049, height: 4 });
+    wide.data.fill(255);
+    expect(codeOf(() => decodePng(new Uint8Array(PNG.sync.write(wide))))).toBe('too_large');
   });
 });
 

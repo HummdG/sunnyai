@@ -1,4 +1,11 @@
 import { LOGO_EFFECTS } from '@sunny/contracts';
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 
 import { encodePng, extractMask, type Raster } from '../src/branding/image.js';
@@ -142,6 +149,43 @@ describe('processLogo', () => {
     expect(p.availableEffects).toEqual(['charge', 'shimmer', 'segments']);
     expect(elapsed).toBeLessThan(2000);
   });
+
+  it('a real 2048 x 2048 opaque PNG stays within memory and time', async () => {
+    // The reviewer's probe at the new cap: an opaque dark square with a lime disc.
+    const side = 2048;
+    const src = new PNG({ width: side, height: side });
+    for (let y = 0; y < side; y++)
+      for (let x = 0; x < side; x++) {
+        const inside = (x - 1024) ** 2 + (y - 1024) ** 2 < 750 ** 2;
+        src.data.set(inside ? [...LIME, 255] : [20, 24, 40, 255], (y * side + x) * 4);
+      }
+    const dir = await mkdtemp(join(tmpdir(), 'sunny-peak-'));
+    try {
+      const file = join(dir, 'big.png');
+      await writeFile(file, PNG.sync.write(src));
+      // A fresh process, so its peak resident set is this one call's working set.
+      const out = execFileSync(
+        process.execPath,
+        ['--import', 'tsx', fileURLToPath(new URL('./branding-peak.ts', import.meta.url)), file],
+        { encoding: 'utf8' },
+      );
+      const r = JSON.parse(out.trim().split(/\r?\n/).pop()!) as {
+        ms: number;
+        growth: number;
+        width: number;
+        effects: number;
+      };
+      console.info(
+        `2048 opaque: ${Math.round(r.ms)} ms, peak growth ${(r.growth / 2 ** 20).toFixed(1)} MB`,
+      );
+      expect(r.width).toBe(512);
+      expect(r.effects).toBe(LOGO_EFFECTS.length);
+      expect(r.growth).toBeLessThan(200 * 2 ** 20);
+      expect(r.ms).toBeLessThan(1500);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   it('noise has no mask and no effects', () => {
     const p = processLogo(encodePng(noise()), 'icon');

@@ -24,7 +24,11 @@ export class LogoImageError extends Error {
   }
 }
 
-const MAX_SIDE = 4096;
+/**
+ * Decoded side cap. A small PNG can inflate to width x height x 4 bytes, and the
+ * API shares a 512 MiB instance, so 2048 keeps one upload's working set bounded.
+ */
+const MAX_SIDE = 2048;
 const SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
 export function decodePng(bytes: Uint8Array): Raster {
@@ -43,7 +47,8 @@ export function decodePng(bytes: Uint8Array): Raster {
     throw new LogoImageError('not_png');
   }
   if (png.width > MAX_SIDE || png.height > MAX_SIDE) throw new LogoImageError('too_large');
-  const data = new Uint8Array(png.data.buffer, png.data.byteOffset, png.data.byteLength).slice();
+  // A view, not a copy: the decoder's buffer is ours alone.
+  const data = new Uint8Array(png.data.buffer, png.data.byteOffset, png.data.byteLength);
   let visible = false;
   for (let i = 3; i < data.length; i += 4) {
     if (data[i]! > 0) {
@@ -99,8 +104,12 @@ export function extractMask(r: Raster): Mask | null {
     const solid = uniq.filter((p) => data[p * 4 + 3]! >= 200);
     if (solid.length === 0) return null;
     const bg = [0, 1, 2].map((c) => median(solid.map((p) => data[p * 4 + c]!)));
-    const dist = (i: number): number =>
-      Math.hypot(data[i * 4]! - bg[0]!, data[i * 4 + 1]! - bg[1]!, data[i * 4 + 2]! - bg[2]!);
+    const dist = (i: number): number => {
+      const dr = data[i * 4]! - bg[0]!;
+      const dg = data[i * 4 + 1]! - bg[1]!;
+      const db = data[i * 4 + 2]! - bg[2]!;
+      return Math.sqrt(dr * dr + dg * dg + db * db);
+    };
     const near = solid.filter((p) => dist(p) <= 24).length;
     if (near < solid.length * 0.9) return null;
     mode = 'background';
@@ -140,32 +149,42 @@ function boundingBox(w: number, h: number, inside: (i: number) => boolean): Box 
   return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
 }
 
-/** Box-filter resample of `channels` float planes (already premultiplied where it matters). */
+/**
+ * Box-filter resample of the window (x0, y0, cw, ch) of a `stride`-wide source
+ * straight into a `dw` x `dh` x `channels` plane. `add` accumulates source pixel
+ * `si` at weight `wgt` into `acc`, so no full-size float copy of the source is
+ * ever made.
+ */
 function boxResample(
-  src: Float32Array,
-  channels: number,
-  sw: number,
-  sh: number,
+  stride: number,
+  x0: number,
+  y0: number,
+  cw: number,
+  ch: number,
   dw: number,
   dh: number,
+  channels: number,
+  add: (acc: Float64Array, si: number, wgt: number) => void,
 ): Float32Array {
   const out = new Float32Array(dw * dh * channels);
-  const sx = sw / dw;
-  const sy = sh / dh;
+  const acc = new Float64Array(channels);
+  const sx = cw / dw;
+  const sy = ch / dh;
   for (let dy = 0; dy < dh; dy++) {
     const ya = dy * sy;
     const yb = (dy + 1) * sy;
     for (let dx = 0; dx < dw; dx++) {
       const xa = dx * sx;
       const xb = (dx + 1) * sx;
-      const acc = new Array<number>(channels).fill(0);
+      acc.fill(0);
       let weight = 0;
-      for (let y = Math.floor(ya); y < Math.min(sh, Math.ceil(yb)); y++) {
+      for (let y = Math.floor(ya); y < Math.min(ch, Math.ceil(yb)); y++) {
         const wy = Math.min(y + 1, yb) - Math.max(y, ya);
-        for (let x = Math.floor(xa); x < Math.min(sw, Math.ceil(xb)); x++) {
+        const row = (y0 + y) * stride + x0;
+        for (let x = Math.floor(xa); x < Math.min(cw, Math.ceil(xb)); x++) {
           const wgt = wy * (Math.min(x + 1, xb) - Math.max(x, xa));
           weight += wgt;
-          for (let c = 0; c < channels; c++) acc[c]! += src[(y * sw + x) * channels + c]! * wgt;
+          add(acc, row + x, wgt);
         }
       }
       for (let c = 0; c < channels; c++) out[(dy * dw + dx) * channels + c] = acc[c]! / weight;
@@ -200,23 +219,16 @@ export function cropAndFit(
   const dw = Math.max(1, Math.min(maxW, Math.round(cw * scale)));
   const dh = Math.max(1, Math.min(maxH, Math.round(ch * scale)));
 
-  // Premultiplied RGBA so transparent pixels do not darken the edges.
-  const pre = new Float32Array(cw * ch * 4);
-  const cov = new Float32Array(cw * ch);
-  for (let y = 0; y < ch; y++) {
-    for (let x = 0; x < cw; x++) {
-      const si = (y0 + y) * r.width + (x0 + x);
-      const di = y * cw + x;
-      const a = r.data[si * 4 + 3]! / 255;
-      pre[di * 4] = r.data[si * 4]! * a;
-      pre[di * 4 + 1] = r.data[si * 4 + 1]! * a;
-      pre[di * 4 + 2] = r.data[si * 4 + 2]! * a;
-      pre[di * 4 + 3] = a;
-      if (mask) cov[di] = mask.coverage[si]!;
-    }
-  }
-
-  const rgba = boxResample(pre, 4, cw, ch, dw, dh);
+  // Premultiplied RGBA so transparent pixels do not darken the edges. Only the
+  // output size is ever held in floats.
+  const src = r.data;
+  const rgba = boxResample(r.width, x0, y0, cw, ch, dw, dh, 4, (acc, si, wgt) => {
+    const a = (src[si * 4 + 3]! / 255) * wgt;
+    acc[0]! += src[si * 4]! * a;
+    acc[1]! += src[si * 4 + 1]! * a;
+    acc[2]! += src[si * 4 + 2]! * a;
+    acc[3]! += a;
+  });
   const data = new Uint8Array(dw * dh * 4);
   for (let i = 0; i < dw * dh; i++) {
     const a = rgba[i * 4 + 3]!;
@@ -228,17 +240,19 @@ export function cropAndFit(
     data[i * 4 + 3] = Math.min(255, Math.round(a * 255));
   }
 
-  return {
-    image: { width: dw, height: dh, data },
-    mask: mask
-      ? {
-          width: dw,
-          height: dh,
-          coverage: boxResample(cov, 1, cw, ch, dw, dh),
-          mode: mask.mode,
-        }
-      : null,
-  };
+  let fitted: Mask | null = null;
+  if (mask) {
+    const cov = mask.coverage;
+    fitted = {
+      width: dw,
+      height: dh,
+      coverage: boxResample(r.width, x0, y0, cw, ch, dw, dh, 1, (acc, si, wgt) => {
+        acc[0]! += cov[si]! * wgt;
+      }),
+      mode: mask.mode,
+    };
+  }
+  return { image: { width: dw, height: dh, data }, mask: fitted };
 }
 
 function hex(n: number): string {

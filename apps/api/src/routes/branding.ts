@@ -1,11 +1,12 @@
 import { ApiError, BRAND_ASSET_ID, type Brand, type LogoEffect } from '@sunny/contracts';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import type { BrandAssetMeta } from '../branding/meta.js';
 import { LogoImageError } from '../branding/image.js';
 import { processLogo, type LogoKind } from '../branding/process.js';
 import type { BrandAssetStore } from '../branding/store.js';
+import type { RateLimitRule } from '../ratelimit.js';
 import type { MemberRole, Store } from '../store.js';
 import type { Tenant, TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
@@ -15,10 +16,12 @@ export { loadBrandAsset, type BrandAssetMeta } from '../branding/meta.js';
 /** The upload body may carry 3 MB of PNG as base64 (4 MB) plus the JSON around it. */
 export const UPLOAD_BODY_LIMIT = 4.5 * 1024 * 1024;
 const MAX_PNG_BYTES = 3 * 1024 * 1024;
+/** Per installer. Processing is synchronous CPU work on a shared instance. */
+const UPLOAD_RULE: RateLimitRule = { limit: 20, windowMs: 10 * 60_000 };
 
 const COPY = {
   not_png: "That file isn't a PNG. Upload a PNG or SVG.",
-  too_large: 'That image is too big. Use one under 4096 pixels on each side and 3 MB.',
+  too_large: 'That image is too big. Use one under 2048 pixels on each side and 3 MB.',
   empty: 'That image looks empty.',
 } as const;
 
@@ -41,6 +44,13 @@ export interface BrandingRouteDeps {
   sessionSecret: string;
   now: () => number;
   brandAssets: BrandAssetStore;
+  enforceRateLimit: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    scope: string,
+    subject: string,
+    rule: RateLimitRule,
+  ) => void;
 }
 
 const FILE = /^([a-f0-9]{16})(-mask)?\.png$/;
@@ -116,8 +126,9 @@ export function registerBrandingRoutes(app: FastifyInstance, deps: BrandingRoute
   app.post(
     '/v1/portal/tenants/:tenantId/brand/:kind',
     { bodyLimit: UPLOAD_BODY_LIMIT },
-    async (request) => {
+    async (request, reply) => {
       const tenant = await member(request, 'admin');
+      deps.enforceRateLimit(request, reply, 'brand-upload', tenant.id, UPLOAD_RULE);
       const { kind } = request.params as { kind: string };
       if (kind !== 'icon' && kind !== 'wordmark') {
         throw new ApiError('not_found', 'No such logo slot.');

@@ -2121,6 +2121,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     sessionSecret: config.sessionSecret,
     now,
     brandAssets,
+    enforceRateLimit,
   });
 
   // The Email Assistant add-on (routes/email.ts).
