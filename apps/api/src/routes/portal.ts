@@ -139,6 +139,8 @@ const devLoginSchema = z.object({ email: z.string().trim().toLowerCase().email()
 const sessionSchema = z.object({ idToken: z.string().min(10).max(8192) });
 const inviteAcceptSchema = z.object({ token: z.string().min(10).max(2048) });
 
+const BAD_NAME = "Use letters, numbers, spaces and . ' & - only, up to 40 characters.";
+
 function parse<S extends z.ZodTypeAny>(schema: S, body: unknown): z.infer<S> {
   const result = schema.safeParse(body ?? {});
   if (!result.success) {
@@ -577,6 +579,11 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
 
   app.post('/v1/portal/tenants/:tenantId/settings', async (request) => {
     const { membership, tenant } = await member(request, 'admin');
+    // A plain answer for the one field an installer types freely, not the schema's pattern.
+    const name = (request.body as { assistantName?: unknown } | null)?.assistantName;
+    if (name !== undefined && !assistantNameSchema.safeParse(name).success) {
+      throw new ApiError('bad_request', BAD_NAME);
+    }
     const body = parse(settingsSchema, request.body);
     const config = { ...tenant.config };
     if (body.companyName !== undefined) config.companyName = body.companyName;

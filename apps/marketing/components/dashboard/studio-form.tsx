@@ -16,9 +16,18 @@ const SWATCHES = [
 ];
 
 /**
+ * assistantNameSchema for the browser. The pattern attribute compiles with the
+ * `v` flag, where a literal hyphen in a class must be escaped.
+ */
+const NAME_PATTERN = String.raw`[\p{L}\p{N}][\p{L}\p{N} .'&\-]{0,39}`;
+/** The API's own copy for a bad name. */
+const NAME_HINT = "Use letters, numbers, spaces and . ' & - only, up to 40 characters.";
+
+/**
  * The greeting with the assistant's new name: only the exact words `I'm <old>`
  * change, so a greeting the installer rewrote is left as they wrote it.
  */
+
 export function renameInGreeting(greeting: string, oldName: string, newName: string): string {
   return greeting.replace(`I'm ${oldName}`, () => `I'm ${newName}`);
 }
@@ -108,6 +117,8 @@ export function StudioForm({
           <input
             value={assistantName}
             maxLength={40}
+            pattern={NAME_PATTERN}
+            title={NAME_HINT}
             required
             onChange={(event) => rename(event.target.value)}
           />

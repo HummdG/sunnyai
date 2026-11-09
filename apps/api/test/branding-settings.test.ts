@@ -22,6 +22,7 @@ const SECRET = 'test-secret-not-used-in-production';
 const OWNER = 'owner@brightside.test';
 const EXPIRED = 'That logo upload has expired. Upload it again.';
 const NO_ANIMATION = 'Choose at least one animation.';
+const BAD_NAME = "Use letters, numbers, spaces and . ' & - only, up to 40 characters.";
 
 function makeConfig(): ServerConfig {
   return {
@@ -270,6 +271,20 @@ describe('branding settings', () => {
     const tenant = await signUp(app);
     const response = await save(app, tenant.id, { assistantName: '<b>' });
     expect(response.statusCode).toBe(400);
+    expect(message(response)).toBe(BAD_NAME);
+  });
+
+  it('explains a bad name in plain words', async () => {
+    const { app } = await setup();
+    const tenant = await signUp(app);
+    for (const assistantName of ['Nova!', '', ' Nova', 'A'.repeat(41), 7]) {
+      const response = await save(app, tenant.id, { assistantName });
+      expect(response.statusCode).toBe(400);
+      expect(message(response)).toBe(BAD_NAME);
+    }
+    expect((await save(app, tenant.id, { assistantName: "Nova & Co. O'Neil-2" })).statusCode).toBe(
+      200,
+    );
   });
 
   it('an installer who never set these gets Sunny and no brand', async () => {

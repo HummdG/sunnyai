@@ -245,6 +245,20 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
 
   await animations.getByLabel('Comet trace').check();
   await animations.getByLabel('Shimmer').check();
+  // The browser checks the name the way the API does, and says how in plain words.
+  const nameInput = page.getByLabel('Assistant name');
+  const validity = () =>
+    nameInput.evaluate((el) => ({
+      valid: (el as HTMLInputElement).validity.valid,
+      title: (el as HTMLInputElement).title,
+    }));
+  await nameInput.fill('Nova!');
+  expect(await validity()).toEqual({
+    valid: false,
+    title: "Use letters, numbers, spaces and . ' & - only, up to 40 characters.",
+  });
+  await nameInput.fill("Nova & Co. O'Neil-2");
+  expect((await validity()).valid).toBe(true);
   await page.getByLabel('Assistant name').fill('Volt');
   await expect(page.getByLabel('Greeting')).toHaveValue(/I'm Volt/);
   await page.getByRole('button', { name: 'Save' }).click();
