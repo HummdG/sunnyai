@@ -13,7 +13,8 @@
     "./fit": "./src/fit/index.ts",
     "./model": "./src/model/index.ts",
     "./interior": "./src/interior/index.ts",
-    "./footprint": "./src/footprint/index.ts"
+    "./footprint": "./src/footprint/index.ts",
+    "./layout": "./src/layout/index.ts"
   },
   "devDependencies": {
     "geotiff": "3.0.5",

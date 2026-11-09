@@ -8,3 +8,4 @@ export * as fit from './fit/index.js';
 export * as model from './model/index.js';
 export * as interior from './interior/index.js';
 export * as footprint from './footprint/index.js';
+export * as layout from './layout/index.js';

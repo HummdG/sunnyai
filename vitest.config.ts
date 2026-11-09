@@ -25,15 +25,17 @@ export default defineConfig({
       '@sunny/sunscan-viewer': pkg('sunscan-viewer'),
       // The vendored SunScan core is imported by subpath as well as by name.
       ...Object.fromEntries(
-        ['types', 'geometry', 'geo', 'fit', 'model', 'interior', 'footprint'].map((sub) => [
-          `@sunny/sunscan-core/${sub}`,
-          fileURLToPath(
-            new URL(
-              `./packages/sunscan-core/src/${sub === 'types' ? 'types.ts' : `${sub}/index.ts`}`,
-              import.meta.url,
+        ['types', 'geometry', 'geo', 'fit', 'model', 'interior', 'footprint', 'layout'].map(
+          (sub) => [
+            `@sunny/sunscan-core/${sub}`,
+            fileURLToPath(
+              new URL(
+                `./packages/sunscan-core/src/${sub === 'types' ? 'types.ts' : `${sub}/index.ts`}`,
+                import.meta.url,
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
       '@sunny/sunscan-core': pkg('sunscan-core'),
     },
