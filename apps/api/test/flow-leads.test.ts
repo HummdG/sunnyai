@@ -173,6 +173,37 @@ describe('leads carry the installer questions and answers', () => {
     expect(entry?.answer.split(', ')).toHaveLength(2);
   });
 
+  it('keeps answers to questions the saved flow no longer lists', async () => {
+    const store = await tempStore();
+    // The flow lists ownership only; the visitor also answered a preset the
+    // installer has since removed and a question that is gone altogether.
+    const only: ConversationFlow = {
+      version: 6,
+      updatedAt: '2026-11-09T10:00:00Z',
+      steps: [{ kind: 'preset', id: 'ownership' }],
+    };
+    const ctx = context(store, tenantWith(only), {
+      ownership: 'own',
+      tariff_type: 'economy7',
+      c_gone: 'blue',
+      journey_postcode: 'LS6 2AB',
+    });
+    await executeTool({ name: 'create_lead', args: { consent: true, email: 'a@b.example' } }, ctx);
+    const [lead] = await store.listAllLeads(DEMO_TENANT.id);
+    const byId = Object.fromEntries((lead?.flowAnswers ?? []).map((a) => [a.id, a]));
+    expect(lead?.flowAnswers?.[0]?.id).toBe('ownership');
+    expect(byId['tariff_type']).toMatchObject({ value: 'economy7', mode: 'preset' });
+    expect(byId['tariff_type']?.question).toMatch(/tariff/i);
+    expect(byId['c_gone']).toEqual({
+      id: 'c_gone',
+      question: 'c_gone',
+      value: 'blue',
+      answer: 'blue',
+      mode: 'lead',
+    });
+    expect(byId['journey_postcode']).toBeUndefined();
+  });
+
   it('the lead email puts the custom question and answer in front of the writer', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'sunny-flow-leads-mail-'));
     dirs.push(dir);

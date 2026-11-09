@@ -4,7 +4,7 @@
  * cookie to the API; the API resolves the caller's role on every request.
  */
 
-import type { LogoEffect } from '@sunny/contracts';
+import type { LeadFlowAnswer, LogoEffect } from '@sunny/contracts';
 
 export type { LogoEffect };
 export type Role = 'viewer' | 'sales' | 'admin' | 'owner';
@@ -137,13 +137,7 @@ export interface LeadRow {
   createdAt: string;
   conversationId: string | null;
   /** The installer's questions and the visitor's answers, in the flow's order. */
-  flowAnswers?: Array<{
-    id: string;
-    question: string;
-    value: string;
-    answer: string;
-    mode: 'preset' | 'quote' | 'lead';
-  }>;
+  flowAnswers?: LeadFlowAnswer[];
   flowVersion?: number;
   status: LeadStatus;
   assessmentId: string | null;
