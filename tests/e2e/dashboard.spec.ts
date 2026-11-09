@@ -245,6 +245,13 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
 
   await animations.getByLabel('Comet trace').check();
   await animations.getByLabel('Shimmer').check();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+
+  // The name and greeting are on their own tab, saved by their own button.
+  await page.getByRole('tab', { name: 'Assistant settings' }).click();
+  await expect(page).toHaveURL(/[?&]tab=settings/);
+  await expect(logo).toBeHidden();
   // The browser checks the name the way the API does, and says how in plain words.
   const nameInput = page.getByLabel('Assistant name');
   const validity = () =>
@@ -269,6 +276,7 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   expect((branded['brand'] as { effects: string[] }).effects).toEqual(['comet', 'shimmer']);
 
   // The preview shows the logo, not the character.
+  await page.getByRole('tab', { name: 'Your brand' }).click();
   const preview = page.getByLabel('Live preview');
   await expect(preview.locator('.sunny-preview')).toHaveCount(0);
   await expect(preview.locator('[data-logo-effect]').first()).toBeVisible();
@@ -319,9 +327,17 @@ test('an unsaved logo stays with its installer when the owner switches', async (
   expect(second.ok()).toBe(true);
 
   await signIn(page);
-  await page.goto(`${SITE}/dashboard/studio`);
-  const logo = page.getByRole('group', { name: 'Your logo' });
+  await page.goto(`${SITE}/dashboard/studio?tab=settings`);
   await expect(page.getByLabel('Assistant name')).toHaveValue('Volt');
+  // Arrow keys move along the Studio tabs, and the open tab is in the address.
+  await page.getByRole('tab', { name: 'Assistant settings' }).focus();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('tab', { name: 'Your brand' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page).toHaveURL(/[?&]tab=brand/);
+  const logo = page.getByRole('group', { name: 'Your logo' });
   await logo.getByLabel('Use my logo').check();
   await logo.getByLabel('Icon file').setInputFiles({
     name: 'tile.png',

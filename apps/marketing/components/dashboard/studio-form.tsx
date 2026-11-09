@@ -33,6 +33,13 @@ export function renameInGreeting(greeting: string, oldName: string, newName: str
 }
 
 /**
+ * Which part of Studio a form edits: everything (onboarding), the brand (logo
+ * and colour), or the assistant's settings (name, greeting, launcher). Each part
+ * saves only its own fields.
+ */
+export type StudioPart = 'all' | 'brand' | 'settings';
+
+/**
  * Sunny Studio: the installer's logo or colour, greeting and launcher position,
  * with the real character (or their own logo) re-theming live beside the form.
  */
@@ -40,11 +47,15 @@ export function StudioForm({
   tenant,
   onSaved,
   submitLabel = 'Save',
+  part = 'all',
 }: {
   tenant: TenantView;
   onSaved: (tenant: TenantView) => void;
   submitLabel?: string;
+  part?: StudioPart;
 }) {
+  const brandPart = part !== 'settings';
+  const settingsPart = part !== 'brand';
   const [colour, setColour] = useState(tenant.primaryColor);
   const [greeting, setGreeting] = useState(tenant.greeting);
   const [tagline, setTagline] = useState(tenant.tagline ?? '');
@@ -76,26 +87,34 @@ export function StudioForm({
         tenantPath(tenant.id, '/settings'),
         {
           body: {
-            primaryColor: colour,
-            greeting,
-            tagline: tagline.trim() === '' ? null : tagline,
-            position,
-            assistantName: assistantName.trim(),
-            branding: {
-              mode: brand.mode,
-              iconId: brand.icon?.id ?? null,
-              wordmarkId: brand.wordmark?.id ?? null,
-              // Only what the icon can draw, so what is saved is what Studio shows.
-              effects: brand.effects.filter(
-                (effect) => brand.icon?.availableEffects.includes(effect) ?? false,
-              ),
-              colors: brand.colors,
-            },
-            suggestions: suggestions
-              .split('\n')
-              .map((line) => line.trim())
-              .filter(Boolean)
-              .slice(0, 6),
+            ...(brandPart
+              ? {
+                  primaryColor: colour,
+                  branding: {
+                    mode: brand.mode,
+                    iconId: brand.icon?.id ?? null,
+                    wordmarkId: brand.wordmark?.id ?? null,
+                    // Only what the icon can draw, so what is saved is what Studio shows.
+                    effects: brand.effects.filter(
+                      (effect) => brand.icon?.availableEffects.includes(effect) ?? false,
+                    ),
+                    colors: brand.colors,
+                  },
+                }
+              : {}),
+            ...(settingsPart
+              ? {
+                  greeting,
+                  tagline: tagline.trim() === '' ? null : tagline,
+                  position,
+                  assistantName: assistantName.trim(),
+                  suggestions: suggestions
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .slice(0, 6),
+                }
+              : {}),
           },
         },
       );
@@ -111,89 +130,97 @@ export function StudioForm({
   return (
     <div className="studio">
       <form onSubmit={(event) => void submit(event)}>
-        <BrandSection tenant={tenant} value={brand} onChange={setBrand} />
-        <label className="field">
-          <span>Assistant name</span>
-          <input
-            value={assistantName}
-            maxLength={40}
-            pattern={NAME_PATTERN}
-            title={NAME_HINT}
-            required
-            onChange={(event) => rename(event.target.value)}
-          />
-        </label>
-        <fieldset className="field" style={{ border: 0, padding: 0, margin: '0 0 14px' }}>
-          <legend style={{ fontWeight: 650, marginBottom: 8 }}>Colour</legend>
-          <div className="pills" role="group" aria-label="Brand colour">
-            {SWATCHES.map((swatch) => (
-              <button
-                key={swatch.value}
-                type="button"
-                className="pill"
-                aria-pressed={colour.toUpperCase() === swatch.value}
-                onClick={() => setColour(swatch.value)}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display: 'inline-block',
-                    width: 12,
-                    height: 12,
-                    borderRadius: 6,
-                    background: swatch.value,
-                    marginRight: 6,
-                  }}
-                />
-                {swatch.name}
-              </button>
-            ))}
-            <label
-              className="pill"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              Custom
+        {brandPart ? (
+          <>
+            <BrandSection tenant={tenant} value={brand} onChange={setBrand} />
+            <fieldset className="field" style={{ border: 0, padding: 0, margin: '0 0 14px' }}>
+              <legend style={{ fontWeight: 650, marginBottom: 8 }}>Colour</legend>
+              <div className="pills" role="group" aria-label="Brand colour">
+                {SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch.value}
+                    type="button"
+                    className="pill"
+                    aria-pressed={colour.toUpperCase() === swatch.value}
+                    onClick={() => setColour(swatch.value)}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        display: 'inline-block',
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        background: swatch.value,
+                        marginRight: 6,
+                      }}
+                    />
+                    {swatch.name}
+                  </button>
+                ))}
+                <label
+                  className="pill"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  Custom
+                  <input
+                    type="color"
+                    value={colour}
+                    onChange={(event) => setColour(event.target.value.toUpperCase())}
+                    aria-label="Custom colour"
+                    style={{ width: 28, height: 22, border: 0, padding: 0, background: 'none' }}
+                  />
+                </label>
+              </div>
+            </fieldset>
+          </>
+        ) : null}
+        {settingsPart ? (
+          <>
+            <label className="field">
+              <span>Assistant name</span>
               <input
-                type="color"
-                value={colour}
-                onChange={(event) => setColour(event.target.value.toUpperCase())}
-                aria-label="Custom colour"
-                style={{ width: 28, height: 22, border: 0, padding: 0, background: 'none' }}
+                value={assistantName}
+                maxLength={40}
+                pattern={NAME_PATTERN}
+                title={NAME_HINT}
+                required
+                onChange={(event) => rename(event.target.value)}
               />
             </label>
-          </div>
-        </fieldset>
-        <label className="field">
-          <span>Greeting</span>
-          <textarea
-            value={greeting}
-            maxLength={300}
-            required
-            onChange={(e) => setGreeting(e.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Tagline under your name</span>
-          <input value={tagline} maxLength={200} onChange={(e) => setTagline(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>
-            Suggested questions <span className="hint">(one per line, up to six)</span>
-          </span>
-          <textarea value={suggestions} onChange={(e) => setSuggestions(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Launcher position</span>
-          <select
-            value={position}
-            onChange={(e) => setPosition(e.target.value as TenantView['position'])}
-          >
-            <option value="bottom-right">Bottom right</option>
-            <option value="bottom-left">Bottom left</option>
-            <option value="top-right">Top right</option>
-            <option value="top-left">Top left</option>
-          </select>
-        </label>
+            <label className="field">
+              <span>Greeting</span>
+              <textarea
+                value={greeting}
+                maxLength={300}
+                required
+                onChange={(e) => setGreeting(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Tagline under your name</span>
+              <input value={tagline} maxLength={200} onChange={(e) => setTagline(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>
+                Suggested questions <span className="hint">(one per line, up to six)</span>
+              </span>
+              <textarea value={suggestions} onChange={(e) => setSuggestions(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>Launcher position</span>
+              <select
+                value={position}
+                onChange={(e) => setPosition(e.target.value as TenantView['position'])}
+              >
+                <option value="bottom-right">Bottom right</option>
+                <option value="bottom-left">Bottom left</option>
+                <option value="top-right">Top right</option>
+                <option value="top-left">Top left</option>
+              </select>
+            </label>
+          </>
+        ) : null}
         <button className="button" type="submit" disabled={busy}>
           {busy ? 'Saving…' : submitLabel}
         </button>
@@ -204,7 +231,11 @@ export function StudioForm({
         ) : null}
         <ErrorNote error={error} />
       </form>
-      <div className="preview-stage" aria-label="Live preview">
+      {/* Only the brand form shows the live character: one "Live preview" per page. */}
+      <div
+        className="preview-stage"
+        aria-label={brandPart ? 'Live preview' : 'How your welcome looks'}
+      >
         {brand.mode === 'logo' ? (
           <LogoPreview draft={brand} busy={busy} companyName={tenant.companyName} />
         ) : (
