@@ -19,6 +19,7 @@ export default defineConfig({
       '@sunny/solar-rules': pkg('solar-rules'),
       '@sunny/knowledge': pkg('knowledge'),
       '@sunny/quote-engine': pkg('quote-engine'),
+      '@sunny/logo-effects': pkg('logo-effects'),
       '@sunny/sunscan-adapter': pkg('sunscan-adapter'),
       '@sunny/sunscan-engine': pkg('sunscan-engine'),
       '@sunny/sunscan-viewer': pkg('sunscan-viewer'),
