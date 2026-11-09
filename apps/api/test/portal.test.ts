@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { FastifyInstance } from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { issueDevToken } from '../src/auth/dev.js';
 import { createFirebaseVerifier } from '../src/auth/firebase.js';
@@ -1074,6 +1074,19 @@ describe('two instances changing the same installer', () => {
     expect((await deliver(other, unknown)).json<{ outcome: string }>().outcome).toBe(
       'unknown_tenant',
     );
+
+    // An event type billing does not act on is ignored before any lookup: the
+    // store is not read to find a tenant it would never change.
+    const reads = vi.spyOn(store, 'listTenants');
+    const otherType = await deliver(other, {
+      id: 'evt_two_c_customer',
+      type: 'customer.created',
+      created: NOW / 1000 + 30,
+      data: { object: { customer: 'cus_nobody' } },
+    });
+    expect(otherType.json<{ outcome: string }>().outcome).toBe('ignored');
+    expect(reads).not.toHaveBeenCalled();
+    reads.mockRestore();
     await other.close();
   });
 });

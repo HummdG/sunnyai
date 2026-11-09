@@ -66,6 +66,17 @@ function offAll(): Record<AddonKey, boolean> {
   return Object.fromEntries(ADDON_KEYS.map((key) => [key, false])) as Record<AddonKey, boolean>;
 }
 
+/** The event types `applyStripeEvent` acts on; any other is ignored before a tenant is looked up. */
+const HANDLED_EVENTS: ReadonlySet<string> = new Set([
+  'checkout.session.completed',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'invoice.payment_failed',
+  'invoice.paid',
+  'invoice.payment_succeeded',
+]);
+
 export async function applyStripeEvent(
   event: StripeEvent,
   deps: { store: Store; tenants: TenantRegistry; stripe: StripeConfig; now: () => number },
@@ -73,6 +84,8 @@ export async function applyStripeEvent(
   const { store, tenants, stripe, now } = deps;
   if (!(await store.claimStripeEvent(event.id))) return 'duplicate';
   try {
+    // Not one this handles: no tenant lookup, and no registry refresh to find one.
+    if (!HANDLED_EVENTS.has(event.type)) return 'ignored';
     const object = event.data.object;
     const metadata = metadataOf(object);
     const customerId = str(object['customer']);
