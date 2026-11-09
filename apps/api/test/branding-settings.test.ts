@@ -5,12 +5,13 @@ import { join } from 'node:path';
 import { brandSchema } from '@sunny/contracts';
 import { PNG } from 'pngjs';
 import type { FastifyInstance } from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSystemInstruction } from '../src/agent/prompt.js';
 import { issueDevToken } from '../src/auth/dev.js';
 import { MemoryBrandAssetStore } from '../src/branding/store.js';
 import type { ServerConfig } from '../src/config.js';
+import { publicBrand } from '../src/routes/branding.js';
 import { loadPortalConfig } from '../src/routes/portal-config.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
@@ -86,11 +87,11 @@ async function signUp(app: FastifyInstance) {
   return response.json<{ tenant: { id: string; publicId: string } }>().tenant;
 }
 
-function discPng(): Buffer {
+function discPng(radius = 20): Buffer {
   const png = new PNG({ width: 64, height: 64 });
   for (let y = 0; y < 64; y++)
     for (let x = 0; x < 64; x++) {
-      const inside = (x - 32) ** 2 + (y - 32) ** 2 <= 20 ** 2;
+      const inside = (x - 32) ** 2 + (y - 32) ** 2 <= radius ** 2;
       png.data.set(inside ? [170, 230, 40, 255] : [0, 0, 0, 0], (y * 64 + x) * 4);
     }
   return PNG.sync.write(png);
@@ -111,10 +112,15 @@ function speckledPng(): Buffer {
   return PNG.sync.write(png);
 }
 
-async function uploadIcon(app: FastifyInstance, tenantId: string, png: Buffer) {
+async function uploadIcon(
+  app: FastifyInstance,
+  tenantId: string,
+  png: Buffer,
+  kind: 'icon' | 'wordmark' = 'icon',
+) {
   const response = await app.inject({
     method: 'POST',
-    url: `/v1/portal/tenants/${tenantId}/brand/icon`,
+    url: `/v1/portal/tenants/${tenantId}/brand/${kind}`,
     headers: as(OWNER),
     payload: { png: png.toString('base64') },
   });
@@ -187,6 +193,42 @@ describe('branding settings', () => {
     const none = await save(app, tenant.id, logo(null, []));
     expect(none.statusCode).toBe(400);
     expect(message(none)).toBe('Upload an icon first.');
+  });
+
+  it('refuses a wordmark as the icon and an icon as the wordmark, as an expired upload', async () => {
+    const { app } = await setup();
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    const wordmarkId = await uploadIcon(app, tenant.id, discPng(48), 'wordmark');
+    const swapped = await save(app, tenant.id, logo(wordmarkId, ['shimmer']));
+    expect(swapped.statusCode).toBe(400);
+    expect(message(swapped)).toBe(EXPIRED);
+    const crossed = await save(app, tenant.id, {
+      branding: { mode: 'logo', iconId, wordmarkId: iconId, effects: ['shimmer'], colors: null },
+    });
+    expect(crossed.statusCode).toBe(400);
+    expect(message(crossed)).toBe(EXPIRED);
+    const ok = await save(app, tenant.id, {
+      branding: { mode: 'logo', iconId, wordmarkId, effects: ['shimmer'], colors: null },
+    });
+    expect(ok.statusCode).toBe(200);
+  });
+
+  it('never serves a brand the widget would reject, and warns', async () => {
+    const { app, tenants } = await setup();
+    const tenant = await signUp(app);
+    const iconId = await uploadIcon(app, tenant.id, discPng());
+    expect((await save(app, tenant.id, logo(iconId, ['shimmer']))).statusCode).toBe(200);
+    const stored = tenants.byId(tenant.id)!;
+    expect(brandSchema.safeParse(publicBrand(stored)).success).toBe(true);
+
+    // A stored icon too big for the widget's schema, however it got there.
+    stored.config.branding!.icon!.width = 4096;
+    const warn = vi.fn();
+    expect(publicBrand(stored, { warn })).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    const body = (await publicConfig(app, tenant.publicId)).json<Record<string, unknown>>();
+    expect(body.brand).toBeUndefined();
   });
 
   it('going back to Sunny removes the brand and its public images, and keeps the choice', async () => {

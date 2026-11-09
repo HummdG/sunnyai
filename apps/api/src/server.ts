@@ -477,7 +477,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return {
       ...widgetConfig,
       assistantName: tenant?.config.assistantName ?? 'Sunny',
-      brand: tenant ? publicBrand(tenant) : undefined,
+      brand: tenant ? publicBrand(tenant, request.log) : undefined,
       maxInputChars: config.maxInputChars ?? DEFAULT_MAX_INPUT_CHARS,
       ...(config.turnstile ? { turnstileSiteKey: config.turnstile.siteKey } : {}),
     };

@@ -313,16 +313,17 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
     tenant: Tenant,
     body: NonNullable<z.infer<typeof settingsSchema>['branding']>,
   ): Promise<StoredBranding> {
-    const load = async (id: string | null) => {
+    // An id of the other slot reads exactly like an unknown one, so ids are not told apart.
+    const load = async (id: string | null, kind: 'icon' | 'wordmark') => {
       if (id === null) return null;
       const meta = await loadBrandAsset(brandAssets, tenant.id, id);
-      if (!meta)
+      if (!meta || meta.kind !== kind)
         throw new ApiError('bad_request', 'That logo upload has expired. Upload it again.');
       return meta;
     };
     const current = tenant.config.branding;
-    const icon = await load(body.iconId);
-    const wordmark = await load(body.wordmarkId);
+    const icon = await load(body.iconId, 'icon');
+    const wordmark = await load(body.wordmarkId, 'wordmark');
     if (body.mode === 'sunny') {
       return {
         mode: 'sunny',

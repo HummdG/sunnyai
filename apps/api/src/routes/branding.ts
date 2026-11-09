@@ -1,4 +1,10 @@
-import { ApiError, BRAND_ASSET_ID, type Brand, type LogoEffect } from '@sunny/contracts';
+import {
+  ApiError,
+  BRAND_ASSET_ID,
+  brandSchema,
+  type Brand,
+  type LogoEffect,
+} from '@sunny/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
@@ -71,13 +77,20 @@ export function brandAssetView(tenantId: string, meta: BrandAssetMeta): BrandAss
   };
 }
 
-/** The logo the widget draws, or undefined while the installer keeps the Sunny character. */
-export function publicBrand(tenant: Tenant): Brand | undefined {
+/**
+ * The logo the widget draws, or undefined while the installer keeps the Sunny
+ * character. A brand the widget's own schema would reject is left out, so the
+ * visitor sees Sunny on purpose rather than the widget refusing a broken one.
+ */
+export function publicBrand(
+  tenant: Tenant,
+  log?: { warn: (obj: object, msg: string) => void },
+): Brand | undefined {
   const branding = tenant.config.branding;
   if (!branding || branding.mode !== 'logo' || !branding.icon) return undefined;
   const { icon, wordmark } = branding;
   const base = `/v1/widget/brand/${tenant.publicId}`;
-  return {
+  const brand: Brand = {
     icon: {
       path: `${base}/${icon.id}.png`,
       maskPath: icon.hasMask ? `${base}/${icon.id}-mask.png` : null,
@@ -92,6 +105,13 @@ export function publicBrand(tenant: Tenant): Brand | undefined {
     colors: branding.colors ??
       icon.suggestedColors ?? { primary: tenant.config.primaryColor, glow: '#FFFFFF' },
   };
+  const checked = brandSchema.safeParse(brand);
+  if (checked.success) return checked.data;
+  log?.warn(
+    { tenantId: tenant.id, issues: checked.error.issues.map((i) => i.path.join('.')) },
+    'stored brand fails brandSchema; serving Sunny',
+  );
+  return undefined;
 }
 
 function decodeUpload(body: unknown): Uint8Array {
