@@ -28,7 +28,13 @@ import {
   type TenantPricing,
 } from '@sunny/quote-engine';
 
-import { applyEffects, type AppliedEffect } from '../flow/effects.js';
+import type { PriceList } from '../catalogue/price-list.js';
+import {
+  applyEffects,
+  effectCatalogue,
+  skippedWarning,
+  type AppliedEffect,
+} from '../flow/effects.js';
 import { PRESET_TOPICS, PRESET_WARNINGS } from '../flow/presets.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
 
@@ -351,6 +357,11 @@ export function buildQuote(input: {
   flow?: ResolvedFlow;
   /** What the visitor's answers add, remove and swap (`effectsFor`), in flow order. */
   effects?: AppliedEffect[];
+  /**
+   * The published price list `pricing` was built from. Effects are checked
+   * and priced against it; without it no effect can be applied.
+   */
+  priceList?: PriceList | null;
 }): QuoteRecord {
   const { answers, roof } = input;
   const estimated = estimates(input.flow);
@@ -381,17 +392,36 @@ export function buildQuote(input: {
     };
   }
 
-  const pricing = withShading(input.pricing, answers);
-  const { input: engineInput, derived } = buildQuoteInput(answers, pricing);
   const effects = input.effects ?? [];
+  const list = input.priceList ?? null;
   const effectWarnings = new Set<string>();
+  if (!list) {
+    for (const { effect } of effects) {
+      effectWarnings.add(
+        skippedWarning(
+          null,
+          effect.kind === 'add' ? 'added' : effect.kind === 'remove' ? 'removed' : 'swapped',
+        ),
+      );
+    }
+  }
+  const applied = list ? effects : [];
+  const shaded = withShading(input.pricing, answers);
+  // Fixed-quantity items the answers add are priced from the list for their quantity.
+  const pricing =
+    list && applied.length > 0
+      ? { ...shaded, catalogue: effectCatalogue(shaded.catalogue, list, applied) }
+      : shaded;
+  const { input: engineInput, derived } = buildQuoteInput(answers, pricing);
   const set = buildOptionSet(
-    effects.length === 0
+    !list || applied.length === 0
       ? engineInput
       : {
           ...engineInput,
           adjustConfig: (config) =>
-            applyEffects(config, effects, pricing.catalogue, (m) => effectWarnings.add(m)),
+            applyEffects(config, applied, { list, catalogue: pricing.catalogue }, (m) =>
+              effectWarnings.add(m),
+            ),
         },
   );
   const ctx = {

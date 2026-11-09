@@ -7,12 +7,14 @@
  * package's `SystemConfig`, which the engine then prices and models as usual,
  * so generation, savings and price all come from the adjusted kit.
  *
- * An effect only ever names an item key. Where it lands is read from the
- * engine's catalogue (built from the price list, item key = SKU); nothing is
- * priced here. An item the catalogue does not carry (deleted from the list, the
- * base price table, a quote-only or unpriceable item) or one every quote
- * includes anyway (mandatory) is skipped, and the visitor is told the installer
- * will confirm it.
+ * An effect only ever names an item key. The published price list says
+ * whether an answer may touch it (`targetIssue`, shared with Studio's check:
+ * never a mandatory item, the base price table or a quote-only item), and the
+ * engine's catalogue (built from that list, item key = SKU) says where it lands.
+ * An item priced per metre, side, storey and the like carries the fixed
+ * quantity the installer set, and is priced as one line at exactly what the
+ * list's `priceFor` gives for that quantity. Anything that cannot be applied is
+ * skipped, and the visitor is told the installer will confirm it.
  */
 
 import type { ConversationFlow, FlowEffect, FlowStep } from '@sunny/contracts';
@@ -23,6 +25,10 @@ import type {
   SystemConfig,
 } from '@sunny/quote-engine';
 
+import { priceFor, type PriceItem, type PriceList } from '../catalogue/price-list.js';
+import { EXTRA_CATEGORIES, extraCategory, pounds } from '../journey/catalogue-pricing.js';
+
+import { PACKAGE_UNITS, targetIssue, unitOf } from './check.js';
 import { resolveFlow } from './resolve.js';
 
 export interface AppliedEffect {
@@ -89,6 +95,12 @@ export function effectsFor(
 
 // ─── applying them ───────────────────────────────────────────────────────────
 
+/** The published list and the engine catalogue built from it (see `effectCatalogue`). */
+export interface EffectPricing {
+  list: PriceList;
+  catalogue: PricingCatalogue;
+}
+
 /** v1's optimiser and bird-mesh SKUs, which the engine prices from flags, not extras. */
 const OPTIMISER_SCOPE: Readonly<Record<string, SystemConfig['optimiserScope']>> = {
   'OPT-TIGO-PART': 'partial',
@@ -97,6 +109,11 @@ const OPTIMISER_SCOPE: Readonly<Record<string, SystemConfig['optimiserScope']>> 
 const BIRD_MESH = 'OPT-BIRDMESH';
 
 type ExtraList = 'scaffoldingExtras' | 'electricalExtras' | 'optionalExtras';
+const EXTRA_LISTS: readonly ExtraList[] = [
+  'scaffoldingExtras',
+  'electricalExtras',
+  'optionalExtras',
+];
 
 type Target =
   | { kind: 'panel'; sku: string; name: string }
@@ -105,7 +122,68 @@ type Target =
   | { kind: 'mounting'; sku: string; name: string; mounting: CatalogueMounting }
   | { kind: 'optimiser'; sku: string; name: string; scope: SystemConfig['optimiserScope'] }
   | { kind: 'bird_mesh'; sku: string; name: string }
-  | { kind: 'extra'; sku: string; name: string; extra: CatalogueExtra; list: ExtraList };
+  | { kind: 'extra'; sku: string; name: string; extra: CatalogueExtra; list: ExtraList }
+  /** An item with a fixed quantity, priced as one line for that quantity. */
+  | { kind: 'fixed'; key: string; sku: string; name: string; extra?: CatalogueExtra };
+
+/**
+ * An extra priced per metre, side, storey (anything but a package unit), which
+ * an effect adds in the fixed quantity the installer set.
+ */
+function isFixedQuantity(item: PriceItem): boolean {
+  const unit = unitOf(item);
+  return unit !== null && !PACKAGE_UNITS.includes(unit) && EXTRA_CATEGORIES.includes(item.category);
+}
+
+/** The catalogue SKU of a fixed-quantity item's line at one quantity. */
+function fixedSku(key: string, quantity: number): string {
+  return `${key}*${quantity}`;
+}
+
+const isFixedLine = (sku: string, key: string) => sku.startsWith(`${key}*`);
+
+/**
+ * The engine catalogue plus one priced line per fixed-quantity item and
+ * quantity the effects add, each at exactly `priceFor(item, { quantity })`
+ * from the published list. An item the list cannot price at that quantity gets
+ * no line (its effect is then skipped with a warning). Nothing else changes,
+ * so a quote without such effects prices exactly as before.
+ */
+export function effectCatalogue(
+  catalogue: PricingCatalogue,
+  list: PriceList,
+  effects: AppliedEffect[],
+): PricingCatalogue {
+  const added: CatalogueExtra[] = [];
+  const seen = new Set(catalogue.extras.map((e) => e.sku));
+  for (const { effect } of effects) {
+    if (effect.kind === 'remove') continue;
+    const key = effect.kind === 'add' ? effect.itemKey : effect.toKey;
+    const item = list.items.find((i) => i.key === key);
+    if (!item || targetIssue(item) || !isFixedQuantity(item)) continue;
+    const quantity = effect.quantity ?? 1;
+    const sku = fixedSku(item.key, quantity);
+    if (seen.has(sku)) continue;
+    const price = priceFor(item, { quantity });
+    if (price.status !== 'priced') continue;
+    seen.add(sku);
+    const category = extraCategory(item);
+    added.push({
+      sku,
+      // Never 'eps': the premium preset takes the first EPS extra it finds.
+      category: category === 'eps' ? 'general_electrical' : category,
+      label: quantity > 1 ? `${item.name} × ${quantity}` : item.name,
+      priceCalc: 'flat',
+      baseGbp: pounds(price.amountMinor),
+      perPanelGbp: 0,
+      panelThreshold: null,
+      isMandatory: false,
+      exclusiveGroup: item.exclusiveGroup,
+      sortOrder: catalogue.extras.length + added.length + 1,
+    });
+  }
+  return added.length === 0 ? catalogue : { ...catalogue, extras: [...catalogue.extras, ...added] };
+}
 
 /**
  * Which list an extra goes in. The engine prices scaffold and electrical extras
@@ -121,37 +199,42 @@ function listFor(extra: CatalogueExtra): ExtraList {
   return 'optionalExtras';
 }
 
-/** Where an item key lands in a package, or why it cannot be used. */
-function locate(
-  key: string,
-  catalogue: PricingCatalogue,
-): { ok: true; target: Target } | { ok: false; name: string } {
-  const panel = catalogue.panels.find((p) => p.sku === key);
-  if (panel) return { ok: true, target: { kind: 'panel', sku: key, name: panel.modelName } };
-  const inverter = catalogue.inverters.find((i) => i.sku === key);
-  if (inverter) {
-    return { ok: true, target: { kind: 'inverter', sku: key, name: inverter.modelName } };
+/** `name` is the item's name, or null when the item is no longer on the list. */
+type Located = { ok: true; target: Target } | { ok: false; name: string | null };
+
+/** Where an item key lands in a package, or why an answer cannot use it. */
+function locate(key: string, quantity: number | undefined, pricing: EffectPricing): Located {
+  const { list, catalogue } = pricing;
+  const item = list.items.find((i) => i.key === key);
+  if (!item) return { ok: false, name: null };
+  if (targetIssue(item)) return { ok: false, name: item.name };
+  const name = item.name;
+
+  if (isFixedQuantity(item)) {
+    const sku = fixedSku(key, quantity ?? 1);
+    const extra = catalogue.extras.find((e) => e.sku === sku);
+    return { ok: true, target: { kind: 'fixed', key, sku, name, extra } };
   }
-  const battery = catalogue.batteries.find((b) => b.sku === key);
-  if (battery) return { ok: true, target: { kind: 'battery', sku: key, name: battery.modelName } };
+  if (catalogue.panels.some((p) => p.sku === key)) {
+    return { ok: true, target: { kind: 'panel', sku: key, name } };
+  }
+  if (catalogue.inverters.some((i) => i.sku === key)) {
+    return { ok: true, target: { kind: 'inverter', sku: key, name } };
+  }
+  if (catalogue.batteries.some((b) => b.sku === key)) {
+    return { ok: true, target: { kind: 'battery', sku: key, name } };
+  }
   const mounting = catalogue.mounting.find((m) => m.sku === key);
-  if (mounting) {
-    return { ok: true, target: { kind: 'mounting', sku: key, name: mounting.label, mounting } };
-  }
+  if (mounting) return { ok: true, target: { kind: 'mounting', sku: key, name, mounting } };
+  // Not something the engine can price (bespoke, or a shape it cannot evaluate).
   const extra = catalogue.extras.find((e) => e.sku === key);
-  if (!extra) return { ok: false, name: key };
-  // Every quote has it already; an answer can neither add nor take it away.
-  if (extra.isMandatory) return { ok: false, name: extra.label };
+  if (!extra || extra.isMandatory) return { ok: false, name };
   const scope = OPTIMISER_SCOPE[key];
-  if (scope) return { ok: true, target: { kind: 'optimiser', sku: key, name: extra.label, scope } };
-  if (key === BIRD_MESH)
-    return { ok: true, target: { kind: 'bird_mesh', sku: key, name: extra.label } };
+  if (scope) return { ok: true, target: { kind: 'optimiser', sku: key, name, scope } };
+  if (key === BIRD_MESH) return { ok: true, target: { kind: 'bird_mesh', sku: key, name } };
   // Any other optimiser SKU the engine would silently leave unpriced.
-  if (key.startsWith('OPT-TIGO')) return { ok: false, name: extra.label };
-  return {
-    ok: true,
-    target: { kind: 'extra', sku: key, name: extra.label, extra, list: listFor(extra) },
-  };
+  if (key.startsWith('OPT-TIGO')) return { ok: false, name };
+  return { ok: true, target: { kind: 'extra', sku: key, name, extra, list: listFor(extra) } };
 }
 
 function isPresent(config: SystemConfig, t: Target, catalogue: PricingCatalogue): boolean {
@@ -174,15 +257,30 @@ function isPresent(config: SystemConfig, t: Target, catalogue: PricingCatalogue)
       return config.birdMesh;
     case 'extra':
       return config[t.list].some((x) => x.sku === t.sku);
+    case 'fixed':
+      // At any quantity: an item is added once.
+      return EXTRA_LISTS.some((l) => config[l].some((x) => isFixedLine(x.sku, t.key)));
   }
 }
 
-function add(
+/** Adds one extra line, replacing any item from the same mutually exclusive group. */
+function withExtra(
   config: SystemConfig,
-  t: Target,
-  quantity: number | undefined,
+  extra: CatalogueExtra,
   catalogue: PricingCatalogue,
 ): SystemConfig {
+  const list = listFor(extra);
+  const group = extra.exclusiveGroup;
+  const others = config[list].filter(
+    (x) => !group || catalogue.extras.find((e) => e.sku === x.sku)?.exclusiveGroup !== group,
+  );
+  // Always quantity 1: a flat item ignores any quantity (as the list's
+  // `priceFor` does), an item priced per panel takes its count from the
+  // package, and a fixed-quantity line is already priced for its quantity.
+  return { ...config, [list]: [...others, { sku: extra.sku, quantity: 1 }] };
+}
+
+function add(config: SystemConfig, t: Target, catalogue: PricingCatalogue): SystemConfig {
   if (isPresent(config, t, catalogue)) return config;
   switch (t.kind) {
     case 'panel':
@@ -200,18 +298,10 @@ function add(
       return { ...config, optimiserScope: t.scope };
     case 'bird_mesh':
       return { ...config, birdMesh: true };
-    case 'extra': {
-      // A flat item is added the number of times the installer set; an item
-      // priced per panel takes its quantity from the package (the engine
-      // multiplies by the panel count).
-      const qty = t.extra.priceCalc === 'flat' ? (quantity ?? 1) : 1;
-      const group = t.extra.exclusiveGroup;
-      // An item from a mutually exclusive group replaces the one already chosen.
-      const others = config[t.list].filter(
-        (x) => !group || catalogue.extras.find((e) => e.sku === x.sku)?.exclusiveGroup !== group,
-      );
-      return { ...config, [t.list]: [...others, { sku: t.sku, quantity: qty }] };
-    }
+    case 'extra':
+      return withExtra(config, t.extra, catalogue);
+    case 'fixed':
+      return t.extra ? withExtra(config, t.extra, catalogue) : config;
   }
 }
 
@@ -240,40 +330,56 @@ function remove(config: SystemConfig, t: Target, catalogue: PricingCatalogue): S
       return { ...config, birdMesh: false };
     case 'extra':
       return { ...config, [t.list]: config[t.list].filter((x) => x.sku !== t.sku) };
+    case 'fixed': {
+      const out = { ...config };
+      for (const l of EXTRA_LISTS) out[l] = config[l].filter((x) => !isFixedLine(x.sku, t.key));
+      return out;
+    }
   }
 }
 
-const skipped = (name: string, verb: 'added' | 'removed' | 'swapped') =>
-  `${name} could not be ${verb} from your answers, so your installer will confirm it.`;
+/** The visitor's warning for a skipped effect (`name` null: the item is gone from the list). */
+export function skippedWarning(name: string | null, verb: 'added' | 'removed' | 'swapped'): string {
+  return name === null
+    ? `One of the items linked to your answers could not be ${verb}, so your installer will confirm it.`
+    : `${name} could not be ${verb} from your answers, so your installer will confirm it.`;
+}
+
+/** A fixed-quantity item the list could not price at its quantity has no line to add. */
+const addable = (t: Target) => t.kind !== 'fixed' || t.extra !== undefined;
 
 /**
  * One package's kit with the effects applied in order. An effect that cannot
  * be applied is skipped and reported through `warn`; the rest still apply.
+ * `pricing.catalogue` must come from `effectCatalogue` for the same effects.
  */
 export function applyEffects(
   config: SystemConfig,
   effects: AppliedEffect[],
-  catalogue: PricingCatalogue,
+  pricing: EffectPricing,
   warn: (message: string) => void,
 ): SystemConfig {
+  const { catalogue } = pricing;
   let out = config;
   for (const { effect } of effects) {
     if (effect.kind === 'add') {
-      const found = locate(effect.itemKey, catalogue);
-      if (!found.ok) warn(skipped(found.name, 'added'));
-      else out = add(out, found.target, effect.quantity, catalogue);
+      const found = locate(effect.itemKey, effect.quantity, pricing);
+      if (!found.ok) warn(skippedWarning(found.name, 'added'));
+      else if (!addable(found.target)) warn(skippedWarning(found.target.name, 'added'));
+      else out = add(out, found.target, catalogue);
     } else if (effect.kind === 'remove') {
-      const found = locate(effect.itemKey, catalogue);
-      if (!found.ok) warn(skipped(found.name, 'removed'));
+      const found = locate(effect.itemKey, undefined, pricing);
+      if (!found.ok) warn(skippedWarning(found.name, 'removed'));
       else out = remove(out, found.target, catalogue);
     } else {
-      const from = locate(effect.fromKey, catalogue);
-      const to = locate(effect.toKey, catalogue);
-      if (!from.ok) warn(skipped(from.name, 'swapped'));
-      else if (!to.ok) warn(skipped(to.name, 'swapped'));
+      const from = locate(effect.fromKey, undefined, pricing);
+      const to = locate(effect.toKey, effect.quantity, pricing);
+      if (!from.ok) warn(skippedWarning(from.name, 'swapped'));
+      else if (!to.ok) warn(skippedWarning(to.name, 'swapped'));
+      else if (!addable(to.target)) warn(skippedWarning(to.target.name, 'swapped'));
       // A swap only touches a package that has the item being swapped out.
       else if (isPresent(out, from.target, catalogue)) {
-        out = add(remove(out, from.target, catalogue), to.target, effect.quantity, catalogue);
+        out = add(remove(out, from.target, catalogue), to.target, catalogue);
       }
     }
   }

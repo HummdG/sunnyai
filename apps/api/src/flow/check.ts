@@ -31,14 +31,33 @@ export interface FlowIssue {
 export const PACKAGE_UNITS: readonly string[] = ['panel', 'kwh'];
 
 /** The unit an item is priced per, when it has one. */
-function unitOf(item: PriceItem): string | null {
+export function unitOf(item: PriceItem): string | null {
   const p = item.pricing;
   return p.kind === 'per_unit' || p.kind === 'tiered' ? p.unit : null;
 }
 
-/** The base price table and quote-only items are not something an answer can change. */
-function targetable(item: PriceItem): boolean {
-  return item.category !== 'pv' && item.pricing.kind !== 'quote_only';
+/**
+ * Why an answer cannot add, remove or swap this item, or null when it can.
+ * Shared by the Studio check and the quote, so both apply the same rules: a
+ * mandatory item is on every quote already, and the base price table and
+ * quote-only items are part of the system price.
+ */
+export function targetIssue(
+  item: PriceItem,
+): { code: 'mandatory_item' | 'not_targetable'; message: string } | null {
+  if (item.mandatory) {
+    return {
+      code: 'mandatory_item',
+      message: `${item.name} is on every quote, so an answer cannot remove or swap it.`,
+    };
+  }
+  if (item.category === 'pv' || item.pricing.kind === 'quote_only') {
+    return {
+      code: 'not_targetable',
+      message: `${item.name} is part of the system price, so an answer cannot change it.`,
+    };
+  }
+  return null;
 }
 
 function checkEffect(
@@ -65,18 +84,11 @@ function checkEffect(
     const item = list?.items.find((i) => i.key === t.key);
     const push = (code: FlowIssue['code'], message: string) =>
       issues.push({ ...at, code, message });
+    const issue = item ? targetIssue(item) : null;
     if (!item) {
       push('missing_item', `${t.key} is no longer on your price list.`);
-    } else if (item.mandatory) {
-      push(
-        'mandatory_item',
-        `${item.name} is on every quote, so an answer cannot remove or swap it.`,
-      );
-    } else if (!targetable(item)) {
-      push(
-        'not_targetable',
-        `${item.name} is part of the system price, so an answer cannot change it.`,
-      );
+    } else if (issue) {
+      push(issue.code, issue.message);
     } else if (t.adds) {
       const unit = unitOf(item);
       if (unit && !PACKAGE_UNITS.includes(unit) && t.quantity === undefined) {

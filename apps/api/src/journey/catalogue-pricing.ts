@@ -34,10 +34,19 @@ import { priceFor, type PriceItem, type PriceList } from '../catalogue/price-lis
 import { getPublishedPriceList } from '../catalogue/price-list-service.js';
 import type { Store } from '../store.js';
 
-const pounds = (minor: number) => Math.round(minor) / 100;
+export const pounds = (minor: number) => Math.round(minor) / 100;
+
+/** The price-list categories that become the engine's catalogue extras. */
+export const EXTRA_CATEGORIES: readonly string[] = [
+  'scaffold',
+  'electrical',
+  'optional',
+  'admin',
+  'other',
+];
 
 /** v1's catalogue extra categories, from SunScan's SKU prefixes. */
-function extraCategory(item: PriceItem): CatalogueExtra['category'] {
+export function extraCategory(item: PriceItem): CatalogueExtra['category'] {
   const key = item.key.toUpperCase();
   if (key.startsWith('SCAFFOLD')) return 'scaffold';
   if (key.startsWith('EV-')) return 'ev';
@@ -285,7 +294,7 @@ export function pricingFromPriceList(list: PriceList): CataloguePricing | null {
   // Extras: scaffold, electrical, EV, optimisers, bird mesh, EPS, admin.
   const extras: CatalogueExtra[] = [];
   list.items
-    .filter((i) => ['scaffold', 'electrical', 'optional', 'admin', 'other'].includes(i.category))
+    .filter((i) => EXTRA_CATEGORIES.includes(i.category))
     .forEach((item, i) => {
       const extra = extraOf(item, i + 1);
       if (extra) extras.push(extra);

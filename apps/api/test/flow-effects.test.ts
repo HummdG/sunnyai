@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConversationFlow, FlowEffect, FlowStep } from '@sunny/contracts';
 
 import { HSENERGY_PRICE_LIST_CSV } from '../src/catalogue/examples/hsenergy.js';
-import { importPriceList, type PriceList } from '../src/catalogue/price-list.js';
+import { importPriceList, type PriceItem, type PriceList } from '../src/catalogue/price-list.js';
 import { effectsFor } from '../src/flow/effects.js';
 import { FIXED_START, PRESET_GROUPS, PRESET_WARNINGS } from '../src/flow/presets.js';
 import { resolveFlow } from '../src/flow/resolve.js';
@@ -124,6 +124,7 @@ function quoteFor(
     answers: qa!,
     roof: ROOF,
     pricing,
+    priceList: list,
     flow: resolved,
     effects: effectsFor(flow, answers),
   });
@@ -282,7 +283,7 @@ describe('answers that change the quote', () => {
     for (const found of lines(quote, EV)) expect(found).toEqual([]);
     const admin = LIST.items.find((i) => i.key === 'ELEC-ADMIN-FEE')!.name;
     expect(quote.warnings).toContain(
-      `${EV} could not be added from your answers, so your installer will confirm it.`,
+      'One of the items linked to your answers could not be added, so your installer will confirm it.',
     );
     // A mandatory item is never an effect's target.
     expect(quote.warnings).toContain(
@@ -291,6 +292,8 @@ describe('answers that change the quote', () => {
     for (const found of lines(quote, 'ELEC-ADMIN-FEE')) expect(found).toHaveLength(1);
     // Each warning once, however many packages it touched.
     expect(new Set(quote.warnings).size).toBe(quote.warnings.length);
+    // Never the raw key of an item that has gone.
+    expect(quote.warnings.join(' ')).not.toContain(EV);
   });
 
   it('a swap with a base-price item on either side is skipped with its warning', () => {
@@ -302,7 +305,128 @@ describe('answers that change the quote', () => {
     const quote = quoteFor(flow, answersFor({ c_pvbase01: 'yes' }));
     expect(quote.options).toEqual(plain.options);
     expect(quote.warnings).toContain(
-      'PV-BASE could not be swapped from your answers, so your installer will confirm it.',
+      `${LIST.items.find((i) => i.key === 'PV-BASE')!.name} could not be swapped from your answers, so your installer will confirm it.`,
+    );
+  });
+});
+
+// ─── fixed quantities and items made mandatory after linking ────────────────
+
+function extraItem(
+  over: Partial<PriceItem> & Pick<PriceItem, 'key' | 'name' | 'pricing'>,
+): PriceItem {
+  return {
+    category: 'electrical',
+    manufacturer: null,
+    model: null,
+    mandatory: false,
+    priceStatus: 'verified',
+    exclusiveGroup: null,
+    expansion: null,
+    additionalUnitDiscountMinor: null,
+    capacityWh: null,
+    powerW: null,
+    notes: null,
+    rows: [],
+    ...over,
+  };
+}
+
+describe('quantities and mandatory items', () => {
+  const SOCKETS = extraItem({
+    key: 'ELEC-SOCKETS',
+    name: 'Outdoor sockets',
+    pricing: { kind: 'per_unit', unit: 'unit', amountMinor: 5000, flatMinor: 10000 },
+  });
+  const CABLE = extraItem({
+    key: 'ELEC-CABLE-RUN',
+    name: 'External cable run',
+    category: 'optional',
+    pricing: { kind: 'per_unit', unit: 'metre', amountMinor: 4000, flatMinor: 0 },
+  });
+  const WITH_EXTRAS: PriceList = { ...LIST, items: [...LIST.items, SOCKETS, CABLE] };
+
+  it('a fixed quantity with a call-out fee is one line at exactly the list price for that quantity', () => {
+    const flow = flowOf([
+      ...presetSteps(),
+      yesNo('c_sockets1', [
+        { kind: 'add', itemKey: SOCKETS.key, quantity: 3 },
+        // A flat item ignores any quantity, as the list prices it.
+        { kind: 'add', itemKey: 'ELEC-SUB-BOARD', quantity: 4 },
+      ]),
+    ]);
+    const quote = quoteFor(flow, answersFor({ c_sockets1: 'yes' }), WITH_EXTRAS);
+    for (const option of quote.options) {
+      // £100 call-out + 3 × £50 = £250 (priceFor), not 3 × £150.
+      const sockets = option.lineItems.filter((l) => l.sku.startsWith(SOCKETS.key));
+      expect(sockets).toEqual([
+        expect.objectContaining({ label: 'Outdoor sockets × 3', quantity: 1, totalGbp: 250 }),
+      ]);
+      const board = option.lineItems.filter((l) => l.sku === 'ELEC-SUB-BOARD');
+      expect(board).toEqual([expect.objectContaining({ quantity: 1, totalGbp: 250 })]);
+    }
+  });
+
+  it('an item priced per metre reaches the quote at its fixed quantity, by add or by swap', () => {
+    const flow = flowOf([
+      ...presetSteps(),
+      yesNo('c_evcar01', [{ kind: 'add', itemKey: EV }]),
+      yesNo('c_cable001', [{ kind: 'swap', fromKey: EV, toKey: CABLE.key, quantity: 12 }]),
+      yesNo('c_cable002', [{ kind: 'add', itemKey: CABLE.key, quantity: 5 }]),
+    ]);
+    const swapped = quoteFor(
+      flow,
+      answersFor({ c_evcar01: 'yes', c_cable001: 'yes', c_cable002: 'no' }),
+      WITH_EXTRAS,
+    );
+    for (const option of swapped.options) {
+      expect(option.lineItems.filter((l) => l.sku === EV)).toEqual([]);
+      const cable = option.lineItems.filter((l) => l.sku.startsWith(CABLE.key));
+      expect(cable).toEqual([
+        expect.objectContaining({ label: 'External cable run × 12', quantity: 1, totalGbp: 480 }),
+      ]);
+    }
+    expect(swapped.warnings.join(' ')).not.toMatch(/could not be/);
+
+    const added = quoteFor(
+      flow,
+      answersFor({ c_evcar01: 'no', c_cable001: 'no', c_cable002: 'yes' }),
+      WITH_EXTRAS,
+    );
+    for (const option of added.options) {
+      const cable = option.lineItems.filter((l) => l.sku.startsWith(CABLE.key));
+      expect(cable).toEqual([expect.objectContaining({ totalGbp: 200 })]);
+    }
+  });
+
+  it('a battery or panel made mandatory after linking is skipped with its warning, and the quote still builds', () => {
+    const batteries = LIST.items.filter((i) => i.category === 'battery');
+    const panel = LIST.items.find((i) => i.key === 'REA-HD96-460')!;
+    const mandatory: PriceList = {
+      ...LIST,
+      items: LIST.items.map((i) =>
+        i.category === 'battery' || i.key === panel.key ? { ...i, mandatory: true } : i,
+      ),
+    };
+    const flow = flowOf([
+      ...presetSteps(),
+      yesNo('c_battery1', [
+        ...batteries.map((b): FlowEffect => ({ kind: 'remove', itemKey: b.key })),
+        { kind: 'swap', fromKey: 'DMEGC-DM430', toKey: panel.key },
+      ]),
+    ]);
+    const plain = quoteFor(flow, answersFor({ c_battery1: 'no' }), mandatory);
+    const quote = quoteFor(flow, answersFor({ c_battery1: 'yes' }), mandatory);
+    expect(quote.options).toHaveLength(3);
+    expect(quote.options).toEqual(plain.options);
+    expect(quote.options.some((o) => o.batteryType !== null)).toBe(true);
+    for (const b of batteries) {
+      expect(quote.warnings).toContain(
+        `${b.name} could not be removed from your answers, so your installer will confirm it.`,
+      );
+    }
+    expect(quote.warnings).toContain(
+      `${panel.name} could not be swapped from your answers, so your installer will confirm it.`,
     );
   });
 });
