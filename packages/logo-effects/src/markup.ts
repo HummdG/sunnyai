@@ -1,5 +1,11 @@
-import { OUTLINE_EFFECTS } from '@sunny/contracts';
 import type { LogoEffect } from '@sunny/contracts';
+
+/**
+ * The contracts' `OUTLINE_EFFECTS`, repeated: importing the value would bring
+ * zod with it, which is most of `sunny-logo.js`'s weight for one short list.
+ * `test/markup.test.ts` checks every effect against the contracts' lists.
+ */
+const OUTLINE_EFFECTS: readonly LogoEffect[] = ['comet', 'draw', 'rings', 'march'];
 
 /**
  * The seven approved busy animations, drawn over an installer's own logo.

@@ -15,6 +15,7 @@
     "@sunny/animation-engine": "*",
     "@sunny/character": "*",
     "@sunny/contracts": "*",
+    "@sunny/logo-effects": "*",
     "@sunny/ui": "*"
   }
 }
