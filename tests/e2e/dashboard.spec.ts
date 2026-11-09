@@ -266,9 +266,10 @@ test('Studio swaps Sunny for the installer logo and name', async ({ page, reques
   });
   await nameInput.fill("Nova & Co. O'Neil-2");
   expect((await validity()).valid).toBe(true);
-  // Starter buttons are what visitors ask, shown as chips beside the form.
+  // Starter buttons are what visitors ask, shown as chips beside the form. The
+  // hint names the assistant as it is being renamed.
   const starters = page.getByRole('textbox', { name: /^Starter buttons/ });
-  await expect(starters).toHaveAccessibleDescription(/what visitors ask Sunny/);
+  await expect(starters).toHaveAccessibleDescription(/what visitors ask Nova & Co\. O'Neil-2,/);
   await starters.fill('How much could I save?\nDo you fit batteries?');
   await expect(
     page.getByRole('list', { name: 'Starter buttons' }).getByRole('listitem'),
