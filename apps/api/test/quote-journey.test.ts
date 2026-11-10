@@ -911,4 +911,33 @@ describe('journey without the address first (solar workflow)', () => {
     expect(view.canQuote).toBe(true);
     expect(quoteAnswers(answers, null, demoPricing(), flow)?.budgetBandId).toBeNull();
   });
+
+  it('cannot quote with the address answered while the roof is still being measured', () => {
+    const answers = {
+      motivation: 'bills',
+      property_type: 'house',
+      address: '1 High St, NR4 7TJ',
+      roof_shading: 'none',
+      budget_band: 'skipped',
+    };
+    const view = journeyStatus(answers, null, { roofPending: true }, flow);
+    expect(view.stage).toBe('roof_pending');
+    expect(view.canQuote).toBe(false);
+  });
+
+  it('asks to confirm a medium-confidence roof before it can quote', () => {
+    const roof = mapRoof(summary({ confidence: { roof: 'medium' } }), PANEL);
+    expect(roof.confidence).toBe('medium');
+    const answers = {
+      motivation: 'bills',
+      property_type: 'house',
+      address: '164 Norwich Drive, Norwich NR4 7TJ',
+      roof_shading: 'none',
+      budget_band: 'skipped',
+    };
+    const view = journeyStatus(answers, roof, {}, flow);
+    expect(view.nextQuestionId).toBe('roof_confirmed');
+    expect(view.missing).toContain('roof_confirmed');
+    expect(view.canQuote).toBe(false);
+  });
 });

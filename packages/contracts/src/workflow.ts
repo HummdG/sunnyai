@@ -189,7 +189,8 @@ function compile(glob: string): RegExp {
 
 /**
  * Whether a workflow may be offered on a page. An empty `include` means every
- * page; a restricted rule never matches an unknown (null) path. `exclude` wins.
+ * page, and on a known path `exclude` wins. A null (unknown) path matches only
+ * rules with an empty include list, whatever their exclude list says.
  */
 export function pathMatches(rule: PageRule, path: string | null): boolean {
   // An unknown page is matched by an open include list; an exclude cannot match it.
