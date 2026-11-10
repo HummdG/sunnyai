@@ -1,8 +1,10 @@
 /** Shared fixtures for the proposal page tests: a stored quote, a snapshot and a ProposalDoc. */
 import { defaultQuotationSettings } from '@sunny/contracts';
 import { HEAT_PUMP_DISCLAIMER, type HeatPumpEstimate } from '@sunny/heat-pump-engine';
+import { BATTERY_DISCLAIMER } from '@sunny/quote-engine';
 import PDFDocument from 'pdfkit';
 
+import type { BatteryOptionView, BatteryQuoteRecord } from '../src/journey/battery/record.js';
 import type { HeatPumpOptionView, HeatPumpQuoteRecord } from '../src/journey/heat-pump/record.js';
 import type { QuoteOptionView, QuoteRecord } from '../src/journey/quote.js';
 import { referenceFor } from '../src/proposal/copy.js';
@@ -278,6 +280,94 @@ export function hpQuote(
     recommendedId: 'with_cylinder',
     warnings: [],
     disclaimer: HEAT_PUMP_DISCLAIMER,
+    leadId: null,
+    quotation: snap,
+    ...over,
+  };
+}
+
+// ---- Battery -----------------------------------------------------------------
+
+export function batEstimate(
+  over: Partial<BatteryQuoteRecord['estimate']> = {},
+): BatteryQuoteRecord['estimate'] {
+  return {
+    pvKwp: 4,
+    pvKwpAssumed: false,
+    annualGenerationKwh: 3800,
+    annualUseKwh: 3500,
+    importPence: 24.5,
+    exportPence: 15,
+    offPeakPence: null,
+    peakPence: null,
+    recommendedKwh: 5,
+    warnings: [],
+    assumptions: ['On a single-rate tariff the battery saves by storing your own solar.'],
+    ...over,
+  };
+}
+
+export function batOption(over: Partial<BatteryOptionView> = {}): BatteryOptionView {
+  return {
+    id: 'recommended',
+    label: 'Recommended',
+    isRecommended: true,
+    headline: 'A 5 kWh battery, sized to your solar and your use.',
+    capacityKwh: 5,
+    batteryName: 'Acme 5 kWh',
+    priceGbp: 3200,
+    priceLabel: 'Indicative price, 0% VAT',
+    lineItems: [{ sku: 'B-5', label: 'Acme 5 kWh', quantity: 1, totalGbp: 3200 }],
+    annualSavingsGbp: 160,
+    selfUseSavingGbp: 160,
+    shiftSavingGbp: 0,
+    paybackYears: 20,
+    warnings: [],
+    installerPriced: false,
+    ...over,
+  };
+}
+
+export function batQuote(
+  over: Partial<BatteryQuoteRecord> = {},
+  snap: QuotationSnapshot = snapshot(),
+): BatteryQuoteRecord {
+  return {
+    kind: 'battery',
+    id: 'q_bat7f3a9c2e41b8',
+    tenantId: DEMO_TENANT.id,
+    sessionId: 's1',
+    createdAt: '2026-11-09T10:00:00.000Z',
+    priced: true,
+    pricing: {
+      label: 'Battery quote',
+      version: '1',
+      priceStatus: 'indicative',
+      vatRatePercent: 0,
+      currency: 'GBP',
+    },
+    estimate: batEstimate(),
+    postcode: 'NR4 7TJ',
+    tariff: 'standard',
+    options: [
+      batOption(),
+      batOption({
+        id: 'more_storage',
+        label: 'More storage',
+        isRecommended: false,
+        headline: 'A 9.5 kWh battery, for more storage.',
+        capacityKwh: 9.5,
+        batteryName: 'Acme 9.5 kWh',
+        priceGbp: 4000,
+        lineItems: [{ sku: 'B-9', label: 'Acme 9.5 kWh', quantity: 1, totalGbp: 4000 }],
+        annualSavingsGbp: 210,
+        selfUseSavingGbp: 210,
+        paybackYears: 19,
+      }),
+    ],
+    recommendedId: 'recommended',
+    warnings: [],
+    disclaimer: BATTERY_DISCLAIMER,
     leadId: null,
     quotation: snap,
     ...over,

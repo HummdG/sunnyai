@@ -245,7 +245,7 @@ describe('quote kinds in the store', () => {
     expect(got).toEqual(row);
     expect(got && isSolarRecord(got)).toBe(false);
     expect(got && quoteKind(got)).toBe('battery');
-    expect(got && hasProposal(got)).toBe(false);
+    expect(got && hasProposal(got)).toBe(true);
     expect(await store.listQuotes(DEMO_TENANT.id, 's1')).toEqual([row]);
   });
 
@@ -342,8 +342,8 @@ describe('quote cards by kind', () => {
       quoteId: 'q_bat_1',
       priced: true,
       disclaimer: BATTERY_DISCLAIMER,
-      // No battery PDF yet.
-      proposalAvailable: false,
+      // The battery estimate PDF.
+      proposalAvailable: true,
       emailAvailable: true,
       options: [
         {
@@ -531,18 +531,23 @@ describe('quote routes with a heat pump quote', () => {
     expect(saved?.kind).toBe('battery');
   });
 
-  it('serves a battery quote without a PDF yet', async () => {
+  it('serves a battery quote with its PDF, the battery estimate', async () => {
     const { app, store, auth } = await server();
     await store.saveQuote(battery());
     const got = await app.inject({ method: 'GET', url: '/v1/quote/q_bat_1', headers: auth });
     expect(got.statusCode).toBe(200);
-    expect(got.json()).toMatchObject({ kind: 'battery', proposalAvailable: false });
+    expect(got.json()).toMatchObject({ kind: 'battery', proposalAvailable: true });
     const pdf = await app.inject({
       method: 'GET',
       url: '/v1/quote/q_bat_1/proposal.pdf',
       headers: auth,
     });
-    expect(pdf.statusCode).toBe(404);
+    expect(pdf.statusCode).toBe(200);
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+    expect(pdf.headers['content-disposition']).toBe(
+      'attachment; filename="battery-estimate-NR4-7TJ.pdf"',
+    );
+    expect(pdf.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
   });
 
   it('serves a heat pump quote with its PDF, the heat pump estimate', async () => {

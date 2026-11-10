@@ -7,7 +7,7 @@ import { createAuthenticator, requireMembership } from '../auth/index.js';
 import type { BrandAssetStore } from '../branding/store.js';
 import {
   hasProposal,
-  isSolarRecord,
+  quoteKind,
   type ProposalQuote,
   type StoredQuote,
 } from '../journey/quote-kinds.js';
@@ -78,7 +78,7 @@ function sendPdf(reply: FastifyReply, pdf: Buffer, filename: string): Buffer {
   return pdf;
 }
 
-/** The quote as one with a PDF; a kind without one (a battery quote, for now) is a 404. */
+/** The quote as one with a PDF (solar, heat pump or battery); a kind without one is a 404. */
 function withProposal(quote: StoredQuote): ProposalQuote {
   if (!hasProposal(quote)) throw new ApiError('not_found', 'This quote has no PDF.');
   return quote;
@@ -167,21 +167,25 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     );
     const company = tenant.config.companyName;
     const contact = tenant.config.supportContact;
-    const solar = isSolarRecord(quote);
+    const kind = quoteKind(quote);
+    const what = kind === 'heat_pump' ? 'heat pump' : kind;
     await deps.mailer.send({
       to: body.data.email,
       replyTo: contact?.email ?? null,
       fromName: `${company} via Sunny`,
-      subject: solar ? `Your solar quote from ${company}` : `Your heat pump quote from ${company}`,
+      subject: `Your ${what} quote from ${company}`,
       text: [
         'Hello,',
         '',
-        solar
+        kind === 'solar'
           ? `Here is the solar proposal you asked for, from ${company}. It sets out the system we ` +
             'recommend, the other options you were shown, and what each should generate and save.'
-          : `Here is the heat pump estimate you asked for, from ${company}. It sets out the heat ` +
-            'pump we recommend, the options you were shown, the running costs and the Boiler ' +
-            'Upgrade Scheme grant.',
+          : kind === 'heat_pump'
+            ? `Here is the heat pump estimate you asked for, from ${company}. It sets out the heat ` +
+              'pump we recommend, the options you were shown, the running costs and the Boiler ' +
+              'Upgrade Scheme grant.'
+            : `Here is the battery estimate you asked for, from ${company}. It sets out the ` +
+              'battery we recommend, the options you were shown, and what each could save.',
         '',
         'Every figure is indicative and non-binding until we have surveyed your property.',
         '',

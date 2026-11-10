@@ -38,7 +38,7 @@ import { FileStore } from '../src/store.js';
 import { DEMO_TENANT, TenantRegistry, defaultTenants, type Tenant } from '../src/tenants.js';
 
 import { pdfItems, pdfText, type PdfTextItem } from './pdf-text.js';
-import { hpQuote } from './proposal-fixtures.js';
+import { batQuote, hpQuote } from './proposal-fixtures.js';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..');
 const NOW = Date.parse('2026-10-12T12:00:00.000Z');
@@ -959,6 +959,37 @@ describe('proposal routes with a heat pump quote', () => {
     expect(email.text).not.toContain(String.fromCodePoint(0x2014));
     expect(email.attachment.filename).toBe('heat-pump-estimate-NR4-7TJ.pdf');
     expect(email.attachment.data.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+});
+
+describe('proposal routes with a battery quote', () => {
+  it('emails the battery estimate as a battery quote, and gives it to the installer', async () => {
+    const mailer = { sent: [] as ProposalEmail[] };
+    const ctx = await setup(mailer);
+    const { app, store, tenantId, owner, as, visitor } = ctx;
+    const batLead = { ...ctx.lead, id: 'lead_bat', sessionId: 'sess_bat' };
+    await store.saveLead(batLead);
+    const bat = batQuote({ tenantId, sessionId: 'sess_bat', leadId: batLead.id });
+    await store.saveQuote(bat);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/quote/${bat.id}/proposal/email`,
+      headers: visitor('sess_bat'),
+      payload: { email: 'sam@example.com', consent: true },
+    });
+    expect(res.statusCode).toBe(200);
+    const email = mailer.sent[0]!;
+    expect(email.subject).toBe('Your battery quote from Brightside Solar');
+    expect(email.text).toContain('battery estimate');
+    expect(email.text).not.toContain(String.fromCodePoint(0x2013));
+    expect(email.text).not.toContain(String.fromCodePoint(0x2014));
+    expect(email.attachment.filename).toBe('battery-estimate-NR4-7TJ.pdf');
+
+    const url = `/v1/portal/tenants/${tenantId}/leads/${batLead.id}/quote/proposal.pdf`;
+    const pdf = await app.inject({ method: 'GET', url, headers: as(owner) });
+    expect(pdf.statusCode).toBe(200);
+    expect((await pdfText(pdf.rawPayload)).join(' ')).toContain('Battery estimate');
   });
 });
 

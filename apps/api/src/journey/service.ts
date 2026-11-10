@@ -367,7 +367,7 @@ function heatPumpCard(
   };
 }
 
-/** A battery quote as cards. */
+/** A battery quote as cards. Its PDF is the battery estimate (routes/proposal.ts). */
 function batteryCard(quote: BatteryQuoteRecord, options: { emailAvailable?: boolean }): QuoteCard {
   return {
     kind: 'battery',

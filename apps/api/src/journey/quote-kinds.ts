@@ -24,9 +24,9 @@ export function quoteKind(q: StoredQuote): QuoteKind {
 }
 
 /** The kinds that render as a PDF (routes/proposal.ts). */
-export type ProposalQuote = QuoteRecord | HeatPumpQuoteRecord;
+export type ProposalQuote = QuoteRecord | HeatPumpQuoteRecord | BatteryQuoteRecord;
 
-const PROPOSAL_KINDS: ReadonlySet<QuoteKind> = new Set(['solar', 'heat_pump']);
+const PROPOSAL_KINDS: ReadonlySet<QuoteKind> = new Set(['solar', 'heat_pump', 'battery']);
 
 /** Whether this quote has a PDF; a kind without one is a 404 on the proposal routes. */
 export function hasProposal(q: StoredQuote): q is ProposalQuote {

@@ -11,6 +11,7 @@
 import type { Fuel } from '@sunny/heat-pump-engine';
 
 import type { HeatPumpOptionView, HeatPumpQuoteRecord } from '../../journey/heat-pump/record.js';
+import type { BatteryProposalDoc } from '../battery/doc.js';
 import {
   ESTIMATE,
   PRICED_BY_INSTALLER,
@@ -37,8 +38,8 @@ export interface HeatPumpProposalDoc extends ProposalBase {
   currentFuel: Fuel | null;
 }
 
-/** Either kind of quotation document. */
-export type AnyProposalDoc = ProposalDoc | HeatPumpProposalDoc;
+/** Any kind of quotation document: solar, heat pump or battery. */
+export type AnyProposalDoc = ProposalDoc | HeatPumpProposalDoc | BatteryProposalDoc;
 
 export function isHeatPumpDoc(doc: AnyProposalDoc): doc is HeatPumpProposalDoc {
   return 'kind' in doc && doc.kind === 'heat_pump';
