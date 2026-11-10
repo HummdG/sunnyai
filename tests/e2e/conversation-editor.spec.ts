@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
- * Sunny Studio's "Your conversation" tab, end to end: the installer adds their
+ * Sunny Studio's "Your workflows" tab, end to end, in the Solar quote workflow: the installer adds their
  * own question whose answer adds their EV charger, reorders on the flow and in
  * the list, removes a preset (with its warning), adds a follow-up, zooms the
  * flow, flips to the question list, and resets.
@@ -48,13 +48,19 @@ async function signInAs(page: Page, email: string, target: string): Promise<void
   await page.waitForURL((url) => url.pathname === '/dashboard/studio');
 }
 
-/** Straight to the conversation tab, by its address. */
-async function openAs(page: Page, email: string): Promise<void> {
-  await signInAs(page, email, '/dashboard/studio?tab=conversation');
-  await expect(box(page, SHADING)).toBeVisible();
+/** From the workflow list into the Solar quote workflow (owners edit it, viewers view it). */
+async function openSolar(page: Page, onFlow = true): Promise<void> {
+  await page.getByRole('button', { name: /^(Edit|View)\s+Solar quote$/ }).click();
+  if (onFlow) await expect(box(page, SHADING)).toBeVisible();
 }
 
-const editor = (page: Page) => page.getByRole('tabpanel', { name: 'Your conversation' });
+/** Straight to the workflows tab by its address, then into Solar quote. */
+async function openAs(page: Page, email: string): Promise<void> {
+  await signInAs(page, email, '/dashboard/studio?tab=workflows');
+  await openSolar(page);
+}
+
+const editor = (page: Page) => page.getByRole('tabpanel', { name: 'Your workflows' });
 const canvas = (page: Page) => editor(page).getByRole('region', { name: 'Flow' });
 const list = (page: Page) => editor(page).getByRole('region', { name: 'Questions' });
 const card = (page: Page) => editor(page).getByRole('region', { name: 'Selected question' });
@@ -88,6 +94,9 @@ async function listOrder(page: Page): Promise<string[]> {
  * single jump, as `dragTo` makes, does not start this one).
  */
 async function drag(page: Page, source: Locator, target: Locator, dy = 0): Promise<void> {
+  // The settings and pages sit above the questions: bring the pair into view first.
+  await target.scrollIntoViewIfNeeded();
+  await source.scrollIntoViewIfNeeded();
   const from = (await source.boundingBox())!;
   const to = (await target.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
@@ -143,9 +152,8 @@ test('an added question whose "Yes" adds the EV charger is saved and still there
     'aria-selected',
     'true',
   );
-  await page.getByRole('tab', { name: 'Your conversation' }).click();
-  await expect(page).toHaveURL(/[?&]tab=conversation/);
-  await expect(box(page, SHADING)).toBeVisible();
+  await page.getByRole('tab', { name: 'Your workflows' }).click();
+  await expect(page).toHaveURL(/[?&]tab=workflows/);
   // Arrow keys move along the tabs.
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Assistant settings' })).toHaveAttribute(
@@ -154,12 +162,11 @@ test('an added question whose "Yes" adds the EV charger is saved and still there
   );
   await expect(editor(page)).toBeHidden();
   await page.keyboard.press('ArrowLeft');
-  await expect(box(page, SHADING)).toBeVisible();
+  await openSolar(page);
 
-  // The fixed start and end are drawn, locked: nothing to click or drag.
-  await expect(canvas(page)).toContainText('Address and roof check');
+  // The address is an ordinary question now: no fixed start box. The end stays drawn, locked.
+  await expect(canvas(page)).not.toContainText('Address and roof check');
   await expect(canvas(page)).toContainText('Quote, then contact details');
-  await expect(canvas(page).getByRole('button', { name: 'Address and roof check' })).toHaveCount(0);
   await expect(box(page, SHADING)).toContainText("Sunny's question");
 
   await card(page).getByRole('button', { name: '+ Add a question' }).click();
@@ -184,10 +191,11 @@ test('an added question whose "Yes" adds the EV charger is saved and still there
   await expect(preview(page)).toContainText('Adds 7kW EV charger');
   await expect(preview(page)).toContainText('£899');
 
-  await editor(page).getByRole('button', { name: 'Save conversation' }).click();
+  await editor(page).getByRole('button', { name: 'Save questions' }).click();
   await expect(editor(page).getByRole('status')).toContainText('Saved');
 
   await page.reload();
+  await openSolar(page);
   await expect(box(page, EV)).toBeVisible();
   await box(page, EV).click();
   await expect(card(page).getByRole('group', { name: 'Answer Yes' })).toContainText(
@@ -260,9 +268,10 @@ test("a linked question's answers can be reworded, priced and followed up, and a
   await preview(page).getByRole('button', { name: 'Five or more' }).click();
   await expect(preview(page)).toContainText('Adds 7kW EV charger');
 
-  await editor(page).getByRole('button', { name: 'Save conversation' }).click();
+  await editor(page).getByRole('button', { name: 'Save questions' }).click();
   await expect(editor(page).getByRole('status')).toContainText('Saved');
   await page.reload();
+  await openSolar(page);
   await box(page, HOUSEHOLD).click();
   const saved = card(page).getByRole('group', { name: 'Answer Five or more' });
   await expect(saved).toContainText('Adds 7kW EV charger, £899');
@@ -281,7 +290,7 @@ test('a problem on a follow-up is flagged on its parent, and Save opens it', asy
   // Leave the follow-up without its question, and pick another one.
   await box(page, SHADING).click();
 
-  await editor(page).getByRole('button', { name: 'Save conversation' }).click();
+  await editor(page).getByRole('button', { name: 'Save questions' }).click();
   const message = card(page).getByText('Write the question Sunny should ask.');
   await expect(message).toBeVisible();
   await expect(message).toBeInViewport();
@@ -391,7 +400,14 @@ test('removing electricity use shows its warning first, and the preview never as
     if (await ending.isVisible()) break;
     const prompt = (await current()) ?? '';
     asked.push(prompt);
-    await preview(page).locator('.preview-chips button').first().click();
+    // The address is an ordinary question now, answered by typing; the rest by a tap.
+    const typed = preview(page).getByRole('textbox', { name: 'Sample answer' });
+    if (await typed.isVisible()) {
+      await typed.fill('20 Forthlin Road, Liverpool L18 9TN');
+      await preview(page).getByRole('button', { name: 'Send', exact: true }).click();
+    } else {
+      await preview(page).locator('.preview-chips button').first().click();
+    }
     await expect.poll(current).not.toBe(prompt);
   }
   await expect(preview(page).getByText('Then Sunny shows the quote')).toBeVisible();
@@ -473,6 +489,7 @@ test('the Flow or Questions choice is remembered, and the flow zooms', async ({ 
   await expect(row(page, SHADING)).toBeVisible();
   await expect(canvas(page)).toHaveCount(0);
   await page.reload();
+  await openSolar(page, false);
   await expect(row(page, SHADING)).toBeVisible();
   await expect(view(page, 'Questions')).toHaveAttribute('aria-pressed', 'true');
   await expect(canvas(page)).toHaveCount(0);
@@ -508,10 +525,8 @@ test('a mandatory item cannot be picked, and a per-metre item asks how many', as
 test('a viewer sees the conversation but cannot change it', async ({ page }) => {
   await openAs(page, VIEWER);
   await expect(box(page, EV)).toBeVisible();
-  await expect(editor(page).getByRole('button', { name: 'Save conversation' })).toHaveCount(0);
-  await expect(
-    editor(page).getByRole('button', { name: "Reset to Sunny's questions" }),
-  ).toHaveCount(0);
+  await expect(editor(page).getByRole('button', { name: 'Save questions' })).toHaveCount(0);
+  await expect(editor(page).getByRole('button', { name: 'Reset to the template' })).toHaveCount(0);
   await expect(card(page).getByRole('button', { name: '+ Add a question' })).toHaveCount(0);
   await expect(canvas(page).locator('[data-draggable]')).toHaveCount(0);
   // A drag on the flow changes nothing.
@@ -533,14 +548,15 @@ test('a viewer sees the conversation but cannot change it', async ({ page }) => 
 test("reset restores Sunny's questions after confirming", async ({ page }) => {
   await openAs(page, OWNER);
   await expect(box(page, EV)).toBeVisible();
-  await editor(page).getByRole('button', { name: "Reset to Sunny's questions" }).click();
+  await editor(page).getByRole('button', { name: 'Reset to the template' }).click();
   const confirm = editor(page).getByRole('alertdialog');
-  await expect(confirm).toContainText('replaces your questions');
+  await expect(confirm).toContainText("puts back the template's questions");
   await confirm.getByRole('button', { name: 'Reset', exact: true }).click();
   await expect(box(page, EV)).toHaveCount(0);
   await expect(box(page, USAGE)).toBeVisible();
 
   await page.reload();
+  await openSolar(page);
   await expect(box(page, USAGE)).toBeVisible();
   await expect(box(page, EV)).toHaveCount(0);
 });
@@ -558,7 +574,7 @@ const SHOTS = process.env.SUNNY_SHOTS_DIR;
  */
 async function scriptSuggestions(page: Page): Promise<{ asked: string[] }> {
   const asked: string[] = [];
-  await page.route('**/conversation/suggest', async (route) => {
+  await page.route('**/workflows/*/suggest', async (route) => {
     const body = route.request().postDataJSON() as {
       prompt: string;
       choices: Array<{ value: string; label: string }>;
@@ -601,12 +617,10 @@ test('a renamed assistant is called by its name across Studio, without a reload'
   await expect(settings.getByRole('status')).toContainText('Saved');
   await expect(settings).toContainText('These are what visitors ask Ava, not what Ava asks them.');
 
-  await page.getByRole('tab', { name: 'Your conversation' }).click();
+  await page.getByRole('tab', { name: 'Your workflows' }).click();
   await expect(box(page, SHADING)).toContainText("Ava's question");
   await expect(avaPreview(page)).toBeVisible();
-  await expect(
-    editor(page).getByRole('button', { name: "Reset to Ava's questions" }),
-  ).toBeVisible();
+  await expect(editor(page).getByRole('button', { name: 'Reset to the template' })).toBeVisible();
   await box(page, SHADING).click();
   await expect(avaPreview(page)).toContainText('Ava may phrase this more naturally in the chat.');
   // The product keeps its name.
@@ -660,7 +674,7 @@ test('an added question has its price changes worked out, and a manual edit is k
   await expect(yes).toContainText('No price change');
   await expect(yes).not.toContainText('EV charger');
 
-  await editor(page).getByRole('button', { name: 'Save conversation' }).click();
+  await editor(page).getByRole('button', { name: 'Save questions' }).click();
   await expect(editor(page).getByRole('status')).toContainText('Saved. Ava asks these questions');
 });
 

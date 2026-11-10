@@ -19,6 +19,7 @@ import { FileStore, type MemberRole } from '../../apps/api/src/store.js';
 import { DEMO_TENANT, TenantRegistry, type Tenant } from '../../apps/api/src/tenants.js';
 import type { ChatProvider, ChatTurnRequest } from '../../apps/api/src/agent/provider.js';
 import type { ServerConfig } from '../../apps/api/src/config.js';
+import { blankWorkflow } from '../../apps/api/src/workflows/templates.js';
 import { csv, PANEL_430, PANEL_500 } from '../../apps/api/test/catalogue-fixture.js';
 import { ScriptedProvider } from '../../apps/api/test/scripted-provider.js';
 import {
@@ -1154,6 +1155,85 @@ const ROUTES: RouteSpec[] = [
     payload: () => ({
       flow: { version: 0, updatedAt: '2026-01-01T00:00:00Z', steps: [] },
       answers: {},
+    }),
+  },
+  // ─── workflows (routes/workflows.ts) ───────────────────────────────────────
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/workflows',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/workflows',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ from: 'blank' }),
+  },
+  {
+    method: 'PUT',
+    pattern: '/v1/portal/tenants/:tenantId/workflows/settings',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows/settings`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ discoveryEnabled: true }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/workflows/:workflowId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows/wf_solar`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
+  {
+    method: 'PUT',
+    pattern: '/v1/portal/tenants/:tenantId/workflows/:workflowId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows/wf_solar`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({ workflow: blankWorkflow('wf_solar', '2026-01-01T00:00:00Z') }),
+    // A blank workflow is refused with its flags for the built-in's slot: still not a denial.
+    namesRecord: true,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/v1/portal/tenants/:tenantId/workflows/:workflowId',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows/wf_solar`,
+    kind: 'installer',
+    minRole: 'admin',
+    // The built-in cannot be deleted: the allowed caller is told so, nothing more.
+    namesRecord: true,
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/workflows/:workflowId/reset',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows/wf_solar/reset`,
+    kind: 'installer',
+    minRole: 'admin',
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/workflows/:workflowId/preview',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows/wf_solar/preview`,
+    kind: 'installer',
+    minRole: 'viewer',
+    payload: () => ({
+      workflow: blankWorkflow('wf_solar', '2026-01-01T00:00:00Z'),
+      answers: {},
+    }),
+  },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/workflows/:workflowId/suggest',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/workflows/wf_solar/suggest`,
+    kind: 'installer',
+    minRole: 'admin',
+    payload: () => ({
+      prompt: 'Do you have an electric car?',
+      choices: [{ value: 'yes', label: 'Yes' }],
     }),
   },
   {
