@@ -56,7 +56,7 @@ export function drawCover(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
   // The plan takes the room the letter leaves, up to a comfortable size.
   y += 18;
   const room = CONTENT.bottom - y - letterH - 22;
-  const planH = Math.min(240, room);
+  const planH = Math.min(300, room);
   if (doc.roofPlan && planH >= 130) {
     drawRoofPlan(pdf, doc.roofPlan, { x, y, w, h: planH }, theme);
     y += planH + 22;

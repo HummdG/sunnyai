@@ -229,9 +229,23 @@ describe('the house drawing', () => {
         x >= BOX.x && x <= BOX.x + BOX.w && y >= BOX.y && y <= BOX.y + BOX.h - 16;
       for (const panel of p.panels)
         for (const c of panel.corners) expect(inside(fit.at(c))).toBe(true);
-      for (const s of fit.shapes) for (const q of s.pts) expect(inside(fit.at(q))).toBe(true);
+      // the house itself fits; faded neighbours may run past the frame (clipped, softened)
+      for (const s of fit.shapes.filter((s) => !s.fade))
+        for (const q of s.pts) expect(inside(fit.at(q))).toBe(true);
       expect(inside([fit.north.cx, fit.north.cy])).toBe(true);
     }
+  });
+
+  it('fits a terraced house to the house, not its faded neighbours', () => {
+    const p = plan()!;
+    const fit = fitDrawing(p, BOX, THEME, 16)!;
+    const xs = fit.shapes.filter((s) => !s.fade).flatMap((s) => s.pts.map((q) => fit.at(q)[0]));
+    const ys = fit.shapes.filter((s) => !s.fade).flatMap((s) => s.pts.map((q) => fit.at(q)[1]));
+    const used = Math.max(
+      (Math.max(...xs) - Math.min(...xs)) / BOX.w,
+      (Math.max(...ys) - Math.min(...ys)) / (BOX.h - 16),
+    );
+    expect(used).toBeGreaterThan(0.8);
   });
 
   it('draws terraced neighbours first, light and fading out, their cut ends not drawn', () => {

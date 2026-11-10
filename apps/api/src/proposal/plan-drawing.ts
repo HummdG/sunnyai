@@ -291,7 +291,10 @@ export function fitDrawing(
   const view = viewFor(plan);
   const shapes = shapesFor(plan, view, theme);
   const flat = (p: V3): Pt => [dot(view.right, p), dot(view.up, p)];
-  const pts = shapes.flatMap((s) => s.pts.map(flat));
+  // Fit the house itself: faded neighbours run on past the frame and are
+  // softened at its edges, so they never shrink the house.
+  const own = shapes.filter((s) => !s.fade);
+  const pts = (own.length > 0 ? own : shapes).flatMap((s) => s.pts.map(flat));
   if (pts.length === 0) return null;
   const minX = Math.min(...pts.map((p) => p[0]));
   const maxX = Math.max(...pts.map((p) => p[0]));
@@ -361,6 +364,23 @@ export function northArrow(
 
 // ---- drawing -------------------------------------------------------------------
 
+const SOFT = 28;
+
+/** White washes over each edge of the frame, clear inside to solid at the edge. */
+function softenEdges(pdf: Pdf, f: Rect): void {
+  const sides: [number, number, number, number, number, number, number, number][] = [
+    // rect x, y, w, h, then gradient from (x1, y1) to the edge (x2, y2)
+    [f.x, f.y, SOFT, f.h, f.x + SOFT, f.y, f.x, f.y],
+    [f.x + f.w - SOFT, f.y, SOFT, f.h, f.x + f.w - SOFT, f.y, f.x + f.w, f.y],
+    [f.x, f.y, f.w, SOFT, f.x, f.y + SOFT, f.x, f.y],
+    [f.x, f.y + f.h - SOFT, f.w, SOFT, f.x, f.y + f.h - SOFT, f.x, f.y + f.h],
+  ];
+  for (const [x, y, w, h, x1, y1, x2, y2] of sides) {
+    const g = pdf.linearGradient(x1, y1, x2, y2).stop(0, '#ffffff', 0).stop(1, '#ffffff', 1);
+    pdf.rect(x, y, w, h).fill(g);
+  }
+}
+
 function textWidth(pdf: Pdf, text: string): number {
   return pdf
     .font('mono-400')
@@ -424,7 +444,15 @@ export function drawRoofPlan(pdf: Pdf, plan: RoofPlan, box: Rect, theme: Theme):
       .stop(0.4, colour)
       .stop(1, '#ffffff');
   };
+  // Neighbours come first; once they are down, soften the frame's edges so a
+  // neighbour cut by the frame fades out instead of stopping hard.
+  const frame: Rect = { x: box.x, y: box.y, w: box.w, h: capTop - box.y - 1 };
+  let softened = !fit.shapes.some((s) => s.fade);
   for (const s of fit.shapes) {
+    if (!softened && !s.fade) {
+      softenEdges(pdf, frame);
+      softened = true;
+    }
     if (s.pts.length < 3) continue;
     if (s.fill) {
       path(s.pts);
