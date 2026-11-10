@@ -38,6 +38,13 @@ describe('ChatClient.send', () => {
     expect((sent.body().page as { path: string }).path).toBe('/battery-deal');
   });
 
+  it('clamps an over-long path to 512 characters', async () => {
+    vi.stubGlobal('location', { pathname: '/' + 'a'.repeat(2000), origin: 'https://site.example' });
+    const sent = stubFetch();
+    await client().send('hi', 'c1');
+    expect((sent.body().page as { path: string }).path).toHaveLength(512);
+  });
+
   it('sends no page where there is no location', async () => {
     vi.stubGlobal('location', undefined);
     const sent = stubFetch();

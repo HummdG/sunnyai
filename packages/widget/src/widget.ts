@@ -569,7 +569,7 @@ export class SunnyWidget {
         body: JSON.stringify({
           publicId: this.#options.publicId,
           origin: location.origin,
-          path: location.pathname,
+          path: location.pathname.slice(0, 512),
           // Only when the deployment uses Turnstile; the script loads on demand.
           turnstileToken: this.#config?.turnstileSiteKey
             ? ((await turnstileToken(this.#config.turnstileSiteKey)) ?? undefined)

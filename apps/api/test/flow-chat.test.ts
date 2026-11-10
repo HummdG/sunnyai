@@ -510,6 +510,51 @@ describe('the host-page route', () => {
   });
 });
 
+describe('a tenant with an empty workflow set', () => {
+  it('answers a host-page question with a bad_request, not a 500', async () => {
+    const store = await tempStore();
+    const tenant: Tenant = {
+      ...DEMO_TENANT,
+      config: {
+        ...DEMO_TENANT.config,
+        workflows: {
+          version: 1,
+          updatedAt: '2026-11-09T10:00:00Z',
+          discovery: { enabled: false },
+          workflows: [],
+        },
+      },
+    };
+    const app = buildServer({
+      config: config(),
+      store,
+      tenants: new TenantRegistry([tenant]),
+      now: () => 1_700_000_000_000,
+    });
+    await app.ready();
+    try {
+      const session = await app.inject({
+        method: 'POST',
+        url: '/v1/widget/session',
+        payload: { publicId: DEMO_TENANT.publicId, origin: ORIGIN },
+      });
+      const { sessionId, sessionToken } = session.json<{
+        sessionId: string;
+        sessionToken: string;
+      }>();
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/qualification/answer',
+        headers: { authorization: `Bearer ${sessionToken}` },
+        payload: { sessionId, questionId: 'roof_shading', value: 'none' },
+      });
+      expect(response.statusCode, response.body).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe('reading a reply to a question that changes the quote', () => {
   const carQuestion: FlowStep = {
     kind: 'custom',

@@ -930,7 +930,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const activeWorkflow =
       (activeId ? workflowSet.workflows.find((w) => w.id === activeId) : undefined) ??
       workflowSet.workflows.find((w) => w.id === BUILTIN_WORKFLOW_IDS.solar_quote) ??
-      workflowSet.workflows[0]!;
+      workflowSet.workflows[0];
+    if (!activeWorkflow) {
+      throw new ApiError('bad_request', 'This installer has no workflow to answer yet.');
+    }
     const flow = resolvedFlowFor(activeWorkflow);
 
     const verdict = flow.validate(body.data.questionId, body.data.value, before);
