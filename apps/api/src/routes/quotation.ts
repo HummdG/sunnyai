@@ -18,6 +18,7 @@ import { loadBrandAsset } from '../branding/meta.js';
 import type { BrandAssetStore } from '../branding/store.js';
 import type { MemberRole, Store } from '../store.js';
 import type { TenantRegistry } from '../tenants.js';
+import { DEFAULT_BRAND, readableAccent, readableRail } from '../proposal/layout.js';
 import { brandAssetView, type BrandAssetView } from './branding.js';
 import type { PortalConfig } from './portal-config.js';
 
@@ -34,6 +35,11 @@ export interface QuotationView {
   settings: QuotationSettings;
   saved: boolean;
   assets: { logo: BrandAssetView | null; accreditations: BrandAssetView[] };
+  /** The colours as the PDF will use them, and whether they were adjusted for legibility. */
+  colourNotes: {
+    rail: { hex: string; adjusted: boolean };
+    accent: { hex: string; adjusted: boolean };
+  };
 }
 
 const MISSING_IMAGE = 'That image is no longer available. Upload it again.';
@@ -80,7 +86,16 @@ export function registerQuotationRoutes(app: FastifyInstance, deps: QuotationRou
       const asset = await assetView(tenantId, id);
       if (asset) accreditations.push(asset);
     }
-    return { settings: current, saved: settings !== null, assets: { logo, accreditations } };
+    const brand = tenants.byId(tenantId)?.config.primaryColor ?? DEFAULT_BRAND;
+    return {
+      settings: current,
+      saved: settings !== null,
+      assets: { logo, accreditations },
+      colourNotes: {
+        rail: readableRail(current.colours.rail ?? brand),
+        accent: readableAccent(current.colours.accent ?? brand),
+      },
+    };
   }
 
   app.get('/v1/portal/tenants/:tenantId/quotation', async (request) => {
@@ -93,8 +108,7 @@ export function registerQuotationRoutes(app: FastifyInstance, deps: QuotationRou
     const raw = (request.body as { settings?: unknown } | null)?.settings;
     // The version and time are the server's: whatever the client sent is
     // replaced with placeholders so the one shared schema validates the rest.
-    const candidate =
-      raw && typeof raw === 'object' ? { ...(raw as object), version: 0, updatedAt: '' } : raw;
+    const candidate = raw && typeof raw === 'object' ? { ...raw, version: 0, updatedAt: '' } : raw;
     const body = quotationSettingsSchema.safeParse(candidate);
     if (!body.success) {
       throw new ApiError(

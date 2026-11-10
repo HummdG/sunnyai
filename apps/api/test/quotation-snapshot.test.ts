@@ -247,4 +247,16 @@ describe('reasonsFor', () => {
     const r = reasonsFor(effects, flow, { c_evcar01: 'yes', lifestyle: 'evening_use' }, ev);
     expect(r['PV-BASE']).toBeUndefined();
   });
+
+  it('resolves unset colours to the brand colour and keeps chosen ones', () => {
+    const t = new TenantRegistry([TENANT]).byId(TENANT.id)!;
+    expect(snapshotFor(t, undefined).colours).toEqual({ rail: '#123456', accent: '#123456' });
+    const chosen = saved({ colours: { rail: '#ffe066', accent: null } });
+    expect(snapshotFor(t, chosen).colours).toEqual({ rail: '#ffe066', accent: '#123456' });
+  });
+
+  it('falls back like the theme when the brand colour is invalid', () => {
+    const bad = { ...TENANT, config: { ...TENANT.config, primaryColor: 'nope' } };
+    expect(snapshotFor(bad, undefined).colours).toEqual({ rail: '#0f2a3d', accent: '#0f2a3d' });
+  });
 });

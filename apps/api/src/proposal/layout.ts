@@ -76,7 +76,7 @@ function openImage(doc: Doc, buf: Buffer): OpenedImage {
 
 // ---- Theme ---------------------------------------------------------------
 
-const DEFAULT_BRAND = '#0f2a3d';
+export const DEFAULT_BRAND = '#0f2a3d';
 
 function parse(hex: string): Rgb {
   const h = /^#[0-9a-f]{6}$/i.test(hex) ? hex : DEFAULT_BRAND;
@@ -106,10 +106,26 @@ function darkenUntil(rgb: Rgb, ratio: number): Rgb {
   return c;
 }
 
-/** Theme from the brand colour. The rail is the brand, darkened for 7:1 white text. */
-export function themeFor(brandHex: string): Theme {
-  const brand = parse(brandHex);
-  const rail = darkenUntil(brand, 7);
+/** The rail colour as used: darkened, keeping hue, until white text on it reaches 7:1. */
+export function readableRail(hex: string): { hex: string; adjusted: boolean } {
+  const given = parse(hex);
+  const out = toHex(darkenUntil(given, 7));
+  return { hex: out, adjusted: out !== toHex(given) };
+}
+
+/** The accent as used: darkened, keeping hue, until it reaches 4.5:1 on white. */
+export function readableAccent(hex: string): { hex: string; adjusted: boolean } {
+  const given = parse(hex);
+  const out = toHex(darkenUntil(given, 4.5));
+  return { hex: out, adjusted: out !== toHex(given) };
+}
+
+/**
+ * Theme from the brand colour, or from the installer's chosen rail and accent.
+ * The rail is darkened for 7:1 white text, the accent for 4.5:1 on white.
+ */
+export function themeFor(brandHex: string, opts: { rail?: string; accent?: string } = {}): Theme {
+  const rail = parse(readableRail(opts.rail ?? brandHex).hex);
   // Rail labels: the rail colour mixed towards white until 4.5:1 against it.
   let label = rail;
   for (let i = 1; i <= 20 && contrastBetween(label, rail) < 4.5; i++) {
@@ -123,7 +139,7 @@ export function themeFor(brandHex: string): Theme {
     railBg: toHex(rail),
     railText: '#ffffff',
     railLabel: toHex(label),
-    accent: toHex(darkenUntil(brand, 4.5)),
+    accent: readableAccent(opts.accent ?? brandHex).hex,
   };
 }
 

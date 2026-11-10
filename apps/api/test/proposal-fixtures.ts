@@ -110,6 +110,7 @@ export function snapshot(over: Partial<QuotationSnapshot> = {}): QuotationSnapsh
     },
     companyName: 'GreenRoof Solar Ltd',
     colour: '#0f2a3d',
+    colours: { rail: '#0f2a3d', accent: '#0f2a3d' },
     website: 'greenroof.co.uk',
     ...over,
   };

@@ -134,6 +134,10 @@ interface View {
   settings: ReturnType<typeof defaultQuotationSettings>;
   saved: boolean;
   assets: { logo: { id: string } | null; accreditations: Array<{ id: string }> };
+  colourNotes: {
+    rail: { hex: string; adjusted: boolean };
+    accent: { hex: string; adjusted: boolean };
+  };
 }
 
 describe('quotation settings routes', () => {
@@ -165,6 +169,24 @@ describe('quotation settings routes', () => {
     const read = await app.inject({ method: 'GET', url: url(id), headers: as(OWNER) });
     expect(read.json<View>().settings.validityDays).toBe(60);
     expect(read.json<View>().saved).toBe(true);
+  });
+
+  it('returns colourNotes, with chosen colours saved and flagged when adjusted', async () => {
+    const { app } = await setup();
+    const id = await signUp(app, OWNER);
+    const fresh = await app.inject({ method: 'GET', url: url(id), headers: as(OWNER) });
+    expect(fresh.json<View>().colourNotes.rail.hex).toMatch(/^#[0-9a-f]{6}$/);
+    const response = await put(app, id, {
+      ...body(),
+      colours: { rail: '#FFE066', accent: '#1f5c3d' },
+    });
+    expect(response.statusCode).toBe(200);
+    const view = response.json<View>();
+    expect(view.settings.colours).toEqual({ rail: '#ffe066', accent: '#1f5c3d' });
+    expect(view.colourNotes.rail.adjusted).toBe(true);
+    expect(view.colourNotes.accent).toEqual({ hex: '#1f5c3d', adjusted: false });
+    const bad = await put(app, id, { ...body(), colours: { rail: 'red', accent: null } });
+    expect(bad.statusCode).toBe(400);
   });
 
   it('ignores a version the client sends', async () => {

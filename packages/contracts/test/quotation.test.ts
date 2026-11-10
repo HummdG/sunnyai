@@ -22,6 +22,7 @@ const valid = () => ({
   validityDays: 60,
   letter: { opening: 'Thanks for asking.', closing: 'Speak soon.' },
   terms: 'Our terms.',
+  colours: { rail: null as string | null, accent: null as string | null },
 });
 
 describe('quotation settings', () => {
@@ -119,5 +120,30 @@ describe('quotation settings', () => {
 
   it('accepts a full valid settings object', () => {
     expect(quotationSettingsSchema.safeParse(valid()).success).toBe(true);
+  });
+
+  it('defaults colours to null', () => {
+    expect(defaultQuotationSettings().colours).toEqual({ rail: null, accent: null });
+  });
+
+  it('refuses a colour that is not #rrggbb', () => {
+    for (const rail of ['red', '#12345', '#1234567', '123456']) {
+      const r = quotationSettingsSchema.safeParse({ ...valid(), colours: { rail, accent: null } });
+      expect(r.success).toBe(false);
+    }
+  });
+
+  it('lower-cases a colour', () => {
+    const r = quotationSettingsSchema.safeParse({
+      ...valid(),
+      colours: { rail: '#FF7900', accent: '#0A0B0C' },
+    });
+    expect(r.success && r.data.colours).toEqual({ rail: '#ff7900', accent: '#0a0b0c' });
+  });
+
+  it('parses settings stored before colours existed', () => {
+    const { colours: _c, ...old } = valid();
+    const r = quotationSettingsSchema.safeParse(old);
+    expect(r.success && r.data.colours).toEqual({ rail: null, accent: null });
   });
 });

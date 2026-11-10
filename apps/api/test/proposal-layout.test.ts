@@ -8,6 +8,8 @@ import {
   footer,
   header,
   registerFonts,
+  readableAccent,
+  readableRail,
   themeFor,
   type PageContext,
 } from '../src/proposal/layout.js';
@@ -70,6 +72,21 @@ describe('themeFor', () => {
   });
   it('falls back for a malformed colour', () => {
     expect(whiteContrast(themeFor('nope').railBg)).toBeGreaterThanOrEqual(7);
+  });
+  it('takes the rail from opts, darkened for white text, and flags it adjusted', () => {
+    const t = themeFor('#0f2a3d', { rail: '#ffe066' });
+    expect(whiteContrast(t.railBg)).toBeGreaterThanOrEqual(7);
+    expect(t.railBg).not.toBe('#0f2a3d');
+    expect(readableRail('#ffe066').adjusted).toBe(true);
+    expect(readableRail('#ffe066').hex).toBe(t.railBg);
+    expect(readableRail('#0f2a3d')).toEqual({ hex: '#0f2a3d', adjusted: false });
+  });
+  it('uses an explicit accent, darkened only if needed', () => {
+    expect(themeFor('#0f2a3d', { accent: '#1f5c3d' }).accent).toBe('#1f5c3d');
+    expect(readableAccent('#1f5c3d')).toEqual({ hex: '#1f5c3d', adjusted: false });
+    const light = themeFor('#0f2a3d', { accent: '#ffe066' });
+    expect(whiteContrast(light.accent)).toBeGreaterThanOrEqual(4.5);
+    expect(readableAccent('#ffe066').adjusted).toBe(true);
   });
 });
 

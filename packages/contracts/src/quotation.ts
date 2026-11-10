@@ -34,6 +34,8 @@ export interface QuotationSettings {
   validityDays: number;
   letter: { opening: string; closing: string };
   terms: string;
+  /** `#rrggbb`; null means use Your brand colour. */
+  colours: { rail: string | null; accent: string | null };
 }
 
 const depositSchema = z.discriminatedUnion('kind', [
@@ -48,7 +50,13 @@ const depositSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
-export const quotationSettingsSchema: z.ZodType<QuotationSettings> = z.object({
+const colour = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/)
+  .transform((v) => v.toLowerCase())
+  .nullable();
+
+export const quotationSettingsSchema: z.ZodType<QuotationSettings, unknown> = z.object({
   version: z.number().int().min(0),
   updatedAt: z.string(),
   logoAssetId: z.string().min(1).nullable(),
@@ -72,6 +80,9 @@ export const quotationSettingsSchema: z.ZodType<QuotationSettings> = z.object({
     .max(QUOTATION_LIMITS.validityMax),
   letter: z.object({ opening: line, closing: line }),
   terms: z.string().trim().max(QUOTATION_LIMITS.terms),
+  colours: z
+    .object({ rail: colour.default(null), accent: colour.default(null) })
+    .default({ rail: null, accent: null }),
 });
 
 export function defaultQuotationSettings(): QuotationSettings {
@@ -87,5 +98,6 @@ export function defaultQuotationSettings(): QuotationSettings {
     validityDays: 30,
     letter: { opening: '', closing: '' },
     terms: '',
+    colours: { rail: null, accent: null },
   };
 }
