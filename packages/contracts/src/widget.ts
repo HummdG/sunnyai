@@ -97,5 +97,7 @@ export const sessionRequestSchema = z.object({
   sessionToken: z.string().min(1).optional(),
   /** A Cloudflare Turnstile token, required when the deployment enables Turnstile. */
   turnstileToken: z.string().min(1).max(2048).optional(),
+  /** The page path the widget loaded on. */
+  path: z.string().max(512).optional(),
 });
 export type SessionRequest = z.infer<typeof sessionRequestSchema>;

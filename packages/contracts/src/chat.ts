@@ -29,6 +29,8 @@ export const chatRequestSchema = z.object({
   sessionId: z.string().min(1),
   clientMessageId: z.string().min(1).max(120),
   text: z.string().min(1).max(4000),
+  /** The host page the visitor is on, used to pick which workflows to offer. */
+  page: z.object({ path: z.string().max(512) }).optional(),
 });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 
