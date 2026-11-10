@@ -299,9 +299,7 @@
     validUntil: Date;
   }
   export function letterParagraphs(doc: ProposalDoc): string[]; // copy.ts
-  export function money(
-    doc: ProposalDoc,
-  ): {
+  export function money(doc: ProposalDoc): {
     total: number | null;
     totalLabel: string;
     vatNote: string;
@@ -384,12 +382,23 @@ The first render looked unprofessional (one tilted face floating in a tinted box
   export interface RoofPlan {
     footprints: { outline: [number, number][]; partyEdges: number[] }[]; // the house's own polygon: every spec part's footprint.outer (holes ignored), partyEdges = indices of edges whose edgeKinds is 'party'
     neighbours: [number, number][][]; // attached neighbours only (context.neighbours[].attached), outer rings
-    faces: { id: number; outline: [number, number][]; pitchDeg: number; azimuthDeg: number; panelled: boolean }[]; // every roof face
+    faces: {
+      id: number;
+      outline: [number, number][];
+      pitchDeg: number;
+      azimuthDeg: number;
+      panelled: boolean;
+    }[]; // every roof face
     lines: { kind: 'ridge' | 'hip' | 'valley'; from: [number, number]; to: [number, number] }[]; // shared edges between faces, classified
     panels: [number, number][][];
     bounds: { minX: number; minY: number; maxX: number; maxY: number };
     rotationDeg: number; // applied rotation; the north arrow points at (rotate plan-north by this)
-    mainFace: { id: number; eaveM: number; rafterM: number; eave: [[number, number], [number, number]] }; // eave = lowest edge of the main face; rafter = slope length eave to ridge
+    mainFace: {
+      id: number;
+      eaveM: number;
+      rafterM: number;
+      eave: [[number, number], [number, number]];
+    }; // eave = lowest edge of the main face; rafter = slope length eave to ridge
     mainFacing: string;
     sample: boolean;
   }
