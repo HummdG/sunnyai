@@ -16,6 +16,11 @@ export interface ComposeInput {
   sources: ReadonlyArray<{ title: string; url: string | null }>;
   /** Who replies are signed as (the Email Assistant's "Sign replies as"); the company's team otherwise. */
   signatureName?: string;
+  /**
+   * The legal footer, when the enquiry is not solar (a heat pump's survey is a
+   * heat loss survey, not a shading one). Absent: the standard footer.
+   */
+  footer?: string;
 }
 
 /** Only a plausible first name from an untrusted display name; otherwise none. */
@@ -55,7 +60,7 @@ export function composeReply(input: ComposeInput): string {
   if (!signedOff) {
     lines.push('', 'Kind regards,', input.signatureName?.trim() || `The ${input.companyName} team`);
   }
-  lines.push('', '--', EMAIL_DISCLAIMER_FOOTER);
+  lines.push('', '--', input.footer ?? EMAIL_DISCLAIMER_FOOTER);
   body = lines.join('\n');
   return body;
 }

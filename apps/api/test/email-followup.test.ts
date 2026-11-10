@@ -6,7 +6,10 @@ import { join } from 'node:path';
 import { CONSENT_VERSION } from '@sunny/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { EMAIL_DISCLAIMER_FOOTER } from '../src/agent/channels.js';
 import type { ChatProvider, ChatTurnRequest } from '../src/agent/provider.js';
+import { enquiryTopic, followUpSubject } from '../src/channels/email/followup.js';
+import type { StoredQuote } from '../src/journey/quote-kinds.js';
 import {
   composeReply,
   LeadFollowUp,
@@ -185,6 +188,77 @@ describe('lead follow-up email', () => {
     const link = await followUp.draft({ tenant: tenant(), lead: lead() });
     expect(link?.notes.join(' ')).toMatch(/template/);
     expect(mailbox.drafts[0]?.text).toContain('LS6 2AB');
+  });
+
+  it('words the subject and template for the kind of enquiry', async () => {
+    const failing: ChatProvider = {
+      kind: 'failing',
+      model: null,
+      // eslint-disable-next-line require-yield -- it fails before yielding anything
+      async *stream() {
+        throw new Error('model down');
+      },
+    };
+    const cases = [
+      {
+        workflowId: undefined,
+        subject: 'Your solar enquiry with Northwind Solar',
+        about: 'about solar for your home in LS6 2AB',
+        survey: 'confirm the right system for your roof',
+      },
+      {
+        workflowId: 'wf_heat_pump',
+        subject: 'Your heat pump enquiry with Northwind Solar',
+        about: 'about a heat pump for your home in LS6 2AB',
+        survey: 'work out the heat loss room by room',
+      },
+      {
+        workflowId: 'wf_battery',
+        subject: 'Your home battery enquiry with Northwind Solar',
+        about: 'about a battery for your solar panels in LS6 2AB',
+        survey: 'check your solar system, inverter and consumer unit',
+      },
+    ];
+    for (const c of cases) {
+      const { followUp, mailbox } = await setup(failing);
+      await followUp.draft({
+        tenant: tenant(),
+        lead: lead(c.workflowId ? { workflowId: c.workflowId } : {}),
+      });
+      const draft = mailbox.drafts[0]!;
+      expect(draft.subject).toBe(c.subject);
+      expect(draft.text).toContain(c.about);
+      expect(draft.text).toContain(c.survey);
+      expect(draft.text).not.toMatch(/[–—]/);
+      if (c.workflowId === 'wf_heat_pump') {
+        // Nothing solar about it, beyond the installer's own name.
+        expect(draft.text.replaceAll('Northwind Solar', '')).not.toMatch(/solar|roof|shading/i);
+        expect(draft.text).toContain('subject to an on-site heat loss survey.');
+      }
+      if (c.workflowId === 'wf_battery') {
+        expect(draft.text).toContain('an on-site survey of your solar system and electrics.');
+        expect(draft.text).not.toContain('shading');
+      }
+      if (!c.workflowId) {
+        // Solar keeps the standard footer, word for word.
+        expect(draft.text).toContain(EMAIL_DISCLAIMER_FOOTER);
+      }
+    }
+  });
+
+  it('takes the topic from the quote shown, then the workflow, then solar', () => {
+    const t = tenant();
+    const heatPumpQuote = { kind: 'heat_pump' } as unknown as StoredQuote;
+    const batteryQuote = { kind: 'battery' } as unknown as StoredQuote;
+    const solarQuote = {} as unknown as StoredQuote;
+    expect(enquiryTopic(t, {}, heatPumpQuote)).toBe('heat_pump');
+    expect(enquiryTopic(t, {}, batteryQuote)).toBe('battery');
+    // A quote outranks the workflow it came through.
+    expect(enquiryTopic(t, { workflowId: 'wf_heat_pump' }, solarQuote)).toBe('solar');
+    expect(enquiryTopic(t, { workflowId: 'wf_battery' }, null)).toBe('battery');
+    expect(enquiryTopic(t, { workflowId: 'wf_unknown' }, null)).toBe('solar');
+    expect(enquiryTopic(t, {}, null)).toBe('solar');
+    expect(followUpSubject('heat_pump', 'Acme')).toBe('Your heat pump enquiry with Acme');
   });
 
   it('includes the latest visitor message when the turn is not stored yet', () => {

@@ -5,6 +5,7 @@ import { grantStatusOf, type HeatPumpQuoteRecord } from '../../journey/heat-pump
 import type { StoredQuote } from '../../journey/quote-kinds.js';
 import type { ConversationTurn, LeadRecord, Store } from '../../store.js';
 import type { Tenant } from '../../tenants.js';
+import { workflowsForTenant } from '../../workflows/tenant.js';
 import { composeReply } from './compose.js';
 import { buildMime } from './mime.js';
 import type { MailboxClient } from './providers.js';
@@ -123,6 +124,63 @@ function batteryFacts(quote: BatteryQuoteRecord): string {
   return [`Quote for ${quote.postcode}:`, ...lines, quote.disclaimer].join('\n');
 }
 
+/** What the enquiry is about, which sets the email's subject and template wording. */
+export type EnquiryTopic = 'solar' | 'heat_pump' | 'battery';
+
+const FOOTER_START =
+  'This reply was prepared with the help of an AI assistant. Any prices, savings or system sizes ' +
+  'mentioned are non-binding estimates and are subject to ';
+
+const TOPIC_WORDS: Record<
+  EnquiryTopic,
+  { subject: string; about: string; survey: string; footer: string | null }
+> = {
+  solar: {
+    subject: 'solar',
+    about: 'solar for your home',
+    survey: 'confirm the right system for your roof and give you a firm price',
+    // The standard footer (EMAIL_DISCLAIMER_FOOTER), unchanged.
+    footer: null,
+  },
+  heat_pump: {
+    subject: 'heat pump',
+    about: 'a heat pump for your home',
+    survey:
+      'work out the heat loss room by room, confirm the right heat pump for your home and give you a firm price',
+    footer: `${FOOTER_START}an on-site heat loss survey.`,
+  },
+  battery: {
+    subject: 'home battery',
+    about: 'a battery for your solar panels',
+    survey:
+      'check your solar system, inverter and consumer unit, confirm the right battery and give you a firm price',
+    footer: `${FOOTER_START}an on-site survey of your solar system and electrics.`,
+  },
+};
+
+/**
+ * The topic of a lead: the kind of quote it was shown, else the kind of
+ * workflow it came through, else solar (every lead before workflows existed).
+ */
+export function enquiryTopic(
+  tenant: Pick<Tenant, 'id' | 'config'>,
+  lead: Pick<LeadRecord, 'workflowId'>,
+  quote: StoredQuote | null,
+): EnquiryTopic {
+  if (quote?.kind === 'heat_pump' || quote?.kind === 'battery') return quote.kind;
+  if (quote) return 'solar';
+  const workflow = lead.workflowId
+    ? workflowsForTenant(tenant, () => {}).set.workflows.find((w) => w.id === lead.workflowId)
+    : undefined;
+  const engine = workflow?.outcome.kind === 'quote' ? workflow.outcome.engine : null;
+  return engine === 'heat_pump' || engine === 'battery' ? engine : 'solar';
+}
+
+/** The email subject for a lead's follow-up. */
+export function followUpSubject(topic: EnquiryTopic, companyName: string): string {
+  return `Your ${TOPIC_WORDS[topic].subject} enquiry with ${companyName}`;
+}
+
 function instruction(tenant: Tenant): string {
   return [
     `You write a short follow-up email from ${tenant.config.companyName}, a UK home energy installer, to a person who has just chatted with the website assistant and asked to be contacted.`,
@@ -141,14 +199,15 @@ function answersRecap(lead: LeadRecord): string | null {
 }
 
 /** What is written when the model is unavailable: plain, and true. */
-function templateBody(lead: LeadRecord, facts: string | null): string {
+function templateBody(lead: LeadRecord, facts: string | null, topic: EnquiryTopic): string {
   const recap = answersRecap(lead);
+  const words = TOPIC_WORDS[topic];
   return [
-    `Thank you for chatting with us on our website${lead.postcode ? ` about solar for your home in ${lead.postcode}` : ''}. ${lead.summary.trim().replace(/\.?$/, '.')}`,
+    `Thank you for chatting with us on our website${lead.postcode ? ` about ${words.about} in ${lead.postcode}` : ''}. ${lead.summary.trim().replace(/\.?$/, '.')}`,
     recap ? `What you told us:\n${recap}` : null,
     facts
       ? 'We have kept a copy of the quote options you were shown. They are indicative, and a free survey confirms the right system and the final price.'
-      : 'The next step is a free survey, where we confirm the right system for your roof and give you a firm price.',
+      : `The next step is a free survey, where we ${words.survey}.`,
     'Just reply to this email with a day and time that suits you, or let us know the best number to reach you on.',
   ]
     .filter((part): part is string => part !== null)
@@ -221,6 +280,7 @@ export class LeadFollowUp {
       const quotes = await store.listQuotes(tenant.id, lead.sessionId);
       const quote = quotes.at(-1) ?? null;
       const facts = quoteFacts(quote);
+      const topic = enquiryTopic(tenant, lead, quote);
       const transcript = transcriptFor(conversation?.turns ?? [], latestMessage);
 
       let body = '';
@@ -231,7 +291,7 @@ export class LeadFollowUp {
         body = '';
       }
       if (!body) {
-        body = templateBody(lead, facts);
+        body = templateBody(lead, facts, topic);
         notes.push('Written from a template because the assistant was unavailable.');
       }
 
@@ -243,8 +303,9 @@ export class LeadFollowUp {
         ...(tenant.config.email?.signatureName
           ? { signatureName: tenant.config.email.signatureName }
           : {}),
+        ...(TOPIC_WORDS[topic].footer ? { footer: TOPIC_WORDS[topic].footer } : {}),
       });
-      const subject = `Your solar enquiry with ${tenant.config.companyName}`;
+      const subject = followUpSubject(topic, tenant.config.companyName);
       const mailbox = await this.#deps.mailbox(tenant);
       const from =
         (await state.getWatch(tenant.id))?.mailbox ?? tenant.config.email?.inboundAddress ?? '';
