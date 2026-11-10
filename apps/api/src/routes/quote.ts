@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { pinBrandAssets } from '../branding/meta.js';
 import { chosenPackage } from '../journey/choose.js';
 import { createBatteryQuote, publishedBatteryPricing } from '../journey/battery/service.js';
+import { BATTERY_NOT_SUITABLE, batteryNotSuitable } from '../journey/battery/status.js';
 import { hasProposal, isSolarRecord, type StoredQuote } from '../journey/quote-kinds.js';
 import { createHeatPumpQuote, publishedHeatPumpPricing } from '../journey/heat-pump/service.js';
 import type { QuoteRecord } from '../journey/quote.js';
@@ -172,6 +173,12 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
       workflow?.enabled === true && workflow.outcome.kind === 'quote'
         ? workflow.outcome.engine
         : 'solar';
+    // A home without solar is not quoted a battery retrofit, and is told why.
+    if (engine === 'battery') {
+      const answers =
+        (await deps.store.getConversation(who.tenantId, who.sessionId))?.answers ?? {};
+      if (batteryNotSuitable(answers)) throw new ApiError('bad_request', BATTERY_NOT_SUITABLE);
+    }
     const result =
       engine === 'heat_pump'
         ? await createHeatPumpQuote(

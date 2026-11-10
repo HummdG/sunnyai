@@ -15,7 +15,7 @@ import { emptyCatalogueState } from '../src/catalogue/types.js';
 import { BATTERY, bankFor } from '../src/flow/banks.js';
 import { checkWorkflow } from '../src/flow/check.js';
 import type { BatteryQuoteRecord } from '../src/journey/battery/record.js';
-import { batteryInputFrom } from '../src/journey/battery/service.js';
+import { batteryInputFrom, onePerCapacity } from '../src/journey/battery/service.js';
 import { extractAnswers } from '../src/journey/extract.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import { BATTERY_QUESTIONS, OPTION_LABELS } from '../src/questionnaire.js';
@@ -552,6 +552,95 @@ describe('the battery quote', () => {
     );
   });
 
+  it('never offers two options of the same capacity', async () => {
+    const store = await tempStore();
+    await publish(store, [
+      'battery,B-5,Acme 5 kWh,with_solar,,"£2,500","£3,000",5,,,,,,GBP',
+      'battery,B-10U,Unpriced 10 kWh,with_solar,,"£3,000",,10,,,,,,GBP',
+      'battery,B-10A,Acme 10 kWh,with_solar,,"£4,500","£5,000",10,,,,,,GBP',
+      'battery,B-10B,Bolt 10 kWh,with_solar,,"£4,300","£4,800",10,,,,,,GBP',
+      'battery,B-13,Acme 13.5 kWh,with_solar,,"£6,000","£6,500",13.5,,,,,,GBP',
+    ]);
+    const { quote } = await quoteWith(store, BAT_ANSWERS);
+    const sizes = quote!.options.map((o) => o.capacityKwh);
+    expect(new Set(sizes).size).toBe(sizes.length);
+    expect(quote!.options.map((o) => [o.label, o.capacityKwh, o.batteryName])).toEqual([
+      ['Recommended', 10, 'Bolt 10 kWh'],
+      ['More storage', 13.5, 'Acme 13.5 kWh'],
+      ['Smaller', 5, 'Acme 5 kWh'],
+    ]);
+    expect(quote!.options[0]!.priceGbp).toBe(4800);
+
+    // A priced battery is kept over an unpriced one of the same size, whatever the order.
+    const unpriced = { sku: 'U', name: 'U', capacityKwh: 10, priceGbp: null, expansion: null };
+    const priced = { sku: 'P', name: 'P', capacityKwh: 10, priceGbp: 9000, expansion: null };
+    expect(onePerCapacity([priced, unpriced]).map((b) => b.sku)).toEqual(['P']);
+    expect(onePerCapacity([unpriced, priced]).map((b) => b.sku)).toEqual(['P']);
+  });
+
+  it('offers the next size up again as "Most storage" when nothing is smaller', async () => {
+    const store = await tempStore();
+    await publish(
+      store,
+      BATTERY_ROWS.filter((r) => !r.includes('B-5,')),
+    );
+    const { quote } = await quoteWith(store, BAT_ANSWERS);
+    expect(quote!.options.map((o) => [o.id, o.label, o.capacityKwh])).toEqual([
+      ['recommended', 'Recommended', 9.5],
+      ['more_storage', 'More storage', 13.5],
+      ['most_storage', 'Most storage', 18],
+    ]);
+    expect(quote!.options[2]!.priceGbp).toBe(8500);
+  });
+
+  it('caps expansion units at the most the battery takes, with a neutral headline', async () => {
+    const store = await tempStore();
+    // About 6 kWh wanted: a 2 kWh battery would need four 1 kWh units, and takes two.
+    await publish(store, [
+      'battery,B-2,Acme 2 kWh,with_solar,,"£1,500","£2,000",2,,EXP-1,£400,1,2,GBP',
+    ]);
+    const { quote } = await quoteWith(store, BAT_ANSWERS);
+    expect(quote!.estimate.recommendedKwh).toBe(6);
+    const [rec, more] = quote!.options;
+    expect(rec!.capacityKwh).toBe(2);
+    expect(rec!.headline).toBe(
+      'The largest battery your installer lists; the home could use about 6 kWh.',
+    );
+    expect(rec!.headline).not.toMatch(/[\u2013\u2014]/);
+    expect(more!.capacityKwh).toBe(4);
+    expect(more!.lineItems.find((l) => l.sku === 'EXP-1')?.quantity).toBe(2);
+    expect(more!.priceGbp).toBe(2800);
+  });
+
+  it('leaves an unpriced battery to the installer even with the AC line priced', async () => {
+    const store = await tempStore();
+    await publish(store, [
+      'battery,B-10U,Unpriced 10 kWh,with_solar,,"£3,000",,10,,,,,,GBP',
+      AC_ROW,
+    ]);
+    const { quote } = await quoteWith(store, { ...BAT_ANSWERS, bat_inverter: 'standard' });
+    const only = quote!.options[0]!;
+    expect(quote!.options).toHaveLength(1);
+    expect(only.installerPriced).toBe(true);
+    expect(only.priceGbp).toBeNull();
+    expect(only.priceLabel).toBe('Priced by your installer');
+    expect(only.lineItems.map((l) => l.sku)).toEqual(['AC-1']);
+    expect(only.warnings).not.toContain(
+      'Your inverter may need an extra unit to charge a battery. Your installer will check.',
+    );
+  });
+
+  it('assumes solar, and warns, for a home with a battery but no solar named', async () => {
+    const { quote } = await quoteWith(await tempStore(), {
+      ...BAT_ANSWERS,
+      existing_system: 'battery',
+    });
+    expect(quote!.estimate.assumptions).toContain('Assumed the home already has solar panels.');
+    expect(quote!.warnings).toContain(
+      'You already have a battery. Your installer can advise on adding more storage.',
+    );
+  });
+
   it('is refused until every answer is in', async () => {
     const store = await tempStore();
     const ctx = context(store);
@@ -575,7 +664,7 @@ describe('the battery quote', () => {
 });
 
 /** POST /v1/quote/options for a session running the battery workflow, on or off. */
-async function postOptions(enabled: boolean) {
+async function postOptions(enabled: boolean, answers: Record<string, string> = BAT_ANSWERS) {
   const store = await tempStore();
   const set = setWithBattery();
   set.workflows[2]!.enabled = enabled;
@@ -596,7 +685,7 @@ async function postOptions(enabled: boolean) {
       ...cloneSession(EMPTY_SESSION),
       active: { workflowId: 'wf_battery', startedAt: NOW },
     });
-    await store.mergeAnswers(tenant.id, SESSION, BAT_ANSWERS);
+    await store.mergeAnswers(tenant.id, SESSION, answers);
     const token = issueSessionToken(
       { tenantId: tenant.id, sessionId: SESSION, expiresAt: Date.parse(NOW) + 3_600_000 },
       secret,
@@ -619,6 +708,12 @@ describe('POST /v1/quote/options', () => {
     const body = res.json<{ kind?: string; tenantId?: string }>();
     expect(body.kind).toBe('battery');
     expect(body.tenantId).toBeUndefined();
+  });
+
+  it('refuses a home without solar with the not suitable sentence', async () => {
+    const res = await postOptions(true, { ...BAT_ANSWERS, existing_system: 'none' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ message?: string }>().message ?? res.body).toContain(NOT_SUITABLE);
   });
 
   it('does not build one for a battery workflow that is switched off', async () => {

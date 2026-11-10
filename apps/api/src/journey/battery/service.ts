@@ -71,7 +71,8 @@ function readAnswers(
   if (!postcode || batteryNotSuitable(answers)) return null;
   const assumptions: string[] = [];
   const existing = answers['existing_system'];
-  if (existing !== 'solar' && existing !== 'solar_battery' && existing !== 'battery') {
+  // A battery alone ('battery') is not solar either: the quote assumes the panels.
+  if (existing !== 'solar' && existing !== 'solar_battery') {
     assumptions.push(SOLAR_ASSUMPTION);
   }
   const source = answers['usage_source'];
@@ -154,15 +155,33 @@ function batteriesFor(pricing: BatteryPricing | null): RetrofitBattery[] {
 }
 
 /**
+ * One battery per capacity, so no two options are the same size: a priced one
+ * before an unpriced one, then the cheaper. Sorted by capacity.
+ */
+export function onePerCapacity(batteries: readonly RetrofitBattery[]): RetrofitBattery[] {
+  const best = new Map<number, RetrofitBattery>();
+  for (const b of batteries) {
+    const kept = best.get(b.capacityKwh);
+    const better =
+      !kept ||
+      (kept.priceGbp === null && b.priceGbp !== null) ||
+      (kept.priceGbp !== null && b.priceGbp !== null && b.priceGbp < kept.priceGbp);
+    if (better) best.set(b.capacityKwh, b);
+  }
+  return [...best.values()].sort((a, b) => a.capacityKwh - b.capacityKwh);
+}
+
+/**
  * Up to three sizes: the recommended one (the smallest at or above the
  * recommended capacity, else the largest below it), the next size up (or the
  * recommended battery with expansion units, when no larger one is listed), and
  * one size down (or, with none smaller, the next size up again).
  */
 function sizesFor(
-  batteries: RetrofitBattery[],
+  listed: RetrofitBattery[],
   recommendedKwh: number,
 ): Array<{ id: string; label: string; size: Size }> {
+  const batteries = onePerCapacity(listed);
   const at = batteries.findIndex((b) => b.capacityKwh >= recommendedKwh);
   const index = at >= 0 ? at : batteries.length - 1;
   const base = batteries[index]!;
@@ -241,11 +260,13 @@ function optionsFor(
     const headline =
       units > 0
         ? `A ${battery.name} with ${units} expansion unit${units === 1 ? '' : 's'}, ${kwh} in all.`
-        : id === 'recommended'
-          ? `A ${kwh} battery, sized to your solar and your use.`
-          : id === 'smaller'
-            ? `A smaller ${kwh} battery.`
-            : `A ${kwh} battery, for more storage.`;
+        : id === 'recommended' && size.capacityKwh < est.recommendedKwh
+          ? `The largest battery your installer lists; the home could use about ${est.recommendedKwh} kWh.`
+          : id === 'recommended'
+            ? `A ${kwh} battery, sized to your solar and your use.`
+            : id === 'smaller'
+              ? `A smaller ${kwh} battery.`
+              : `A ${kwh} battery, for more storage.`;
     return {
       id,
       label,
