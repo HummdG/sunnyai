@@ -1,19 +1,20 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
-import { roofPlanFor, type RoofPlan } from '../src/proposal/roof-plan.js';
+import {
+  NEIGHBOUR_STUB_M,
+  roofPlanFor,
+  type RoofPlan,
+  type V3,
+} from '../src/proposal/roof-plan.js';
 
-const SAMPLE = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../assets/sample/house.spec.json', import.meta.url)), 'utf8'),
-) as unknown;
+import { HIP_SPEC, L_SPEC, SAMPLE } from './roof-fixtures.js';
 
 interface SampleSpec {
   parts: {
     footprint: { outer: [number, number][] };
     edgeKinds: string[];
     overhang: number;
+    eaveHeight: number;
     roof: { pitchDeg: number };
   }[];
   context: { neighbours: { attached?: boolean; footprint: { outer: [number, number][] } }[] };
@@ -49,80 +50,6 @@ function insideOrNear(p: P, poly: P[], tol: number): boolean {
   return inside;
 }
 
-/** p turned counter-clockwise by deg about the origin, as the plan turns. */
-function rotate(p: P, deg: number): P {
-  const r = (deg * Math.PI) / 180;
-  const c = Math.cos(r);
-  const s = Math.sin(r);
-  return [p[0] * c - p[1] * s, p[0] * s + p[1] * c];
-}
-
-/** A spec built from the sample with these parts and no neighbours. */
-function specWith(
-  parts: { id: string; outer: P[]; kinds: string[]; type: string; eave: number }[],
-): unknown {
-  const base = SAMPLE as Record<string, unknown> & SampleSpec;
-  return {
-    ...base,
-    builtForm: 'detached',
-    parts: parts.map((p, i) => ({
-      ...base.parts[0],
-      id: p.id,
-      role: i === 0 ? 'main' : 'rear',
-      footprint: { outer: p.outer, holes: [] },
-      edgeKinds: p.kinds,
-      eaveHeight: p.eave,
-      roof: { type: p.type, pitchDeg: 35 },
-      chimneys: [],
-    })),
-    facade: { front: { partId: parts[0]!.id, edge: 0 } },
-    context: { ...base.context, neighbours: [] },
-  };
-}
-
-/** A main gabled block and a flat rear part sharing 4 m of its north wall (the fitter's cut). */
-const L_SPEC = specWith([
-  {
-    id: 'main',
-    outer: [
-      [0, 0],
-      [8, 0],
-      [8, 6],
-      [0, 6],
-    ],
-    kinds: ['eave', 'gable', 'eave', 'gable'],
-    type: 'gabled',
-    eave: 5,
-  },
-  {
-    id: 'rear-1',
-    outer: [
-      [0, 6],
-      [4, 6],
-      [4, 10],
-      [0, 10],
-    ],
-    kinds: ['eave', 'eave', 'eave', 'eave'],
-    type: 'flat',
-    eave: 3,
-  },
-]);
-
-const HIP_SPEC = specWith([
-  {
-    id: 'main',
-    outer: [
-      [0, 0],
-      [10, 0],
-      [10, 6],
-      [0, 6],
-    ],
-    kinds: ['eave', 'eave', 'eave', 'eave'],
-    type: 'hipped',
-    eave: 5,
-  },
-]);
-
 function plan(
   panelCount: number,
   extra: Partial<Parameters<typeof roofPlanFor>[1]> = {},
@@ -132,101 +59,123 @@ function plan(
   return out;
 }
 
+const zs = (pts: V3[]) => pts.map((p) => p[2]);
+const top = (pts: V3[]) => Math.max(...zs(pts));
+const bottom = (pts: V3[]) => Math.min(...zs(pts));
+/** The wall's foot in plan: its lowest points. */
+const footOf = (pts: V3[]): P[] =>
+  pts.filter((p) => p[2] < bottom(pts) + 0.01).map((p) => [p[0], p[1]]);
+
 describe('roofPlanFor', () => {
-  it('draws exactly the quoted panel count', () => {
+  it('puts exactly the quoted panels on the roof, four corners each', () => {
     const p = plan(10);
     expect(p.panels).toHaveLength(10);
-    for (const panel of p.panels) expect(panel).toHaveLength(4);
+    for (const panel of p.panels) expect(panel.corners).toHaveLength(4);
     expect(p.mainFacing).toBe('South');
     expect(p.sample).toBe(false);
-    expect(p).not.toHaveProperty('dimensions');
   });
 
-  it('marks the sample house', () => {
-    expect(plan(4, { sample: true }).sample).toBe(true);
+  it('marks the sample house and knows its address', () => {
+    const p = plan(4, { sample: true });
+    expect(p.sample).toBe(true);
+    expect(p.address).toBe('20 Forthlin Road');
   });
 
-  it("returns the house's own footprint, turned with the plan, and its party walls", () => {
+  it("raises the house's walls from its footprint, gables to the ridge", () => {
     const p = plan(10);
-    expect(p.footprints).toHaveLength(1);
-    const fp = p.footprints[0]!;
-    const want = PART.footprint.outer.map((q) => rotate(q, p.rotationDeg));
-    expect(fp.outline).toHaveLength(want.length);
-    fp.outline.forEach((q, i) => {
-      expect(Math.hypot(q[0] - want[i]![0], q[1] - want[i]![1])).toBeLessThan(0.01);
-    });
-    expect(fp.partyEdges).toEqual(PART.edgeKinds.flatMap((k, i) => (k === 'party' ? [i] : [])));
-    expect(fp.partyEdges).toEqual([0, 2]);
-  });
-
-  it('returns the attached neighbours only, turned with the plan', () => {
-    const p = plan(10);
-    const attached = SPEC.context.neighbours.filter((n) => n.attached);
-    expect(attached.length).toBe(2);
-    expect(p.neighbours).toHaveLength(attached.length);
-    attached.forEach((n, i) => {
-      const want = n.footprint.outer.map((q) => rotate(q, p.rotationDeg));
-      expect(p.neighbours[i]).toHaveLength(want.length);
-      p.neighbours[i]!.forEach((q, k) => {
-        expect(Math.hypot(q[0] - want[k]![0], q[1] - want[k]![1])).toBeLessThan(0.01);
-      });
-    });
-  });
-
-  it('puts every roof face within the footprint grown by the overhang', () => {
-    const p = plan(10);
-    const fp = p.footprints[0]!.outline;
-    for (const face of p.faces) {
-      for (const q of face.outline) expect(insideOrNear(q, fp, PART.overhang + 0.05)).toBe(true);
+    expect(p.parts).toHaveLength(1);
+    const walls = p.parts[0]!.walls;
+    expect(walls).toHaveLength(4);
+    const fp = PART.footprint.outer;
+    const ridge = Math.max(...p.faces.flatMap((f) => zs(f.outline)));
+    for (const w of walls) {
+      expect(bottom(w.pts)).toBeCloseTo(0, 5);
+      expect(Math.abs(w.normal[2])).toBeLessThan(1e-9);
+      for (const q of footOf(w.pts)) expect(insideOrNear(q, fp, 0.01)).toBe(true);
+      // the party walls are the gable ends here, rising to the ridge; the others stop at the eave
+      if (w.party) expect(top(w.pts)).toBeCloseTo(ridge, 1);
+      else expect(top(w.pts)).toBeCloseTo(PART.eaveHeight, 2);
+    }
+    expect(walls.filter((w) => w.party)).toHaveLength(2);
+    // outward normals: away from the footprint's centre
+    const c = fp.reduce<P>((s, q) => [s[0] + q[0] / fp.length, s[1] + q[1] / fp.length], [0, 0]);
+    for (const w of walls) {
+      const [q] = footOf(w.pts);
+      expect((q![0] - c[0]) * w.normal[0] + (q![1] - c[1]) * w.normal[1]).toBeGreaterThan(0);
     }
   });
 
-  it('returns every roof face, panelled only where the panels are', () => {
+  it('returns both roof slopes, panelled only where the panels are', () => {
     const p = plan(10);
     expect(p.faces).toHaveLength(2);
+    const fp = PART.footprint.outer;
     for (const face of p.faces) {
       expect(face.outline.length).toBeGreaterThanOrEqual(3);
-      expect(Number.isFinite(face.pitchDeg)).toBe(true);
+      expect(face.normal[2]).toBeGreaterThan(0);
+      for (const q of face.outline) {
+        expect(insideOrNear([q[0], q[1]], fp, PART.overhang + 0.05)).toBe(true);
+      }
     }
     const south = p.faces.find((f) => f.azimuthDeg > 135 && f.azimuthDeg < 225)!;
     const north = p.faces.find((f) => f !== south)!;
     expect(south.panelled).toBe(true);
     expect(north.panelled).toBe(false);
     expect(p.mainFace.id).toBe(south.id);
+    expect(p.mainFace.pitchDeg).toBeCloseTo(PART.roof.pitchDeg, 1);
   });
 
-  it('draws the ridge between the two gable slopes', () => {
+  it('lays every panel on its panelled face, within its outline and just off its plane', () => {
     const p = plan(10);
-    const ridges = p.lines.filter((l) => l.kind === 'ridge');
-    expect(ridges.length).toBeGreaterThanOrEqual(1);
-    const len = Math.max(
-      ...ridges.map((r) => Math.hypot(r.to[0] - r.from[0], r.to[1] - r.from[1])),
-    );
-    expect(len).toBeGreaterThan(6);
-    // A plain gable has no hips or valleys.
-    expect(p.lines.every((l) => l.kind === 'ridge')).toBe(true);
+    for (const panel of p.panels) {
+      const face = p.faces.find((f) => f.id === panel.faceId)!;
+      expect(face.panelled).toBe(true);
+      const outline = face.outline.map((q): P => [q[0], q[1]]);
+      const o = face.outline[0]!;
+      for (const c of panel.corners) {
+        expect(insideOrNear([c[0], c[1]], outline, 0.01)).toBe(true);
+        const off =
+          (c[0] - o[0]) * face.normal[0] +
+          (c[1] - o[1]) * face.normal[1] +
+          (c[2] - o[2]) * face.normal[2];
+        expect(off).toBeGreaterThan(-0.01);
+        expect(off).toBeLessThan(0.2);
+      }
+    }
   });
 
-  it('turns the plan so the main eave runs level along the bottom of the main face', () => {
+  it('sets windows and doors on the outside walls', () => {
     const p = plan(10);
-    const [a, b] = p.mainFace.eave;
-    expect(Math.abs(a[1] - b[1])).toBeLessThan(0.01);
-    const face = p.faces.find((f) => f.id === p.mainFace.id)!;
-    for (const q of face.outline) expect(q[1]).toBeGreaterThanOrEqual(a[1] - 0.01);
-    // The sample's downslope bearing is about 162 degrees, so the plan turns about 18 degrees clockwise.
-    expect(p.rotationDeg).toBeCloseTo(-18.3, 0);
+    expect(p.openings.some((o) => o.kind === 'window')).toBe(true);
+    expect(p.openings.some((o) => o.kind === 'door')).toBe(true);
+    for (const o of p.openings) {
+      const wall = p.parts[0]!.walls[o.wall]!;
+      expect(wall.party).toBe(false);
+      expect(o.pts).toHaveLength(4);
+      for (const q of o.pts) expect(q[2]).toBeLessThanOrEqual(top(wall.pts) + 0.01);
+    }
   });
 
-  it('measures the real eave and the true rafter of the main face', () => {
+  it('returns the attached neighbours only, cut short, gabled like the house', () => {
     const p = plan(10);
-    const outer = PART.footprint.outer;
-    const eave = Math.hypot(outer[2]![0] - outer[1]![0], outer[2]![1] - outer[1]![1]);
-    const depth = Math.hypot(outer[1]![0] - outer[0]![0], outer[1]![1] - outer[0]![1]);
-    const rafter = (depth / 2 + PART.overhang) / Math.cos((PART.roof.pitchDeg * Math.PI) / 180);
-    expect(Math.abs(p.mainFace.eaveM - eave)).toBeLessThan(0.05);
-    expect(Math.abs(p.mainFace.rafterM - rafter)).toBeLessThan(0.05);
-    const [a, b] = p.mainFace.eave;
-    expect(Math.abs(Math.hypot(b[0] - a[0], b[1] - a[1]) - p.mainFace.eaveM)).toBeLessThan(0.01);
+    const attached = SPEC.context.neighbours.filter((n) => n.attached);
+    expect(attached.length).toBe(2);
+    expect(p.neighbours).toHaveLength(2);
+    const fp = PART.footprint.outer;
+    for (const nb of p.neighbours) {
+      // it shares a party wall line with the house
+      for (const q of nb.shared) expect(insideOrNear(q, fp, 0.05)).toBe(true);
+      const [a, b] = nb.shared;
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      // and runs no further than the stub from it
+      for (const poly of [...nb.walls, ...nb.roofs]) {
+        for (const q of poly.pts) {
+          const d = Math.abs((q[0] - a[0]) * (b[1] - a[1]) - (q[1] - a[1]) * (b[0] - a[0])) / len;
+          expect(d).toBeLessThanOrEqual(NEIGHBOUR_STUB_M + 0.01);
+        }
+      }
+      expect(nb.cut).not.toBeNull();
+      expect(nb.roofs).toHaveLength(2);
+    }
   });
 
   it('is null when the assessment is not reliable', () => {
@@ -254,36 +203,6 @@ describe('roofPlanFor', () => {
     expect(roofPlanFor(SAMPLE, { panelCount: 0, reliable: true })).toBeNull();
   });
 
-  it('bounds cover the footprint, faces and panels, never the neighbours', () => {
-    const p = plan(10);
-    const eps = 1e-9;
-    const points = [
-      ...p.footprints.flatMap((f) => f.outline),
-      ...p.faces.flatMap((f) => f.outline),
-      ...p.panels.flat(),
-    ];
-    for (const [x, y] of points) {
-      expect(x).toBeGreaterThanOrEqual(p.bounds.minX - eps);
-      expect(x).toBeLessThanOrEqual(p.bounds.maxX + eps);
-      expect(y).toBeGreaterThanOrEqual(p.bounds.minY - eps);
-      expect(y).toBeLessThanOrEqual(p.bounds.maxY + eps);
-    }
-    // The neighbours run well past the house, the bounds do not follow them.
-    expect(p.bounds.maxX - p.bounds.minX).toBeLessThan(10);
-    expect(p.neighbours.flat().some(([x]) => x > p.bounds.maxX + 1 || x < p.bounds.minX - 1)).toBe(
-      true,
-    );
-  });
-
-  it('every panel corner lies inside a panelled face outline (1 cm tolerance)', () => {
-    const p = plan(10);
-    for (const panel of p.panels) {
-      for (const corner of panel) {
-        expect(p.faces.some((f) => f.panelled && insideOrNear(corner, f.outline, 0.01))).toBe(true);
-      }
-    }
-  });
-
   it('is null for an empty face list, as the widget places nothing then', () => {
     expect(roofPlanFor(SAMPLE, { panelCount: 4, planeIds: [], reliable: true })).toBeNull();
   });
@@ -295,60 +214,38 @@ describe('roofPlanFor', () => {
     expect(p!.faces.filter((f) => f.panelled).map((f) => f.id)).toEqual([1]);
     expect(p!.mainFace.id).toBe(1);
     expect(p!.mainFacing).toBe('North');
-    const [a, b] = p!.mainFace.eave;
-    expect(Math.abs(a[1] - b[1])).toBeLessThan(0.01);
-    const face = p!.faces.find((f) => f.id === 1)!;
-    for (const q of face.outline) expect(q[1]).toBeGreaterThanOrEqual(a[1] - 0.01);
   });
-  it('draws no wall along the cut between two fitted parts of one house', () => {
+
+  it('stands no wall along the cut between two fitted parts, below the lower roof', () => {
     const p = roofPlanFor(L_SPEC, { panelCount: 4, reliable: true });
     expect(p).not.toBeNull();
-    expect(p!.footprints).toHaveLength(2);
-    // The shared chord, (0,6)-(4,6) before the turn.
-    const chord = (
-      [
-        [0, 6],
-        [4, 6],
-      ] as P[]
-    ).map((q) => rotate(q, p!.rotationDeg));
-    const onChord = (q: P) => segDist(q, chord[0]!, chord[1]!) < 0.02;
-    for (const w of p!.walls) {
-      const mid: P = [(w.from[0] + w.to[0]) / 2, (w.from[1] + w.to[1]) / 2];
-      expect(onChord(w.from) && onChord(w.to) && onChord(mid)).toBe(false);
+    expect(p!.parts).toHaveLength(2);
+    const chord: [P, P] = [
+      [0, 6],
+      [4, 6],
+    ];
+    const onChord = (q: P) => segDist(q, chord[0], chord[1]) < 0.02;
+    const all = p!.parts.flatMap((part) => part.walls);
+    for (const w of all) {
+      if (!footOf(w.pts).every(onChord)) continue;
+      // only the main block's wall above the flat rear roof (eave 3 m) stands there
+      expect(bottom(w.pts)).toBeGreaterThan(2.95);
     }
-    // The rest of the main block's north wall, (4,6)-(8,6), is still a wall.
-    const rest = (
-      [
-        [4, 6],
-        [8, 6],
-      ] as P[]
-    ).map((q) => rotate(q, p!.rotationDeg));
-    expect(
-      p!.walls.some(
-        (w) =>
-          segDist(w.from, rest[0]!, rest[1]!) < 0.02 && segDist(w.to, rest[0]!, rest[1]!) < 0.02,
-      ),
-    ).toBe(true);
-    // Outside wall length: the L's perimeter, 8 + 6 + 4 + 4 + 4 + 10 = 36 m.
-    const total = p!.walls.reduce(
-      (sum, w) => sum + Math.hypot(w.to[0] - w.from[0], w.to[1] - w.from[1]),
-      0,
-    );
+    // The walls standing on the ground run round the L: 8 + 6 + 4 + 4 + 4 + 10 = 36 m.
+    const ground = all.filter((w) => bottom(w.pts) < 0.01);
+    const total = ground.reduce((sum, w) => {
+      const f = footOf(w.pts);
+      return sum + Math.hypot(f[1]![0] - f[0]![0], f[1]![1] - f[0]![1]);
+    }, 0);
     expect(total).toBeCloseTo(36, 1);
   });
 
-  it('marks the party walls of the sample as party walls', () => {
-    const p = plan(10);
-    expect(p.walls.filter((w) => w.party)).toHaveLength(2);
-    expect(p.walls.filter((w) => !w.party)).toHaveLength(2);
-  });
-
-  it('draws the hips and the one ridge of a hipped roof', () => {
+  it('builds a hipped roof: four slopes over four eave-high walls', () => {
     const p = roofPlanFor(HIP_SPEC, { panelCount: 4, reliable: true });
     expect(p).not.toBeNull();
     expect(p!.faces).toHaveLength(4);
-    expect(p!.lines.filter((l) => l.kind === 'ridge')).toHaveLength(1);
-    expect(p!.lines.filter((l) => l.kind === 'hip')).toHaveLength(4);
-    expect(p!.lines.filter((l) => l.kind === 'valley')).toHaveLength(0);
+    expect(p!.parts[0]!.walls).toHaveLength(4);
+    for (const w of p!.parts[0]!.walls) expect(top(w.pts)).toBeCloseTo(5, 2);
+    expect(p!.neighbours).toEqual([]);
   });
 });
