@@ -1,0 +1,92 @@
+{
+  "address": "Paul McCartney's Childhood Home, 20, Forthlin Road, Allerton, Liverpool, Liverpool City Region, England, L18 9TL, United Kingdom",
+  "postcode": "L18 9TN",
+  "builtForm": "mid-terrace",
+  "era": "unknown",
+  "storeys": 2,
+  "roofType": "gabled",
+  "eaveHeightM": 5.1,
+  "roofPlanes": [
+    {
+      "id": 0,
+      "partId": "main",
+      "pitchDeg": 42.4,
+      "azimuthDeg": 162,
+      "facing": "S",
+      "areaM2": 37.9,
+      "planAreaM2": 28,
+      "widthM": 6.9,
+      "slopeLengthM": 5.49,
+      "fillRatio": 1,
+      "usableAreaM2": 28.6,
+      "maxPanels": 11,
+      "suitable": true
+    },
+    {
+      "id": 1,
+      "partId": "main",
+      "pitchDeg": 42.4,
+      "azimuthDeg": 342,
+      "facing": "N",
+      "areaM2": 37.9,
+      "planAreaM2": 28,
+      "widthM": 6.9,
+      "slopeLengthM": 5.49,
+      "fillRatio": 1,
+      "usableAreaM2": 0,
+      "maxPanels": 0,
+      "suitable": false
+    }
+  ],
+  "suitableRoofAreaM2": 37.9,
+  "usableRoofAreaM2": 28.6,
+  "estimatedMaxPanels": 11,
+  "mainPlaneId": 0,
+  "bestFacing": "S",
+  "obstructions": {
+    "chimneys": 0
+  },
+  "shadingFlags": ["vegetation-masked", "shading-not-assessed"],
+  "confidence": {
+    "geocode": "high",
+    "footprint": "high",
+    "heights": "measured",
+    "roof": "medium"
+  },
+  "reliable": true,
+  "flags": ["vegetation-masked", "survey-old"],
+  "notes": ["The LiDAR survey is several years old — recent extensions may be missing."],
+  "sources": [
+    {
+      "id": "osm",
+      "title": "OpenStreetMap",
+      "licence": "ODbL-1.0",
+      "attribution": "© OpenStreetMap contributors (ODbL)"
+    },
+    {
+      "id": "overture-buildings",
+      "title": "Overture Maps buildings",
+      "licence": "ODbL-1.0",
+      "attribution": "© Overture Maps Foundation (ODbL-1.0); sources per feature (OpenStreetMap, Microsoft ML Building Footprints)"
+    },
+    {
+      "id": "postcodes.io",
+      "title": "postcodes.io (ONS Postcode Directory)",
+      "licence": "OGL-UK-3.0",
+      "attribution": "Contains OS data © Crown copyright and database right; Contains Royal Mail data © Royal Mail copyright and database right; Contains National Statistics data © Crown copyright and database right"
+    },
+    {
+      "id": "nominatim",
+      "title": "Nominatim geocoder (OpenStreetMap data)",
+      "licence": "ODbL-1.0",
+      "attribution": "© OpenStreetMap contributors (ODbL)"
+    },
+    {
+      "id": "ea-lidar-composite-2022",
+      "title": "Environment Agency LIDAR Composite 2022 (1 m first-return DSM, last-return DSM, DTM; WCS)",
+      "licence": "OGL-UK-3.0",
+      "attribution": "© Environment Agency copyright and/or database right 2022. Contains public sector information licensed under the Open Government Licence v3.0."
+    }
+  ],
+  "label": "Indicative — subject to an on-site survey"
+}

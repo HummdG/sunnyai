@@ -2,8 +2,7 @@
 
 Used by the quotation PDF (`apps/api/src/proposal/layout.ts`). Both families are
 licensed under the SIL Open Font License 1.1 (see `OFL-InterTight.txt` and
-`OFL-IBMPlexMono.txt`). The Plus Jakarta Sans files (`OFL.txt`) are used by the
-older proposal renderer.
+`OFL-IBMPlexMono.txt`).
 
 ## Sources
 

@@ -6,12 +6,12 @@
  * quote's other stored options. Full width, no rail.
  */
 
-import { PRICED_BY_INSTALLER, gbp, num, systemLine } from '../copy.js';
+import { num, systemLine } from '../copy.js';
 import type { ProposalDoc } from '../doc.js';
 import { CONTENT, label, type Theme } from '../layout.js';
 import { drawRoofPlan } from '../plan-drawing.js';
 
-import type { QuoteLineItem, QuoteOptionView } from '../../journey/quote.js';
+import type { QuoteLineItem } from '../../journey/quote.js';
 
 import {
   FULL_W,
@@ -25,6 +25,7 @@ import {
   rule,
   subHead,
 } from './parts.js';
+import { drawOthers } from './others.js';
 
 type Pdf = PDFKit.PDFDocument;
 
@@ -49,6 +50,9 @@ const NAMES_EQUIPMENT =
 const PANEL = /\bpanels?\b|\bmodules?\b|\d\s?W\b/;
 const INVERTER = /inverter/i;
 const BATTERY = /batter(y|ies)/i;
+/** An EV charger, not a roof's "tile charge". */
+const CHARGER = /\bcharg(er|ers|ing)\b/i;
+const PV_SYSTEM = /\bsolar pv system\b/i;
 
 function isService(label: string): boolean {
   return SERVICE.test(label) || (INSTALL.test(label) && !NAMES_EQUIPMENT.test(label));
@@ -114,8 +118,10 @@ export function equipment(doc: ProposalDoc): Entry[] {
   }
   for (const item of items) {
     if (isService(item.label)) continue;
+    // The PV system line is the panels' base price: the Panels entry already covers it.
+    if (panelItem && PV_SYSTEM.test(item.label)) continue;
     out.push({
-      kind: /charg/i.test(item.label) ? 'Charger' : 'Also included',
+      kind: CHARGER.test(item.label) ? 'Charger' : 'Also included',
       name: item.quantity > 1 ? `${item.quantity} × ${item.label}` : item.label,
       detail: null,
       reason: reason(item),
@@ -138,14 +144,6 @@ function roofRows(doc: ProposalDoc): [string, string][] {
     ],
     ['Confidence', r.reliable ? (r.label ?? 'Good') : `${r.label ?? 'Low'}, confirmed at survey`],
   ];
-}
-
-/** An option's total as the quote states it, or null when it is not complete. */
-function optionTotal(doc: ProposalDoc, o: QuoteOptionView): number | null {
-  if (!doc.quote.priced || o.priceGbp === null || o.priceGbp <= 0 || o.installerPriced.length > 0) {
-    return null;
-  }
-  return o.priceIncVatGbp ?? o.priceGbp;
 }
 
 export function drawSystem(
@@ -237,66 +235,11 @@ export function drawSystem(
   }
 
   // ---- other options
-  if (opts.othersHere && doc.others.length > 0) drawOthers();
-
-  function drawOthers(): void {
-    const cols: { head: string; frac: number; align: 'left' | 'right' }[] = [
-      { head: 'Option', frac: 1.05, align: 'left' },
-      { head: 'Size', frac: 1.05, align: 'left' },
-      { head: 'Battery', frac: 0.9, align: 'left' },
-      { head: 'Estimated total', frac: 1.15, align: 'right' },
-      { head: 'Generation', frac: 1.05, align: 'right' },
-      { head: 'Savings a year', frac: 1.0, align: 'right' },
-      { head: 'Payback', frac: 0.85, align: 'right' },
-    ];
-    const total = cols.reduce((s, c) => s + c.frac, 0);
-    const gap = 14;
-    const widths = cols.map((c) => (c.frac / total) * (w + gap) - gap);
-    const xs = widths.map((_, i) => x + widths.slice(0, i).reduce((s, cw) => s + cw + gap, 0));
-    const cell = { font: 'sans-400', size: 8.6, color: theme.ink };
-    const rows = doc.others.map((other) => {
-      const t = optionTotal(doc, other);
-      return [
-        other.label,
-        `${num(other.systemKwp, 2)} kWp\n${other.panelCount} ${other.panelCount === 1 ? 'panel' : 'panels'}`,
-        other.batteryType && other.batteryCapacityKwh > 0
-          ? `${num(other.batteryCapacityKwh, 1)} kWh`
-          : 'None',
-        t !== null ? gbp(t) : PRICED_BY_INSTALLER,
-        `${num(Math.round(other.annualGenerationKwh))} kWh`,
-        gbp(other.annualSavingsGbp),
-        other.paybackYears !== null ? `${num(other.paybackYears, 1)} years` : '–',
-      ];
-    });
-    const rowH = (r: string[]) =>
-      Math.max(...r.map((c, i) => measure(pdf, c, { ...cell, width: widths[i]! }))) + 10;
-    ensure(56 + rowH(rows[0]!));
-    y = subHead(pdf, theme, 'Other options we looked at', x, y + 24, w) + 7;
-    // A header may wrap in its narrow column: the rule goes under the tallest.
-    const headTop = y;
-    y = Math.max(
-      ...cols.map((c, i) =>
-        label(pdf, c.head, xs[i]!, headTop, {
-          width: widths[i]!,
-          color: theme.muted,
-          align: c.align,
-        }),
-      ),
-    );
-    rule(pdf, y, theme.rule, 0.5, x, w);
-    for (const r of rows) {
-      const h = rowH(r);
+  if (opts.othersHere) {
+    y = drawOthers(pdf, doc, theme, { x, w, y }, (h, at) => {
+      y = at;
       ensure(h);
-      r.forEach((c, i) => {
-        para(pdf, c, xs[i]!, y + 5, {
-          ...cell,
-          font: i === 0 ? 'sans-600' : 'sans-400',
-          width: widths[i]!,
-          align: cols[i]!.align,
-        });
-      });
-      y += h;
-      rule(pdf, y, theme.rule, 0.5, x, w);
-    }
+      return y;
+    });
   }
 }

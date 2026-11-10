@@ -143,6 +143,11 @@ export interface QuoteRecord {
   quotation?: QuotationSnapshot;
   /** Why an item is on the quote, by line-item sku; absent on older quotes. */
   reasons?: Record<string, string>;
+  /**
+   * Warranty years by line-item sku, from the catalogue when the quote was
+   * made (proposal/warranties.ts); absent on older quotes, which print none.
+   */
+  warranties?: Record<string, number>;
 }
 
 function round(n: number, dp = 0): number {

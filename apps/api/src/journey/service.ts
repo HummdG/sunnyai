@@ -16,6 +16,7 @@ import { effectsFor } from '../flow/effects.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { reasonsFor } from '../proposal/reasons.js';
 import { snapshotFor } from '../proposal/snapshot.js';
+import { warrantiesFor } from '../proposal/warranties.js';
 import type { Store } from '../store.js';
 import type { Tenant } from '../tenants.js';
 
@@ -183,6 +184,30 @@ export async function submitAnswers(
   };
 }
 
+/**
+ * The catalogue's warranty years for the quote's items, fixed now. A catalogue
+ * that cannot be read leaves the quote without warranties rather than failing it.
+ */
+async function warrantiesNow(
+  store: Store,
+  tenantId: string,
+  quote: QuoteRecord,
+): Promise<Record<string, number>> {
+  try {
+    const [list, products] = await Promise.all([
+      getPublishedPriceList(store, tenantId),
+      store.listProducts(tenantId),
+    ]);
+    return warrantiesFor(
+      quote.options.flatMap((o) => o.lineItems),
+      list,
+      products,
+    );
+  } catch {
+    return {};
+  }
+}
+
 export type CreateQuoteResult =
   { ok: true; quote: QuoteRecord } | { ok: false; missing: string[]; next: string | null };
 
@@ -222,6 +247,7 @@ export async function createQuote(
     Object.assign(reasons, reasonsFor(effects, flow, answers, option));
   }
   quote.reasons = reasons;
+  quote.warranties = await warrantiesNow(deps.store, tenantId, quote);
   await deps.store.saveQuote(quote);
   return { ok: true, quote };
 }

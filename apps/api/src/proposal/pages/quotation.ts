@@ -23,6 +23,7 @@ import type { ProposalDoc } from '../doc.js';
 import { CONTENT, label, type Theme } from '../layout.js';
 
 import { MAIN_W, MAIN_X, measure, para, railBrand, railItem, railPage, rule } from './parts.js';
+import { drawOthers } from './others.js';
 
 type Pdf = PDFKit.PDFDocument;
 
@@ -71,7 +72,7 @@ export function drawQuotation(
   pdf: Pdf,
   doc: ProposalDoc,
   theme: Theme,
-  opts: { mcsBlock: boolean; termsFollow: boolean },
+  opts: { mcsBlock: boolean; termsFollow: boolean; othersHere?: boolean },
 ): void {
   const m = money(doc);
   drawRail(pdf, doc, theme, railPage(pdf, theme), m);
@@ -278,6 +279,15 @@ export function drawQuotation(
       align: 'right',
     });
     y = para(pdf, MCS_DISCLAIMER, x, y + 4, mcsText);
+  }
+
+  // ---- other options, when Your system is off
+  if (opts.othersHere) {
+    y = drawOthers(pdf, doc, theme, { x, w, y }, (h, at) => {
+      y = at;
+      ensure(h);
+      return y;
+    });
   }
 
   // ---- acceptance

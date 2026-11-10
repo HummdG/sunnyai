@@ -2068,6 +2068,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   }
 
   // The customer proposal PDF and "email me my quote" (routes/proposal.ts).
+  const brandAssets = deps.brandAssets ?? brandAssetStoreFromEnv(config.dataDir, process.env);
+
   registerProposalRoutes(app, {
     store,
     tenants,
@@ -2075,9 +2077,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     sessionSecret: config.sessionSecret,
     now,
     mailer: deps.proposalMailer !== undefined ? deps.proposalMailer : mailerFromEnv(process.env),
+    brandAssets,
+    sunscan,
   });
-
-  const brandAssets = deps.brandAssets ?? brandAssetStoreFromEnv(config.dataDir, process.env);
 
   // The installer portal and billing (routes/portal.ts).
   registerPortalRoutes(app, {

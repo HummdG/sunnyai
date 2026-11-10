@@ -192,7 +192,7 @@ export function rail(doc: Doc, theme: Theme, widthFraction: number): { x: number
 const PLATE_PAD = 4;
 
 /**
- * Draws the logo inside `box`, keeping its aspect ratio (left aligned,
+ * Draws the logo inside `box`, keeping its aspect ratio (left aligned, or right aligned for the header;
  * vertically centred) and returns the rect it drew. With no PNG, the company
  * name is set in sans-800. On the dark rail (`onDark`) a PNG always sits on a
  * white plate (the logo is inset by the plate padding so the plate stays in the
@@ -205,6 +205,7 @@ export function drawLogo(
   fallbackName: string,
   box: Rect,
   onDark: boolean,
+  align: 'left' | 'right' = 'left',
 ): Rect {
   const saveX = doc.x;
   const saveY = doc.y;
@@ -224,7 +225,8 @@ export function drawLogo(
     const scale = Math.min(aw / image.width, ah / image.height);
     const w = image.width * scale;
     const h = image.height * scale;
-    drawn = { x: box.x + pad, y: box.y + pad + (ah - h) / 2, w, h };
+    const x = align === 'right' ? box.x + box.w - pad - w : box.x + pad;
+    drawn = { x, y: box.y + pad + (ah - h) / 2, w, h };
     if (onDark) {
       doc
         .save()
@@ -240,10 +242,11 @@ export function drawLogo(
     while (size > 6 && doc.widthOfString(fallbackName) > box.w) doc.fontSize((size -= 0.5));
     const w = Math.min(doc.widthOfString(fallbackName), box.w);
     const h = doc.currentLineHeight();
-    drawn = { x: box.x, y: box.y + (box.h - h) / 2, w, h };
+    const x = align === 'right' ? box.x + box.w - w : box.x;
+    drawn = { x, y: box.y + (box.h - h) / 2, w, h };
     doc
       .fillColor(onDark ? '#ffffff' : '#171f26')
-      .text(fallbackName, drawn.x, drawn.y, { width: box.w, height: h, lineBreak: false });
+      .text(fallbackName, drawn.x, drawn.y, { width: w + 1, height: h, lineBreak: false });
   }
   doc.x = saveX;
   doc.y = saveY;
@@ -278,6 +281,7 @@ export function header(doc: Doc, ctx: PageContext): void {
       ctx.companyName,
       { x: PAGE.width - PAGE.margin - w, y: 12, w, h: 22 },
       false,
+      'right',
     );
   });
 }
