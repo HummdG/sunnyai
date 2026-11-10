@@ -16,6 +16,7 @@ import { flowForTenant } from '../src/flow/tenant.js';
 import { catalogueBackedPricing } from '../src/journey/catalogue-pricing.js';
 import { extractAnswers } from '../src/journey/extract.js';
 import { demoPricing } from '../src/journey/pricing.js';
+import type { QuoteRecord } from '../src/journey/quote.js';
 import { optionLabel } from '../src/questionnaire.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
@@ -324,7 +325,7 @@ describe("Sunny's chat on the installer's flow", () => {
     // The quote uses the flow in force when it is built: the tariff is now an estimate.
     const quoted = await tool('get_quote_options', {}, next);
     expect(quoted.ok).toBe(true);
-    const quotes = await store.listQuotes(DEMO_TENANT.id, SESSION);
+    const quotes = (await store.listQuotes(DEMO_TENANT.id, SESSION)) as QuoteRecord[];
     expect(quotes[0]!.estimatedFrom).toContain('tariff_type');
     expect(quotes[0]!.estimatedFrom).not.toContain('roof_shading');
   });

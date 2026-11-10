@@ -35,17 +35,94 @@ interface QuoteOption {
   } | null;
 }
 
-interface Quote {
+interface QuoteBase {
   id: string;
   createdAt: string;
   priced: boolean;
   pricing: { label: string; priceStatus: 'verified' | 'indicative' } | null;
-  options: QuoteOption[];
   recommendedId: string | null;
   disclaimer: string;
   leadId: string | null;
   /** The package the visitor chose in the chat, when they chose one. */
   chosenOptionId?: string | null;
+}
+
+/** A solar quote; quotes from before quotes came in kinds have no `kind`. */
+interface SolarQuote extends QuoteBase {
+  kind?: 'solar';
+  options: QuoteOption[];
+}
+
+interface HeatPumpOption {
+  id: string;
+  label: string;
+  headline: string;
+  outputKw: number;
+  unitName: string;
+  priceGbp: number | null;
+  /** The Boiler Upgrade Scheme grant (0 when not eligible). */
+  grantGbp: number;
+  priceAfterGrantGbp: number | null;
+  annualSavingsGbp: number;
+  installerPriced: boolean;
+}
+
+interface HeatPumpQuote extends QuoteBase {
+  kind: 'heat_pump';
+  options: HeatPumpOption[];
+}
+
+type Quote = SolarQuote | HeatPumpQuote;
+
+/** A heat pump option on the lead page: its output, price and grant. */
+function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: HeatPumpOption }) {
+  const chosen = option.id === quote.chosenOptionId;
+  return (
+    <article
+      className={`quote-option${option.id === quote.recommendedId ? ' recommended' : ''}${chosen ? ' chosen' : ''}`}
+      aria-label={chosen ? `${option.label} (chosen by the customer)` : option.label}
+    >
+      <div className="chip-row">
+        {option.id === quote.recommendedId &&
+        option.label.trim().toLowerCase() === 'recommended' ? null : (
+          <Chip>{option.label}</Chip>
+        )}
+        {option.id === quote.recommendedId ? <Chip tone="ok">Recommended</Chip> : null}
+        {chosen ? <Chip tone="orange">Chosen by the customer</Chip> : null}
+      </div>
+      <h3>{option.headline}</h3>
+      <p className="quote-price">
+        {option.priceGbp === null ? 'Priced by your team' : `About ${money(option.priceGbp)}`}
+      </p>
+      <p className="small muted">
+        {quote.pricing?.priceStatus === 'verified' ? 'From your price list' : 'Indicative'}, subject
+        to a survey
+      </p>
+      <dl>
+        <dt>Heat pump</dt>
+        <dd>
+          {option.outputKw.toLocaleString('en-GB')} kW · {option.unitName}
+        </dd>
+        <dt>Grant</dt>
+        <dd>
+          {option.grantGbp > 0
+            ? `Boiler Upgrade Scheme ${money(option.grantGbp)}`
+            : 'No Boiler Upgrade Scheme grant'}
+        </dd>
+        <dt>After grant</dt>
+        <dd>
+          {option.priceAfterGrantGbp === null
+            ? 'Priced at survey'
+            : `About ${money(option.priceAfterGrantGbp)}`}
+        </dd>
+        <dt>Savings</dt>
+        <dd>About {money(option.annualSavingsGbp)} a year</dd>
+      </dl>
+      {option.installerPriced ? (
+        <p className="small muted">For your team to price: the heat pump unit</p>
+      ) : null}
+    </article>
+  );
 }
 
 interface RoofPlane {
@@ -203,7 +280,12 @@ export function LeadDetail({
                 : 'No price list was published, so Sunny showed sizes and savings without prices.'}
             </p>
             <div className="quote-options">
-              {quote.options.map((option) => (
+              {quote.kind === 'heat_pump'
+                ? quote.options.map((option) => (
+                    <HeatPumpOptionCard key={option.id} quote={quote} option={option} />
+                  ))
+                : null}
+              {(quote.kind === 'heat_pump' ? [] : quote.options).map((option) => (
                 <article
                   key={option.id}
                   className={`quote-option${option.id === quote.recommendedId ? ' recommended' : ''}${option.id === quote.chosenOptionId ? ' chosen' : ''}`}

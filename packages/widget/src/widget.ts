@@ -941,6 +941,8 @@ export class SunnyWidget {
    * goes in through `el`'s textContent.
    */
   #showQuote(quote: QuoteCard): void {
+    // A heat pump card has its own layout, not drawn here yet: only solar renders.
+    if (quote.kind === 'heat_pump') return;
     const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
     // Smallest to largest, with the recommended one in the middle: the eye
     // lands there first, and the other two read as "less" and "more".

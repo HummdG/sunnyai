@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import type { BrandAssetStore } from '../branding/store.js';
+import { isSolarRecord } from '../journey/heat-pump/record.js';
 import type { QuoteRecord } from '../journey/quote.js';
 import {
   proposalFilename,
@@ -101,6 +102,8 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     if (!tenant || !quote || quote.sessionId !== claims.sessionId) {
       throw new ApiError('not_found', 'No such quote.');
     }
+    // Only a solar quote has a PDF proposal so far.
+    if (!isSolarRecord(quote)) throw new ApiError('not_found', 'This quote has no proposal.');
     return { tenant, quote, sessionId: claims.sessionId };
   }
 
@@ -195,6 +198,8 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
       const quotes = await store.listQuotes(tenant.id, lead.sessionId);
       const quote = quotes.filter((q) => q.leadId === lead.id).at(-1) ?? quotes.at(-1) ?? null;
       if (!quote) throw new ApiError('not_found', 'This lead has no quote.');
+      // Only a solar quote has a PDF proposal so far.
+      if (!isSolarRecord(quote)) throw new ApiError('not_found', 'This quote has no proposal.');
       const pdf = await proposalPdf(sources, tenant, quote, lead, new Date(now()));
       return sendPdf(reply, pdf, proposalFilename(tenant, quote));
     },

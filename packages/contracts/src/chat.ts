@@ -81,19 +81,59 @@ export const quoteOptionCardSchema = z.object({
     .optional(),
 });
 
-/** The quote the journey presented, compact enough for a stream frame. */
-export const quoteCardSchema = z.object({
+/** One heat pump quote option, as a card. */
+export const heatPumpOptionCardSchema = z.object({
+  id: z.string().min(1).max(40),
+  label: z.string().min(1).max(60),
+  isRecommended: z.boolean(),
+  headline: z.string().max(200),
+  outputKw: z.number().nonnegative(),
+  priceGbp: z.number().nonnegative().nullable(),
+  /** The Boiler Upgrade Scheme grant (0 when not eligible). */
+  grantGbp: z.number().nonnegative(),
+  priceAfterGrantGbp: z.number().nonnegative().nullable(),
+  priceLabel: z.string().max(120),
+  runningCostGbp: z.number().nonnegative(),
+  currentCostGbp: z.number().nonnegative(),
+  annualSavingsGbp: z.number(),
+  /** The installer prices this option themselves; shown without a figure. */
+  installerPriced: z.boolean().optional(),
+});
+
+const quoteCardBase = {
   quoteId: z.string().min(1).max(60),
   priced: z.boolean(),
-  options: z.array(quoteOptionCardSchema).max(3),
   disclaimer: z.string().min(1).max(600),
   /** A PDF proposal can be downloaded for this quote. */
   proposalAvailable: z.boolean().optional(),
   /** The quote can be emailed to the visitor (outbound email is configured). */
   emailAvailable: z.boolean().optional(),
+};
+
+/** A solar quote card; cards from before quotes came in kinds have no `kind`. */
+export const solarQuoteCardSchema = z.object({
+  kind: z.literal('solar').optional(),
+  ...quoteCardBase,
+  options: z.array(quoteOptionCardSchema).max(3),
 });
 
+/** A heat pump quote card. */
+export const heatPumpQuoteCardSchema = z.object({
+  kind: z.literal('heat_pump'),
+  ...quoteCardBase,
+  options: z.array(heatPumpOptionCardSchema).max(3),
+});
+
+/**
+ * The quote the journey presented, compact enough for a stream frame. A card
+ * with no `kind` reads as solar.
+ */
+export const quoteCardSchema = z.union([heatPumpQuoteCardSchema, solarQuoteCardSchema]);
+
 export type QuoteCard = z.infer<typeof quoteCardSchema>;
+export type SolarQuoteCard = z.infer<typeof solarQuoteCardSchema>;
+export type HeatPumpQuoteCard = z.infer<typeof heatPumpQuoteCardSchema>;
+export type HeatPumpOptionCard = z.infer<typeof heatPumpOptionCardSchema>;
 
 export const chatStreamEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('message_started'), ...base }),

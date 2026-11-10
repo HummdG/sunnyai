@@ -18,6 +18,7 @@ import { DISCOVERY } from '../flow/banks.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
 import type { Proposal } from '../journey/extract.js';
+import { quoteKind } from '../journey/heat-pump/record.js';
 import {
   loadJourney,
   submitAnswers,
@@ -120,8 +121,13 @@ interface Step {
 async function stepOf(ctx: ToolContext, deps: JourneyDeps, r: Running): Promise<Step> {
   const { answers, roof, pending } = await loadJourney(deps, ctx.tenant.id, ctx.sessionId);
   if (r.kind === 'workflow') {
+    // Quoted once this session holds a quote from the workflow's own engine.
+    const outcome = r.workflow.outcome;
     const quoted =
-      isSolarQuote(r) && (await ctx.store.listQuotes(ctx.tenant.id, ctx.sessionId)).length > 0;
+      outcome.kind === 'quote' &&
+      (await ctx.store.listQuotes(ctx.tenant.id, ctx.sessionId)).some(
+        (q) => quoteKind(q) === outcome.engine,
+      );
     return {
       view: workflowStatus(r.workflow, answers, roof, { roofPending: pending, quoted }),
       roofPending: pending && roof === null,

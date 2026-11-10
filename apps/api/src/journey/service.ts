@@ -29,6 +29,7 @@ import {
   rejectRoof,
   type JourneyView,
 } from './journey.js';
+import { isSolarRecord, type HeatPumpQuoteRecord, type StoredQuote } from './heat-pump/record.js';
 import { buildQuote, type QuoteRecord } from './quote.js';
 import { mapRoof, type MappedRoof, type RoofAssessmentSummary } from './roof.js';
 
@@ -123,7 +124,7 @@ export async function journeyView(
   sessionId: string,
 ): Promise<JourneyView> {
   const { answers, roof, pending } = await loadJourney(deps, tenantId, sessionId);
-  const quoted = (await deps.store.listQuotes(tenantId, sessionId)).length > 0;
+  const quoted = (await deps.store.listQuotes(tenantId, sessionId)).some(isSolarRecord);
   return journeyStatus(answers, roof, { roofPending: pending, quoted }, flowOf(deps, tenantId));
 }
 
@@ -277,9 +278,10 @@ export async function createQuote(
 
 /** The quote as the widget's option cards. */
 export function toQuoteCard(
-  quote: QuoteRecord,
+  quote: StoredQuote,
   options: { emailAvailable?: boolean } = {},
 ): QuoteCard {
+  if (!isSolarRecord(quote)) return heatPumpCard(quote, options);
   return {
     quoteId: quote.id,
     priced: quote.priced,
@@ -313,6 +315,36 @@ export function toQuoteCard(
             },
           }
         : {}),
+    })),
+  };
+}
+
+/** A heat pump quote as cards. No PDF proposal yet, so none is offered. */
+function heatPumpCard(
+  quote: HeatPumpQuoteRecord,
+  options: { emailAvailable?: boolean },
+): QuoteCard {
+  return {
+    kind: 'heat_pump',
+    quoteId: quote.id,
+    priced: quote.priced,
+    disclaimer: quote.disclaimer,
+    proposalAvailable: false,
+    emailAvailable: options.emailAvailable ?? proposalEmailConfigured(),
+    options: quote.options.map((o) => ({
+      id: o.id,
+      label: o.label,
+      isRecommended: o.isRecommended,
+      headline: o.headline,
+      outputKw: o.outputKw,
+      priceGbp: o.priceGbp,
+      grantGbp: o.grantGbp,
+      priceAfterGrantGbp: o.priceAfterGrantGbp,
+      priceLabel: o.priceLabel,
+      runningCostGbp: o.runningCostGbp,
+      currentCostGbp: o.currentCostGbp,
+      annualSavingsGbp: o.annualSavingsGbp,
+      ...(o.installerPriced ? { installerPriced: true } : {}),
     })),
   };
 }

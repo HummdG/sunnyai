@@ -97,6 +97,8 @@ export interface QuoteOptionView {
 }
 
 export interface QuoteRecord {
+  /** Absent on every solar quote made before quotes came in kinds. */
+  kind?: 'solar';
   id: string;
   tenantId: string;
   sessionId: string;

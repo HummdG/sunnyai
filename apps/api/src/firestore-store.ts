@@ -20,7 +20,7 @@ import type {
 import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
 
 import type { CatalogueState } from './catalogue/types.js';
-import type { QuoteRecord } from './journey/quote.js';
+import type { StoredQuote } from './journey/heat-pump/record.js';
 import type { Tenant } from './tenants.js';
 import { EMPTY_SESSION, cloneSession, type WorkflowSession } from './workflows/session.js';
 import type {
@@ -856,25 +856,25 @@ export class FirestoreStore implements Store {
 
   // ── quotes (journey/quote.ts) ─────────────────────────────────────────────
 
-  async saveQuote(record: QuoteRecord): Promise<void> {
+  async saveQuote(record: StoredQuote): Promise<void> {
     await this.#tenantDoc(record.tenantId)
       .collection('quotes')
       .doc(docId('q', record.id))
       .set(JSON.parse(JSON.stringify(record)) as Record<string, unknown>);
   }
 
-  async getQuote(tenantId: string, id: string): Promise<QuoteRecord | null> {
+  async getQuote(tenantId: string, id: string): Promise<StoredQuote | null> {
     const snap = await this.#tenantDoc(tenantId).collection('quotes').doc(docId('q', id)).get();
-    return snap.exists ? (snap.data() as QuoteRecord) : null;
+    return snap.exists ? (snap.data() as StoredQuote) : null;
   }
 
-  async listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]> {
+  async listQuotes(tenantId: string, sessionId: string): Promise<StoredQuote[]> {
     const snap = await this.#tenantDoc(tenantId)
       .collection('quotes')
       .where('sessionId', '==', sessionId)
       .get();
     return snap.docs
-      .map((doc) => doc.data() as QuoteRecord)
+      .map((doc) => doc.data() as StoredQuote)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 

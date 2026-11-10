@@ -1,6 +1,10 @@
 import { isEntitled } from '../../agent/channels.js';
 import type { ChatProvider } from '../../agent/provider.js';
-import type { QuoteRecord } from '../../journey/quote.js';
+import {
+  isSolarRecord,
+  type HeatPumpQuoteRecord,
+  type StoredQuote,
+} from '../../journey/heat-pump/record.js';
 import type { ConversationTurn, LeadRecord, Store } from '../../store.js';
 import type { Tenant } from '../../tenants.js';
 import { composeReply } from './compose.js';
@@ -60,8 +64,9 @@ export function transcriptFor(turns: readonly ConversationTurn[], latest?: strin
 }
 
 /** The quote the visitor was shown, as facts the email may repeat and nothing more. */
-export function quoteFacts(quote: QuoteRecord | null): string | null {
+export function quoteFacts(quote: StoredQuote | null): string | null {
   if (!quote || quote.options.length === 0) return null;
+  if (!isSolarRecord(quote)) return heatPumpFacts(quote);
   const chosen = quote.chosenOptionId ?? null;
   const lines = quote.options.map((o) => {
     const parts = [
@@ -77,6 +82,21 @@ export function quoteFacts(quote: QuoteRecord | null): string | null {
     return `- ${o.label}: ${parts.join(', ')}${tags.length ? ` [${tags.join(', ')}]` : ''}`;
   });
   return [`Quote for ${quote.basis.postcode}:`, ...lines, quote.disclaimer].join('\n');
+}
+
+function heatPumpFacts(quote: HeatPumpQuoteRecord): string {
+  const chosen = quote.chosenOptionId ?? null;
+  const lines = quote.options.map((o) => {
+    const price = o.priceGbp !== null ? `${gbp(o.priceGbp)} (${o.priceLabel})` : 'priced at survey';
+    const grant = gbp(o.grantGbp);
+    const tags = [
+      o.id === chosen ? 'the one they chose' : null,
+      o.isRecommended ? 'recommended' : null,
+    ].filter(Boolean);
+    const facts = `${o.outputKw} kW heat pump, ${price}, Boiler Upgrade Scheme grant ${grant}`;
+    return `- ${o.label}: ${facts}${tags.length ? ` [${tags.join(', ')}]` : ''}`;
+  });
+  return [`Quote for ${quote.postcode}:`, ...lines, quote.disclaimer].join('\n');
 }
 
 function instruction(tenant: Tenant): string {

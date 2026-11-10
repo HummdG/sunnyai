@@ -13,7 +13,7 @@ import type {
 } from '@sunny/contracts';
 
 import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
-import type { QuoteRecord } from './journey/quote.js';
+import type { StoredQuote } from './journey/heat-pump/record.js';
 
 import type { CatalogueState } from './catalogue/types.js';
 import type { Tenant } from './tenants.js';
@@ -639,10 +639,10 @@ export interface Store {
    * Quotes presented in the quote journey (journey/quote.ts). Tenant-scoped,
    * rewritten when a lead is attached; the latest write for an id is current.
    */
-  saveQuote(record: QuoteRecord): Promise<void>;
-  getQuote(tenantId: string, id: string): Promise<QuoteRecord | null>;
+  saveQuote(record: StoredQuote): Promise<void>;
+  getQuote(tenantId: string, id: string): Promise<StoredQuote | null>;
   /** One session's quotes, oldest first. */
-  listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]>;
+  listQuotes(tenantId: string, sessionId: string): Promise<StoredQuote[]>;
   /**
    * The portal's catalogue workspace (catalogue/types.ts): pending uploads,
    * drafts awaiting approval, version history, the Sheet source. Never read by
@@ -1383,8 +1383,8 @@ export class FileStore implements Store {
     return join(this.#dir, 'quotes', `${encodeURIComponent(tenantId)}.jsonl`);
   }
 
-  async #readQuotes(tenantId: string): Promise<Map<string, QuoteRecord>> {
-    const latest = new Map<string, QuoteRecord>();
+  async #readQuotes(tenantId: string): Promise<Map<string, StoredQuote>> {
+    const latest = new Map<string, StoredQuote>();
     let text: string;
     try {
       text = await readFile(this.#quoteFile(tenantId), 'utf8');
@@ -1393,23 +1393,23 @@ export class FileStore implements Store {
     }
     for (const line of text.split('\n')) {
       if (!line.trim()) continue;
-      const row = JSON.parse(line) as QuoteRecord;
+      const row = JSON.parse(line) as StoredQuote;
       // Belt and braces: the file is already per tenant.
       if (row.tenantId === tenantId) latest.set(row.id, row);
     }
     return latest;
   }
 
-  async saveQuote(record: QuoteRecord): Promise<void> {
+  async saveQuote(record: StoredQuote): Promise<void> {
     await mkdir(join(this.#dir, 'quotes'), { recursive: true });
     await appendFile(this.#quoteFile(record.tenantId), `${JSON.stringify(record)}\n`, 'utf8');
   }
 
-  async getQuote(tenantId: string, id: string): Promise<QuoteRecord | null> {
+  async getQuote(tenantId: string, id: string): Promise<StoredQuote | null> {
     return (await this.#readQuotes(tenantId)).get(id) ?? null;
   }
 
-  async listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]> {
+  async listQuotes(tenantId: string, sessionId: string): Promise<StoredQuote[]> {
     return [...(await this.#readQuotes(tenantId)).values()]
       .filter((q) => q.sessionId === sessionId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));

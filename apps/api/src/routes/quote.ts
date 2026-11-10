@@ -23,6 +23,7 @@ import { z } from 'zod';
 
 import { pinBrandAssets } from '../branding/meta.js';
 import { chosenPackage } from '../journey/choose.js';
+import { isSolarRecord, type StoredQuote } from '../journey/heat-pump/record.js';
 import type { QuoteRecord } from '../journey/quote.js';
 import {
   createQuote,
@@ -86,10 +87,17 @@ function badRequest(error: z.ZodError): ApiError {
 /** A quote as the visitor's page sees it: no tenant id. */
 export function publicQuote(
   record: QuoteRecord,
-): Omit<QuoteRecord, 'tenantId'> & { proposalAvailable: true } {
+): Omit<QuoteRecord, 'tenantId'> & { proposalAvailable: true };
+export function publicQuote(
+  record: StoredQuote,
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean };
+export function publicQuote(
+  record: StoredQuote,
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean } {
   const { tenantId: _tenantId, ...rest } = record;
-  // GET /v1/quote/:id/proposal.pdf renders it (routes/proposal.ts).
-  return { ...rest, proposalAvailable: true };
+  // GET /v1/quote/:id/proposal.pdf renders a solar quote (routes/proposal.ts);
+  // a heat pump quote has no PDF proposal yet.
+  return { ...rest, proposalAvailable: isSolarRecord(record) };
 }
 
 export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps): void {
@@ -160,7 +168,7 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     return publicQuote(result.quote);
   });
 
-  async function owned(tenantId: string, sessionId: string, id: string): Promise<QuoteRecord> {
+  async function owned(tenantId: string, sessionId: string, id: string): Promise<StoredQuote> {
     const record = await deps.store.getQuote(tenantId, id);
     if (!record || record.sessionId !== sessionId) {
       throw new ApiError('not_found', 'No such quote.');
@@ -185,6 +193,15 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     const who = caller(request, body.data.sessionId);
     const { id } = request.params as { id: string };
     const quote = await owned(who.tenantId, who.sessionId, id);
+    if (!isSolarRecord(quote)) {
+      // A heat pump quote has no savings timeline to play: the choice is saved
+      // and the option returned as is.
+      const option = quote.options.find((o) => o.id === body.data.optionId);
+      if (!option) throw new ApiError('not_found', 'No such option on this quote.');
+      const chosenAt = new Date(deps.now()).toISOString();
+      await deps.store.saveQuote({ ...quote, chosenOptionId: option.id, chosenAt });
+      return { chosen: option };
+    }
     const option = quote.options.find((o) => o.id === body.data.optionId);
     if (!option) throw new ApiError('not_found', 'No such option on this quote.');
     const chosen: QuoteRecord = {
@@ -211,7 +228,7 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
       (l) => l.id === body.data.leadId && l.sessionId === who.sessionId,
     );
     if (!lead) throw new ApiError('not_found', 'No such lead for this session.');
-    const attached: QuoteRecord = { ...quote, leadId: lead.id };
+    const attached: StoredQuote = { ...quote, leadId: lead.id };
     await deps.store.saveQuote(attached);
     return publicQuote(attached);
   });
