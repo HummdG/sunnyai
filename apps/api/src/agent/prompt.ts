@@ -119,7 +119,7 @@ function discoveryLine(view: WorkflowStateView): string {
       return 'on, asking now';
     case 'done':
       return view.discovery.suggestedWorkflowId
-        ? `on, done (suggested ${escapeTagText(view.discovery.suggestedWorkflowId)})`
+        ? `on, done (suggested ${stateText(view.discovery.suggestedWorkflowId)})`
         : 'on, done';
     case 'skipped':
       return 'on, done (skipped)';
@@ -127,14 +127,24 @@ function discoveryLine(view: WorkflowStateView): string {
 }
 
 /**
+ * Installer text for one line of the state block: escaped, and with every run
+ * of whitespace (newlines included) made a single space, so it can neither
+ * close the block nor start a line of its own that reads as the server's.
+ */
+function stateText(text: string): string {
+  return escapeTagText(text).replace(/\s+/g, ' ');
+}
+
+/**
  * The server's account of the visitor's place among the workflows, sent in the
  * message between the evidence and the visitor's words. Every installer string
- * is escaped, so a name or a description can never close the block or open
- * another. The current question is the server's (`workflowStatus`), never one
- * the installer has since removed.
+ * is escaped and kept to its line, so a name or a description can never close
+ * the block, open another, or forge a line. The current question is the
+ * server's (`workflowStatus`), never one the installer has since removed. A
+ * solar workflow that has quoted says so, and is never ready to quote again.
  */
 export function workflowState(view: WorkflowStateView): string {
-  const e = escapeTagText;
+  const e = stateText;
   const lines: string[] = ['<workflow_state>'];
   if (view.active) {
     const { workflow, step } = view.active;
@@ -146,6 +156,7 @@ export function workflowState(view: WorkflowStateView): string {
         : 'current question: none',
     );
     if (step.stage === 'ready_for_lead') lines.push('readyForLead: yes');
+    else if (step.stage === 'quoted') lines.push('quoted: yes');
     else if (step.ready) lines.push('readyForQuote: yes');
   } else {
     lines.push('active: none');

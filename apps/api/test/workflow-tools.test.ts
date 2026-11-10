@@ -238,6 +238,22 @@ describe('save_workflow_answers', () => {
     expect(result.data['workflow']).toEqual({ id: 'wf_solar', name: 'Solar quote' });
   });
 
+  it('stores an address from the message that started the workflow, and measures it', async () => {
+    const store = await tempStore();
+    const ctx = context(store);
+    const sunscan = stubSunScan();
+    ctx.sunscan = sunscan.service;
+    ctx.sunscanConnected = true;
+    ctx.visitorMessage = 'solar quote for 164 Norwich Drive, Norwich NR4 7TJ';
+    const result = await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    const conversation = await store.getConversation(DEMO_TENANT.id, SESSION);
+    expect(conversation?.answers?.['address']).toContain('164 Norwich Drive');
+    expect(ctx.answers['address']).toContain('164 Norwich Drive');
+    expect(sunscan.started).toHaveBeenCalledTimes(1);
+    expect(result.data['roofAssessment']).toBeDefined();
+    expect(result.data['nextQuestionId']).toBe('motivation');
+  });
+
   it('goes from discovery to a suggestion, and the suggestion skips what was answered', async () => {
     const store = await tempStore();
     const ctx = context(store);
@@ -334,6 +350,64 @@ describe('leads and quotes under a workflow', () => {
     const result = await tool('get_quote_options', {}, ctx);
     expect(result.ok).toBe(false);
     expect(result.data['outcome']).toBe('lead');
+  });
+
+  it('refuses a quote when the solar workflow is turned off or not on this page', async () => {
+    const off = setWith();
+    off.workflows[0]!.enabled = false;
+    const elsewhere = setWith();
+    elsewhere.workflows[0]!.pages = { include: ['/solar'], exclude: [] };
+    for (const [set, path] of [
+      [off, '/'],
+      [elsewhere, '/'],
+      [elsewhere, null],
+    ] as const) {
+      const store = await tempStore();
+      await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+      const ctx = context(store, set, path);
+      const result = await tool('get_quote_options', {}, ctx);
+      expect(result.ok).toBe(false);
+      expect(result.summary).toMatch(/not offered/i);
+      expect(ctx.events.some((e) => e.kind === 'quote')).toBe(false);
+      expect(await store.listQuotes(DEMO_TENANT.id, SESSION)).toHaveLength(0);
+    }
+  });
+
+  it('refuses a quote while a turned-off solar workflow is still marked active', async () => {
+    const set = setWith();
+    set.workflows[0]!.enabled = false;
+    const store = await tempStore();
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+    const ctx = context(store, set);
+    ctx.session = {
+      ...cloneSession(EMPTY_SESSION),
+      active: { workflowId: 'wf_solar', startedAt: NOW },
+    };
+    const result = await tool('get_quote_options', {}, ctx);
+    expect(result.ok).toBe(false);
+    expect(await store.listQuotes(DEMO_TENANT.id, SESSION)).toHaveLength(0);
+  });
+
+  it('quotes with nothing running when the solar workflow applies on this page', async () => {
+    const store = await tempStore();
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+    const result = await tool('get_quote_options', {}, context(store));
+    expect(result.ok).toBe(true);
+  });
+
+  it('finishes the solar workflow with the quote it built', async () => {
+    const store = await tempStore();
+    const ctx = context(store);
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+    const result = await tool('get_quote_options', {}, ctx);
+    expect(result.ok).toBe(true);
+    const saved = await store.getWorkflowState(DEMO_TENANT.id, SESSION);
+    expect(saved.active).toBeNull();
+    expect(saved.completed).toEqual([
+      expect.objectContaining({ workflowId: 'wf_solar', quoteId: result.data['quoteId'] }),
+    ]);
+    expect(ctx.session).toEqual(saved);
   });
 });
 
@@ -567,6 +641,10 @@ describe('free text to an optional question', () => {
     const { ctx } = await onBudget();
     const quote = await tool('get_quote_options', {}, ctx);
     expect(quote.ok).toBe(true);
+    // The quote finished the workflow; a visitor who opens it again is not
+    // walked back through the optional questions.
+    expect(ctx.session.active).toBeNull();
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     const step = await tool('get_workflow_step', {}, ctx);
     expect(step.data['stage']).toBe('quoted');
     expect(step.data['readyForQuote']).toBe(true);

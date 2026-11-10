@@ -123,6 +123,12 @@ export interface ToolContext {
   session: WorkflowSession;
   /** The host page's path, when the widget sent one: decides which workflows apply. */
   pagePath: string | null;
+  /**
+   * The visitor's words this turn, when the caller has them. `start_workflow`
+   * reads an address from them, so one given in the opening message is not
+   * asked for again.
+   */
+  visitorMessage?: string;
 }
 
 export interface ToolResult {

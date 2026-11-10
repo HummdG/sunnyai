@@ -9,11 +9,13 @@
  * the HTTP routes run (journey/service.ts).
  */
 
+import type { Workflow } from '@sunny/contracts';
 import type { PricingSource } from '@sunny/quote-engine';
 
 import type { ToolContext, ToolResult } from '../agent/tools.js';
 import { SKIPPED, type ResolvedFlow } from '../flow/resolve.js';
 import { optionLabel } from '../questionnaire.js';
+import { DISCOVERY_ID, available, complete } from '../workflows/session.js';
 
 import type { Proposal } from './extract.js';
 import { JOURNEY_KEYS } from './journey.js';
@@ -46,6 +48,38 @@ export function depsFor(ctx: ToolContext): JourneyDeps | null {
     tenant: () => ctx.tenant,
     ...(ctx.quote.pinBrandAssets ? { pinBrandAssets: ctx.quote.pinBrandAssets } : {}),
     ...(ctx.quote.log ? { log: ctx.quote.log } : {}),
+  };
+}
+
+function isSolarQuote(w: Workflow): boolean {
+  return w.enabled && w.outcome.kind === 'quote' && w.outcome.engine === 'solar';
+}
+
+/**
+ * Whether a solar quote may be built now: the running workflow is an enabled
+ * solar quote, or, with nothing running (or only discovery), one applies on
+ * this page. Null when it may; else the refusal.
+ */
+function quoteRefusal(ctx: ToolContext): ToolResult | null {
+  const activeId = ctx.session.active?.workflowId;
+  const running = activeId && activeId !== DISCOVERY_ID ? activeId : null;
+  const active = running ? ctx.workflows.workflows.find((w) => w.id === running) : undefined;
+  // A workflow that ends in a lead (or an engine with no quote yet) is not priced here.
+  if (active && !(active.outcome.kind === 'quote' && active.outcome.engine === 'solar')) {
+    return {
+      ok: false,
+      data: { outcome: 'lead', workflow: { id: active.id, name: active.name } },
+      summary: 'This one ends with the team getting in touch, not a quote.',
+    };
+  }
+  const allowed = running
+    ? active !== undefined && isSolarQuote(active)
+    : available(ctx.workflows, ctx.pagePath).some(isSolarQuote);
+  if (allowed) return null;
+  return {
+    ok: false,
+    data: { quotesOffered: false },
+    summary: 'Solar quotes are not offered here right now.',
   };
 }
 
@@ -236,25 +270,18 @@ export const QUOTE_TOOLS = [
   {
     name: 'get_quote_options' as const,
     description:
-      'Build the quote once get_quote_journey says readyForQuote: three system options with ' +
-      "the installer's prices, generation and savings. The widget shows them as cards, so " +
-      'summarise in a sentence or two, recommend the highlighted one, and say the figures are ' +
-      'indicative and subject to a survey. Never quote a figure that is not in this result.',
+      'Build the quote once get_workflow_step or save_workflow_answers says readyForQuote: ' +
+      "three system options with the installer's prices, generation and savings. The widget " +
+      'shows them as cards, so summarise in a sentence or two, recommend the highlighted one, ' +
+      'and say the figures are indicative and subject to a survey. Never quote a figure that ' +
+      'is not in this result.',
     parameters: { type: 'object', properties: {}, required: [] },
     required: [],
     async run(_args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
       const deps = depsFor(ctx);
       if (!deps) return NOT_ENABLED;
-      // A workflow that ends in a lead (or an engine with no quote yet) is not priced here.
-      const activeId = ctx.session.active?.workflowId;
-      const active = activeId ? ctx.workflows.workflows.find((w) => w.id === activeId) : undefined;
-      if (active && !(active.outcome.kind === 'quote' && active.outcome.engine === 'solar')) {
-        return {
-          ok: false,
-          data: { outcome: 'lead', workflow: { id: active.id, name: active.name } },
-          summary: 'This one ends with the team getting in touch, not a quote.',
-        };
-      }
+      const refusal = quoteRefusal(ctx);
+      if (refusal) return refusal;
       const result = await createQuote(deps, ctx.tenant.id, ctx.sessionId);
       if (!result.ok) {
         return {
@@ -265,6 +292,11 @@ export const QUOTE_TOOLS = [
       }
       const quote = result.quote;
       ctx.events.push({ kind: 'quote', detail: { quote: toQuoteCard(quote) } });
+      // The solar workflow that asked for it is finished: never re-quoted, never resumed.
+      if (ctx.session.active && ctx.session.active.workflowId !== DISCOVERY_ID) {
+        ctx.session = complete(ctx.session, new Date().toISOString(), { quoteId: quote.id });
+        await ctx.store.saveWorkflowState(ctx.tenant.id, ctx.sessionId, ctx.session);
+      }
       return {
         ok: true,
         data: {

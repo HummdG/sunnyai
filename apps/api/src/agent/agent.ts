@@ -307,6 +307,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     workflows,
     session,
     pagePath,
+    visitorMessage: input.message,
   };
 
   // What the server tells the model about the workflows this turn, between the

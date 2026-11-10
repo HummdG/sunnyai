@@ -256,6 +256,43 @@ function closeDiscovery(ctx: ToolContext, s: WorkflowSession): WorkflowSession {
   return copy;
 }
 
+/**
+ * Measure an address the journey just accepted, as start_sunscan_assessment
+ * would. Null when no address was accepted or SunScan is off.
+ */
+async function measureNewAddress(
+  ctx: ToolContext,
+  result: Awaited<ReturnType<typeof submitAnswers>>,
+): Promise<Awaited<ReturnType<typeof startRoofAssessment>> | null> {
+  const address = result.accepted.find((a) => a.questionId === 'address');
+  return address && ctx.sunscan
+    ? startRoofAssessment(ctx, result.answers['address'] ?? address.value)
+    : null;
+}
+
+/** An address in the visitor's words, when the running flow asks for one and has none yet. */
+function volunteeredAddress(ctx: ToolContext, flow: ResolvedFlow, message: string): string | null {
+  return flow.question('address') && !ctx.answers['address'] ? addressIn(message) : null;
+}
+
+/**
+ * Store an address the visitor gave in the message that started the workflow
+ * (a "solar quote for 164 Norwich Drive, NR4 7TJ"), and start measuring it, so
+ * the workflow never asks for it.
+ */
+async function captureOpeningAddress(
+  ctx: ToolContext,
+  r: Running,
+): Promise<Awaited<ReturnType<typeof startRoofAssessment>> | null> {
+  const address = volunteeredAddress(ctx, r.flow, ctx.visitorMessage ?? '');
+  if (!address) return null;
+  const result = await submitAnswers(depsOn(ctx, r.flow), ctx.tenant.id, ctx.sessionId, {
+    proposals: [{ questionId: 'address', value: address }],
+  });
+  mirror(ctx, result.answers);
+  return measureNewAddress(ctx, result);
+}
+
 function parseProposals(args: Record<string, unknown>): Proposal[] {
   const raw = Array.isArray(args['answers']) ? (args['answers'] as unknown[]) : [];
   return raw
@@ -346,6 +383,11 @@ export const WORKFLOW_TOOLS = [
       await saveSession(ctx, started.session);
       // The rest of this turn (labels, a lead filed now) runs on this workflow.
       ctx.flow = resolvedFlowFor(workflow);
+      const roofAssessment = await captureOpeningAddress(ctx, {
+        kind: 'workflow',
+        workflow,
+        flow: ctx.flow,
+      });
       const step = await currentStep(ctx);
       return {
         ...step,
@@ -353,6 +395,9 @@ export const WORKFLOW_TOOLS = [
           ...(step.data as Record<string, unknown>),
           pausedOther: fromDiscovery ? null : started.pausedOther,
           resumed: started.resumed,
+          ...(roofAssessment
+            ? { roofAssessment: { ok: roofAssessment.ok, ...(roofAssessment.data as object) } }
+            : {}),
         },
       };
     },
@@ -406,12 +451,9 @@ export const WORKFLOW_TOOLS = [
       const message = typeof args['visitorMessage'] === 'string' ? args['visitorMessage'] : '';
       const proposals = parseProposals(args);
       // An address the visitor volunteered (the answer reader leaves addresses alone).
-      const volunteered =
-        r.flow.question('address') &&
-        !ctx.answers['address'] &&
-        !proposals.some((p) => p.questionId === 'address')
-          ? addressIn(message)
-          : null;
+      const volunteered = proposals.some((p) => p.questionId === 'address')
+        ? null
+        : volunteeredAddress(ctx, r.flow, message);
       if (volunteered) proposals.push({ questionId: 'address', value: volunteered });
       // The visitor's words answer the question this workflow just asked, which
       // can be an optional one the quote journey alone would not name.
@@ -423,12 +465,8 @@ export const WORKFLOW_TOOLS = [
       });
       mirror(ctx, result.answers);
 
-      // A new address is measured straight away, as start_sunscan_assessment would.
-      const address = result.accepted.find((a) => a.questionId === 'address');
-      const roofAssessment =
-        address && ctx.sunscan
-          ? await startRoofAssessment(ctx, result.answers['address'] ?? address.value)
-          : null;
+      // A new address is measured straight away.
+      const roofAssessment = await measureNewAddress(ctx, result);
 
       const step = await stepOf(ctx, deps, r);
       let suggestion: { workflowId: string; name: string } | null = null;
