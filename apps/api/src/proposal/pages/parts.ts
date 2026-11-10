@@ -149,3 +149,136 @@ export function rule(
     .stroke(color)
     .restore();
 }
+
+// ---- Pages without the rail ------------------------------------------------
+
+/** The full-width column of the pages without the rail. */
+export const FULL_X = PAGE.margin;
+export const FULL_W = PAGE.width - PAGE.margin * 2;
+
+/** Starts drawing on a page without the rail: no automatic page breaks. */
+export function plainPage(pdf: Pdf): void {
+  pdf.page.margins.top = 0;
+  pdf.page.margins.bottom = 0;
+}
+
+/**
+ * The kicker line and the light-then-bold title at the top of a page.
+ * Returns the y below the title.
+ */
+export function pageTitle(
+  pdf: Pdf,
+  theme: Theme,
+  kicker: string,
+  light: string,
+  bold: string,
+  x = FULL_X,
+  w = FULL_W,
+): number {
+  let y = label(pdf, kicker, x, CONTENT.top, { width: w, color: theme.muted });
+  y += 12;
+  pdf.font('sans-300').fontSize(24).fillColor(theme.ink);
+  pdf.text(light, x, y, { continued: true, lineBreak: false });
+  pdf.font('sans-800').text(bold, { lineBreak: false });
+  return y + pdf.currentLineHeight(true) + 6;
+}
+
+/** Height `keyValues` will take. */
+export function keyValuesHeight(pdf: Pdf, rows: [string, string][], w: number, valueW = 96) {
+  return rows.reduce((sum, [k, v]) => sum + kvRowHeight(pdf, k, v, w, valueW), 0);
+}
+
+function kvRowHeight(pdf: Pdf, k: string, v: string, w: number, valueW: number) {
+  const kh = measure(pdf, k, { font: 'sans-400', size: 8.6, color: '', width: w - valueW - 10 });
+  const vh = measure(pdf, v, { font: 'sans-600', size: 8.6, color: '', width: valueW });
+  return Math.max(kh, vh) + 9;
+}
+
+/**
+ * Label and value rows, ruled thinly between, the value right-aligned.
+ * Returns the y below the last rule.
+ */
+export function keyValues(
+  pdf: Pdf,
+  theme: Theme,
+  rows: [string, string][],
+  x: number,
+  y: number,
+  w: number,
+  valueW = 96,
+): number {
+  for (const [k, v] of rows) {
+    const h = kvRowHeight(pdf, k, v, w, valueW);
+    para(pdf, k, x, y + 4.5, {
+      font: 'sans-400',
+      size: 8.6,
+      color: theme.ink,
+      width: w - valueW - 10,
+    });
+    para(pdf, v, x + w - valueW, y + 4.5, {
+      font: 'sans-600',
+      size: 8.6,
+      color: theme.ink,
+      width: valueW,
+      align: 'right',
+    });
+    y += h;
+    rule(pdf, y, theme.rule, 0.5, x, w);
+  }
+  return y;
+}
+
+/**
+ * Key figures in a row, each with a thin rule above, a mono label and a light
+ * large figure (no cards or boxes). Returns the y below the tallest.
+ */
+export function figures(
+  pdf: Pdf,
+  theme: Theme,
+  items: { key: string; value: string; sub?: string }[],
+  x: number,
+  y: number,
+  w: number,
+): number {
+  const gap = 16;
+  const cw = (w - gap * (items.length - 1)) / items.length;
+  let bottom = y;
+  // Labels may wrap; the figures share one line below the tallest label.
+  const valueY = Math.max(
+    ...items.map((item) => {
+      pdf.font('mono-400').fontSize(6.8);
+      const h = pdf.heightOfString(item.key.toUpperCase(), { width: cw, characterSpacing: 0.6 });
+      return y + 6 + h + 3;
+    }),
+  );
+  items.forEach((item, i) => {
+    const cx = x + i * (cw + gap);
+    rule(pdf, y, theme.ink, 0.8, cx, cw);
+    label(pdf, item.key, cx, y + 6, { width: cw, color: theme.muted });
+    let at = para(pdf, item.value, cx, valueY + 1, {
+      font: 'sans-300',
+      size: 20,
+      color: theme.ink,
+      width: cw,
+      maxLines: 1,
+    });
+    if (item.sub) {
+      at = para(pdf, item.sub, cx, at, {
+        font: 'sans-400',
+        size: 7.8,
+        color: theme.muted,
+        width: cw,
+        maxLines: 2,
+      });
+    }
+    bottom = Math.max(bottom, at);
+  });
+  return bottom;
+}
+
+/** A section heading in sans with a firm rule under it. Returns the y below the rule. */
+export function subHead(pdf: Pdf, theme: Theme, text: string, x: number, y: number, w: number) {
+  const below = para(pdf, text, x, y, { font: 'sans-600', size: 10, color: theme.ink, width: w });
+  rule(pdf, below + 4, theme.railBg, 1, x, w);
+  return below + 4;
+}

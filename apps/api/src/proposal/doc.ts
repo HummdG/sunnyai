@@ -35,6 +35,11 @@ export interface ProposalDoc {
   /** The logo PNG for the PDF, or null to set the company name instead. */
   logo: Buffer | null;
   accreditationLogos: Buffer[];
+  /**
+   * Warranty years by line-item sku, from the installer's catalogue where it
+   * carries one. Absent or missing a sku: no warranty is printed for it.
+   */
+  warranties?: Record<string, number>;
   generatedAt: Date;
   /** `referenceFor(quote)`. */
   reference: string;

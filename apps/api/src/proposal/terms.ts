@@ -1,0 +1,149 @@
+/**
+ * The installer's terms and conditions, as pasted into Studio (often straight
+ * from Word): split into headings, paragraphs and list items, keeping every
+ * word and every list marker as written.
+ *
+ * Rules:
+ * - `\r\n` (and a lone `\r` or a form feed) is a line break; tabs and runs of
+ *   spaces become one space.
+ * - A blank line ends a paragraph. A line that ends a sentence followed by a
+ *   line that starts like a new one (a capital, a digit or a quote) also
+ *   starts a new paragraph, because Word pastes one line per paragraph with
+ *   no blank lines between. Any other line carries on the paragraph above (a
+ *   hard-wrapped plain-text paste).
+ * - A heading is a line under 80 characters that is in capitals, or that has
+ *   no terminal punctuation and is followed by more text (not by a line that
+ *   starts in lower case, which would be the same sentence carrying on).
+ *   A numbered line in capitals (`1. DEFINITIONS`) is a heading, number kept.
+ * - Lines starting `1.`, `2)`, `1.2`, `a)`, `(a)`, `(iv)`, `-`, `•`, `◦` or `*`
+ *   are items; the marker is kept.
+ */
+
+export type TermsBlock =
+  | { kind: 'heading'; text: string }
+  | { kind: 'para'; text: string }
+  | { kind: 'item'; marker: string; text: string };
+
+const ITEM =
+  /^(\d+(?:\.\d+)+\.?|\d+[.)]|\(?[a-z]\)|\([ivx]+\)|[-*](?=\s)|[\u2022\u25e6\u2023\u25aa\u25cf\u25cb])\s*(.*)$/iu;
+const TERMINAL = /[.!?;:,]["'\u201d\u2019)\]]*$/u;
+const ENDS_SENTENCE = /[.!?;:]["'\u201d\u2019)\]]*$/u;
+const STARTS_SENTENCE = /^["'\u201c\u2018(]?[\p{Lu}\d]/u;
+const STARTS_LOWER = /^\p{Ll}/u;
+
+function isCaps(line: string): boolean {
+  const letters = line.match(/\p{L}/gu) ?? [];
+  return letters.length >= 2 && !/\p{Ll}/u.test(line);
+}
+
+export function parseTerms(text: string): TermsBlock[] {
+  const lines = text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\f/g, '\n')
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim());
+
+  const out: TermsBlock[] = [];
+  let open: { kind: 'para' | 'item'; marker: string; parts: string[] } | null = null;
+  const flush = () => {
+    if (!open) return;
+    const t = open.parts.join(' ');
+    out.push(
+      open.kind === 'item'
+        ? { kind: 'item', marker: open.marker, text: t }
+        : { kind: 'para', text: t },
+    );
+    open = null;
+  };
+  const nextLine = (i: number): { line: string; adjacent: boolean } | null => {
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j] !== '') return { line: lines[j]!, adjacent: j === i + 1 };
+    }
+    return null;
+  };
+
+  lines.forEach((line, i) => {
+    if (line === '') {
+      flush();
+      return;
+    }
+    const short = [...line].length < 80;
+    const item = ITEM.exec(line);
+    if (item) {
+      const rest = item[2] ?? '';
+      if (short && /^\d/.test(item[1]!) && isCaps(rest)) {
+        flush();
+        out.push({ kind: 'heading', text: line });
+        return;
+      }
+      flush();
+      open = { kind: 'item', marker: item[1]!, parts: rest ? [rest] : [] };
+      return;
+    }
+    if (short && isCaps(line)) {
+      flush();
+      out.push({ kind: 'heading', text: line });
+      return;
+    }
+    const current = open;
+    const last = current?.parts.at(-1);
+    const carriesOn =
+      current !== null &&
+      (last === undefined || !ENDS_SENTENCE.test(last) || !STARTS_SENTENCE.test(line));
+    if (carriesOn) {
+      current.parts.push(line);
+      return;
+    }
+    flush();
+    const next = nextLine(i);
+    if (short && !TERMINAL.test(line) && next && !(next.adjacent && STARTS_LOWER.test(next.line))) {
+      out.push({ kind: 'heading', text: line });
+      return;
+    }
+    open = { kind: 'para', marker: '', parts: [line] };
+  });
+  flush();
+  return out;
+}
+
+// ---- Glyphs the bundled fonts lack ----------------------------------------
+
+const INVISIBLE = /[\u00ad\u200b-\u200d\u2060\ufeff]/gu;
+// eslint-disable-next-line no-control-regex -- control characters are what it removes
+const CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f]/gu;
+const BULLETS = new Set([...'\u25e6\u2023\u25aa\u25a0\u25cf\u25cb\u25d8\u25d9\u2981\u2219\u2043']);
+const DASHES = new Set([...'\u2010\u2011\u2012\u2013\u2014\u2015\u2212']);
+const SINGLE_QUOTES = new Set([...'\u2018\u2019\u201a\u201b\u2032']);
+const DOUBLE_QUOTES = new Set([...'\u201c\u201d\u201e\u201f\u2033']);
+const SPACES = /[\u00a0\u2000-\u200a\u202f\u205f\u3000]/u;
+const COMBINING = /\p{M}/gu;
+
+/**
+ * `text` with every character the font cannot draw replaced by one it can:
+ * bullets by `•` (or `-`), dashes by `-`, curly quotes by straight ones,
+ * odd spaces by a space, accented letters by their base letter, and anything
+ * else by `?`, so the page never shows a missing-glyph box. Invisible
+ * characters (zero-width spaces, soft hyphens, byte-order marks) are dropped
+ * and control characters become spaces. Characters the font has, including
+ * any em dashes the installer pasted, are kept as written.
+ */
+export function glyphSafe(text: string, has: (codePoint: number) => boolean): string {
+  const ok = (s: string) => [...s].every((c) => has(c.codePointAt(0)!));
+  let out = '';
+  for (const ch of text.replace(INVISIBLE, '').replace(CONTROL, ' ')) {
+    if (ch === '\n' || ok(ch)) {
+      out += ch;
+      continue;
+    }
+    if (BULLETS.has(ch) || ch === '•') out += has(0x2022) ? '•' : '-';
+    else if (DASHES.has(ch)) out += '-';
+    else if (SINGLE_QUOTES.has(ch)) out += "'";
+    else if (DOUBLE_QUOTES.has(ch)) out += '"';
+    else if (SPACES.test(ch)) out += ' ';
+    else {
+      const base = ch.normalize('NFKD').replace(COMBINING, '');
+      out += base && base !== ch && ok(base) ? base : '?';
+    }
+  }
+  return out;
+}
