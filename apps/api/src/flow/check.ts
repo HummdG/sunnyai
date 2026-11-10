@@ -6,11 +6,19 @@
  * flagged beside its question. Messages are plain English for the installer.
  */
 
-import type { ConversationFlow, FlowEffect, FlowFollowUp, FlowStep } from '@sunny/contracts';
+import type {
+  ConversationFlow,
+  FlowEffect,
+  FlowFollowUp,
+  FlowStep,
+  Workflow,
+  WorkflowSet,
+} from '@sunny/contracts';
 
 import type { PriceItem, PriceList } from '../catalogue/price-list.js';
 import { EXTRA_CATEGORIES } from '../journey/catalogue-pricing.js';
 import { QUESTIONS } from '../questionnaire.js';
+import { toFlow } from '../workflows/tenant.js';
 
 export interface FlowIssue {
   stepId: string;
@@ -174,5 +182,102 @@ export function checkFlow(flow: ConversationFlow, list: PriceList | null): FlowI
   };
 
   for (const s of flow.steps) visit(s, null, null);
+  return issues;
+}
+
+export type WorkflowIssueCode =
+  | FlowIssue['code']
+  | 'needs_address'
+  | 'bad_page_pattern'
+  | 'duplicate_step_id'
+  | 'interest_overlap';
+
+export interface WorkflowIssue {
+  workflowId: string;
+  stepId?: string;
+  choice?: string;
+  field?: 'pages' | 'steps' | 'interests';
+  code: WorkflowIssueCode;
+  message: string;
+  warning?: boolean;
+}
+
+/** Every step under these, follow-ups included. */
+function allSteps(steps: readonly FlowStep[], out: FlowStep[] = []): FlowStep[] {
+  for (const s of steps) {
+    out.push(s);
+    allSteps(
+      (s.followUps ?? []).map((f) => f.step),
+      out,
+    );
+  }
+  return out;
+}
+
+export function checkWorkflow(w: Workflow, list: PriceList | null): WorkflowIssue[] {
+  const issues: WorkflowIssue[] = checkFlow(toFlow(w), list).map((i) => ({
+    ...i,
+    workflowId: w.id,
+  }));
+
+  const solar = w.outcome.kind === 'quote' && w.outcome.engine === 'solar';
+  if (solar && !allSteps(w.steps).some((s) => s.kind === 'preset' && s.id === 'address')) {
+    issues.push({
+      workflowId: w.id,
+      field: 'steps',
+      code: 'needs_address',
+      message: 'A solar quote needs the address question.',
+    });
+  }
+
+  const bad = [...w.pages.include, ...w.pages.exclude].some(
+    (p) => !p.startsWith('/') || /[\s?#]/.test(p),
+  );
+  if (bad) {
+    issues.push({
+      workflowId: w.id,
+      field: 'pages',
+      code: 'bad_page_pattern',
+      message: 'Page patterns start with / and are paths only, like /offers/battery*.',
+    });
+  }
+  return issues;
+}
+
+export function checkWorkflowSet(set: WorkflowSet, list: PriceList | null): WorkflowIssue[] {
+  const issues = set.workflows.flatMap((w) => checkWorkflow(w, list));
+
+  const owner = new Map<string, string>();
+  for (const w of set.workflows) {
+    for (const s of allSteps(w.steps)) {
+      if (s.kind !== 'custom') continue;
+      const first = owner.get(s.id);
+      if (first !== undefined && first !== w.id) {
+        issues.push({
+          workflowId: w.id,
+          stepId: s.id,
+          field: 'steps',
+          code: 'duplicate_step_id',
+          message: 'This question id is used in another workflow.',
+        });
+      } else owner.set(s.id, w.id);
+    }
+  }
+
+  const open = set.workflows.filter((w) => w.enabled && w.pages.include.length === 0);
+  for (let i = 1; i < open.length; i++) {
+    const w = open[i]!;
+    const clash = open.slice(0, i).some((o) => o.interests.some((x) => w.interests.includes(x)));
+    if (clash) {
+      issues.push({
+        workflowId: w.id,
+        field: 'interests',
+        code: 'interest_overlap',
+        message:
+          'Two workflows on the same pages cover the same interest. Sunny will suggest the first.',
+        warning: true,
+      });
+    }
+  }
   return issues;
 }
