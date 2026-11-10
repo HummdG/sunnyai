@@ -42,7 +42,7 @@ export interface BatteryEstimate {
 }
 
 export const BATTERY_DISCLAIMER =
-  'This is an estimate from typical figures, not a quote. Your installer will confirm sizing and savings after a survey.';
+  'This is an indicative estimate. Your installer will check your existing solar system, inverter and consumer unit at a survey before a final price.';
 export const BATTERY_RETROFIT_VAT_PERCENT: number = RETROFIT_VAT.value;
 
 const PANEL_KWP = 0.43;
@@ -62,7 +62,7 @@ export function batteryEstimate(input: BatteryInput): BatteryEstimate {
   if (input.pvKwp !== null && input.pvKwp >= 0.5 && input.pvKwp <= 25) {
     pvKwp = input.pvKwp;
   } else if (input.panelCount !== null && input.panelCount >= 2 && input.panelCount <= 60) {
-    pvKwp = input.panelCount * PANEL_KWP;
+    pvKwp = Math.round(input.panelCount * PANEL_KWP * 10) / 10;
   } else {
     pvKwp = ASSUMED_KWP;
     pvKwpAssumed = true;

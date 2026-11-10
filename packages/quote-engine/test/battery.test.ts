@@ -88,7 +88,7 @@ describe('batteryEstimate', () => {
   it('PV size fallbacks', () => {
     expect(batteryEstimate(base({ pvKwp: 6.2 })).pvKwp).toBe(6.2);
     const fromPanels = batteryEstimate(base({ pvKwp: null, panelCount: 10 }));
-    expect(fromPanels.pvKwp).toBeCloseTo(4.3, 5);
+    expect(fromPanels.pvKwp).toBe(4.3);
     expect(fromPanels.pvKwpAssumed).toBe(false);
     const bad = batteryEstimate(base({ pvKwp: 40, panelCount: 1 }));
     expect(bad.pvKwp).toBe(4);
@@ -165,5 +165,19 @@ describe('batteryEstimate', () => {
       strings.push(...batteryEstimate(base({ tariff: t })).assumptions);
     for (const s of strings) expect(s).not.toMatch(/[–—]/);
     expect(BATTERY_RETROFIT_VAT_PERCENT).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('batteryEstimate global values', () => {
+  it('uses the plan rates, disclaimer and zero VAT', () => {
+    const e7 = batteryEstimate(base({ tariff: 'economy7' }));
+    expect([e7.peakPence, e7.offPeakPence]).toEqual([30, 15]);
+    const tou = batteryEstimate(base({ tariff: 'smart_tou' }));
+    expect([tou.peakPence, tou.offPeakPence]).toEqual([28, 8]);
+    expect(BATTERY_RETROFIT_VAT_PERCENT).toBe(0);
+    expect(BATTERY_DISCLAIMER).toBe(
+      'This is an indicative estimate. Your installer will check your existing solar system, inverter and consumer unit at a survey before a final price.',
+    );
+    expect(batteryEstimate(base({ pvKwp: null, panelCount: 7 })).pvKwp).toBe(3);
   });
 });
