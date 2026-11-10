@@ -15,7 +15,8 @@ import { importPriceList } from '../src/catalogue/price-list.js';
 import { emptyCatalogueState } from '../src/catalogue/types.js';
 import { bankFor, HEAT_PUMP } from '../src/flow/banks.js';
 import type { HeatPumpQuoteRecord } from '../src/journey/heat-pump/record.js';
-import { heatPumpInputFrom } from '../src/journey/heat-pump/service.js';
+import { extractAnswers } from '../src/journey/extract.js';
+import { heatPumpInputFrom, radiatorCountFor } from '../src/journey/heat-pump/service.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import { journeyView, sunscanRoofLookup } from '../src/journey/service.js';
 import { HEAT_PUMP_QUESTIONS, OPTION_LABELS } from '../src/questionnaire.js';
@@ -348,10 +349,11 @@ describe('the heat pump quote', () => {
     expect(only!.priceGbp).toBe(only!.lineItems.reduce((sum, l) => sum + l.totalGbp, 0));
     expect(only!.priceAfterGrantGbp).toBe(Math.max(0, only!.priceGbp! - 7500));
     expect(cylinder!.priceGbp).toBe(only!.priceGbp! + 1000);
-    // 95 square metres gives no bedrooms: at least three radiators.
-    expect(radiators!.lineItems.find((l) => l.sku === 'INS-RAD')?.quantity).toBeGreaterThanOrEqual(
-      3,
-    );
+    // 95 square metres and no bedrooms: about one radiator per 12 square metres.
+    expect(radiators!.lineItems.find((l) => l.sku === 'INS-RAD')?.quantity).toBe(8);
+    // Heat pump VAT is the engine's zero rate: the label names no VAT at all.
+    for (const o of quote!.options) expect(o.priceLabel).toBe('Indicative price');
+    expect(card!.kind === 'heat_pump' && card!.options[0]!.grantStatus).toBe('eligible');
     expect(radiators!.priceGbp).toBeGreaterThan(cylinder!.priceGbp!);
     expect(quote!.disclaimer).toMatch(/indicative estimate/);
   });
@@ -476,48 +478,177 @@ describe('quoted, by kind', () => {
   });
 });
 
+/** POST /v1/quote/options for a session running the heat pump workflow, on or off. */
+async function postOptions(enabled: boolean) {
+  const store = await tempStore();
+  const set = setWithHeatPump();
+  set.workflows[1]!.enabled = enabled;
+  const tenant: Tenant = { ...DEMO_TENANT, config: { ...DEMO_TENANT.config, workflows: set } };
+  const app = Fastify();
+  const secret = 'test-secret-heat-pump-route';
+  registerQuoteRoutes(app, {
+    store,
+    tenants: new TenantRegistry([tenant]),
+    sessionSecret: secret,
+    now: () => Date.parse(NOW),
+    pricing: { forTenant: () => Promise.resolve(demoPricing()) },
+    roof: () => Promise.resolve({ state: 'none' }),
+  });
+  await app.ready();
+  try {
+    await store.saveWorkflowState(tenant.id, SESSION, {
+      ...cloneSession(EMPTY_SESSION),
+      active: { workflowId: 'wf_heat_pump', startedAt: NOW },
+    });
+    await store.mergeAnswers(tenant.id, SESSION, HP_ANSWERS);
+    const token = issueSessionToken(
+      { tenantId: tenant.id, sessionId: SESSION, expiresAt: Date.parse(NOW) + 3_600_000 },
+      secret,
+    );
+    return await app.inject({
+      method: 'POST',
+      url: '/v1/quote/options',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { sessionId: SESSION },
+    });
+  } finally {
+    await app.close();
+  }
+}
+
 describe('POST /v1/quote/options', () => {
   it('builds a heat pump quote for a session running the heat pump workflow', async () => {
+    const res = await postOptions(true);
+    expect(res.statusCode).toBe(201);
+    const body = res.json<{ kind?: string; tenantId?: string; proposalAvailable: boolean }>();
+    expect(body.kind).toBe('heat_pump');
+    expect(body.tenantId).toBeUndefined();
+    expect(body.proposalAvailable).toBe(false);
+  });
+
+  it('does not build one for a heat pump workflow that is switched off', async () => {
+    // The solar quote runs instead, and the solar answers are not there.
+    const res = await postOptions(false);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ kind?: string }>().kind).toBeUndefined();
+  });
+});
+
+describe('installer pricing, warnings and the grant', () => {
+  it('prices nothing that needs a cylinder, for a combi home whose cylinder has no price', async () => {
     const store = await tempStore();
-    const tenant: Tenant = {
-      ...DEMO_TENANT,
-      config: { ...DEMO_TENANT.config, workflows: setWithHeatPump() },
-    };
-    const app = Fastify();
-    const secret = 'test-secret-heat-pump-route';
-    registerQuoteRoutes(app, {
+    await publish(
       store,
-      tenants: new TenantRegistry([tenant]),
-      sessionSecret: secret,
-      now: () => Date.parse(NOW),
-      pricing: { forTenant: () => Promise.resolve(demoPricing()) },
-      roof: () => Promise.resolve({ state: 'none' }),
-    });
-    await app.ready();
-    try {
-      await store.saveWorkflowState(tenant.id, SESSION, {
-        ...cloneSession(EMPTY_SESSION),
-        active: { workflowId: 'wf_heat_pump', startedAt: NOW },
-      });
-      await store.mergeAnswers(tenant.id, SESSION, HP_ANSWERS);
-      const token = issueSessionToken(
-        { tenantId: tenant.id, sessionId: SESSION, expiresAt: Date.parse(NOW) + 3_600_000 },
-        secret,
-      );
-      const res = await app.inject({
-        method: 'POST',
-        url: '/v1/quote/options',
-        headers: { authorization: `Bearer ${token}` },
-        payload: { sessionId: SESSION },
-      });
-      expect(res.statusCode).toBe(201);
-      const body = res.json<{ kind?: string; tenantId?: string; proposalAvailable: boolean }>();
-      expect(body.kind).toBe('heat_pump');
-      expect(body.tenantId).toBeUndefined();
-      expect(body.proposalAvailable).toBe(false);
-    } finally {
-      await app.close();
+      HP_LIST.filter((r) => !r.includes('INS-CYL')),
+    );
+    const { quote } = await quoteWith(store, HP_ANSWERS);
+    const [only, cylinder, radiators] = quote!.options;
+    expect(only!.installerPriced).toBe(false);
+    expect(only!.priceGbp).not.toBeNull();
+    for (const o of [cylinder!, radiators!]) {
+      expect(o.installerPriced).toBe(true);
+      expect(o.priceGbp).toBeNull();
+      expect(o.priceAfterGrantGbp).toBeNull();
+      expect(o.priceLabel).toBe('Priced by your installer');
+      // The priced lines stay, for the installer to see.
+      expect(o.lineItems.length).toBeGreaterThan(0);
     }
+    expect(cylinder!.warnings).toContain('Your installer will price the new cylinder.');
+  });
+
+  it('prices no option without a priced base install', async () => {
+    const store = await tempStore();
+    await publish(
+      store,
+      HP_LIST.filter((r) => !r.includes('INS-BASE')),
+    );
+    const { quote } = await quoteWith(store, HP_ANSWERS);
+    expect(quote!.options).toHaveLength(3);
+    for (const o of quote!.options) {
+      expect(o.installerPriced).toBe(true);
+      expect(o.priceGbp).toBeNull();
+      expect(o.priceLabel).toBe('Priced by your installer');
+    }
+    expect(quote!.priced).toBe(false);
+  });
+
+  it('passes each option warnings to the tool and the card', async () => {
+    const store = await tempStore();
+    await publish(
+      store,
+      HP_LIST.filter((r) => !r.includes('INS-CYL')),
+    );
+    const { result, card } = await quoteWith(store, { ...HP_ANSWERS, hp_outdoor_space: 'no' });
+    const options = result.data['options'] as Array<{ warnings: string[] }>;
+    expect(options[1]!.warnings).toContain('Your installer will price the new cylinder.');
+    expect(options[0]!.warnings).toContain(
+      'The installer will need to check where the outdoor unit can go.',
+    );
+    expect(card!.kind).toBe('heat_pump');
+    if (card!.kind !== 'heat_pump') return;
+    expect(card!.options[1]!.warnings).toContain('Your installer will price the new cylinder.');
+    for (const o of card!.options) expect((o.warnings ?? []).length).toBeLessThanOrEqual(5);
+  });
+
+  it('marks the grant unsure on a border postcode, with no deduction', async () => {
+    const store = await tempStore();
+    await publish(store, HP_LIST);
+    const { quote, card } = await quoteWith(store, {
+      ...HP_ANSWERS,
+      address: '5 Roxburgh Street, Kelso TD5 7DU',
+    });
+    expect(quote!.estimate.bus.eligible).toBe('unsure');
+    for (const o of quote!.options) {
+      expect(o.grantGbp).toBe(0);
+      expect(o.priceAfterGrantGbp).toBe(o.priceGbp);
+    }
+    expect(card!.kind === 'heat_pump' && card!.options.map((o) => o.grantStatus)).toEqual([
+      'unsure',
+      'unsure',
+      'unsure',
+    ]);
+  });
+
+  it('reads a number from the visitor words for a numeric question', async () => {
+    const flow = resolvedFlowFor(heatPumpOn());
+    expect(extractAnswers('about 90 square metres', 'hp_floor_area', flow)).toContainEqual({
+      questionId: 'hp_floor_area',
+      value: '90',
+    });
+    expect(extractAnswers('£1,200 a year', 'hp_annual_spend', flow)).toContainEqual({
+      questionId: 'hp_annual_spend',
+      value: '1200',
+    });
+    expect(extractAnswers('3', 'hp_occupants', flow)).toContainEqual({
+      questionId: 'hp_occupants',
+      value: '3',
+    });
+
+    const store = await tempStore();
+    const ctx = context(store);
+    await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, {
+      motivation: 'reduce_bills',
+      property_type: 'semi',
+      ownership: 'own',
+      address: ENGLAND,
+      hp_age: '1945_1964',
+    });
+    const saved = await tool(
+      'save_workflow_answers',
+      { visitorMessage: 'about 90 square metres' },
+      ctx,
+    );
+    expect(saved.data['saved']).toEqual([{ questionId: 'hp_floor_area', value: '90' }]);
+    expect(saved.data['nextQuestionId']).toBe('hp_walls');
+  });
+
+  it('counts radiators from the bedrooms, else the floor area', () => {
+    expect(radiatorCountFor(2, 200)).toBe(3);
+    expect(radiatorCountFor(5, 40)).toBe(6);
+    expect(radiatorCountFor(null, 95)).toBe(8);
+    expect(radiatorCountFor(null, 30)).toBe(3);
+    expect(radiatorCountFor(null, 400)).toBe(15);
   });
 });
 

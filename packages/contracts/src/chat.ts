@@ -91,6 +91,8 @@ export const heatPumpOptionCardSchema = z.object({
   priceGbp: z.number().nonnegative().nullable(),
   /** The Boiler Upgrade Scheme grant (0 when not eligible). */
   grantGbp: z.number().nonnegative(),
+  /** Whether the grant applies: `unsure` when the postcode cannot tell (no deduction). */
+  grantStatus: z.enum(['eligible', 'unsure', 'none']),
   priceAfterGrantGbp: z.number().nonnegative().nullable(),
   priceLabel: z.string().max(120),
   runningCostGbp: z.number().nonnegative(),
@@ -98,6 +100,8 @@ export const heatPumpOptionCardSchema = z.object({
   annualSavingsGbp: z.number(),
   /** The installer prices this option themselves; shown without a figure. */
   installerPriced: z.boolean().optional(),
+  /** What the installer will need to check for this option. */
+  warnings: z.array(z.string().max(200)).max(5).optional(),
 });
 
 const quoteCardBase = {

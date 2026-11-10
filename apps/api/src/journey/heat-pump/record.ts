@@ -67,6 +67,13 @@ export function isSolarRecord(q: StoredQuote): q is QuoteRecord {
   return q.kind === undefined || q.kind === 'solar';
 }
 
+export type GrantStatus = 'eligible' | 'unsure' | 'none';
+
+/** The grant as the card shows it: `unsure` when the postcode cannot tell. */
+export function grantStatusOf(eligible: boolean | 'unsure'): GrantStatus {
+  return eligible === true ? 'eligible' : eligible === 'unsure' ? 'unsure' : 'none';
+}
+
 /** The quote's kind, with a row from before kinds read as solar. */
 export function quoteKind(q: StoredQuote): 'solar' | 'heat_pump' {
   return q.kind ?? 'solar';

@@ -174,9 +174,19 @@ function unitFor(pricing: HeatPumpPricing | null, kw: number): Unit {
     : { name: `${kw} kW air source heat pump`, outputKw: kw, sku: null, priceGbp: null };
 }
 
+/**
+ * Heat pump VAT is the engine's dated rule (zero now), never the list's solar
+ * rate, so a zero rate says nothing about VAT at all.
+ */
 function priceLabel(pricing: HeatPumpPricing): string {
   const vat = pricing.vatRatePercent;
-  return vat > 0 ? `Indicative price, before ${vat}% VAT` : `Indicative price, ${vat}% VAT`;
+  return vat > 0 ? `Indicative price, including ${vat}% VAT` : 'Indicative price';
+}
+
+/** About one radiator per room: from the bedrooms when known, else from the floor area. */
+export function radiatorCountFor(bedrooms: number | null, floorAreaM2: number): number {
+  const rooms = bedrooms !== null ? bedrooms + 1 : Math.round(floorAreaM2 / 12);
+  return Math.min(15, Math.max(3, rooms));
 }
 
 function optionsFor(
@@ -200,12 +210,12 @@ function optionsFor(
   ]);
   const cylinderLine = line(extras?.cylinder ?? null);
   const withCylinder = present([...base, cylinderLine]);
-  const radiatorCount = Math.max(3, (input.bedrooms ?? 3) + 1);
-  const withRadiators = present([
-    ...withCylinder,
-    line(extras?.radiatorEach ?? null, radiatorCount),
-    line(extras?.powerflush ?? null),
-  ]);
+  const radiatorCount = radiatorCountFor(input.bedrooms, est.floorAreaM2);
+  const radiatorLine = line(extras?.radiatorEach ?? null, radiatorCount);
+  const powerflushLine = line(extras?.powerflush ?? null);
+  const withRadiators = present([...withCylinder, radiatorLine, powerflushLine]);
+  // The base install is part of every option: without its price, nothing has one.
+  const basePriced = unitLine !== null && extras?.baseInstall != null;
 
   const offersCylinder = input.hotWater === 'combi' || cylinderLine !== null;
   const offersRadiators =
@@ -220,8 +230,11 @@ function optionsFor(
     lines: Line[],
     inclusions: string[],
     own: string[],
+    /** Every line this option adds has a price. */
+    complete: boolean,
   ): HeatPumpOptionView => {
-    const installerPriced = unitLine === null;
+    // A price missing any part of the work is no price: never a partial sum.
+    const installerPriced = !basePriced || !complete;
     const priceGbp = installerPriced
       ? null
       : Math.round(lines.reduce((sum, l) => sum + l.unitGbp * l.quantity, 0));
@@ -236,14 +249,13 @@ function optionsFor(
       grantGbp: grant,
       priceAfterGrantGbp: priceGbp === null ? null : Math.max(0, priceGbp - grant),
       priceLabel: pricing && !installerPriced ? priceLabel(pricing) : 'Priced by your installer',
-      lineItems: installerPriced
-        ? []
-        : lines.map((l): QuoteLineItem => ({
-            sku: l.sku,
-            label: l.label,
-            quantity: l.quantity,
-            totalGbp: Math.round(l.unitGbp * l.quantity),
-          })),
+      // The priced lines stay, for the installer to see, even without a total.
+      lineItems: lines.map((l): QuoteLineItem => ({
+        sku: l.sku,
+        label: l.label,
+        quantity: l.quantity,
+        totalGbp: Math.round(l.unitGbp * l.quantity),
+      })),
       runningCostGbp: Math.round(running.heatPumpGbp),
       currentCostGbp: Math.round(running.currentGbp),
       annualSavingsGbp: Math.round(running.currentGbp - running.heatPumpGbp),
@@ -263,6 +275,7 @@ function optionsFor(
       base,
       unitInclusions,
       [],
+      true,
     ),
   ];
   if (offersCylinder) {
@@ -274,11 +287,12 @@ function optionsFor(
         withCylinder,
         [...unitInclusions, 'A new hot water cylinder'],
         cylinderLine ? [] : ['Your installer will price the new cylinder.'],
+        cylinderLine !== null,
       ),
     );
   }
   if (offersRadiators) {
-    const unpriced = !extras?.radiatorEach || !extras.powerflush;
+    const unpriced = radiatorLine === null || powerflushLine === null;
     const newCylinder = cylinderLine !== null || input.hotWater === 'combi';
     options.push(
       option(
@@ -300,6 +314,7 @@ function optionsFor(
             : []),
           ...(unpriced ? ['Your installer will price the radiator work.'] : []),
         ],
+        !unpriced && (input.hotWater !== 'combi' || cylinderLine !== null),
       ),
     );
   }

@@ -235,6 +235,8 @@ async function heatPumpOptions(
         price: o.priceGbp,
         grant: o.grantGbp,
         priceAfterGrant: o.priceAfterGrantGbp,
+        installerPriced: o.installerPriced,
+        warnings: o.warnings,
         priceLabel: o.priceLabel,
         yearlyRunningCostGbp: o.runningCostGbp,
         yearlyCurrentCostGbp: o.currentCostGbp,

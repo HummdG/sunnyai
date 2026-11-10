@@ -166,7 +166,10 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
           (w) => w.id === active.workflowId,
         )
       : undefined;
-    const heatPump = workflow?.outcome.kind === 'quote' && workflow.outcome.engine === 'heat_pump';
+    const heatPump =
+      workflow?.enabled === true &&
+      workflow.outcome.kind === 'quote' &&
+      workflow.outcome.engine === 'heat_pump';
     const result = heatPump
       ? await createHeatPumpQuote(
           { ...journey, heatPumpPricing: publishedHeatPumpPricing(deps.store) },

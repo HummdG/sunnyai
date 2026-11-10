@@ -187,6 +187,11 @@ export function extractAnswers(
   if (current && asked && !QUESTIONS[current]) {
     if (asked.freeText) {
       if (message.trim()) add(current, message.trim());
+    } else if (asked.numeric) {
+      // A number asked for: the first figure in the reply ("about 90 square
+      // metres", "£1,200 a year"). Its range is the validator's to judge.
+      const n = /£?\s*(\d[\d,]*(?:\.\d+)?)/.exec(text)?.[1];
+      if (n) add(current, n.replace(/,/g, ''));
     } else {
       const value = choiceFor(text, asked);
       if (value) add(current, value);

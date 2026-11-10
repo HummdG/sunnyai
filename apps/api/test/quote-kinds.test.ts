@@ -255,6 +255,7 @@ describe('quote cards by kind', () => {
           outputKw: 7,
           priceGbp: 12500,
           grantGbp: 7500,
+          grantStatus: 'eligible',
           priceAfterGrantGbp: 5000,
           priceLabel: 'Indicative price, 0% VAT',
           runningCostGbp: 940,

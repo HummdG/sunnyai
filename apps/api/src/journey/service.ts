@@ -29,7 +29,12 @@ import {
   rejectRoof,
   type JourneyView,
 } from './journey.js';
-import { isSolarRecord, type HeatPumpQuoteRecord, type StoredQuote } from './heat-pump/record.js';
+import {
+  grantStatusOf,
+  isSolarRecord,
+  type HeatPumpQuoteRecord,
+  type StoredQuote,
+} from './heat-pump/record.js';
 import { buildQuote, type QuoteLineItem, type QuoteRecord } from './quote.js';
 import { mapRoof, type MappedRoof, type RoofAssessmentSummary } from './roof.js';
 
@@ -351,12 +356,14 @@ function heatPumpCard(
       outputKw: o.outputKw,
       priceGbp: o.priceGbp,
       grantGbp: o.grantGbp,
+      grantStatus: grantStatusOf(quote.estimate.bus.eligible),
       priceAfterGrantGbp: o.priceAfterGrantGbp,
       priceLabel: o.priceLabel,
       runningCostGbp: o.runningCostGbp,
       currentCostGbp: o.currentCostGbp,
       annualSavingsGbp: o.annualSavingsGbp,
       ...(o.installerPriced ? { installerPriced: true } : {}),
+      ...(o.warnings.length > 0 ? { warnings: o.warnings.slice(0, 5) } : {}),
     })),
   };
 }
