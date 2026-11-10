@@ -23,6 +23,7 @@ import { loadPortalConfig } from '../src/routes/portal-config.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry, defaultTenants } from '../src/tenants.js';
+import { workflowContext } from './workflow-fixture.js';
 
 const NOW = Date.parse('2026-10-12T12:00:00.000Z');
 const ISO = new Date(NOW).toISOString();
@@ -351,6 +352,7 @@ describe('grounding: the chat reads only the published catalogue', () => {
           sunscanConnected: false,
           knowledge: EMPTY_KNOWLEDGE,
           flow: resolveFlow(null),
+          ...workflowContext(),
         },
       );
       return JSON.stringify(result.data);

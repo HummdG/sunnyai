@@ -5,13 +5,10 @@ import type {
   Product,
   ProductCategory,
   RecommendationWant,
+  WorkflowSet,
 } from '@sunny/contracts';
 import { searchChunks, type KnowledgeIndex } from '@sunny/knowledge';
-import {
-  toRoofAssessmentSummary,
-  type AssessmentRecord,
-  type SunScanService,
-} from '@sunny/sunscan-adapter';
+import type { SunScanService } from '@sunny/sunscan-adapter';
 import { mergeWant, recommend, validateSystem } from '@sunny/solar-rules';
 
 import { newId, type LeadRecord, type Store } from '../store.js';
@@ -25,12 +22,12 @@ import type { Channel } from './channels.js';
 import { verifiedContext } from './prompt.js';
 import { CitationLedger, lexicalSearch, type PassageSearch } from './retrieval.js';
 import { ESTIMATE_DISCLAIMER, estimateSavings } from './savings.js';
-import {
-  linkAssessmentFromTool,
-  QUOTE_TOOLS,
-  type QuoteToolContext,
-} from '../journey/agent-tools.js';
-import { JOURNEY_KEYS } from '../journey/journey.js';
+import { QUOTE_TOOLS, type QuoteToolContext } from '../journey/agent-tools.js';
+import { WORKFLOW_TOOLS } from '../workflows/agent-tools.js';
+import { DISCOVERY_ID, type WorkflowSession } from '../workflows/session.js';
+import { startRoofAssessment, sunscanResult } from './roof-assessment.js';
+
+export { startRoofAssessment };
 
 /**
  * The approved tool surface.
@@ -117,6 +114,15 @@ export interface ToolContext {
    * saved mid-conversation governs the next turn.
    */
   flow: ResolvedFlow;
+  /** The tenant's workflows, read once per turn (`workflowsForTenant`). */
+  workflows: WorkflowSet;
+  /**
+   * Where this visitor is among the workflows. The workflow tools change it in
+   * place and persist it with `store.saveWorkflowState`.
+   */
+  session: WorkflowSession;
+  /** The host page's path, when the widget sent one: decides which workflows apply. */
+  pagePath: string | null;
 }
 
 export interface ToolResult {
@@ -135,52 +141,10 @@ interface ToolDefinition {
   run: (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
 }
 
-/** How long a turn waits for an assessment before handing it to the widget to poll. */
-const SUNSCAN_WAIT_MS = 25_000;
-
-/**
- * What the model is told about an assessment: the geometry and the engine's
- * own doubts, labelled indicative. No yield, no panel count, no price -- those
- * belong to `recommend_packages` and the installer's survey.
- */
-function sunscanResult(record: AssessmentRecord): ToolResult {
-  const base = { assessmentId: record.id, status: record.status };
-  if (record.status === 'queued' || record.status === 'running') {
-    return {
-      ok: true,
-      data: {
-        ...base,
-        note: 'Still measuring; the result will appear in the chat when it is ready.',
-      },
-      summary: 'I have started measuring the roof; the result will appear here shortly.',
-    };
-  }
-  if (record.status === 'failed' || !record.summary) {
-    return {
-      ok: false,
-      data: { ...base, error: record.error },
-      summary: record.error?.message ?? 'The roof could not be measured.',
-    };
-  }
-  const s = record.summary;
-  // The full RoofAssessmentSummary: the stable shape the quote journey reads
-  // (usable area, per-plane geometry and capacity, main plane, flags).
-  const data = toRoofAssessmentSummary(record) ?? { ...base, error: record.error };
-  const where = s.bestFacing ? `, best facing ${s.bestFacing}` : '';
-  const lead = s.reliable
-    ? `I have measured the roof: about ${s.usableRoofAreaM2} m² usable, facing east to west${where}.`
-    : `I have a rough roof measurement (low confidence): about ${s.usableRoofAreaM2} m² usable, facing east to west${where}.`;
-  return { ok: true, data, summary: `${lead} ${s.label}.` };
-}
-
-/** One address however it is typed: case, commas and spacing aside. */
-function sameAddress(a: string | undefined, b: string): boolean {
-  const key = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim();
-  return a !== undefined && key(a) === key(b);
+/** The running workflow a lead is filed under; nothing (not undefined) when none is. */
+function workflowStamp(ctx: ToolContext): { workflowId?: string } {
+  const id = ctx.session.active?.workflowId;
+  return id && id !== DISCOVERY_ID ? { workflowId: id } : {};
 }
 
 function str(args: Record<string, unknown>, key: string): string | null {
@@ -844,68 +808,7 @@ const DEFINITIONS: ToolDefinition[] = [
     },
     required: ['address'],
     async run(args, ctx) {
-      const address = str(args, 'address') ?? ctx.answers['address'] ?? null;
-      if (!address) {
-        return {
-          ok: false,
-          data: { error: 'address required' },
-          summary: 'I need an address first.',
-        };
-      }
-      if (!ctx.sunscanConnected || !ctx.sunscan) {
-        return {
-          ok: false,
-          data: { connected: false, address },
-          summary:
-            'The roof assessment service is not connected in this environment, so I cannot run one.',
-        };
-      }
-      // The model tends to call this again on later turns ("Yes, that looks
-      // right"). The same address in the same conversation is the roof already
-      // measured: reuse it, so the visitor sees one card, not a fresh one per
-      // answer, and the house is not modelled (and paid for) again.
-      const previousId = ctx.answers[JOURNEY_KEYS.assessmentId];
-      const previous = previousId
-        ? await ctx.sunscan.getAssessment(ctx.tenant.id, previousId)
-        : null;
-      if (
-        previous &&
-        previous.sessionId === ctx.sessionId &&
-        previous.status !== 'failed' &&
-        sameAddress(previous.target.address, address)
-      ) {
-        ctx.events.push({
-          kind: 'sunscan',
-          detail: {
-            assessmentId: previous.id,
-            status: previous.status,
-            summary: previous.summary,
-          },
-        });
-        return sunscanResult(previous);
-      }
-      const postcode = ctx.answers['postcode'] ?? null;
-      const started = await ctx.sunscan.startAssessment(
-        ctx.tenant.id,
-        {
-          address,
-          ...(postcode && !address.toUpperCase().includes(postcode.toUpperCase())
-            ? { postcode }
-            : {}),
-        },
-        { sessionId: ctx.sessionId },
-      );
-      // Most houses model in a few seconds. Waiting a little keeps the answer in
-      // this turn; a slow one is reported as in progress and the widget polls.
-      const record =
-        (await ctx.sunscan.waitFor(ctx.tenant.id, started.id, SUNSCAN_WAIT_MS)) ?? started;
-      // The quote journey picks the roof up from here (journey/service.ts).
-      await linkAssessmentFromTool(ctx, record.id);
-      ctx.events.push({
-        kind: 'sunscan',
-        detail: { assessmentId: record.id, status: record.status, summary: record.summary },
-      });
-      return sunscanResult(record);
+      return startRoofAssessment(ctx, str(args, 'address') ?? ctx.answers['address'] ?? null);
     },
   },
   {
@@ -981,6 +884,7 @@ const DEFINITIONS: ToolDefinition[] = [
         consent: consentFor(ctx),
         createdAt: new Date().toISOString(),
         ...flowFieldsFor(ctx.flow, ctx.answers),
+        ...workflowStamp(ctx),
       };
       await ctx.store.saveLead(lead);
       ctx.events.push({ kind: 'lead_saved', detail: { leadId: lead.id } });
@@ -1026,6 +930,7 @@ const DEFINITIONS: ToolDefinition[] = [
         consent: consentFor(ctx),
         createdAt: new Date().toISOString(),
         ...flowFieldsFor(ctx.flow, ctx.answers),
+        ...workflowStamp(ctx),
       };
       await ctx.store.saveLead(lead);
       ctx.events.push({ kind: 'lead_saved', detail: { leadId: lead.id, callback: true } });
@@ -1132,6 +1037,9 @@ DEFINITIONS.push({
 
 // The quote journey's tools (journey/agent-tools.ts).
 DEFINITIONS.push(...QUOTE_TOOLS);
+
+// The installer's workflows (workflows/agent-tools.ts).
+DEFINITIONS.push(...WORKFLOW_TOOLS);
 
 // ─── add-on tools (email) ───────────────────────────────────────────────────
 //

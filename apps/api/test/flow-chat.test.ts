@@ -24,6 +24,7 @@ import type { ServerConfig } from '../src/config.js';
 
 import { TEST_ADMIN_TOKEN } from './catalogue-fixture.js';
 import { ScriptedProvider } from './scripted-provider.js';
+import { workflowContext } from './workflow-fixture.js';
 
 /**
  * Sunny's chat follows the installer's own conversation (Task 5): the tools,
@@ -110,6 +111,7 @@ function context(
     sunscanConnected: false,
     knowledge: EMPTY_KNOWLEDGE,
     flow: flowForTenant(tenant),
+    ...workflowContext(),
     quote: { pricing },
   };
 }
@@ -367,7 +369,7 @@ describe("Sunny's chat on the installer's flow", () => {
   it('a chat turn reads the flow from the tenant it is given', async () => {
     const store = await tempStore();
     const provider = new ScriptedProvider(() => [
-      { type: 'tool_started', call: { name: 'get_questionnaire', args: {} } },
+      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
       { type: 'text', text: 'Lovely.' },
     ]);
     const events: TurnEvent[] = [];
@@ -387,8 +389,12 @@ describe("Sunny's chat on the installer's flow", () => {
     const finished = events.find((e) => e.type === 'tool_finished');
     expect(finished).toBeDefined();
     const request = provider.lastRequest!;
-    const result = await request.execute({ name: 'get_questionnaire', args: {} });
-    expect(JSON.stringify(result)).toContain('c_evcharger1');
+    // The installer's own question is one this turn's workflow accepts.
+    const result = (await request.execute({
+      name: 'save_workflow_answers',
+      args: { answers: [{ questionId: 'c_evcharger1', value: 'yes' }] },
+    })) as { saved?: Array<{ questionId: string }> };
+    expect(result.saved?.map((a) => a.questionId)).toContain('c_evcharger1');
   });
 
   it('a stored flow that fails to parse falls back to Sunny’s own questions, with a warning', () => {

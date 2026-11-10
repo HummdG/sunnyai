@@ -1,10 +1,18 @@
 import { EMPTY_KNOWLEDGE, type KnowledgeIndex } from '@sunny/knowledge';
-import type { QuoteCard } from '@sunny/contracts';
+import type { QuoteCard, WorkflowSet } from '@sunny/contracts';
 import type { AssessmentSummary, SunScanService, SunScanStatus } from '@sunny/sunscan-adapter';
 
 import { newId, type ConversationTurn, type ModelCall, type Store } from '../store.js';
 import type { Auditor } from '../audit.js';
 import { flowForTenant } from '../flow/tenant.js';
+import type { ResolvedFlow } from '../flow/resolve.js';
+import {
+  DISCOVERY_ID,
+  EMPTY_SESSION,
+  cloneSession,
+  type WorkflowSession,
+} from '../workflows/session.js';
+import { resolvedFlowFor, workflowsForTenant } from '../workflows/tenant.js';
 import type { QuoteToolContext } from '../journey/agent-tools.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatProvider } from './provider.js';
@@ -87,8 +95,38 @@ export interface TurnInput {
   search?: PassageSearch;
   /** The quote journey's pricing; absent turns have no quote tools to run. */
   quote?: QuoteToolContext;
+  /** The tenant's workflows; absent means read from the tenant now. */
+  workflows?: WorkflowSet;
+  /** Where this visitor is among the workflows; absent means a fresh session. */
+  session?: WorkflowSession;
+  /** The host page's path, when the widget sent one. */
+  pagePath?: string | null;
   signal?: AbortSignal;
 }
+
+/**
+ * The flow the turn's tools run on: the running workflow's, else the solar
+ * workflow's (what a visitor answering without a workflow is asked), else the
+ * tenant's stored conversation.
+ */
+function turnFlow(input: TurnInput, set: WorkflowSet, session: WorkflowSession): ResolvedFlow {
+  const id = session.active?.workflowId;
+  const active = id && id !== DISCOVERY_ID ? set.workflows.find((w) => w.id === id) : undefined;
+  if (active) return resolvedFlowFor(active);
+  const solar = set.workflows.find(
+    (w) => w.outcome.kind === 'quote' && w.outcome.engine === 'solar',
+  );
+  return solar ? resolvedFlowFor(solar) : flowForTenant(input.tenant);
+}
+
+/** The tools whose result names the next question, for a turn the model ends in silence. */
+const ASKING_TOOLS = new Set([
+  'get_quote_journey',
+  'save_answers',
+  'start_workflow',
+  'get_workflow_step',
+  'save_workflow_answers',
+]);
 
 /** Said for a roof still being measured, when the model said nothing itself. */
 const MEASURING_LINE = 'I am measuring your roof now; it takes a moment.';
@@ -219,6 +257,8 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   );
 
   const events: ToolEvent[] = [];
+  const workflows = input.workflows ?? workflowsForTenant(input.tenant).set;
+  const session = input.session ?? cloneSession(EMPTY_SESSION);
   const ctx: ToolContext = {
     tenant: input.tenant,
     sessionId: input.sessionId,
@@ -239,7 +279,10 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     ...(input.quote ? { quote: input.quote } : {}),
     // Read from the tenant every turn: a flow saved mid-conversation governs
     // the next turn, and the answers already given stay.
-    flow: flowForTenant(input.tenant),
+    flow: turnFlow(input, workflows, session),
+    workflows,
+    session,
+    pagePath: input.pagePath ?? null,
   };
 
   let text = '';
@@ -249,9 +292,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   let measuring = false;
   const noteForSilence = (tool: string, data: unknown) => {
     const d = (data ?? {}) as Record<string, unknown>;
-    if ((tool === 'get_quote_journey' || tool === 'save_answers') && typeof d['ask'] === 'string') {
-      nextAsk = d['ask'];
-    }
+    if (ASKING_TOOLS.has(tool) && typeof d['ask'] === 'string') nextAsk = d['ask'];
     if (tool === 'start_sunscan_assessment') {
       measuring = d['status'] === 'queued' || d['status'] === 'running';
     }

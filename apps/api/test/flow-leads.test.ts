@@ -18,6 +18,7 @@ import { DEMO_TENANT, TenantRegistry, type Tenant } from '../src/tenants.js';
 
 import { TEST_ADMIN_TOKEN } from './catalogue-fixture.js';
 import { ScriptedProvider } from './scripted-provider.js';
+import { workflowContext } from './workflow-fixture.js';
 
 /** A lead carries the installer's questions and answers (Task 7). */
 
@@ -100,6 +101,7 @@ function context(
     sunscanConnected: false,
     knowledge: EMPTY_KNOWLEDGE,
     flow: flowForTenant(tenant),
+    ...workflowContext(),
     quote: { pricing: { forTenant: () => Promise.resolve(demoPricing()) } },
   };
 }

@@ -314,6 +314,8 @@ export interface LeadRecord {
   flowAnswers?: LeadFlowAnswer[];
   /** The `ConversationFlow.version` the visitor was asked with; absent for Sunny's own questions. */
   flowVersion?: number;
+  /** The workflow running when the lead was filed; absent when none was. */
+  workflowId?: string;
 }
 
 /**

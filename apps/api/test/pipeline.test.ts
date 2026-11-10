@@ -182,7 +182,7 @@ describe('the vertical slice', () => {
     // Seen live: the tools ran (the survey's next question among them) and the
     // model ended the turn without a word, leaving the visitor nothing to answer.
     const provider = new ScriptedProvider(() => [
-      { type: 'tool_started', call: { name: 'get_quote_journey', args: {} } },
+      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
     ]);
     const { app } = await h(provider);
     const { sessionId, token } = await openSession(app);
@@ -197,7 +197,7 @@ describe('the vertical slice', () => {
       .filter((e) => e['type'] === 'text_delta')
       .map((e) => e['text'])
       .join('');
-    expect(said).toBe('What is the address, including the postcode, you would like a quote for?');
+    expect(said).toBe('First, what would you most like solar to do for you?');
     expect(events.find((e) => e['type'] === 'message_finished')?.['text']).toBe(said);
   });
 
@@ -329,15 +329,19 @@ describe('the vertical slice', () => {
         type: 'tool_started',
         call: { name: 'suggest_page_action', args: { action: 'highlight', target: 'pricing' } },
       },
+      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
       {
         type: 'tool_started',
-        call: { name: 'save_answer', args: { questionId: 'motivation', value: 'reduce_bills' } },
+        call: {
+          name: 'save_workflow_answers',
+          args: { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
+        },
       },
       {
         type: 'tool_started',
         call: {
-          name: 'save_answer',
-          args: { questionId: 'motivation', value: 'not-a-real-option' },
+          name: 'save_workflow_answers',
+          args: { answers: [{ questionId: 'motivation', value: 'not-a-real-option' }] },
         },
       },
       { type: 'text', text: 'Here is the pricing section.' },
@@ -1283,31 +1287,25 @@ describe('POST /v1/qualification/answer', () => {
  */
 describe('qualification answers reach the conversation', () => {
   it('gives the tool context the answers submitted by the route', async () => {
-    const captured: unknown[] = [];
-    const provider = new ScriptedProvider((request) => {
-      // Wrap `execute` so the tool result is inspectable. `save_answer` reports
-      // how many answers the context already held, which is the only place that
-      // number is visible from outside the turn.
-      const original = request.execute;
-      request.execute = async (call) => {
-        const result = await original(call);
-        captured.push(result);
-        return result;
-      };
-      return [
-        {
-          type: 'tool_started',
-          call: {
-            id: 'call_1',
-            name: 'save_answer',
-            args: { questionId: 'annual_kwh', value: '4200' },
-          },
+    // A lead filed in the turn lists the answers the tool context held, which
+    // is the only place that set is visible from outside the turn.
+    const provider = new ScriptedProvider(() => [
+      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
+      {
+        type: 'tool_started',
+        call: {
+          name: 'save_workflow_answers',
+          args: { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
         },
-        { type: 'text', text: 'Noted.' },
-      ];
-    });
+      },
+      {
+        type: 'tool_started',
+        call: { name: 'create_lead', args: { consent: true, email: 'a@example.com' } },
+      },
+      { type: 'text', text: 'Noted.' },
+    ]);
 
-    const { app } = await h(provider);
+    const { app, store } = await h(provider);
     const { sessionId, token } = await openSession(app);
 
     // One answer via the route, the way a host-page form would submit it.
@@ -1315,47 +1313,49 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'roof_direction', value: 'north' },
+      payload: { sessionId, questionId: 'property_type', value: 'detached' },
     });
 
     await app.inject({
       method: 'POST',
       url: '/v1/chat/stream',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, clientMessageId: 'c1', text: 'I use about 4200 kWh' },
+      payload: { sessionId, clientMessageId: 'c1', text: 'To cut my bills' },
     });
 
-    // Two, not one: the context saw the route's answer as well as the turn's.
-    expect(captured[0]).toMatchObject({ answered: 2 });
+    // Both, not one: the context saw the route's answer as well as the turn's.
+    const [lead] = await store.listLeads('t_demo0001');
+    expect(lead?.flowAnswers?.map((a) => a.id).sort()).toEqual(['motivation', 'property_type']);
   });
 
   it('keeps both answers after the turn, and records only the turn on the turn', async () => {
     const provider = new ScriptedProvider(() => [
+      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
       {
         type: 'tool_started',
         call: {
           id: 'call_1',
-          name: 'save_answer',
-          args: { questionId: 'annual_kwh', value: '4200' },
+          name: 'save_workflow_answers',
+          args: { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
         },
       },
       { type: 'text', text: 'Noted.' },
     ]);
 
-    const { app } = await h(provider);
+    const { app, store } = await h(provider);
     const { sessionId, token } = await openSession(app);
 
     await app.inject({
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'roof_direction', value: 'north' },
+      payload: { sessionId, questionId: 'property_type', value: 'detached' },
     });
     await app.inject({
       method: 'POST',
       url: '/v1/chat/stream',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, clientMessageId: 'c1', text: 'I use about 4200 kWh' },
+      payload: { sessionId, clientMessageId: 'c1', text: 'To cut my bills' },
     });
 
     const conversation = await app.inject({
@@ -1369,12 +1369,14 @@ describe('qualification answers reach the conversation', () => {
     const assistant = turns.find((t) => t.role === 'assistant');
 
     // The per-turn map is the audit trail: it says what *this* turn changed.
-    expect(assistant?.answers).toEqual({ annual_kwh: '4200' });
+    expect(assistant?.answers).toEqual({ motivation: 'reduce_bills' });
+    const stored = await store.getConversation('t_demo0001', sessionId);
+    expect(stored?.answers).toEqual({ property_type: 'detached', motivation: 'reduce_bills' });
   });
 
   it('records several answers from one turn, so the assistant need not ask twice', async () => {
     // §7.3: "conversational collection should extract multiple supplied answers
-    // without asking twice". The mechanism is that a turn may call `save_answer`
+    // without asking twice". The mechanism is that a turn may call `save_workflow_answers`
     // more than once -- the provider executes each call as it streams -- and every
     // answer it sets lands in the store and on the turn's own map. What is *not*
     // proven here is the extraction itself: that a real model finds two answers in
@@ -1392,18 +1394,22 @@ describe('qualification answers reach the conversation', () => {
       return [
         {
           type: 'tool_started',
+          call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } },
+        },
+        {
+          type: 'tool_started',
           call: {
             id: 'call_1',
-            name: 'save_answer',
-            args: { questionId: 'usage_source', value: 'manual_kwh' },
+            name: 'save_workflow_answers',
+            args: { answers: [{ questionId: 'usage_source', value: 'manual_kwh' }] },
           },
         },
         {
           type: 'tool_started',
           call: {
             id: 'call_2',
-            name: 'save_answer',
-            args: { questionId: 'annual_kwh', value: '4200' },
+            name: 'save_workflow_answers',
+            args: { answers: [{ questionId: 'annual_kwh', value: '4200' }] },
           },
         },
         { type: 'text', text: 'Got both of those.' },
@@ -1423,11 +1429,15 @@ describe('qualification answers reach the conversation', () => {
     // Both tools ran, and the second saw the first's answer -- it could not have
     // been accepted otherwise, `annual_kwh` being gated on the usage source.
     const finished = parseSse(turn.body).filter((frame) => frame['type'] === 'tool_finished');
-    expect(finished.map((frame) => frame['tool'])).toEqual(['save_answer', 'save_answer']);
+    expect(finished.map((frame) => frame['tool'])).toEqual([
+      'start_workflow',
+      'save_workflow_answers',
+      'save_workflow_answers',
+    ]);
     expect(finished.every((frame) => frame['ok'] === true)).toBe(true);
-    expect(captured.map((result) => (result as { note: string }).note)).toEqual([
-      'Saved usage_source = manual_kwh.',
-      'Saved annual_kwh = 4200.',
+    expect(captured.slice(1).map((result) => (result as { note: string }).note)).toEqual([
+      'Saved usage_source.',
+      'Saved annual_kwh.',
     ]);
 
     const conversation = await store.getConversation('t_demo0001', sessionId);
@@ -1452,12 +1462,13 @@ describe('qualification answers reach the conversation', () => {
     // ones that appeared -- otherwise the store keeps an answer the visitor has
     // just withdrawn, and only the chat path does.
     const provider = new ScriptedProvider(() => [
+      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
       {
         type: 'tool_started',
         call: {
           id: 'call_1',
-          name: 'save_answer',
-          args: { questionId: 'usage_source', value: 'household' },
+          name: 'save_workflow_answers',
+          args: { answers: [{ questionId: 'usage_source', value: 'household' }] },
         },
       },
       { type: 'text', text: 'Changed that to a household estimate.' },

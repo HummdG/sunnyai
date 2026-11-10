@@ -5,10 +5,10 @@ import type { ChatChunk, ChatProvider, ChatToolCall, ChatTurnRequest } from './p
  * Gemini key is configured and `SUNNY_DEMO_ASSISTANT=1` is set (refused in
  * production by `main.ts`).
  *
- * It is not a language model. It drives the REAL quote journey through the
- * same tools the model would call -- the SunScan roof engine, the versioned
- * questionnaire with its deterministic answer extraction, and the installer's
- * price list -- and phrases each step from fixed templates. Everything it
+ * It is not a language model. It drives the REAL quote journey (the solar
+ * workflow) through the same tools the model would call -- the SunScan roof
+ * engine, the versioned questionnaire with its deterministic answer
+ * extraction, and the installer's price list -- and phrases each step from fixed templates. Everything it
  * shows (roof figures, questions, prices) comes from those tools, so the demo
  * exercises the product rather than imitating it.
  */
@@ -51,7 +51,7 @@ export class DemoProvider implements ChatProvider {
     // The core engine hands the model the guardrail sandwich; the visitor's own
     // words are the escaped text inside <user_query>.
     const message = visitorText(request.message);
-    const journey = yield* call('get_quote_journey', {});
+    const journey = yield* call('start_workflow', { workflowId: 'wf_solar' });
     if (!journey) {
       yield text("I'm running in demo mode, which only covers the roof check and quote.");
       return;
@@ -67,7 +67,7 @@ export class DemoProvider implements ChatProvider {
         );
         return;
       }
-      yield* call('save_answers', {
+      yield* call('save_workflow_answers', {
         answers: [{ questionId: 'address', value: message }],
         visitorMessage: message,
       });
@@ -79,7 +79,7 @@ export class DemoProvider implements ChatProvider {
         );
         return;
       }
-      const next = yield* call('get_quote_journey', {});
+      const next = yield* call('start_workflow', { workflowId: 'wf_solar' });
       yield text(`Lovely, I've measured your roof in 3D. ${ask(next)}`);
       return;
     }
@@ -89,7 +89,7 @@ export class DemoProvider implements ChatProvider {
       return;
     }
 
-    const saved = yield* call('save_answers', { answers: [], visitorMessage: message });
+    const saved = yield* call('save_workflow_answers', { answers: [], visitorMessage: message });
     if (!saved) {
       yield text(`Sorry, something went wrong saving that. ${ask(journey)}`);
       return;

@@ -12,6 +12,7 @@
 import type { PricingSource } from '@sunny/quote-engine';
 
 import type { ToolContext, ToolResult } from '../agent/tools.js';
+import { SKIPPED, type ResolvedFlow } from '../flow/resolve.js';
 import { optionLabel } from '../questionnaire.js';
 
 import type { Proposal } from './extract.js';
@@ -33,7 +34,7 @@ export interface QuoteToolContext {
   log?: { warn: (object: object, message: string) => void };
 }
 
-function depsFor(ctx: ToolContext): JourneyDeps | null {
+export function depsFor(ctx: ToolContext): JourneyDeps | null {
   if (!ctx.quote) return null;
   return {
     store: ctx.store,
@@ -48,7 +49,7 @@ function depsFor(ctx: ToolContext): JourneyDeps | null {
   };
 }
 
-const NOT_ENABLED: ToolResult = {
+export const NOT_ENABLED: ToolResult = {
   ok: false,
   data: { enabled: false },
   summary: 'Quotes are not available on this deployment.',
@@ -59,7 +60,7 @@ const NOT_ENABLED: ToolResult = {
  * end-of-turn write (agent.ts) neither re-adds an answer a correction removed
  * nor misses one the journey added.
  */
-function mirror(ctx: ToolContext, answers: Record<string, string>): void {
+export function mirror(ctx: ToolContext, answers: Record<string, string>): void {
   for (const key of Object.keys(ctx.answers)) {
     if (!(key in answers)) delete ctx.answers[key];
   }
@@ -83,7 +84,7 @@ export async function linkAssessmentFromTool(
  * Options as offered in chat. Reading a bill needs an upload the chat does not
  * have, so that route is not offered here (the visitor can type kWh instead).
  */
-function chatOptions(options: readonly string[] | null): readonly string[] | null {
+export function chatOptions(options: readonly string[] | null): readonly string[] | null {
   return options ? options.filter((o) => o !== 'bill_ocr') : null;
 }
 
@@ -92,38 +93,36 @@ function chatOptions(options: readonly string[] | null): readonly string[] | nul
  * question answered in their own words, which clears any buttons left from the last one). The last one a turn
  * emits is the question it ends on.
  */
-function offerReplies(
+export function offerReplies(
   ctx: ToolContext,
   questionId: string | null,
   options: readonly string[] | null,
   multi: boolean,
+  opts: { flow?: ResolvedFlow; optional?: boolean } = {},
 ): void {
   const offered = chatOptions(options) ?? [];
-  const label = labelOf(ctx, questionId);
-  ctx.events.push({
-    kind: 'quick_replies',
-    detail: {
-      questionId,
-      multi,
-      replies: offered.map((value) => ({ value, label: label(value) })),
-    },
-  });
+  const label = labelOf(opts.flow ?? ctx.flow, questionId);
+  const replies = offered.map((value) => ({ value, label: label(value) }));
+  // An optional question can be passed over with one tap.
+  if (opts.optional && questionId) replies.push({ value: SKIPPED, label: 'Skip' });
+  ctx.events.push({ kind: 'quick_replies', detail: { questionId, multi, replies } });
 }
 
 /** How an answer to a question reads to the visitor: the installer's label, else Sunny's. */
-function labelOf(ctx: ToolContext, questionId: string | null): (value: string) => string {
-  const question = questionId ? ctx.flow.question(questionId) : undefined;
+function labelOf(flow: ResolvedFlow, questionId: string | null): (value: string) => string {
+  const question = questionId ? flow.question(questionId) : undefined;
   return question ? (value) => question.label(value) : optionLabel;
 }
 
 /** Visitor-facing labels for the offered options, keyed by value. */
-function labelsFor(
+export function labelsFor(
   ctx: ToolContext,
   questionId: string | null,
   options: readonly string[] | null,
+  flow: ResolvedFlow = ctx.flow,
 ): Record<string, string> | null {
   const offered = chatOptions(options);
-  const label = labelOf(ctx, questionId);
+  const label = labelOf(flow, questionId);
   return offered ? Object.fromEntries(offered.map((o) => [o, label(o)])) : null;
 }
 
@@ -246,6 +245,16 @@ export const QUOTE_TOOLS = [
     async run(_args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
       const deps = depsFor(ctx);
       if (!deps) return NOT_ENABLED;
+      // A workflow that ends in a lead (or an engine with no quote yet) is not priced here.
+      const activeId = ctx.session.active?.workflowId;
+      const active = activeId ? ctx.workflows.workflows.find((w) => w.id === activeId) : undefined;
+      if (active && !(active.outcome.kind === 'quote' && active.outcome.engine === 'solar')) {
+        return {
+          ok: false,
+          data: { outcome: 'lead', workflow: { id: active.id, name: active.name } },
+          summary: 'This one ends with the team getting in touch, not a quote.',
+        };
+      }
       const result = await createQuote(deps, ctx.tenant.id, ctx.sessionId);
       if (!result.ok) {
         return {

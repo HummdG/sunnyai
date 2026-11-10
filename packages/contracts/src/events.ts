@@ -54,6 +54,11 @@ export const TOOL_NAMES = [
   'get_quote_journey',
   'save_answers',
   'get_quote_options',
+  // Installer workflows (apps/api/src/workflows): the server picks the step.
+  'start_workflow',
+  'get_workflow_step',
+  'save_workflow_answers',
+  'pause_workflow',
 ] as const;
 
 export const toolNameSchema = z.enum(TOOL_NAMES);
