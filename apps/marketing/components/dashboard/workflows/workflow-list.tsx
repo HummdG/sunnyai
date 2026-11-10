@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { Workflow, WorkflowSetView } from '../../../lib/portal-api.js';
 import { Toggle } from '../kit.js';
@@ -59,6 +59,15 @@ function WorkflowCard({
   onDelete: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const keep = useRef<HTMLButtonElement>(null);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const asked = useRef(false);
+  // The confirmation opens on its safe choice; closing it goes back to Delete.
+  useEffect(() => {
+    if (confirming) keep.current?.focus();
+    else if (asked.current) deleteButton.current?.focus();
+    asked.current = confirming;
+  }, [confirming]);
   const badge = kindBadge(workflow);
   const builtIn = badge === 'Built in';
   return (
@@ -94,7 +103,14 @@ function WorkflowCard({
         </ul>
       ) : null}
       {confirming ? (
-        <div className="flow-confirm" role="alertdialog" aria-label={`Delete ${workflow.name}?`}>
+        <div
+          className="flow-confirm"
+          role="alertdialog"
+          aria-label={`Delete ${workflow.name}?`}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setConfirming(false);
+          }}
+        >
           <p>
             This deletes {workflow.name} and its questions. Visitors are no longer offered it. You
             cannot undo this.
@@ -111,7 +127,12 @@ function WorkflowCard({
             >
               Delete
             </button>
-            <button type="button" className="button secondary" onClick={() => setConfirming(false)}>
+            <button
+              ref={keep}
+              type="button"
+              className="button secondary"
+              onClick={() => setConfirming(false)}
+            >
               Keep it
             </button>
           </div>
@@ -124,6 +145,7 @@ function WorkflowCard({
         </button>
         {canEdit && !builtIn && !confirming ? (
           <button
+            ref={deleteButton}
             type="button"
             className="button secondary danger-text"
             disabled={busy}
@@ -163,6 +185,7 @@ export function WorkflowList({
   onCreate: (from: NewFrom) => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const newButton = useRef<HTMLButtonElement>(null);
   const { set } = view;
   const full = set.workflows.length >= MAX_WORKFLOWS;
   const help = `${assistant} asks what the visitor is looking for before suggesting a workflow.`;
@@ -196,6 +219,7 @@ export function WorkflowList({
               className="button"
               disabled={busy || full}
               aria-expanded={adding}
+              ref={newButton}
               onClick={() => setAdding(true)}
             >
               New workflow
@@ -216,7 +240,10 @@ export function WorkflowList({
             setAdding(false);
             onCreate(from);
           }}
-          onCancel={() => setAdding(false)}
+          onCancel={() => {
+            setAdding(false);
+            newButton.current?.focus();
+          }}
         />
       ) : null}
       {view.migrated ? (

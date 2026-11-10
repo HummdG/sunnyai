@@ -70,6 +70,8 @@ export interface EditorSource {
   words?: EditorWords;
   /** Shown under the chat preview (a workflow's page check, say). */
   previewExtra?: ReactNode;
+  /** Told whenever the questions gain or lose unsaved changes. */
+  onDirtyChange?(dirty: boolean): void;
 }
 
 /** What the editor calls the thing it edits, in its bar, its notes and its reset. */
@@ -167,6 +169,10 @@ export function ConversationEditor({
     setIssues(next.issues);
     setDirty(false);
   }
+
+  useEffect(() => {
+    sourceRef.current?.onDirtyChange?.(dirty);
+  }, [dirty]);
 
   useEffect(() => {
     const from = sourceRef.current;

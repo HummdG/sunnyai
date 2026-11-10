@@ -54,10 +54,13 @@ function refusalText(failure: unknown): string {
 }
 
 /** Someone saved first: say so, with the way to see their version. */
-function Conflict({ onReload }: { onReload: () => void }) {
+function Conflict({ onReload, drops = false }: { onReload: () => void; drops?: boolean }) {
   return (
     <div className="error-note wf-conflict" role="alert">
-      <span>{STALE}</span>
+      <span>
+        {STALE}
+        {drops ? ' Reloading drops your unsaved changes.' : ''}
+      </span>
       <button type="button" className="button secondary" onClick={onReload}>
         Reload
       </button>
@@ -140,6 +143,8 @@ export function WorkflowsTab({
         assistant={assistant}
         onBack={() => {
           setOpenId(null);
+          // Loading until the list is fresh: a switch flipped now would send an old version.
+          setView(null);
           loadList();
         }}
         onReload={() => setReloads((n) => n + 1)}
@@ -193,8 +198,8 @@ type Part = Omit<PartState, 'dirty'>;
 /**
  * One workflow: a way back, its settings and pages (each saved by its own
  * button), then its questions in the question editor. Every save sends the
- * whole workflow at the version last loaded, so a save made elsewhere in
- * between is refused rather than overwritten.
+ * whole workflow at the version last saved here, one save at a time, so a
+ * save made elsewhere in between is refused rather than overwritten.
  */
 function WorkflowDetail({
   tenantId,
@@ -221,7 +226,37 @@ function WorkflowDetail({
   const [pagesPart, setPagesPart] = useState<Part>(IDLE);
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [questionsDirty, setQuestionsDirty] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const keepEditing = useRef<HTMLButtonElement>(null);
+  // Every save and the reset run one after another, each reading the version
+  // the one before it saved: two quick saves never refuse each other.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  function queued<T>(job: () => Promise<T>): Promise<T> {
+    const next = queue.current.then(job, job);
+    queue.current = next.catch(() => undefined);
+    return next;
+  }
+
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const settingsDirty =
+    current !== null && settings !== null && !same(settings, settingsOf(current));
+  const pagesDirty = current !== null && pages !== null && !same(pages, current.pages);
+  const dirty = canEdit && (questionsDirty || settingsDirty || pagesDirty);
+
+  // Closing or reloading the page with unsaved changes asks first.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  useEffect(() => {
+    if (leaving) keepEditing.current?.focus();
+  }, [leaving]);
 
   function adopt(w: Workflow): void {
     currentRef.current = w;
@@ -245,9 +280,34 @@ function WorkflowDetail({
   }, [loaded]);
 
   const back = (
-    <button type="button" className="link-button wf-back" onClick={onBack}>
-      <span aria-hidden="true">← </span>All workflows
-    </button>
+    <>
+      <button
+        type="button"
+        className="link-button wf-back"
+        aria-expanded={dirty ? leaving : undefined}
+        onClick={() => (dirty ? setLeaving(true) : onBack())}
+      >
+        <span aria-hidden="true">← </span>All workflows
+      </button>
+      {leaving && dirty ? (
+        <div className="flow-confirm" role="alertdialog" aria-label="Leave without saving?">
+          <p>Leave without saving? Your unsaved changes to this workflow are lost.</p>
+          <div className="actions">
+            <button type="button" className="button danger" onClick={onBack}>
+              Leave
+            </button>
+            <button
+              ref={keepEditing}
+              type="button"
+              className="button secondary"
+              onClick={() => setLeaving(false)}
+            >
+              Keep editing
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 
   if (!loaded || !current || !settings || !pages) {
@@ -274,7 +334,9 @@ function WorkflowDetail({
   ): Promise<void> {
     setPart({ busy: true, error: null, saved: null });
     try {
-      const saved = pick(await saveWorkflow(tenantId, { ...currentRef.current!, ...patch }));
+      const saved = await queued(async () =>
+        pick(await saveWorkflow(tenantId, { ...currentRef.current!, ...patch })),
+      );
       after(saved);
       setPart({ busy: false, error: null, saved: 'Saved.' });
     } catch (failure) {
@@ -289,7 +351,6 @@ function WorkflowDetail({
 
   const builtIn = kindBadge(current) === 'Built in';
   const readOnly = !canEdit;
-  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
   const words: EditorWords = {
     loading: 'Loading the workflow…',
@@ -310,8 +371,10 @@ function WorkflowDetail({
       ),
     async save(flow) {
       try {
-        const set = await saveWorkflow(tenantId, withFlow(currentRef.current!, flow));
-        return editorViewOf(pick(set), set.presets, set.priceItems, set.issues);
+        return await queued(async () => {
+          const set = await saveWorkflow(tenantId, withFlow(currentRef.current!, flow));
+          return editorViewOf(pick(set), set.presets, set.priceItems, set.issues);
+        });
       } catch (failure) {
         if (!isConflict(failure)) throw failure;
         setConflict(true);
@@ -320,14 +383,15 @@ function WorkflowDetail({
     },
     ...(builtIn
       ? {
-          async reset() {
-            const set = await resetWorkflow(tenantId, workflowId);
-            const w = pick(set);
-            // The template's name, description and the rest come back too.
-            setSettings(settingsOf(w));
-            setSettingsPart(IDLE);
-            return editorViewOf(w, set.presets, set.priceItems, set.issues);
-          },
+          reset: () =>
+            queued(async () => {
+              const set = await resetWorkflow(tenantId, workflowId);
+              const w = pick(set);
+              // The template's name, description and the rest come back too.
+              setSettings(settingsOf(w));
+              setSettingsPart(IDLE);
+              return editorViewOf(w, set.presets, set.priceItems, set.issues);
+            }),
         }
       : {}),
     async preview(flow, answers) {
@@ -337,8 +401,10 @@ function WorkflowDetail({
     },
     suggest: (question) => suggestWorkflowPriceChanges(tenantId, workflowId, question),
     start: null,
-    end: workflowEnd(settings.outcome.kind, assistant),
+    // As saved: the questions end the way the saved workflow does.
+    end: workflowEnd(current.outcome.kind, assistant),
     words,
+    onDirtyChange: setQuestionsDirty,
     previewExtra: <PagePreview tenantId={tenantId} workflow={{ ...current, pages }} />,
   };
 
@@ -352,14 +418,14 @@ function WorkflowDetail({
         <Chip tone={builtIn ? 'orange' : 'neutral'}>{kindBadge(current)}</Chip>
         <span className="muted small">{current.enabled ? 'On' : 'Off'}</span>
       </div>
-      {conflict ? <Conflict onReload={onReload} /> : null}
+      {conflict ? <Conflict onReload={onReload} drops={dirty} /> : null}
       <div className="wf-meta">
         <WorkflowSettings
           draft={settings}
           builtIn={builtIn}
           readOnly={readOnly}
           assistant={assistant}
-          state={{ ...settingsPart, dirty: !same(settings, settingsOf(current)) }}
+          state={{ ...settingsPart, dirty: settingsDirty }}
           onChange={(change) => {
             setSettings((d) => (d ? change(d) : d));
             setSettingsPart((p) => ({ ...p, saved: null }));
@@ -375,7 +441,7 @@ function WorkflowDetail({
         <PageRules
           rule={pages}
           readOnly={readOnly}
-          state={{ ...pagesPart, dirty: !same(pages, current.pages) }}
+          state={{ ...pagesPart, dirty: pagesDirty }}
           onChange={(rule) => {
             setPages(rule);
             setPagesPart((p) => ({ ...p, saved: null }));

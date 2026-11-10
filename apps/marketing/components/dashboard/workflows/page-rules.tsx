@@ -140,8 +140,7 @@ export function PagePreview({ tenantId, workflow }: { tenantId: string; workflow
   const path = pathOf(text);
   const json = JSON.stringify(workflow);
   // What was asked: the page and the workflow, so an answer about either before an edit is not shown.
-  const asked = `${path ?? ''}
-${json}`;
+  const asked = `${path ?? ''}\n${json}`;
 
   useEffect(() => {
     const mine = ++counter.current;
@@ -151,11 +150,7 @@ ${json}`;
       previewWorkflow(tenantId, JSON.parse(json) as Workflow, {}, path)
         .then((preview) => {
           if (mine !== counter.current) return;
-          setResult({
-            asked: `${path}
-${json}`,
-            shows: preview.appearsOnPage,
-          });
+          setResult({ asked: `${path}\n${json}`, shows: preview.appearsOnPage });
           setError(null);
         })
         .catch((failure: unknown) => {
