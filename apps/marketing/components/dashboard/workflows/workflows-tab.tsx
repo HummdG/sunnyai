@@ -188,6 +188,11 @@ export function WorkflowsTab({
   );
 }
 
+/** A workflow's own presets from a set view, or the solar ones from an API that sends only those. */
+function presetsOf(set: WorkflowSetView, w: Workflow): PresetView[] {
+  return set.presetsByWorkflow?.[w.id] ?? set.presets;
+}
+
 /** The editor's view of a workflow: its steps as a flow, and the flags beside its questions. */
 function editorViewOf(
   w: Workflow,
@@ -389,7 +394,8 @@ function WorkflowDetail({
       try {
         return await queued(async () => {
           const set = await saveWorkflow(tenantId, withFlow(currentRef.current!, flow));
-          return editorViewOf(pick(set), set.presets, set.priceItems, set.issues);
+          const w = pick(set);
+          return editorViewOf(w, presetsOf(set, w), set.priceItems, set.issues);
         });
       } catch (failure) {
         if (!isConflict(failure)) throw failure;
@@ -406,7 +412,7 @@ function WorkflowDetail({
               // The template's name, description and the rest come back too.
               setSettings(settingsOf(w));
               setSettingsPart(IDLE);
-              return editorViewOf(w, set.presets, set.priceItems, set.issues);
+              return editorViewOf(w, presetsOf(set, w), set.priceItems, set.issues);
             }),
         }
       : {}),

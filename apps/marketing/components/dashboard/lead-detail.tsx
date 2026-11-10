@@ -92,7 +92,7 @@ function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: H
       </div>
       <h3>{option.headline}</h3>
       <p className="quote-price">
-        {option.priceGbp === null ? 'Priced by your team' : `About ${money(option.priceGbp)}`}
+        {option.priceGbp === null ? 'Priced at survey' : `About ${money(option.priceGbp)}`}
       </p>
       <p className="small muted">
         {quote.pricing?.priceStatus === 'verified' ? 'From your price list' : 'Indicative'}, subject
@@ -119,7 +119,9 @@ function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: H
         <dd>About {money(option.annualSavingsGbp)} a year</dd>
       </dl>
       {option.installerPriced ? (
-        <p className="small muted">For your team to price: the heat pump unit</p>
+        <p className="small muted">
+          Part of this option is not on your price list yet, so it is priced at survey
+        </p>
       ) : null}
     </article>
   );
@@ -309,7 +311,7 @@ export function LeadDetail({
                   <h3>{option.headline}</h3>
                   <p className="quote-price">
                     {option.priceGbp === null
-                      ? 'Priced by your team'
+                      ? 'Priced at survey'
                       : `About ${money(option.priceGbp)}`}
                   </p>
                   <p className="small muted">

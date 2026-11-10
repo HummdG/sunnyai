@@ -43,6 +43,7 @@ import {
   templateFor,
 } from '../workflows/templates.js';
 import {
+  bankForWorkflow,
   resolvedFlowFor,
   toFlow,
   withWorkflowSet,
@@ -68,7 +69,10 @@ export interface WorkflowSetView {
   migrated: boolean;
   /** The stored set no longer parses: `set` is Sunny's defaults and every write is refused. */
   unreadable: boolean;
+  /** The solar bank's presets, kept for Studio builds that predate `presetsByWorkflow`. */
   presets: PresetView[];
+  /** Each workflow's presets, from the bank its outcome draws on. */
+  presetsByWorkflow: Record<string, PresetView[]>;
   priceItems: PriceItemView[];
   issues: WorkflowIssue[];
 }
@@ -156,6 +160,9 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRoute
       migrated,
       unreadable,
       presets: presetViews(SOLAR),
+      presetsByWorkflow: Object.fromEntries(
+        set.workflows.map((w) => [w.id, presetViews(bankForWorkflow(w))]),
+      ),
       priceItems: priceItemViews(list),
       issues: checkWorkflowSet(set, list),
     };
@@ -254,7 +261,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRoute
     const list = await getPublishedPriceList(store, tenant.id);
     return {
       workflow,
-      presets: presetViews(SOLAR),
+      presets: presetViews(bankForWorkflow(workflow)),
       priceItems: priceItemViews(list),
       issues: checkWorkflowSet(set, list).filter((i) => i.workflowId === workflowId),
     };

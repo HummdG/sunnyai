@@ -220,13 +220,15 @@ export function checkWorkflow(w: Workflow, list: PriceList | null): WorkflowIssu
     workflowId: w.id,
   }));
 
-  const solar = w.outcome.kind === 'quote' && w.outcome.engine === 'solar';
-  if (solar && !allSteps(w.steps).some((s) => s.kind === 'preset' && s.id === 'address')) {
+  // Both quotes start from the home: SunScan's roof, or the grant's postcode.
+  const engine = w.outcome.kind === 'quote' ? w.outcome.engine : null;
+  const needsAddress = engine === 'solar' || engine === 'heat_pump';
+  if (needsAddress && !allSteps(w.steps).some((s) => s.kind === 'preset' && s.id === 'address')) {
     issues.push({
       workflowId: w.id,
       field: 'steps',
       code: 'needs_address',
-      message: 'A solar quote needs the address question.',
+      message: `A ${engine === 'solar' ? 'solar' : 'heat pump'} quote needs the address question.`,
     });
   }
 

@@ -26,7 +26,7 @@ import {
   type WorkflowSet,
 } from '@sunny/contracts';
 
-import { bankFor, LEGACY_SOLAR } from '../flow/banks.js';
+import { bankFor, LEGACY_SOLAR, type QuestionBank } from '../flow/banks.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { flowForTenant } from '../flow/tenant.js';
 import type { Tenant } from '../tenants.js';
@@ -116,7 +116,13 @@ export function resolvedFlowFor(workflow: Workflow): ResolvedFlow {
     const legacy = first?.kind === 'preset' && first.id === 'address';
     return resolveFlow(flow, legacy ? LEGACY_SOLAR : bankFor('solar'));
   }
-  return resolveFlow(flow, bankFor(outcome.kind === 'quote' ? outcome.engine : 'lead'));
+  return resolveFlow(flow, bankForWorkflow(workflow));
+}
+
+/** The question bank a workflow's outcome draws on: Studio's presets for it. */
+export function bankForWorkflow(workflow: Pick<Workflow, 'outcome'>): QuestionBank {
+  const { outcome } = workflow;
+  return bankFor(outcome.kind === 'quote' ? outcome.engine : 'lead');
 }
 
 /**

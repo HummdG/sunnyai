@@ -468,7 +468,10 @@ export interface WorkflowSetView {
    * change is refused until it is put right.
    */
   unreadable?: boolean;
+  /** The solar bank's presets (older APIs send only these). */
   presets: PresetView[];
+  /** Each workflow's presets, from the bank its outcome draws on. */
+  presetsByWorkflow?: Record<string, PresetView[]>;
   priceItems: PriceItemView[];
   issues: WorkflowIssue[];
 }

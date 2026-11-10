@@ -11,6 +11,7 @@ import {
 import type {
   Brand,
   ChatStreamEvent,
+  HeatPumpQuoteCard,
   QuoteCard,
   PageAction,
   RecommendationResponse,
@@ -29,6 +30,7 @@ import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el } from './dom.js';
+import { heatPumpCardText } from './heat-pump-card.js';
 import { optionArt } from './quote-art.js';
 import { renderRich } from './rich.js';
 import type * as LogoModule from './logo.js';
@@ -941,8 +943,10 @@ export class SunnyWidget {
    * goes in through `el`'s textContent.
    */
   #showQuote(quote: QuoteCard): void {
-    // A heat pump card has its own layout, not drawn here yet: only solar renders.
-    if (quote.kind === 'heat_pump') return;
+    if (quote.kind === 'heat_pump') {
+      this.#showHeatPumpQuote(quote);
+      return;
+    }
     const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
     // Smallest to largest, with the recommended one in the middle: the eye
     // lands there first, and the other two read as "less" and "more".
@@ -996,12 +1000,79 @@ export class SunnyWidget {
       ]);
     });
 
+    const unpriced = quote.options.every((o) => o.priceGbp === null);
+    this.#presentQuote(
+      quote,
+      cards,
+      ordered.map((o) => o.label),
+      best ? ordered.indexOf(best) : 0,
+      unpriced,
+    );
+  }
+
+  /**
+   * The heat pump quote's options, as cards: the heat pump's size, its price
+   * (or that the installer prices it), the grant, and what it should cost to
+   * run against the heating the home has now. No solar art: a heat pump card
+   * has no panels to draw. The words come from `heatPumpCardText`.
+   */
+  #showHeatPumpQuote(quote: HeatPumpQuoteCard): void {
+    // As solar: the recommended option in the middle.
+    const best = quote.options.find((o) => o.isRecommended);
+    const rest = quote.options.filter((o) => o !== best);
+    const ordered = best ? [...rest.slice(0, 1), best, ...rest.slice(1)] : [...quote.options];
+
+    const cards = ordered.map((o) => {
+      const text = heatPumpCardText(o);
+      return el('li', { class: `quote-option${o.isRecommended ? ' recommended' : ''}` }, [
+        ...(o.isRecommended ? [el('span', { class: 'quote-badge', text: 'Best for you' })] : []),
+        el('strong', { class: 'quote-name', text: o.label }),
+        el('p', { class: 'quote-size', text: text.size }),
+        el('p', { class: `quote-hero${text.priced ? '' : ' unpriced'}` }, [
+          el('span', { class: 'quote-figure', text: text.figure }),
+          el('span', { class: 'quote-figure-label', text: text.figureLabel }),
+        ]),
+        ...(text.grant ? [el('p', { class: 'quote-grant', text: text.grant })] : []),
+        el(
+          'ul',
+          { class: 'quote-lines' },
+          text.stats.map((line) => el('li', { text: line })),
+        ),
+        ...(text.notes.length > 0
+          ? [el('p', { class: 'quote-note', text: text.notes.join(' · ') })]
+          : []),
+        this.#chooseButton(quote.quoteId, o.id, o.label),
+      ]);
+    });
+
+    this.#presentQuote(
+      quote,
+      cards,
+      ordered.map((o) => o.label),
+      best ? ordered.indexOf(best) : 0,
+      quote.options.every((o) => !heatPumpCardText(o).priced),
+    );
+  }
+
+  /**
+   * Puts a quote's option cards in the log: a row to swipe through on a narrow
+   * panel, with dots that say where you are, then the disclaimer and the PDF
+   * and email actions. The card at `centred` (the recommended one) is brought
+   * into view.
+   */
+  #presentQuote(
+    quote: QuoteCard,
+    cards: HTMLElement[],
+    labels: string[],
+    centred: number,
+    unpriced: boolean,
+  ): void {
     const list = el('ul', { class: 'quote-options', 'aria-label': 'Your quote options' }, cards);
     // On a narrow panel the options are a row to swipe through; the dots say
     // where you are and take you to the others.
     const dots = el('div', { class: 'quote-dots' });
-    const dotButtons = ordered.map((o, i) => {
-      const dot = el('button', { type: 'button', 'aria-label': `Show the ${o.label}` });
+    const dotButtons = labels.map((label, i) => {
+      const dot = el('button', { type: 'button', 'aria-label': `Show the ${label}` });
       dot.addEventListener('click', () => centre(i, true));
       return dot;
     });
@@ -1024,7 +1095,6 @@ export class SunnyWidget {
     };
     list.addEventListener('scroll', markDot, { passive: true });
 
-    const unpriced = quote.options.every((o) => o.priceGbp === null);
     this.#log.append(
       el('div', { class: 'quote', 'data-id': quote.quoteId }, [
         list,
@@ -1041,14 +1111,17 @@ export class SunnyWidget {
     // The options want width: the panel widens to set them side by side.
     this.#panel.classList.add('quote-wide');
     const settle = () => {
-      centre(best ? ordered.indexOf(best) : 0);
+      centre(centred);
       markDot();
       this.#scrollToEnd();
     };
     requestAnimationFrame(settle);
     window.setTimeout(settle, 380);
     this.#animator.dispatch({ type: 'celebrate' }, performance.now());
-    this.#liveRegion.textContent = `${quote.options.length} quote options shown.`;
+    this.#liveRegion.textContent =
+      quote.kind === 'heat_pump'
+        ? `${quote.options.length} heat pump quote options shown.`
+        : `${quote.options.length} quote options shown.`;
   }
 
   /** "Choose this package" on one option card. */
@@ -1085,7 +1158,7 @@ export class SunnyWidget {
       this.#appendTurn('error', "Sorry, I couldn't save that choice. Please try again.");
       return;
     }
-    const chosen = (await response.json()) as ChosenPackage;
+    const body = (await response.json()) as ChosenPackage | ChosenHeatPump;
     const quoteEl = button.closest('.quote');
     for (const b of quoteEl?.querySelectorAll<HTMLButtonElement>('.quote-choose') ?? []) {
       const mine = b === button;
@@ -1093,6 +1166,16 @@ export class SunnyWidget {
       b.closest('.quote-option')?.classList.toggle('chosen', mine);
       b.setAttribute('aria-pressed', String(mine));
     }
+    const survey =
+      "When you're ready, I can arrange a free survey to confirm everything. Just say “book a survey”.";
+    if ('chosen' in body) {
+      // A heat pump choice is saved as is: there is no savings timeline to play.
+      this.#animator.dispatch({ type: 'celebrate' }, performance.now());
+      this.#appendTurn('assistant', `Great choice: the ${body.chosen.label} option.`);
+      this.#appendTurn('assistant', survey);
+      return;
+    }
+    const chosen = body;
     const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
     const t = chosen.timeline;
     this.#animator.dispatch({ type: 'celebrate' }, performance.now());
@@ -1104,10 +1187,7 @@ export class SunnyWidget {
         : `Great choice: the ${chosen.option.label} package. In its first year it could save you about ${gbp(t.year1TotalGbp)}, and about ${gbp(t.twentyFiveYearTotalGbp)} over 25 years (indicative).`,
     );
     if (chosen.sentinelNote) this.#appendTurn('system', chosen.sentinelNote);
-    this.#appendTurn(
-      'assistant',
-      "When you're ready, I can arrange a free survey to confirm everything. Just say \u201cbook a survey\u201d.",
-    );
+    this.#appendTurn('assistant', survey);
     if (roof) {
       await this.#openRoof(roof.id, roof.base, roof.summary, {
         panelCount: chosen.option.panelCount,
@@ -1131,7 +1211,7 @@ export class SunnyWidget {
           if (!r.ok) throw new Error(String(r.status));
           const link = el('a', {
             href: URL.createObjectURL(await r.blob()),
-            download: 'solar-quote.pdf',
+            download: quote.kind === 'heat_pump' ? 'heat-pump-quote.pdf' : 'solar-quote.pdf',
           });
           link.click();
           setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
@@ -1632,6 +1712,11 @@ const FIZZ: readonly (readonly [number, number, number, number])[] = [
   [32, 15, 2, 132],
   [38, 8, -14, 156],
 ];
+
+/** POST /v1/quote/:id/choose on a heat pump quote: the option, saved as chosen. */
+interface ChosenHeatPump {
+  chosen: { id: string; label: string };
+}
 
 /** POST /v1/quote/:id/choose (apps/api/src/journey/choose.ts). */
 interface ChosenPackage {

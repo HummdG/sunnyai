@@ -96,6 +96,7 @@ interface SetView {
   migrated: boolean;
   unreadable?: boolean;
   presets: Array<{ id: string }>;
+  presetsByWorkflow: Record<string, Array<{ id: string }>>;
   priceItems: Array<{ key: string }>;
   issues: Array<{ workflowId: string; code: string; message: string; warning?: boolean }>;
 }
@@ -186,6 +187,34 @@ describe('GET /workflows', () => {
     });
     expect(missing.statusCode).toBe(404);
   });
+
+  it('gives each workflow the presets of its own bank', async () => {
+    const { app, tenantId } = await setup();
+    const one = await app.inject({
+      method: 'GET',
+      url: url(tenantId, '/wf_heat_pump'),
+      headers: as(VIEWER),
+    });
+    expect(one.statusCode).toBe(200);
+    const ids = one.json<{ presets: Array<{ id: string }> }>().presets.map((p) => p.id);
+    expect(ids).toContain('hp_age');
+    expect(ids).not.toContain('roof_direction');
+
+    const solar = await app.inject({
+      method: 'GET',
+      url: url(tenantId, '/wf_solar'),
+      headers: as(VIEWER),
+    });
+    expect(solar.json<{ presets: Array<{ id: string }> }>().presets.map((p) => p.id)).not.toContain(
+      'hp_age',
+    );
+
+    const view = await getSet(app, tenantId);
+    expect(view.presetsByWorkflow['wf_heat_pump']!.map((p) => p.id)).toContain('hp_age');
+    expect(view.presetsByWorkflow['wf_solar']!.map((p) => p.id)).not.toContain('hp_age');
+    // `presets` stays the solar bank's, for older Studio builds.
+    expect(view.presets.map((p) => p.id)).not.toContain('hp_age');
+  });
 });
 
 describe('PUT /workflows/:id', () => {
@@ -252,6 +281,20 @@ describe('PUT /workflows/:id', () => {
     const response = await putWorkflow(app, tenantId, {
       ...solar,
       steps: solar.steps.filter((s) => s.id !== 'address'),
+    });
+    expect(response.statusCode).toBe(400);
+    const issues = response.json<{ issues: Array<{ code: string }> }>().issues;
+    expect(issues.map((i) => i.code)).toContain('needs_address');
+  });
+
+  it('refuses a heat pump quote without the address question', async () => {
+    const { app, tenantId } = await setup();
+    const view = await getSet(app, tenantId);
+    const hp = view.set.workflows.find((w) => w.id === 'wf_heat_pump')!;
+    expect(hp.steps.some((s) => s.id === 'address')).toBe(true);
+    const response = await putWorkflow(app, tenantId, {
+      ...hp,
+      steps: hp.steps.filter((s) => s.id !== 'address'),
     });
     expect(response.statusCode).toBe(400);
     const issues = response.json<{ issues: Array<{ code: string }> }>().issues;
