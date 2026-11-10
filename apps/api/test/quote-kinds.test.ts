@@ -7,13 +7,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { quoteCardSchema } from '@sunny/contracts';
 import type { HeatPumpEstimate } from '@sunny/heat-pump-engine';
+import { BATTERY_DISCLAIMER } from '@sunny/quote-engine';
 
 import { quoteFacts } from '../src/channels/email/followup.js';
-import {
-  isSolarRecord,
-  quoteKind,
-  type HeatPumpQuoteRecord,
-} from '../src/journey/heat-pump/record.js';
+import { batteryPaybackYears, type BatteryQuoteRecord } from '../src/journey/battery/record.js';
+import type { HeatPumpQuoteRecord } from '../src/journey/heat-pump/record.js';
+import { hasProposal, isSolarRecord, quoteKind } from '../src/journey/quote-kinds.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import type { QuoteRecord } from '../src/journey/quote.js';
 import { toQuoteCard } from '../src/journey/service.js';
@@ -180,7 +179,76 @@ function heatPump(overrides: Partial<HeatPumpQuoteRecord> = {}): HeatPumpQuoteRe
   };
 }
 
+function battery(overrides: Partial<BatteryQuoteRecord> = {}): BatteryQuoteRecord {
+  return {
+    kind: 'battery',
+    id: 'q_bat_1',
+    tenantId: DEMO_TENANT.id,
+    sessionId: 's1',
+    createdAt: '2026-11-10T10:00:00.000Z',
+    priced: true,
+    pricing: {
+      label: 'Battery quote',
+      version: '1',
+      priceStatus: 'indicative',
+      vatRatePercent: 0,
+      currency: 'GBP',
+    },
+    estimate: {
+      pvKwp: 4,
+      pvKwpAssumed: false,
+      annualGenerationKwh: 3800,
+      annualUseKwh: 3500,
+      importPence: 24.5,
+      exportPence: 15,
+      offPeakPence: 8,
+      peakPence: 28,
+      recommendedKwh: 5,
+      warnings: [],
+      assumptions: [],
+    },
+    postcode: 'NR4 7TJ',
+    tariff: 'smart_tou',
+    options: [
+      {
+        id: 'bat_5',
+        label: 'Recommended',
+        isRecommended: true,
+        headline: 'A 5 kWh battery',
+        capacityKwh: 5,
+        batteryName: 'Battery 5',
+        priceGbp: 3200,
+        priceLabel: 'Indicative price, 0% VAT',
+        lineItems: [{ sku: 'bat5', label: 'Battery 5', quantity: 1, totalGbp: 3200 }],
+        annualSavingsGbp: 400,
+        selfUseSavingGbp: 150,
+        shiftSavingGbp: 250,
+        paybackYears: 8,
+        warnings: [],
+        installerPriced: false,
+      },
+    ],
+    recommendedId: 'bat_5',
+    warnings: [],
+    disclaimer: BATTERY_DISCLAIMER,
+    leadId: null,
+    ...overrides,
+  };
+}
+
 describe('quote kinds in the store', () => {
+  it('round-trips a battery record', async () => {
+    const store = await freshStore();
+    const row = battery();
+    await store.saveQuote(row);
+    const got = await store.getQuote(DEMO_TENANT.id, row.id);
+    expect(got).toEqual(row);
+    expect(got && isSolarRecord(got)).toBe(false);
+    expect(got && quoteKind(got)).toBe('battery');
+    expect(got && hasProposal(got)).toBe(false);
+    expect(await store.listQuotes(DEMO_TENANT.id, 's1')).toEqual([row]);
+  });
+
   it('round-trips a legacy solar row with no kind, unchanged', async () => {
     const store = await freshStore();
     const row = legacySolar();
@@ -267,6 +335,58 @@ describe('quote cards by kind', () => {
     expect(quoteCardSchema.parse(card)).toEqual(card);
   });
 
+  it('maps a battery record to a battery card the contract accepts', () => {
+    const card = toQuoteCard(battery(), { emailAvailable: true });
+    expect(card).toEqual({
+      kind: 'battery',
+      quoteId: 'q_bat_1',
+      priced: true,
+      disclaimer: BATTERY_DISCLAIMER,
+      // No battery PDF yet.
+      proposalAvailable: false,
+      emailAvailable: true,
+      options: [
+        {
+          id: 'bat_5',
+          label: 'Recommended',
+          isRecommended: true,
+          headline: 'A 5 kWh battery',
+          capacityKwh: 5,
+          priceGbp: 3200,
+          priceLabel: 'Indicative price, 0% VAT',
+          annualSavingsGbp: 400,
+          shiftSavingGbp: 250,
+          paybackYears: 8,
+        },
+      ],
+    });
+    expect(quoteCardSchema.parse(card)).toEqual(card);
+    const priced = toQuoteCard(
+      battery({
+        options: battery().options.map((o) => ({
+          ...o,
+          priceGbp: null,
+          paybackYears: null,
+          installerPriced: true,
+          warnings: ['An extra unit is needed.'],
+        })),
+      }),
+    );
+    expect(priced.options[0]).toMatchObject({
+      priceGbp: null,
+      paybackYears: null,
+      installerPriced: true,
+      warnings: ['An extra unit is needed.'],
+    });
+    expect(quoteCardSchema.parse(priced)).toEqual(priced);
+  });
+
+  it('parses heat pump cards as before, and rejects a battery card with heat pump options', () => {
+    const hp = toQuoteCard(heatPump(), { emailAvailable: true });
+    expect(quoteCardSchema.parse(hp)).toEqual(hp);
+    expect(quoteCardSchema.safeParse({ ...hp, kind: 'battery' }).success).toBe(false);
+  });
+
   it('parses an old solar card without a kind as solar', () => {
     const old = toQuoteCard(legacySolar(), { emailAvailable: false });
     const parsed = quoteCardSchema.parse(old);
@@ -300,6 +420,18 @@ describe('email follow-up facts', () => {
     none.options = none.options.map((o) => ({ ...o, grantGbp: 0, priceAfterGrantGbp: 12500 }));
     expect(quoteFacts(none)).toContain(
       '7 kW heat pump, £12,500 (Indicative price, 0% VAT), no Boiler Upgrade Scheme grant',
+    );
+  });
+
+  it('describes a battery quote by capacity, price and saving', () => {
+    const facts = quoteFacts(battery({ chosenOptionId: 'bat_5' }));
+    expect(facts).toContain('kWh battery');
+    expect(facts).toBe(
+      [
+        'Quote for NR4 7TJ:',
+        '- Recommended: 5 kWh battery, £3,200 (Indicative price, 0% VAT), about £400 saved a year [the one they chose, recommended]',
+        BATTERY_DISCLAIMER,
+      ].join('\n'),
     );
   });
 
@@ -383,6 +515,36 @@ describe('quote routes with a heat pump quote', () => {
     expect(bogus.statusCode).toBe(404);
   });
 
+  it('chooses an option on a battery quote and returns it', async () => {
+    const { app, store, auth } = await server();
+    await store.saveQuote(battery());
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/quote/q_bat_1/choose',
+      headers: auth,
+      payload: { sessionId: 's1', optionId: 'bat_5' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ chosen: battery().options[0] });
+    const saved = await store.getQuote(DEMO_TENANT.id, 'q_bat_1');
+    expect(saved?.chosenOptionId).toBe('bat_5');
+    expect(saved?.kind).toBe('battery');
+  });
+
+  it('serves a battery quote without a PDF yet', async () => {
+    const { app, store, auth } = await server();
+    await store.saveQuote(battery());
+    const got = await app.inject({ method: 'GET', url: '/v1/quote/q_bat_1', headers: auth });
+    expect(got.statusCode).toBe(200);
+    expect(got.json()).toMatchObject({ kind: 'battery', proposalAvailable: false });
+    const pdf = await app.inject({
+      method: 'GET',
+      url: '/v1/quote/q_bat_1/proposal.pdf',
+      headers: auth,
+    });
+    expect(pdf.statusCode).toBe(404);
+  });
+
   it('serves a heat pump quote with its PDF, the heat pump estimate', async () => {
     const { app, store, auth } = await server();
     await store.saveQuote(heatPump());
@@ -401,5 +563,18 @@ describe('quote routes with a heat pump quote', () => {
       'attachment; filename="heat-pump-estimate-NR4-7TJ.pdf"',
     );
     expect(pdf.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+});
+
+describe('battery payback', () => {
+  it('is price over saving, rounded to the half year', () => {
+    expect(batteryPaybackYears(3200, 400)).toBe(8);
+    expect(batteryPaybackYears(3300, 400)).toBe(8.5);
+    expect(batteryPaybackYears(3000, 400)).toBe(7.5);
+  });
+
+  it('is null when unpriced or when nothing is saved', () => {
+    expect(batteryPaybackYears(null, 400)).toBeNull();
+    expect(batteryPaybackYears(3200, 0)).toBeNull();
   });
 });

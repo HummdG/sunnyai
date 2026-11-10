@@ -104,6 +104,26 @@ export const heatPumpOptionCardSchema = z.object({
   warnings: z.array(z.string().max(200)).max(5).optional(),
 });
 
+/** One battery quote option (a retrofit for a home with solar), as a card. */
+export const batteryOptionCardSchema = z.object({
+  id: z.string().min(1).max(40),
+  label: z.string().min(1).max(60),
+  isRecommended: z.boolean(),
+  headline: z.string().max(200),
+  capacityKwh: z.number().nonnegative(),
+  priceGbp: z.number().nonnegative().nullable(),
+  priceLabel: z.string().max(120),
+  annualSavingsGbp: z.number(),
+  /** The part of the saving from charging at the cheap rate (0 off a time-of-use tariff). */
+  shiftSavingGbp: z.number(),
+  /** Null when the option is unpriced or saves nothing. */
+  paybackYears: z.number().nonnegative().nullable(),
+  /** The installer prices this option themselves; shown without a figure. */
+  installerPriced: z.boolean().optional(),
+  /** What the installer will need to check for this option. */
+  warnings: z.array(z.string().max(200)).max(5).optional(),
+});
+
 const quoteCardBase = {
   quoteId: z.string().min(1).max(60),
   priced: z.boolean(),
@@ -128,16 +148,29 @@ export const heatPumpQuoteCardSchema = z.object({
   options: z.array(heatPumpOptionCardSchema).max(3),
 });
 
+/** A battery quote card. */
+export const batteryQuoteCardSchema = z.object({
+  kind: z.literal('battery'),
+  ...quoteCardBase,
+  options: z.array(batteryOptionCardSchema).max(3),
+});
+
 /**
  * The quote the journey presented, compact enough for a stream frame. A card
  * with no `kind` reads as solar.
  */
-export const quoteCardSchema = z.union([heatPumpQuoteCardSchema, solarQuoteCardSchema]);
+export const quoteCardSchema = z.union([
+  heatPumpQuoteCardSchema,
+  batteryQuoteCardSchema,
+  solarQuoteCardSchema,
+]);
 
 export type QuoteCard = z.infer<typeof quoteCardSchema>;
 export type SolarQuoteCard = z.infer<typeof solarQuoteCardSchema>;
 export type HeatPumpQuoteCard = z.infer<typeof heatPumpQuoteCardSchema>;
 export type HeatPumpOptionCard = z.infer<typeof heatPumpOptionCardSchema>;
+export type BatteryQuoteCard = z.infer<typeof batteryQuoteCardSchema>;
+export type BatteryOptionCard = z.infer<typeof batteryOptionCardSchema>;
 
 export const chatStreamEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('message_started'), ...base }),

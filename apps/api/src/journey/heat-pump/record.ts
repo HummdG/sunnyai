@@ -1,8 +1,7 @@
 /**
  * The heat pump quote as stored: the same tenant-scoped quote row the solar
- * journey writes, marked `kind: 'heat_pump'`. A row with no kind is a solar
- * quote (every quote before quotes came in kinds), so `isSolarRecord` treats a
- * missing kind as solar.
+ * journey writes, marked `kind: 'heat_pump'`. `StoredQuote` and the kind
+ * helpers live in `../quote-kinds.ts`.
  */
 
 import type { Fuel, HeatPumpEstimate } from '@sunny/heat-pump-engine';
@@ -69,22 +68,9 @@ export interface HeatPumpQuoteRecord {
   workflowId?: string;
 }
 
-/** Any quote the store keeps: solar (no kind, or `'solar'`) or heat pump. */
-export type StoredQuote = QuoteRecord | HeatPumpQuoteRecord;
-
-/** A solar quote: rows from before quotes came in kinds have no `kind`. */
-export function isSolarRecord(q: StoredQuote): q is QuoteRecord {
-  return q.kind === undefined || q.kind === 'solar';
-}
-
 export type GrantStatus = 'eligible' | 'unsure' | 'none';
 
 /** The grant as the card shows it: `unsure` when the postcode cannot tell. */
 export function grantStatusOf(eligible: boolean | 'unsure'): GrantStatus {
   return eligible === true ? 'eligible' : eligible === 'unsure' ? 'unsure' : 'none';
-}
-
-/** The quote's kind, with a row from before kinds read as solar. */
-export function quoteKind(q: StoredQuote): 'solar' | 'heat_pump' {
-  return q.kind ?? 'solar';
 }

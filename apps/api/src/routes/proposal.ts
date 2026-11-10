@@ -5,7 +5,12 @@ import { z } from 'zod';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import type { BrandAssetStore } from '../branding/store.js';
-import { isSolarRecord, type StoredQuote } from '../journey/heat-pump/record.js';
+import {
+  hasProposal,
+  isSolarRecord,
+  type ProposalQuote,
+  type StoredQuote,
+} from '../journey/quote-kinds.js';
 import {
   proposalFilename,
   proposalPdf,
@@ -73,6 +78,12 @@ function sendPdf(reply: FastifyReply, pdf: Buffer, filename: string): Buffer {
   return pdf;
 }
 
+/** The quote as one with a PDF; a kind without one (a battery quote, for now) is a 404. */
+function withProposal(quote: StoredQuote): ProposalQuote {
+  if (!hasProposal(quote)) throw new ApiError('not_found', 'This quote has no PDF.');
+  return quote;
+}
+
 export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRouteDeps): void {
   const { store, tenants, now } = deps;
   const auth = createAuthenticator({
@@ -93,7 +104,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
   /** The visitor's quote: their session, their tenant, their quote. */
   async function visitorQuote(
     request: FastifyRequest,
-  ): Promise<{ tenant: Tenant; quote: StoredQuote; sessionId: string }> {
+  ): Promise<{ tenant: Tenant; quote: ProposalQuote; sessionId: string }> {
     const claims = verifySessionToken(bearer(request), deps.sessionSecret, now());
     if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
     const tenant = tenants.byId(claims.tenantId);
@@ -102,7 +113,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     if (!tenant || !quote || quote.sessionId !== claims.sessionId) {
       throw new ApiError('not_found', 'No such quote.');
     }
-    return { tenant, quote, sessionId: claims.sessionId };
+    return { tenant, quote: withProposal(quote), sessionId: claims.sessionId };
   }
 
   async function leadFor(tenant: Tenant, quote: StoredQuote): Promise<LeadRecord | null> {
@@ -201,8 +212,9 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
       const quotes = await store.listQuotes(tenant.id, lead.sessionId);
       const quote = quotes.filter((q) => q.leadId === lead.id).at(-1) ?? quotes.at(-1) ?? null;
       if (!quote) throw new ApiError('not_found', 'This lead has no quote.');
-      const pdf = await proposalPdf(sources, tenant, quote, lead, new Date(now()));
-      return sendPdf(reply, pdf, proposalFilename(tenant, quote));
+      const doc = withProposal(quote);
+      const pdf = await proposalPdf(sources, tenant, doc, lead, new Date(now()));
+      return sendPdf(reply, pdf, proposalFilename(tenant, doc));
     },
   );
 }

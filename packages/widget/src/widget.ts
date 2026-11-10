@@ -947,6 +947,8 @@ export class SunnyWidget {
       this.#showHeatPumpQuote(quote);
       return;
     }
+    // A kind this widget has no cards for yet (a battery quote) shows nothing.
+    if (quote.kind !== undefined && quote.kind !== 'solar') return;
     // Smallest to largest, with the recommended one in the middle: the eye
     // lands there first, and the other two read as "less" and "more".
     const bySize = [...quote.options].sort(

@@ -13,7 +13,7 @@ import type {
 } from '@sunny/contracts';
 
 import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
-import type { StoredQuote } from './journey/heat-pump/record.js';
+import type { StoredQuote } from './journey/quote-kinds.js';
 
 import type { CatalogueState } from './catalogue/types.js';
 import type { Tenant } from './tenants.js';

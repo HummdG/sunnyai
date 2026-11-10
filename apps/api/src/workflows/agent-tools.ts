@@ -18,7 +18,7 @@ import { DISCOVERY } from '../flow/banks.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
 import type { Proposal } from '../journey/extract.js';
-import { quoteKind } from '../journey/heat-pump/record.js';
+import { quoteKind } from '../journey/quote-kinds.js';
 import {
   loadJourney,
   submitAnswers,

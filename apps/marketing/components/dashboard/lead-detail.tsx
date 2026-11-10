@@ -75,7 +75,56 @@ interface HeatPumpQuote extends QuoteBase {
   estimate?: { bus?: { eligible?: boolean | 'unsure' } };
 }
 
-type Quote = SolarQuote | HeatPumpQuote;
+interface BatteryOption {
+  id: string;
+  label: string;
+  headline: string;
+  capacityKwh: number;
+  priceGbp: number | null;
+  annualSavingsGbp: number;
+}
+
+interface BatteryQuote extends QuoteBase {
+  kind: 'battery';
+  options: BatteryOption[];
+}
+
+type Quote = SolarQuote | HeatPumpQuote | BatteryQuote;
+
+/** The options to show as solar cards: none on a quote of another kind. */
+function solarOptionsOf(quote: Quote): QuoteOption[] {
+  return quote.kind === undefined || quote.kind === 'solar' ? quote.options : [];
+}
+
+/** A battery option on the lead page: its size, price and saving. */
+function BatteryOptionCard({ quote, option }: { quote: BatteryQuote; option: BatteryOption }) {
+  const chosen = option.id === quote.chosenOptionId;
+  return (
+    <article
+      className={`quote-option${option.id === quote.recommendedId ? ' recommended' : ''}${chosen ? ' chosen' : ''}`}
+      aria-label={chosen ? `${option.label} (chosen by the customer)` : option.label}
+    >
+      <div className="chip-row">
+        {option.id === quote.recommendedId &&
+        option.label.trim().toLowerCase() === 'recommended' ? null : (
+          <Chip>{option.label}</Chip>
+        )}
+        {option.id === quote.recommendedId ? <Chip tone="ok">Recommended</Chip> : null}
+        {chosen ? <Chip tone="orange">Chosen by the customer</Chip> : null}
+      </div>
+      <h3>{option.headline}</h3>
+      <p className="quote-price">
+        {option.priceGbp === null ? 'Priced at survey' : `About ${money(option.priceGbp)}`}
+      </p>
+      <dl>
+        <dt>Battery</dt>
+        <dd>{option.capacityKwh.toLocaleString('en-GB')} kWh</dd>
+        <dt>Savings</dt>
+        <dd>About {money(option.annualSavingsGbp)} a year</dd>
+      </dl>
+    </article>
+  );
+}
 
 /** A heat pump option on the lead page: its output, price and grant. */
 function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: HeatPumpOption }) {
@@ -281,7 +330,12 @@ export function LeadDetail({
                     <HeatPumpOptionCard key={option.id} quote={quote} option={option} />
                   ))
                 : null}
-              {(quote.kind === 'heat_pump' ? [] : quote.options).map((option) => (
+              {quote.kind === 'battery'
+                ? quote.options.map((option) => (
+                    <BatteryOptionCard key={option.id} quote={quote} option={option} />
+                  ))
+                : null}
+              {solarOptionsOf(quote).map((option) => (
                 <article
                   key={option.id}
                   className={`quote-option${option.id === quote.recommendedId ? ' recommended' : ''}${option.id === quote.chosenOptionId ? ' chosen' : ''}`}

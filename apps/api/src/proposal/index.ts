@@ -2,11 +2,8 @@ import { toRoofAssessmentSummary, type SunScanService } from '@sunny/sunscan-ada
 
 import type { StoredBranding } from '../branding/meta.js';
 import type { BrandAssetStore } from '../branding/store.js';
-import {
-  isSolarRecord,
-  type HeatPumpQuoteRecord,
-  type StoredQuote,
-} from '../journey/heat-pump/record.js';
+import type { HeatPumpQuoteRecord } from '../journey/heat-pump/record.js';
+import { isSolarRecord, type ProposalQuote } from '../journey/quote-kinds.js';
 import type { QuoteOptionView, QuoteRecord } from '../journey/quote.js';
 import type { RoofAssessmentSummary } from '../journey/roof.js';
 import type { LeadRecord, Store } from '../store.js';
@@ -69,7 +66,7 @@ function optionOf<O extends { id: string; isRecommended: boolean }>(quote: {
  * The quote's snapshot, or the defaults for a quote made before snapshots. A
  * snapshot saved before PDF colours existed takes its own brand colour.
  */
-function snapshotOf(tenant: Tenant, quote: Pick<StoredQuote, 'quotation'>): QuotationSnapshot {
+function snapshotOf(tenant: Tenant, quote: Pick<ProposalQuote, 'quotation'>): QuotationSnapshot {
   const snap = quote.quotation;
   if (!snap) return snapshotFor(tenant, undefined);
   if (snap.colours?.rail && snap.colours.accent) return snap;
@@ -203,14 +200,14 @@ export async function proposalDocFor(
 export async function proposalDocFor(
   sources: ProposalSources,
   tenant: Tenant,
-  quote: StoredQuote,
+  quote: ProposalQuote,
   lead: LeadRecord | null,
   now: Date,
 ): Promise<AnyProposalDoc>;
 export async function proposalDocFor(
   sources: ProposalSources,
   tenant: Tenant,
-  quote: StoredQuote,
+  quote: ProposalQuote,
   lead: LeadRecord | null,
   now: Date,
 ): Promise<AnyProposalDoc> {
@@ -296,7 +293,7 @@ async function heatPumpDocFor(
 export async function proposalPdf(
   sources: ProposalSources,
   tenant: Tenant,
-  quote: StoredQuote,
+  quote: ProposalQuote,
   lead: LeadRecord | null,
   now: Date,
 ): Promise<Buffer> {
@@ -307,7 +304,7 @@ export async function proposalPdf(
  * A filename for the download: a solar proposal is named for the installer
  * and the quote; a heat pump estimate for the postcode.
  */
-export function proposalFilename(tenant: Tenant, quote: StoredQuote): string {
+export function proposalFilename(tenant: Tenant, quote: ProposalQuote): string {
   if (!isSolarRecord(quote)) {
     const postcode = quote.postcode
       .toUpperCase()

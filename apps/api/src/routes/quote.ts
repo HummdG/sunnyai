@@ -23,7 +23,7 @@ import { z } from 'zod';
 
 import { pinBrandAssets } from '../branding/meta.js';
 import { chosenPackage } from '../journey/choose.js';
-import { isSolarRecord, type StoredQuote } from '../journey/heat-pump/record.js';
+import { hasProposal, isSolarRecord, type StoredQuote } from '../journey/quote-kinds.js';
 import { createHeatPumpQuote, publishedHeatPumpPricing } from '../journey/heat-pump/service.js';
 import type { QuoteRecord } from '../journey/quote.js';
 import {
@@ -88,17 +88,17 @@ function badRequest(error: z.ZodError): ApiError {
 /** A quote as the visitor's page sees it: no tenant id. */
 export function publicQuote(
   record: QuoteRecord,
-): Omit<QuoteRecord, 'tenantId'> & { proposalAvailable: true };
+): Omit<QuoteRecord, 'tenantId'> & { proposalAvailable: boolean };
 export function publicQuote(
   record: StoredQuote,
-): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: true };
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean };
 export function publicQuote(
   record: StoredQuote,
-): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: true } {
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean } {
   const { tenantId: _tenantId, ...rest } = record;
-  // GET /v1/quote/:id/proposal.pdf renders every stored quote (routes/proposal.ts):
-  // a solar proposal or a heat pump estimate.
-  return { ...rest, proposalAvailable: true };
+  // GET /v1/quote/:id/proposal.pdf renders the kinds that have a PDF
+  // (routes/proposal.ts): a solar proposal or a heat pump estimate.
+  return { ...rest, proposalAvailable: hasProposal(record) };
 }
 
 export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps): void {
@@ -214,9 +214,10 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     const { id } = request.params as { id: string };
     const quote = await owned(who.tenantId, who.sessionId, id);
     if (!isSolarRecord(quote)) {
-      // A heat pump quote has no savings timeline to play: the choice is saved
-      // and the option returned as is.
-      const option = quote.options.find((o) => o.id === body.data.optionId);
+      // Only a solar quote has a savings timeline to play: for any other kind
+      // the choice is saved and the option returned as is.
+      const options: readonly { id: string }[] = quote.options;
+      const option = options.find((o) => o.id === body.data.optionId);
       if (!option) throw new ApiError('not_found', 'No such option on this quote.');
       const chosenAt = new Date(deps.now()).toISOString();
       await deps.store.saveQuote({ ...quote, chosenOptionId: option.id, chosenAt });

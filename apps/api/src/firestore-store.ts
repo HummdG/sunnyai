@@ -20,7 +20,7 @@ import type {
 import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
 
 import type { CatalogueState } from './catalogue/types.js';
-import type { StoredQuote } from './journey/heat-pump/record.js';
+import type { StoredQuote } from './journey/quote-kinds.js';
 import type { Tenant } from './tenants.js';
 import { EMPTY_SESSION, cloneSession, type WorkflowSession } from './workflows/session.js';
 import type {

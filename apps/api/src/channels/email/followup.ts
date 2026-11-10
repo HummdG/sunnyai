@@ -1,11 +1,8 @@
 import { isEntitled } from '../../agent/channels.js';
 import type { ChatProvider } from '../../agent/provider.js';
-import {
-  grantStatusOf,
-  isSolarRecord,
-  type HeatPumpQuoteRecord,
-  type StoredQuote,
-} from '../../journey/heat-pump/record.js';
+import type { BatteryQuoteRecord } from '../../journey/battery/record.js';
+import { grantStatusOf, type HeatPumpQuoteRecord } from '../../journey/heat-pump/record.js';
+import type { StoredQuote } from '../../journey/quote-kinds.js';
 import type { ConversationTurn, LeadRecord, Store } from '../../store.js';
 import type { Tenant } from '../../tenants.js';
 import { composeReply } from './compose.js';
@@ -67,7 +64,8 @@ export function transcriptFor(turns: readonly ConversationTurn[], latest?: strin
 /** The quote the visitor was shown, as facts the email may repeat and nothing more. */
 export function quoteFacts(quote: StoredQuote | null): string | null {
   if (!quote || quote.options.length === 0) return null;
-  if (!isSolarRecord(quote)) return heatPumpFacts(quote);
+  if (quote.kind === 'heat_pump') return heatPumpFacts(quote);
+  if (quote.kind === 'battery') return batteryFacts(quote);
   const chosen = quote.chosenOptionId ?? null;
   const lines = quote.options.map((o) => {
     const parts = [
@@ -102,6 +100,23 @@ function heatPumpFacts(quote: HeatPumpQuoteRecord): string {
     ].filter(Boolean);
     const facts = `${o.outputKw} kW heat pump, ${price}, ${grant}`;
     return `- ${o.label}: ${facts}${tags.length ? ` [${tags.join(', ')}]` : ''}`;
+  });
+  return [`Quote for ${quote.postcode}:`, ...lines, quote.disclaimer].join('\n');
+}
+
+function batteryFacts(quote: BatteryQuoteRecord): string {
+  const chosen = quote.chosenOptionId ?? null;
+  const lines = quote.options.map((o) => {
+    const parts = [
+      `${o.capacityKwh} kWh battery`,
+      o.priceGbp !== null ? `${gbp(o.priceGbp)} (${o.priceLabel})` : 'priced at survey',
+      `about ${gbp(o.annualSavingsGbp)} saved a year`,
+    ];
+    const tags = [
+      o.id === chosen ? 'the one they chose' : null,
+      o.isRecommended ? 'recommended' : null,
+    ].filter(Boolean);
+    return `- ${o.label}: ${parts.join(', ')}${tags.length ? ` [${tags.join(', ')}]` : ''}`;
   });
   return [`Quote for ${quote.postcode}:`, ...lines, quote.disclaimer].join('\n');
 }

@@ -29,12 +29,9 @@ import {
   rejectRoof,
   type JourneyView,
 } from './journey.js';
-import {
-  grantStatusOf,
-  isSolarRecord,
-  type HeatPumpQuoteRecord,
-  type StoredQuote,
-} from './heat-pump/record.js';
+import type { BatteryQuoteRecord } from './battery/record.js';
+import { grantStatusOf, type HeatPumpQuoteRecord } from './heat-pump/record.js';
+import { hasProposal, isSolarRecord, type StoredQuote } from './quote-kinds.js';
 import { buildQuote, type QuoteLineItem, type QuoteRecord } from './quote.js';
 import { mapRoof, type MappedRoof, type RoofAssessmentSummary } from './roof.js';
 
@@ -298,7 +295,8 @@ export function toQuoteCard(
   quote: StoredQuote,
   options: { emailAvailable?: boolean } = {},
 ): QuoteCard {
-  if (!isSolarRecord(quote)) return heatPumpCard(quote, options);
+  if (quote.kind === 'heat_pump') return heatPumpCard(quote, options);
+  if (quote.kind === 'battery') return batteryCard(quote, options);
   return {
     quoteId: quote.id,
     priced: quote.priced,
@@ -363,6 +361,32 @@ function heatPumpCard(
       runningCostGbp: o.runningCostGbp,
       currentCostGbp: o.currentCostGbp,
       annualSavingsGbp: o.annualSavingsGbp,
+      ...(o.installerPriced ? { installerPriced: true } : {}),
+      ...(o.warnings.length > 0 ? { warnings: o.warnings.slice(0, 5) } : {}),
+    })),
+  };
+}
+
+/** A battery quote as cards. */
+function batteryCard(quote: BatteryQuoteRecord, options: { emailAvailable?: boolean }): QuoteCard {
+  return {
+    kind: 'battery',
+    quoteId: quote.id,
+    priced: quote.priced,
+    disclaimer: quote.disclaimer,
+    proposalAvailable: hasProposal(quote),
+    emailAvailable: options.emailAvailable ?? proposalEmailConfigured(),
+    options: quote.options.map((o) => ({
+      id: o.id,
+      label: o.label,
+      isRecommended: o.isRecommended,
+      headline: o.headline,
+      capacityKwh: o.capacityKwh,
+      priceGbp: o.priceGbp,
+      priceLabel: o.priceLabel,
+      annualSavingsGbp: o.annualSavingsGbp,
+      shiftSavingGbp: o.shiftSavingGbp,
+      paybackYears: o.paybackYears,
       ...(o.installerPriced ? { installerPriced: true } : {}),
       ...(o.warnings.length > 0 ? { warnings: o.warnings.slice(0, 5) } : {}),
     })),
