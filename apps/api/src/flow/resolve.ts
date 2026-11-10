@@ -15,14 +15,15 @@
 import type { ConversationFlow, FlowStep } from '@sunny/contracts';
 
 import {
-  QUESTIONS,
   optionLabel,
   type AnswerVerdict,
   type Applicability,
   type DroppedAnswer,
   type NumericRule,
 } from '../questionnaire.js';
-import { FIXED_START, PRESET_GROUPS } from './presets.js';
+import { LEGACY_SOLAR, SKIPPED, type QuestionBank } from './banks.js';
+
+export { SKIPPED };
 
 // Never read QUESTIONS at module level here: questionnaire.ts imports this
 // module, so at load time QUESTIONS may not exist yet (circular import).
@@ -40,6 +41,8 @@ export interface ResolvedQuestion {
   numeric: NumericRule | null;
   freeText: boolean;
   mode: 'quote' | 'lead' | 'preset';
+  /** The visitor may skip this question. */
+  optional: boolean;
   /** The answer this question waits on, and the values of it that open it. */
   parent: { id: string; anyOf: string[] } | null;
   /** How a stored value reads to a visitor, under the installer's labels. */
@@ -47,6 +50,8 @@ export interface ResolvedQuestion {
 }
 
 export interface ResolvedFlow {
+  /** The bank this was resolved over. */
+  bank: QuestionBank;
   /** False for Sunny's own questions (no stored flow). */
   custom: boolean;
   /** The stored flow this was resolved from (null for Sunny's own), for `effectsFor`. */
@@ -61,6 +66,8 @@ export interface ResolvedFlow {
   question(id: string): ResolvedQuestion | undefined;
   applicability(id: string, answers: Record<string, string>): Applicability;
   outstanding(answers: Record<string, string>): string[];
+  /** Outstanding minus optional questions. */
+  required(answers: Record<string, string>): string[];
   next(answers: Record<string, string>): string | null;
   validate(id: string, value: string, answers?: Record<string, string>): AnswerVerdict;
   reconcile(answers: Record<string, string>): {
@@ -72,16 +79,6 @@ export interface ResolvedFlow {
 type Parent = ResolvedQuestion['parent'];
 type PresetStep = Extract<FlowStep, { kind: 'preset' }>;
 type CustomStep = Extract<FlowStep, { kind: 'custom' }>;
-
-const FIXED = new Set<string>(FIXED_START);
-const GROUP_MEMBERS = new Set(Object.values(PRESET_GROUPS).flat());
-
-/** Sunny's middle section as a stored flow would list it (group members implied). */
-function defaultSteps(): FlowStep[] {
-  return Object.keys(QUESTIONS)
-    .filter((id) => !FIXED.has(id) && !GROUP_MEMBERS.has(id))
-    .map((id) => ({ kind: 'preset', id }));
-}
 
 /** The first stored step for each preset id, wherever it sits, for its wording. */
 function indexPresets(
@@ -99,11 +96,13 @@ function indexPresets(
 }
 
 function presetQuestion(
+  bank: QuestionBank,
   id: string,
   stored: PresetStep | undefined,
   enclosing: Parent,
+  optional = false,
 ): ResolvedQuestion {
-  const base = QUESTIONS[id]!;
+  const base = bank.questions[id]!;
   const labels = stored?.labels ?? {};
   const one = (value: string) => labels[value] ?? optionLabel(value);
   return {
@@ -114,6 +113,7 @@ function presetQuestion(
     numeric: base.numeric ?? null,
     freeText: false,
     mode: 'preset',
+    optional,
     // A preset's own condition always stands (the roof fallback questions
     // only appear when the roof mapping is uncertain, wherever they are put).
     parent: base.appearsWhen
@@ -140,6 +140,7 @@ function customQuestion(step: CustomStep, enclosing: Parent): ResolvedQuestion {
     numeric: null,
     freeText: text,
     mode: step.mode,
+    optional: step.optional === true,
     parent: enclosing,
     label: (value) => labels.get(value) ?? value,
   };
@@ -165,8 +166,14 @@ function parseNumber(value: string): number | null {
   return Number(cleaned);
 }
 
-export function resolveFlow(stored: ConversationFlow | null | undefined): ResolvedFlow {
-  const steps = stored ? stored.steps : defaultSteps();
+export function resolveFlow(
+  stored: ConversationFlow | null | undefined,
+  bank: QuestionBank = LEGACY_SOLAR,
+): ResolvedFlow {
+  const FIXED = new Set<string>(bank.fixedStart);
+  const GROUP_MEMBERS = new Set(Object.values(bank.groups).flat());
+  const FOLLOWERS = new Set(Object.values(bank.followers).flat());
+  const steps = stored ? stored.steps : bank.defaultSteps();
   const wording = indexPresets(steps);
   const questions: ResolvedQuestion[] = [];
   const emitted = new Set<string>();
@@ -186,7 +193,7 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
 
   function walk(list: FlowStep[], enclosing: Parent): void {
     for (const step of list) {
-      if (step.kind === 'preset' && FIXED.has(step.id)) {
+      if (step.kind === 'preset' && (FIXED.has(step.id) || FOLLOWERS.has(step.id))) {
         if (!fixedWalked.has(step.id)) {
           fixedWalked.add(step.id);
           walkFollowUps(step, step.id);
@@ -200,23 +207,29 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
         continue;
       }
       // Unknown presets are ignored; group members are placed by their head.
-      if (!QUESTIONS[step.id] || GROUP_MEMBERS.has(step.id)) continue;
-      emit(presetQuestion(step.id, wording.get(step.id), enclosing));
-      for (const member of PRESET_GROUPS[step.id] ?? []) {
+      if (!bank.questions[step.id] || GROUP_MEMBERS.has(step.id)) continue;
+      emit(presetQuestion(bank, step.id, wording.get(step.id), enclosing, step.optional === true));
+      for (const follower of bank.followers[step.id] ?? []) {
+        if (emitted.has(follower)) continue;
+        const followerStep = wording.get(follower);
+        emit(presetQuestion(bank, follower, followerStep, enclosing));
+        walkFollowUps(followerStep, follower);
+      }
+      for (const member of bank.groups[step.id] ?? []) {
         if (emitted.has(member)) continue;
         const memberStep = wording.get(member);
-        emit(presetQuestion(member, memberStep, enclosing));
+        emit(presetQuestion(bank, member, memberStep, enclosing, memberStep?.optional === true));
         walkFollowUps(memberStep, member);
       }
       walkFollowUps(step, step.id);
     }
   }
 
-  for (const id of FIXED_START) emit(presetQuestion(id, wording.get(id), null));
+  for (const id of bank.fixedStart) emit(presetQuestion(bank, id, wording.get(id), null));
   walk(steps, null);
 
   const byId = new Map(questions.map((q) => [q.id, q]));
-  const removedPresets = Object.keys(QUESTIONS).filter((id) => !emitted.has(id));
+  const removedPresets = Object.keys(bank.questions).filter((id) => !emitted.has(id));
 
   /**
    * Whether a question applies: `pending` while its parent is unanswered (an
@@ -237,6 +250,10 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
     return questions
       .map((q) => q.id)
       .filter((id) => answers[id] === undefined && applicability(id, answers) === 'applies');
+  }
+
+  function required(answers: Record<string, string>): string[] {
+    return outstanding(answers).filter((id) => !byId.get(id)?.optional);
   }
 
   function reconcile(answers: Record<string, string>): {
@@ -286,6 +303,9 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
         error: 'that question is not asked, given an earlier answer',
         needs: `${gate.id} to be one of ${gate.anyOf.join(', ')} (it is "${answers[gate.id]}")`,
       };
+    }
+    if (value === SKIPPED && question.optional) {
+      return { ok: true, questionId: id, value: SKIPPED };
     }
     const options = question.options;
     if (question.multi && options) {
@@ -337,6 +357,7 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
   }
 
   return {
+    bank,
     custom: stored != null,
     stored: stored ?? null,
     questions,
@@ -344,6 +365,7 @@ export function resolveFlow(stored: ConversationFlow | null | undefined): Resolv
     question: (id) => byId.get(id),
     applicability,
     outstanding,
+    required,
     next: (answers) => outstanding(answers)[0] ?? null,
     validate,
     reconcile,

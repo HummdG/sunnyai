@@ -86,6 +86,18 @@ export interface Question {
   multi?: true;
 }
 
+/**
+ * Opening questions for the discovery bank (workflows). Kept apart from
+ * QUESTIONS so the SunScan parity of that record holds.
+ */
+export const DISCOVERY_QUESTIONS: Readonly<Record<string, Question>> = {
+  disc_interest: {
+    step: 'discovery',
+    prompt: 'What are you looking into today?',
+    options: ['solar', 'battery', 'heating', 'ev_charger', 'not_sure'],
+  },
+};
+
 export const QUESTIONS: Readonly<Record<string, Question>> = {
   address: { step: 'address', prompt: 'What is the address you would like assessed?' },
   // SunScan's roof confidence is how sure the *mapping* is, not the visitor:
@@ -204,6 +216,7 @@ export const QUESTIONS: Readonly<Record<string, Question>> = {
     prompt: 'What matters most to you about going solar?',
     options: [
       'reduce_bills',
+      'comfort',
       'price_protection',
       'cheap_tariffs',
       'earn_export',
@@ -427,6 +440,10 @@ export const OPTION_LABELS: Readonly<Record<string, string>> = {
   battery: 'A battery',
   solar_battery: 'Solar and a battery',
   reduce_bills: 'Lower bills',
+  comfort: 'Comfort and warmth',
+  heating: 'Heating (heat pumps)',
+  ev_charger: 'An EV charger',
+  not_sure: 'Not sure yet',
   price_protection: 'Protection from price rises',
   cheap_tariffs: 'Using cheap tariffs',
   earn_export: 'Earning from export',

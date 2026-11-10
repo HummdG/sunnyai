@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConversationFlow, FlowStep } from '@sunny/contracts';
 
 import { FIXED_START, PRESET_GROUPS, PRESET_TOPICS, PRESET_WARNINGS } from '../src/flow/presets.js';
+import { DISCOVERY, SOLAR, bankFor } from '../src/flow/banks.js';
 import { resolveFlow } from '../src/flow/resolve.js';
 import { QUESTIONS } from '../src/questionnaire.js';
 
@@ -997,5 +998,102 @@ describe('an installer flow', () => {
     const base = { address: 'x', roof_confidence: 'high', property_type: 'semi' };
     expect(resolved.next({ ...base, roof_confirmed: 'no' })).toBe('c_roofwrong');
     expect(resolved.next({ ...base, roof_confirmed: 'yes' })).toBe('ownership');
+  });
+});
+
+describe('question banks', () => {
+  const step = (id: string, extra: Record<string, unknown> = {}) =>
+    ({ kind: 'preset', id, ...extra }) as FlowStep;
+  const flowOf = (steps: FlowStep[]): ConversationFlow => ({ version: 1, updatedAt: 'x', steps });
+
+  it('keeps the default flow identical (recorded before the change)', () => {
+    expect(resolveFlow(null).questions.map((q) => [q.id, q.prompt])).toEqual([
+      ['address', 'What is the address you would like assessed?'],
+      ['roof_confidence', 'How confident are you about your roof details?'],
+      ['roof_confirmed', 'Does the roof I found look right to you?'],
+      ['roof_size', 'Roughly how much roof space is available?'],
+      ['roof_direction', 'Which way does the main roof face?'],
+      ['roof_shading', 'Is the roof shaded by trees or buildings?'],
+      ['property_type', 'What kind of property is it?'],
+      ['ownership', 'Do you own the property?'],
+      ['usage_source', 'How would you like to tell me about your electricity use?'],
+      ['annual_kwh', 'Roughly how many kWh do you use in a year?'],
+      ['monthly_cost', 'Roughly what is your typical monthly electricity cost, in pounds?'],
+      [
+        'household_size',
+        'How many people live in the household? Answer 1 to 5, where 5 means five or more.',
+      ],
+      [
+        'lifestyle',
+        'Do any of these apply: home in the daytime, mostly evening use, an electric car (now or planned), a heat pump (now or planned), high daytime use? Say all that apply, or none.',
+      ],
+      ['tariff_type', 'What kind of electricity tariff are you on?'],
+      ['existing_system', 'Do you already have solar or a battery?'],
+      ['motivation', 'What matters most to you about going solar?'],
+      ['budget_band', 'What budget did you have in mind?'],
+      ['finance_interest', 'Would finance be of interest?'],
+    ]);
+  });
+
+  it('puts the address anywhere in the solar bank, roof checks following it', () => {
+    const r = resolveFlow(
+      flowOf([step('motivation'), step('address'), step('roof_shading')]),
+      SOLAR,
+    );
+    expect(r.questions.map((q) => q.id).slice(0, 5)).toEqual([
+      'motivation',
+      'address',
+      'roof_confidence',
+      'roof_confirmed',
+      'roof_shading',
+    ]);
+  });
+
+  it('skips a follower listed elsewhere in the stored steps', () => {
+    const r = resolveFlow(
+      flowOf([step('address'), step('roof_confirmed'), step('roof_shading')]),
+      SOLAR,
+    );
+    expect(r.questions.map((q) => q.id)).toEqual([
+      'address',
+      'roof_confidence',
+      'roof_confirmed',
+      'roof_shading',
+    ]);
+  });
+
+  it('lets an optional question be skipped and leaves it out of required', () => {
+    const r = resolveFlow(flowOf([step('budget_band', { optional: true }), step('ownership')]), SOLAR);
+    expect(r.question('budget_band')!.optional).toBe(true);
+    expect(r.question('ownership')!.optional).toBe(false);
+    expect(r.outstanding({})).toContain('budget_band');
+    expect(r.required({})).not.toContain('budget_band');
+    expect(r.required({})).toContain('ownership');
+    expect(r.validate('budget_band', 'skipped').ok).toBe(true);
+    expect(r.validate('ownership', 'skipped').ok).toBe(false);
+  });
+
+  it('resolves the discovery bank', () => {
+    const r = resolveFlow(null, DISCOVERY);
+    expect(r.questions.map((q) => q.id)).toEqual(['disc_interest', 'motivation']);
+    expect(r.question('disc_interest')!.prompt).toBe('What are you looking into today?');
+    expect(r.question('disc_interest')!.options).toEqual([
+      'solar',
+      'battery',
+      'heating',
+      'ev_charger',
+      'not_sure',
+    ]);
+    expect(r.question('motivation')!.prompt).toBe('What matters most to you?');
+    expect(r.question('motivation')!.options).toContain('comfort');
+    expect(r.question('disc_interest')!.label('ev_charger')).toBe('An EV charger');
+  });
+
+  it('maps engines to banks', () => {
+    expect(bankFor('solar')).toBe(SOLAR);
+    expect(bankFor('lead')).toBe(SOLAR);
+    expect(bankFor('discovery')).toBe(DISCOVERY);
+    expect(bankFor('heat_pump')).toBe(SOLAR);
+    expect(bankFor('battery')).toBe(SOLAR);
   });
 });
