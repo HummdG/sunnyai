@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { ConversationFlow } from '@sunny/contracts';
+
 import { getPublishedPriceList, publishExample } from '../src/catalogue/price-list-service.js';
 import { catalogueBackedPricing, pricingFromPriceList } from '../src/journey/catalogue-pricing.js';
 import { applyProposals, budgetBand, extractAnswers } from '../src/journey/extract.js';
@@ -14,6 +16,8 @@ import {
   quoteAnswers,
   rejectRoof,
 } from '../src/journey/journey.js';
+import { SOLAR } from '../src/flow/banks.js';
+import { resolveFlow } from '../src/flow/resolve.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import { buildQuote } from '../src/journey/quote.js';
 import {
@@ -852,5 +856,59 @@ describe('choosing a package', () => {
       payload: { sessionId: 's1', optionId: quote.options[0].id },
     });
     expect(unauth.statusCode).toBe(401);
+  });
+});
+
+describe('journey without the address first (solar workflow)', () => {
+  const stored: ConversationFlow = {
+    version: 1,
+    updatedAt: '2026-11-10T00:00:00.000Z',
+    steps: [
+      { kind: 'preset', id: 'motivation' },
+      { kind: 'preset', id: 'property_type' },
+      { kind: 'preset', id: 'address' },
+      { kind: 'preset', id: 'roof_shading' },
+      { kind: 'preset', id: 'budget_band', optional: true },
+    ],
+  };
+  const flow = resolveFlow(stored, SOLAR);
+
+  it('asks the first outstanding question, not the address', () => {
+    const view = journeyStatus({}, null, {}, flow);
+    expect(view.nextQuestionId).toBe('motivation');
+    expect(view.stage).toBe('address');
+  });
+
+  it('asks the address in its place, with its prompt', () => {
+    const view = journeyStatus({ motivation: 'bills', property_type: 'house' }, null, {}, flow);
+    expect(view.nextQuestionId).toBe('address');
+    expect(view.prompt).toBe(
+      'What is the address, including the postcode, you would like a quote for?',
+    );
+  });
+
+  it('moves on to the roof questions once the address is in', () => {
+    const view = journeyStatus(
+      { motivation: 'bills', property_type: 'house', address: '1 High St, NR4 7TJ' },
+      null,
+      { roofPending: true },
+      flow,
+    );
+    expect(view.nextQuestionId).toBe('roof_shading');
+  });
+
+  it('can quote without the optional question, and reads a skip as absent', () => {
+    const answers = {
+      motivation: 'bills',
+      property_type: 'house',
+      address: '1 High St, NR4 7TJ',
+      roof_confidence: 'low',
+      roof_shading: 'none',
+      budget_band: 'skipped',
+    };
+    const view = journeyStatus(answers, null, {}, flow);
+    expect(view.missing).toEqual([]);
+    expect(view.canQuote).toBe(true);
+    expect(quoteAnswers(answers, null, demoPricing(), flow)?.budgetBandId).toBeNull();
   });
 });
