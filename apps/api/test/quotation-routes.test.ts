@@ -421,7 +421,7 @@ The deposit is due on order.`,
     });
     const res = await preview(app, id, body());
     expect(res.statusCode).toBe(200);
-    expect(await text(res)).toContain('ROOF PLAN');
+    expect(await text(res)).toMatch(/20 FORTHLIN ROAD · SOUTH ROOF · \d+° · \d+ PANELS/);
   });
 
   it('recommends the largest option that fits the house when the recommended one does not', () => {

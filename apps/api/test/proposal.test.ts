@@ -439,7 +439,7 @@ describe('the quotation PDF', () => {
     );
     expect(doc.roofPlan).toBeNull();
     expect(doc.roofFacts).toBeNull();
-    expect((await pdfText(await renderProposal(doc))).join(' ')).not.toContain('ROOF PLAN');
+    expect((await pdfText(await renderProposal(doc))).join(' ')).not.toMatch(/ ROOF · /);
   });
 
   it('draws the real roof from the stored assessment, with roof facts that agree with it', async () => {
@@ -475,7 +475,9 @@ describe('the quotation PDF', () => {
     expect(doc.roofFacts!.pitchDeg).toBe(main.pitchDeg);
     expect(doc.roofFacts!.bestFacing).toBe(doc.roofPlan!.mainFacing);
     const pages = await pdfText(await renderProposal(doc));
-    expect(pages[0]).toContain('ROOF PLAN');
+    expect(pages[0]).toContain(
+      `SOUTH ROOF · ${Math.round(main.pitchDeg)}° · ${doc.option.panelCount} PANELS`,
+    );
     expect(pages[1]).toContain(`About ${Math.round(main.pitchDeg)}°`);
 
     // A spec that cannot be fetched or read: no plan, and no error.

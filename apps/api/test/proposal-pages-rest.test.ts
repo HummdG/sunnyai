@@ -6,13 +6,21 @@ import { describe, expect, it } from 'vitest';
 
 import { MCS_DISCLAIMER } from '../src/proposal/copy.js';
 import { themeFor } from '../src/proposal/layout.js';
-import { drawRoofPlan } from '../src/proposal/plan-drawing.js';
+import {
+  captionFor,
+  drawRoofPlan,
+  facing,
+  fitDrawing,
+  shapesFor,
+  viewFor,
+} from '../src/proposal/plan-drawing.js';
 import { drawPerformance, PERFORMANCE_HAS_RAIL } from '../src/proposal/pages/performance.js';
 import { cumulativeChart, drawSavings, SAVINGS_HAS_RAIL } from '../src/proposal/pages/savings.js';
 import { drawSystem, equipment, SYSTEM_HAS_RAIL } from '../src/proposal/pages/system.js';
 import { roofPlanFor } from '../src/proposal/roof-plan.js';
 import { docFor, option, outOfBounds, quote, render } from './proposal-fixtures.js';
 import { pdfItems, pdfText } from './pdf-text.js';
+import { HIP_SPEC, L_SPEC } from './roof-fixtures.js';
 
 const THEME = themeFor('#0f2a3d');
 const text = async (buf: Buffer) => (await pdfText(buf)).join(' ');
@@ -98,11 +106,7 @@ describe('system page', () => {
     expect(t).toContain('Best-facing roof');
     expect(t).toContain('About 36°');
     expect(t).toContain('Up to 14');
-    expect(t).toContain('ROOF PLAN');
-    expect(t).toContain('SAMPLE');
-    expect(t).toContain('EAVE');
-    expect(t).toContain('RAFTER');
-    expect(t).not.toContain('OVERALL');
+    expect(t).toContain('20 FORTHLIN ROAD · SOUTH ROOF · 42° · 10 PANELS · SAMPLE');
     const rotated = (await pdfItems(buf))
       .flat()
       .filter((i) => i.str.trim() !== '')
@@ -193,14 +197,69 @@ describe('system page', () => {
   });
 });
 
-describe('roof plan drawing', () => {
-  it('leaves a box too small for a plan at its frame and title', async () => {
+describe('the house drawing', () => {
+  const BOX = { x: 40, y: 80, w: 300, h: 210 };
+
+  it('looks at the panelled face from its side, from above, turned off square', () => {
+    const p = plan()!;
+    const view = viewFor(p);
+    const main = p.faces.find((f) => f.id === p.mainFace.id)!;
+    expect(facing(view, main.normal)).toBe(true);
+    // from above, and neither square on nor side on
+    expect(view.toward[2]).toBeGreaterThan(0.4);
+    const off = Math.abs(((view.bearingDeg - p.mainFace.azimuthDeg + 540) % 360) - 180);
+    expect(off).toBeGreaterThanOrEqual(25);
+    expect(off).toBeLessThanOrEqual(45);
+    // the shapes include every panel and the main face
+    const shapes = shapesFor(p, view, THEME);
+    expect(shapes.filter((s) => s.cells)).toHaveLength(p.panels.length);
+    expect(shapes.some((s) => s.pts === main.outline)).toBe(true);
+  });
+
+  it('fits everything, every panel included, inside the box above the caption', () => {
+    for (const p of [
+      plan()!,
+      roofPlanFor(HIP_SPEC, { panelCount: 4, reliable: true })!,
+      roofPlanFor(L_SPEC, { panelCount: 4, reliable: true })!,
+    ]) {
+      const fit = fitDrawing(p, BOX, THEME, 16)!;
+      expect(fit).not.toBeNull();
+      const inside = ([x, y]: [number, number]) =>
+        x >= BOX.x && x <= BOX.x + BOX.w && y >= BOX.y && y <= BOX.y + BOX.h - 16;
+      for (const panel of p.panels)
+        for (const c of panel.corners) expect(inside(fit.at(c))).toBe(true);
+      for (const s of fit.shapes) for (const q of s.pts) expect(inside(fit.at(q))).toBe(true);
+      expect(inside([fit.north.cx, fit.north.cy])).toBe(true);
+    }
+  });
+
+  it('captions the drawing level, and says flat for a flat roof', async () => {
+    const buf = await render((pdf) => drawRoofPlan(pdf, plan()!, BOX, THEME));
+    expect(await text(buf)).toContain('20 FORTHLIN ROAD · SOUTH ROOF · 42° · 10 PANELS · SAMPLE');
+    for (const item of (await pdfItems(buf)).flat().filter((i) => i.str.trim() !== '')) {
+      expect([item.str, item.transform[1], item.transform[2]]).toEqual([item.str, 0, 0]);
+    }
+    const flat = {
+      ...plan()!,
+      mainFacing: 'Flat',
+      mainFace: { id: 0, pitchDeg: 0, azimuthDeg: NaN },
+    };
+    expect(captionFor(flat)).toBe('20 Forthlin Road · Flat roof · 10 panels · Sample');
+  });
+
+  it('draws a hipped roof and an L-shaped house', async () => {
+    for (const spec of [HIP_SPEC, L_SPEC]) {
+      const p = roofPlanFor(spec, { panelCount: 4, reliable: true })!;
+      const t = await text(await render((pdf) => drawRoofPlan(pdf, p, BOX, THEME)));
+      expect(t).toContain('SOUTH ROOF · 35° · 4 PANELS');
+    }
+  });
+
+  it('leaves a box too small for a drawing at its caption', async () => {
     const t = await text(
       await render((pdf) => drawRoofPlan(pdf, plan()!, { x: 40, y: 80, w: 90, h: 40 }, THEME)),
     );
-    expect(t).toContain('ROOF PLAN');
-    expect(t).not.toContain('EAVE');
-    expect(t).not.toContain('RAFTER');
+    expect(t).toContain('SOUTH ROOF');
   });
 });
 

@@ -326,11 +326,7 @@ describe('cover page', () => {
     const buf = await cover(docFor({ roofPlan: plan }));
     const pages = await pdfText(buf);
     expect(pages).toHaveLength(1);
-    expect(pages[0]).toContain('ROOF PLAN');
-    expect(pages[0]).toContain('SAMPLE');
-    expect(pages[0]).toContain('EAVE');
-    expect(pages[0]).toContain('RAFTER');
-    expect(pages[0]).not.toContain('OVERALL');
+    expect(pages[0]).toContain('20 FORTHLIN ROAD · SOUTH ROOF · 42° · 10 PANELS · SAMPLE');
     // Every line of text is set level: no rotated labels.
     for (const item of (await pdfItems(buf))[0]!.filter((i) => i.str.trim() !== '')) {
       const [a, b, c] = item.transform;
