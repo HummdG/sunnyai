@@ -12,9 +12,18 @@ import type {
   FlowStep,
   LeadFlowAnswer,
   LogoEffect,
+  QuotationSettings,
 } from '@sunny/contracts';
 
-export type { ConversationFlow, FlowChoice, FlowEffect, FlowFollowUp, FlowStep, LogoEffect };
+export type {
+  ConversationFlow,
+  FlowChoice,
+  FlowEffect,
+  FlowFollowUp,
+  FlowStep,
+  LogoEffect,
+  QuotationSettings,
+};
 export type Role = 'viewer' | 'sales' | 'admin' | 'owner';
 export type AddonKey = 'web_chat' | 'email_assistant';
 export type Channel = 'chat' | 'email';
@@ -76,7 +85,7 @@ export interface BrandColors {
 /** An uploaded logo image. `url` and `maskUrl` are portal paths, read through the proxy. */
 export interface BrandAssetView {
   id: string;
-  kind: 'icon' | 'wordmark';
+  kind: 'icon' | 'wordmark' | 'pdf-logo' | 'accreditation';
   width: number;
   height: number;
   outline: string | null;
@@ -422,4 +431,92 @@ export function suggestPriceChanges(
   question: { prompt: string; choices: Array<{ value: string; label: string }> },
 ): Promise<PriceSuggestion> {
   return api<PriceSuggestion>(conversationPath(tenantId, '/suggest'), { body: question });
+}
+
+// ── the quotation PDF (Studio's "Your quotation") ──────────────────────────
+
+/** The API's limits (`QUOTATION_LIMITS` in @sunny/contracts), kept here so zod stays out of the page. */
+export const QUOTATION_LIMITS = {
+  terms: 40000,
+  line: 200,
+  accreditationLogos: 8,
+  validityMin: 1,
+  validityMax: 365,
+  percentMin: 1,
+  percentMax: 100,
+  fixedMin: 1,
+  fixedMax: 1000000,
+} as const;
+
+/** What PUT and the preview take: the settings without the server's version and time. */
+export type QuotationInput = Omit<QuotationSettings, 'version' | 'updatedAt'>;
+
+export interface QuotationView {
+  settings: QuotationSettings;
+  /** False until the installer first saves: the settings are then the defaults. */
+  saved: boolean;
+  assets: { logo: BrandAssetView | null; accreditations: BrandAssetView[] };
+  /** The saved colours as the PDF uses them, and whether a chosen one was adjusted. */
+  colourNotes: {
+    rail: { hex: string; adjusted: boolean };
+    accent: { hex: string; adjusted: boolean };
+  };
+}
+
+const quotationPath = (tenantId: string, rest = '') => tenantPath(tenantId, `/quotation${rest}`);
+
+export function getQuotation(tenantId: string): Promise<QuotationView> {
+  return api<QuotationView>(quotationPath(tenantId));
+}
+
+export function saveQuotation(tenantId: string, settings: QuotationInput): Promise<QuotationView> {
+  return api<QuotationView>(quotationPath(tenantId), { method: 'PUT', body: { settings } });
+}
+
+/** A PDF answer, or why there is none: `retryAfterSec` is set when the limit was reached. */
+export type PdfResult =
+  | { ok: true; blob: Blob; fileName: string | null }
+  | { ok: false; status: number; message: string; retryAfterSec: number | null };
+
+async function pdfFrom(response: Response): Promise<PdfResult> {
+  if (response.ok) {
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const named = /filename="?([^";]+)"?/i.exec(disposition);
+    return { ok: true, blob: await response.blob(), fileName: named?.[1] ?? null };
+  }
+  const body = (await response.json().catch(() => null)) as {
+    error?: { message?: string };
+  } | null;
+  const retry = Number(response.headers.get('retry-after'));
+  return {
+    ok: false,
+    status: response.status,
+    message: body?.error?.message ?? `Request failed (${response.status})`,
+    retryAfterSec: response.status === 429 ? (retry > 0 ? retry : 20) : null,
+  };
+}
+
+/** The real PDF, drawn from a sample quote with these (unsaved) settings. */
+export async function previewQuotation(
+  tenantId: string,
+  settings: QuotationInput,
+  signal?: AbortSignal,
+): Promise<PdfResult> {
+  const response = await fetch(`/api/portal${quotationPath(tenantId, '/preview')}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { [CSRF_HEADER]: '1', 'content-type': 'application/json' },
+    body: JSON.stringify({ settings }),
+    ...(signal ? { signal } : {}),
+  });
+  return pdfFrom(response);
+}
+
+/** The sample PDF with the saved settings, as a download. */
+export async function sampleQuotation(tenantId: string): Promise<PdfResult> {
+  const response = await fetch(`/api/portal${quotationPath(tenantId, '/sample.pdf')}`, {
+    credentials: 'same-origin',
+    headers: { [CSRF_HEADER]: '1' },
+  });
+  return pdfFrom(response);
 }

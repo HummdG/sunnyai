@@ -1916,3 +1916,344 @@
 .dash .preview-type .field {
   margin: 0;
 }
+
+/* ── Studio: "Your quotation" (the settings, and the real PDF beside them) ── */
+
+.dash .quote-tab {
+  display: grid;
+  gap: 12px;
+}
+.dash .quote-tab .ok-note,
+.dash .quote-tab .error-note {
+  margin: 0;
+}
+.dash .quote-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1099px) {
+  .dash .quote-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.dash .quote-form {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.dash .quote-settings {
+  display: grid;
+  gap: 12px;
+}
+.dash .quote-card {
+  background: #fff;
+  border: 1px solid #ece5d8;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  min-width: 0;
+}
+.dash .quote-card h3 {
+  font-size: 0.95rem;
+  margin: 0 0 4px;
+}
+.dash .quote-card > .hint,
+.dash .quote-card .hint {
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  margin: 0 0 10px;
+}
+.dash .quote-card .field .hint {
+  margin: 0;
+}
+.dash .quote-card .field {
+  margin-bottom: 10px;
+}
+.dash .quote-card .field.compact {
+  margin: 0;
+}
+.dash .quote-card .field input,
+.dash .quote-card .field textarea {
+  padding: 8px 12px;
+  border-color: #e0d8ca;
+  background: #fffdf9;
+}
+.dash .quote-form:disabled input,
+.dash .quote-form:disabled textarea {
+  color: var(--muted-text);
+  cursor: not-allowed;
+}
+.dash .quote-label {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+.dash .quote-problem {
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+.dash .quote-card [aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+/* Logo */
+.dash .quote-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.dash .quote-logo-name {
+  width: 132px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  background: var(--sunny-brand-orange-pale);
+  border: 1px dashed #f0c49a;
+  color: var(--text-orange);
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 4px 8px;
+  overflow: hidden;
+  font-size: 0.85rem;
+  line-height: 1.15;
+}
+.dash .quote-logo-actions {
+  display: grid;
+  gap: 6px;
+}
+.dash .link-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Accreditations */
+.dash .quote-accreditations-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.dash .quote-accreditations {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.dash .quote-accreditations li {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+.dash .quote-accreditations .brand-thumb.wide {
+  width: 88px;
+  height: 52px;
+}
+
+/* What the PDF includes: one row per page, with its switch. */
+.dash .quote-secs {
+  display: grid;
+}
+.dash .quote-sec.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 2px;
+  border-top: 1px solid #f2ece2;
+  min-height: 0;
+}
+.dash .quote-sec.toggle:first-child {
+  border-top: 0;
+}
+.dash .quote-sec[data-locked] {
+  cursor: default;
+}
+.dash .quote-sec[data-locked] input:checked + .toggle-track {
+  background: #f0c49a;
+}
+.dash .quote-sec[data-locked] input:disabled + .toggle-track {
+  opacity: 1;
+}
+.dash .quote-sec-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+}
+.dash .quote-sec-sub {
+  display: block;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: #7a7368;
+}
+.dash .quote-lock {
+  font-size: 0.78rem;
+  color: #9a4a00;
+  white-space: nowrap;
+}
+
+/* Deposit and validity */
+.dash .quote-deposit {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  margin-bottom: 10px;
+}
+@media (max-width: 560px) {
+  .dash .quote-deposit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.dash .quote-deposit .flow-seg {
+  justify-self: start;
+}
+.dash .quote-deposit .flow-seg button {
+  white-space: nowrap;
+  padding: 5px 12px;
+  font-size: 0.85rem;
+}
+.dash .quote-deposit .flow-seg button:disabled {
+  cursor: not-allowed;
+}
+.dash .quote-unit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+}
+.dash .quote-unit input {
+  width: 110px;
+}
+
+/* Colours */
+.dash .quote-colour {
+  border: 0;
+  padding: 0;
+  margin: 0 0 12px;
+  min-width: 0;
+}
+.dash .quote-colour:last-child {
+  margin-bottom: 0;
+}
+.dash .quote-colour legend {
+  font-weight: 650;
+  font-size: 0.92rem;
+  padding: 0;
+  margin-bottom: 2px;
+}
+.dash .quote-colour .hint {
+  margin-bottom: 6px;
+}
+.dash .quote-colour-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dash .quote-colour-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.85rem;
+}
+.dash .quote-colour-brand input {
+  accent-color: var(--text-orange);
+}
+.dash .quote-colour input[type='color'] {
+  width: 40px;
+  height: 28px;
+  border: 1px solid #e0d8ca;
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  background: #fff;
+}
+.dash .quote-colour input[type='color']:disabled {
+  opacity: 0.45;
+}
+.dash .quote-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(23, 23, 23, 0.15);
+}
+.dash .quote-adjusted {
+  margin-top: 6px;
+  color: #9a4a00;
+}
+
+/* Your terms and conditions */
+.dash .quote-card textarea.quote-terms {
+  min-height: 180px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.dash .quote-count {
+  margin-top: 4px;
+  text-align: right;
+}
+
+/* The preview: sticky beside the settings, the real PDF in an A4 frame. */
+.dash .quote-preview {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+@media (max-width: 1099px) {
+  .dash .quote-preview {
+    position: static;
+  }
+}
+.dash .quote-preview-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+.dash .quote-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dash .quote-chips button {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid #e0d8ca;
+  background: #fff;
+  color: var(--sunny-ink);
+  cursor: pointer;
+}
+.dash .quote-chips button[aria-pressed='true'] {
+  border-color: #e8590c;
+  color: var(--text-orange);
+  font-weight: 700;
+}
+.dash .quote-preview-note {
+  margin: 0;
+}
+.dash .quote-sheet {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  aspect-ratio: 1 / 1.414;
+  max-height: calc(100vh - 120px);
+  overflow: hidden;
+  display: grid;
+}
+.dash .quote-sheet iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.dash .quote-sheet-wait {
+  place-self: center;
+}
