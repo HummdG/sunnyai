@@ -33,16 +33,10 @@ export function drawCover(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
   // ---- main column
   const x = MAIN_X;
   const w = MAIN_W;
-  let y = label(
-    pdf,
-    `Solar proposal · ${longDate(new Date(doc.quote.createdAt))}`,
-    x,
-    CONTENT.top,
-    {
-      width: w,
-      color: theme.muted,
-    },
-  );
+  let y = label(pdf, `Estimate · ${longDate(new Date(doc.quote.createdAt))}`, x, CONTENT.top, {
+    width: w,
+    color: theme.muted,
+  });
   const h = headline(doc);
   y = para(pdf, h.kicker, x, y + 14, { font: 'sans-600', size: 10, color: theme.accent, width: w });
   if (h.light) {

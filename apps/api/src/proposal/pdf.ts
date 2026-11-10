@@ -57,7 +57,7 @@ export async function renderProposal(doc: ProposalDoc): Promise<Buffer> {
     margin: PAGE.margin,
     bufferPages: true,
     info: {
-      Title: `Solar proposal for ${forWhom}`,
+      Title: `Solar estimate for ${forWhom}`,
       Author: snap.companyName,
       Creator: 'Sunny',
       // The quote's date, so the same quote always renders the same bytes.
