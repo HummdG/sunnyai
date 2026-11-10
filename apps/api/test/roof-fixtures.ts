@@ -73,3 +73,19 @@ export const HIP_SPEC = specWith([
     eave: 5,
   },
 ]);
+
+/** The sample as a semi: its first attached neighbour gone, the other kept. */
+export const SEMI_SPEC: unknown = (() => {
+  const base = SAMPLE as Record<string, unknown> & {
+    context: { neighbours: { attached?: boolean }[] };
+  };
+  const first = base.context.neighbours.findIndex((n) => n.attached);
+  return {
+    ...base,
+    builtForm: 'semi-detached',
+    context: {
+      ...base.context,
+      neighbours: base.context.neighbours.filter((_, i) => i !== first),
+    },
+  };
+})();
