@@ -2,6 +2,8 @@ import { EMPTY_KNOWLEDGE, type KnowledgeIndex } from '@sunny/knowledge';
 import type { QuoteCard, WorkflowSet } from '@sunny/contracts';
 import type { AssessmentSummary, SunScanService, SunScanStatus } from '@sunny/sunscan-adapter';
 
+import { isDeepStrictEqual } from 'node:util';
+
 import { newId, type ConversationTurn, type ModelCall, type Store } from '../store.js';
 import type { Auditor } from '../audit.js';
 import { flowForTenant } from '../flow/tenant.js';
@@ -9,6 +11,7 @@ import type { ResolvedFlow } from '../flow/resolve.js';
 import {
   DISCOVERY_ID,
   available,
+  cloneSession,
   markResumeOffered,
   settle,
   type WorkflowSession,
@@ -105,7 +108,10 @@ export interface TurnInput {
   quote?: QuoteToolContext;
   /** The tenant's workflows; absent means read from the tenant now. */
   workflows?: WorkflowSet;
-  /** Where this visitor is among the workflows; absent means a fresh session. */
+  /**
+   * Where this visitor is among the workflows, as stored (unsettled: the turn
+   * settles it, and saves a pause that settling made). Absent means read it now.
+   */
   session?: WorkflowSession;
   /**
    * The host page's path, already normalised. Absent means the page the
@@ -338,8 +344,10 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     }
   };
   const toolsUsed: string[] = [];
-  // Whether the visitor was given the current question's buttons this turn.
+  // Whether the visitor was given the current question's buttons, or the quote
+  // cards, this turn: either way there is nothing for the server to re-offer.
   let repliesSent = false;
+  let quoteSent = false;
   // The channel's allowlist is the declared surface: a tool outside it is
   // neither offered to the model nor run if the model names it anyway.
   const declaredTools = allowedTools;
@@ -402,6 +410,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
           disclaimerSent = true;
         }
         if (event.type === 'quick_replies') repliesSent = true;
+        if (event.type === 'quote') quoteSent = true;
         yield event;
       }
       if (chunk.type === 'text') {
@@ -433,6 +442,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
         disclaimerSent = true;
       }
       if (event.type === 'quick_replies') repliesSent = true;
+      if (event.type === 'quote') quoteSent = true;
       yield event;
     }
   }
@@ -443,6 +453,8 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   if (
     workflowsOn &&
     !repliesSent &&
+    !quoteSent &&
+    !input.signal?.aborted &&
     (ctx.session.active !== null || ctx.session.discovery.status === 'asking')
   ) {
     try {
@@ -577,7 +589,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       }
     }
     if (next.lastPath !== pagePath) next = { ...next, lastPath: pagePath };
-    if (JSON.stringify(next) !== JSON.stringify(stored)) {
+    if (!sameSession(next, stored)) {
       await input.store.saveWorkflowState(input.tenant.id, input.sessionId, next);
     }
   }
@@ -589,6 +601,22 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     tools: toolsUsed,
     ...(usage ? { usage } : {}),
   };
+}
+
+/**
+ * Whether two sessions hold the same state, whatever order their keys are in.
+ * Both are copied first, so an optional field left undefined counts as absent.
+ */
+function sameSession(a: WorkflowSession, b: WorkflowSession): boolean {
+  const x = cloneSession(a);
+  const y = cloneSession(b);
+  return (
+    isDeepStrictEqual(x.active, y.active) &&
+    isDeepStrictEqual(x.paused, y.paused) &&
+    isDeepStrictEqual(x.completed, y.completed) &&
+    isDeepStrictEqual(x.discovery, y.discovery) &&
+    x.lastPath === y.lastPath
+  );
 }
 
 function drain(events: ToolEvent[], messageId: string): TurnEvent[] {

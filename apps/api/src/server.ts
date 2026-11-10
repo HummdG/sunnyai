@@ -95,7 +95,6 @@ import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
 import { flowFieldsFor } from './flow/answers.js';
 import { flowForTenant } from './flow/tenant.js';
-import { settle } from './workflows/session.js';
 import { workflowsForTenant } from './workflows/tenant.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
@@ -737,11 +736,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         // instead of a bare 500 the widget's transport has no case for.
         const knowledge = await loadKnowledgeIndex(tenantSnapshot.id);
         // Read once here and handed down, so the turn does not read it again.
+        // Handed down as stored: the turn settles it, and saves what settling
+        // changed (a workflow the installer has since turned off is paused).
         const { set: workflows } = workflowsForTenant(tenantSnapshot);
-        const session = settle(
-          await store.getWorkflowState(tenantSnapshot.id, sessionIdSnapshot),
-          workflows,
-        );
+        const session = await store.getWorkflowState(tenantSnapshot.id, sessionIdSnapshot);
         // A message that names no page is on the page the session last named.
         const pagePath = sentPath ?? session.lastPath;
         for await (const event of runTurn({

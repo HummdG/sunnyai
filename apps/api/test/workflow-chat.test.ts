@@ -8,6 +8,7 @@ import type { Workflow, WorkflowSet } from '@sunny/contracts';
 
 import { runTurn, type TurnEvent } from '../src/agent/agent.js';
 import type { ChatChunk } from '../src/agent/provider.js';
+import { demoPricing } from '../src/journey/pricing.js';
 import { FileStore } from '../src/store.js';
 import { DEMO_TENANT, type Tenant } from '../src/tenants.js';
 import { EMPTY_SESSION, cloneSession, type WorkflowSession } from '../src/workflows/session.js';
@@ -77,7 +78,13 @@ let turnNo = 0;
 async function turn(
   store: FileStore,
   script: ChatChunk[],
-  opts: { tenant?: Tenant; pagePath?: string | null; message?: string } = {},
+  opts: {
+    tenant?: Tenant;
+    pagePath?: string | null;
+    message?: string;
+    quoted?: boolean;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<{ events: TurnEvent[]; message: string }> {
   const provider = new ScriptedProvider(() => script);
   const events: TurnEvent[] = [];
@@ -91,6 +98,10 @@ async function turn(
     message: opts.message ?? 'hello',
     clientMessageId: `c_${turnNo++}`,
     sunscanConnected: false,
+    ...(opts.quoted
+      ? { quote: { pricing: { forTenant: () => Promise.resolve(demoPricing()) } } }
+      : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.pagePath !== undefined ? { pagePath: opts.pagePath } : {}),
   })) {
     events.push(event);
@@ -261,6 +272,65 @@ describe('workflows in a chat turn', () => {
       message: 'Could I GET A QUOTE please?',
     });
     expect(stateBlock(message)).toMatch(/likely: wf_solar/);
+  });
+});
+
+const SOLAR_REQUIRED = {
+  motivation: 'reduce_bills',
+  property_type: 'detached',
+  ownership: 'own',
+  address: '164 Norwich Drive, Norwich NR4 7TJ',
+  roof_size: 'medium',
+  roof_direction: 'south',
+  roof_shading: 'none',
+  usage_source: 'household',
+  household_size: '3',
+  lifestyle: 'evening_use',
+  tariff_type: 'standard',
+  existing_system: 'none',
+  budget_band: 'skipped',
+  finance_interest: 'no',
+};
+
+describe('backstops', () => {
+  it('adds no stale buttons or second ask to a turn that showed the quote', async () => {
+    const store = await tempStore();
+    await withSession(store, solarActive);
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+    const { events } = await turn(
+      store,
+      [{ type: 'tool_started', call: { name: 'get_quote_options', args: {} } }],
+      { quoted: true, message: 'show me the options' },
+    );
+    expect(events.some((e) => e.type === 'quote')).toBe(true);
+    expect(replies(events)).toHaveLength(0);
+    const finished = events.find(
+      (e): e is Extract<TurnEvent, { type: 'message_finished' }> => e.type === 'message_finished',
+    );
+    // Nothing is asked after the cards: the model's silence stays silence.
+    expect(finished?.text ?? '').toBe('');
+  });
+
+  it('saves the pause when the installer has turned the active workflow off', async () => {
+    const store = await tempStore();
+    await withSession(store, solarActive);
+    const set = setWith();
+    set.workflows[0]!.enabled = false;
+    await turn(store, [{ type: 'text', text: 'Hi.' }], { tenant: tenantWith(set) });
+    const session = await store.getWorkflowState(DEMO_TENANT.id, SESSION);
+    expect(session.active).toBeNull();
+    expect(session.paused.map((p) => p.workflowId)).toEqual(['wf_solar']);
+  });
+
+  it('adds no buttons to a turn the visitor walked away from', async () => {
+    const store = await tempStore();
+    await withSession(store, solarActive);
+    const abort = new AbortController();
+    abort.abort();
+    const { events } = await turn(store, [{ type: 'text', text: 'Panels last 25 years.' }], {
+      signal: abort.signal,
+    });
+    expect(replies(events)).toHaveLength(0);
   });
 });
 

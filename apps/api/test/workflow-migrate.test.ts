@@ -42,7 +42,7 @@ const FLOW: ConversationFlow = {
 };
 
 function tenantWith(config: Record<string, unknown>): Tenant {
-  return { ...DEMO_TENANT, config: { ...DEMO_TENANT.config, ...config } as Tenant['config'] };
+  return { ...DEMO_TENANT, config: { ...DEMO_TENANT.config, ...config } };
 }
 
 const leadWorkflow: Workflow = {

@@ -158,12 +158,13 @@ describe('the guardrail prompt', () => {
     expect(buildSystemInstruction(demo(), 'chat', 0)).toContain('You are Sunny, a customer');
   });
 
-  it('follows the fallback line through, and offers a survey as well as a quote', () => {
+  it('follows the fallback line through, and treats a survey as the quote journey', () => {
     // Seen live: "How do I get a survey?" got the fallback line and nothing
     // after it, so the visitor was offered a specialist and left there.
     const instruction = buildSystemInstruction(demo(), 'chat', 0);
     expect(instruction).toMatch(/After the fallback line, ask whether they would like/);
     expect(instruction).toMatch(/name and the best phone number or email/);
+    expect(instruction).toMatch(/wants a survey/);
     expect(instruction).toMatch(/arrange a quote or a survey/);
   });
 

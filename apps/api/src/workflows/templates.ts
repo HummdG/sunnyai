@@ -13,7 +13,7 @@ import {
 export const SOLAR_TEMPLATE_VERSION = 1;
 
 function preset(id: string, extra: { prompt?: string; optional?: boolean } = {}): FlowStep {
-  return { kind: 'preset', id, ...extra } as FlowStep;
+  return { kind: 'preset', id, ...extra };
 }
 
 export function solarTemplate(now: string): Workflow {
