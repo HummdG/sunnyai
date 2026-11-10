@@ -17,7 +17,9 @@
  * - A heading is a line under 80 characters that is in capitals, or that has
  *   no terminal punctuation and is followed by more text (not by a line that
  *   starts in lower case, which would be the same sentence carrying on).
- *   A numbered line in capitals (`1. DEFINITIONS`) is a heading, number kept.
+ *   A numbered line in capitals (`1. DEFINITIONS`) is a heading, number kept,
+ *   and so is a short unpunctuated numbered line above a paragraph that is
+ *   not part of a numbered list (`2. Survey`).
  * - Lines starting `1.`, `2)`, `1.2`, `a)`, `(a)`, `(iv)`, `-`, `•`, `◦` or `*`
  *   are items; the marker is kept. A number with a dot needs a space after it,
  *   so `3.5% interest` and `12.30pm` stay text.
@@ -38,6 +40,24 @@ const STARTS_LOWER = /^\p{Ll}/u;
 function isCaps(line: string): boolean {
   const letters = line.match(/\p{L}/gu) ?? [];
   return letters.length >= 2 && !/\p{Ll}/u.test(line);
+}
+
+/**
+ * A numbered line that titles what follows (`2. Survey` above a paragraph):
+ * short, unpunctuated, not part of a numbered list (no numbered item just
+ * before it or just after it) and followed by more text that is not its tail.
+ */
+function numberedHeading(
+  marker: string,
+  rest: string,
+  prev: TermsBlock | undefined,
+  next: { line: string; adjacent: boolean } | null,
+): boolean {
+  if (!/^\d/.test(marker) || rest === '' || TERMINAL.test(rest)) return false;
+  if (prev?.kind === 'item' && /^\d/.test(prev.marker)) return false;
+  if (!next || (next.adjacent && STARTS_LOWER.test(next.line))) return false;
+  const after = ITEM.exec(next.line);
+  return !(after && /^\d/.test(after[1]!));
 }
 
 export function parseTerms(text: string): TermsBlock[] {
@@ -80,6 +100,10 @@ export function parseTerms(text: string): TermsBlock[] {
         return;
       }
       flush();
+      if (short && numberedHeading(item[1]!, rest, out.at(-1), nextLine(i))) {
+        out.push({ kind: 'heading', text: line });
+        return;
+      }
       open = { kind: 'item', marker: item[1]!, parts: rest ? [rest] : [] };
       return;
     }

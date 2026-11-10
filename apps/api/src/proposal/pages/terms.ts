@@ -11,7 +11,7 @@ import type { ProposalDoc } from '../doc.js';
 import { CONTENT, label, type Theme } from '../layout.js';
 import { glyphSafe, parseTerms } from '../terms.js';
 
-import { FULL_W, FULL_X, pageTitle, plainPage } from './parts.js';
+import { FULL_W, FULL_X, pageTitle, plainPage, subHead } from './parts.js';
 
 type Pdf = PDFKit.PDFDocument;
 
@@ -39,37 +39,48 @@ function safe(pdf: Pdf, font: string, text: string): string {
 }
 
 /**
- * Greedy word wrap at `width` in the current font; a word wider than the
- * line is broken between characters.
+ * The first line of `text` that fits `width` in the current font, and the
+ * text left after it. A word wider than the line is broken between characters.
  */
-export function wrapLines(pdf: Pdf, text: string, width: number): string[] {
-  const lines: string[] = [];
-  let line = '';
+function takeLine(pdf: Pdf, text: string, width: number): [string, string] {
   const fits = (s: string) => pdf.widthOfString(s) <= width;
-  for (const word of text.split(' ').filter(Boolean)) {
+  let line = '';
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === ' ') {
+      i++;
+      continue;
+    }
+    let j = text.indexOf(' ', i);
+    if (j < 0) j = text.length;
+    const word = text.slice(i, j);
     const candidate = line ? `${line} ${word}` : word;
     if (fits(candidate)) {
       line = candidate;
+      i = j;
       continue;
     }
-    if (line) lines.push(line);
-    line = '';
-    if (fits(word)) {
-      line = word;
-      continue;
-    }
+    if (line) break;
     // Too long for any line: break it between characters.
     let piece = '';
     for (const ch of word) {
-      if (piece && !fits(piece + ch)) {
-        lines.push(piece);
-        piece = '';
-      }
+      if (piece && !fits(piece + ch)) break;
       piece += ch;
     }
-    line = piece;
+    return [piece, text.slice(i + piece.length)];
   }
-  if (line) lines.push(line);
+  return [line, text.slice(i)];
+}
+
+/** Greedy word wrap at `width` in the current font (see `takeLine`). */
+export function wrapLines(pdf: Pdf, text: string, width: number): string[] {
+  const lines: string[] = [];
+  let rest = text;
+  while (rest.trim() !== '') {
+    const [line, after] = takeLine(pdf, rest, width);
+    lines.push(line);
+    rest = after;
+  }
   return lines;
 }
 
@@ -81,32 +92,92 @@ export function hasTerms(doc: ProposalDoc): boolean {
   return doc.snapshot.terms.trim() !== '';
 }
 
-export function drawTerms(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
-  if (!hasTerms(doc)) return;
-  plainPage(pdf);
-  const top0 =
-    pageTitle(pdf, theme, `Terms and conditions · ${doc.reference}`, 'Terms and ', 'conditions') +
-    8;
+/** Where the terms start when they follow the quotation on its own continuation page. */
+export interface TermsStart {
+  x: number;
+  w: number;
+  y: number;
+}
 
-  let col = 0;
-  let top = top0;
-  let y = top;
-  const colX = () => FULL_X + col * (COL_W + GUTTER);
-  const advance = () => {
-    if (col === 0) {
-      col = 1;
-      y = top;
-      return;
-    }
-    pdf.addPage();
+interface Frame {
+  x: number;
+  w: number;
+  top: number;
+}
+
+const twoColumns = (top: number): Frame[] => [
+  { x: FULL_X, w: COL_W, top },
+  { x: FULL_X + COL_W + GUTTER, w: COL_W, top },
+];
+
+/**
+ * The terms, flowed through frames: on their own page, two columns (one full
+ * width column when they fit in it); after `start`, first one column there,
+ * then two columns on each page that follows.
+ */
+export function drawTerms(pdf: Pdf, doc: ProposalDoc, theme: Theme, start?: TermsStart): void {
+  if (!hasTerms(doc)) return;
+  const blocks = parseTerms(doc.snapshot.terms);
+  let frames: Frame[];
+  if (start && start.y + 60 <= CONTENT.bottom) {
+    const top = subHead(pdf, theme, 'Terms and conditions', start.x, start.y, start.w) + 10;
+    frames = [{ x: start.x, w: start.w, top }];
+  } else {
+    if (start) pdf.addPage();
     plainPage(pdf);
-    top =
-      label(pdf, `Terms and conditions, continued · ${doc.reference}`, FULL_X, CONTENT.top, {
-        width: FULL_W,
-        color: theme.muted,
-      }) + 10;
-    col = 0;
-    y = top;
+    const top =
+      pageTitle(pdf, theme, `Terms and conditions · ${doc.reference}`, 'Terms and ', 'conditions') +
+      8;
+    const oneColumn = flow(pdf, blocks, theme, [{ x: FULL_X, w: FULL_W, top }], () => null);
+    frames = oneColumn ? [{ x: FULL_X, w: FULL_W, top }] : twoColumns(top);
+  }
+  flow(
+    pdf,
+    blocks,
+    theme,
+    frames,
+    () => {
+      pdf.addPage();
+      plainPage(pdf);
+      const top =
+        label(pdf, `Terms and conditions, continued · ${doc.reference}`, FULL_X, CONTENT.top, {
+          width: FULL_W,
+          color: theme.muted,
+        }) + 10;
+      return twoColumns(top);
+    },
+    true,
+  );
+}
+
+/**
+ * Sets the blocks into `frames`, asking `more` for the next page's frames when
+ * they are full. Without `draw` it only measures: true when everything fits
+ * in the frames given, false as soon as it would need `more`.
+ */
+function flow(
+  pdf: Pdf,
+  blocks: ReturnType<typeof parseTerms>,
+  theme: Theme,
+  initial: Frame[],
+  more: () => Frame[] | null,
+  draw = false,
+): boolean {
+  const queue = [...initial];
+  let frame = queue.shift()!;
+  let y = frame.top;
+  let overflow = false;
+  const advance = () => {
+    if (queue.length === 0) {
+      const next = draw ? more() : null;
+      if (!next) {
+        overflow = true;
+        return;
+      }
+      queue.push(...next);
+    }
+    frame = queue.shift()!;
+    y = frame.top;
   };
   const lineH = (o: { font: string; size: number; lineGap: number }) => {
     pdf.font(o.font).fontSize(o.size);
@@ -114,42 +185,46 @@ export function drawTerms(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
   };
   const bodyH = lineH(BODY);
 
-  /** Sets `lines` from `y`, moving to the next column when full; the first line can carry a marker. */
-  const setLines = (
-    lines: string[],
+  /** Sets `text` from `y`, line by line, wrapping at each frame's width. */
+  const setText = (
+    text: string,
     o: { font: string; size: number; lineGap: number },
-    color: string,
     indent: number,
     marker?: { text: string; x: number },
   ) => {
     const h = lineH(o);
-    lines.forEach((ln, i) => {
+    let rest = text;
+    let firstLine = true;
+    do {
       if (y + h > CONTENT.bottom) advance();
-      pdf.font(o.font).fontSize(o.size).fillColor(color);
-      if (i === 0 && marker) {
-        pdf.text(marker.text, colX() + marker.x, y, { lineBreak: false });
+      if (overflow) return;
+      pdf.font(o.font).fontSize(o.size).fillColor(theme.ink);
+      const [line, after] = takeLine(pdf, rest, frame.w - indent);
+      if (draw) {
+        if (firstLine && marker) pdf.text(marker.text, frame.x + marker.x, y, { lineBreak: false });
+        pdf.text(line, frame.x + indent, y, { lineBreak: false });
       }
-      pdf.text(ln, colX() + indent, y, { lineBreak: false });
+      firstLine = false;
+      rest = after;
       y += h;
-    });
+    } while (rest.trim() !== '');
   };
 
   let first = true;
-  for (const block of parseTerms(doc.snapshot.terms)) {
+  for (const block of blocks) {
+    if (overflow) return false;
     if (block.kind === 'heading') {
       const text = safe(pdf, HEAD.font, block.text);
       pdf.fontSize(HEAD.size);
-      const lines = wrapLines(pdf, text, COL_W);
+      const lines = wrapLines(pdf, text, frame.w).length;
       const gap = first ? 0 : HEAD_GAP;
       // Keep a heading with at least two lines of what follows.
-      if (y + gap + lines.length * lineH(HEAD) + bodyH * 2 > CONTENT.bottom) advance();
-      else if (y !== top) y += gap;
-      setLines(lines, HEAD, theme.ink, 0);
+      if (y + gap + lines * lineH(HEAD) + bodyH * 2 > CONTENT.bottom) advance();
+      else if (y !== frame.top) y += gap;
+      setText(text, HEAD, 0);
       y += 1.5;
     } else if (block.kind === 'para') {
-      const text = safe(pdf, BODY.font, block.text);
-      pdf.fontSize(BODY.size);
-      setLines(wrapLines(pdf, text, COL_W), BODY, theme.ink, 0);
+      setText(safe(pdf, BODY.font, block.text), BODY, 0);
       y += PARA_GAP;
     } else {
       const nested = /^[\u25e6\u2023\u25cb]$/u.test(block.marker) ? 10 : 0;
@@ -157,13 +232,10 @@ export function drawTerms(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
       const text = safe(pdf, BODY.font, block.text);
       pdf.fontSize(BODY.size);
       const indent = nested + Math.max(ITEM_INDENT, pdf.widthOfString(marker) + 4);
-      const lines = wrapLines(pdf, text, COL_W - indent);
-      setLines(lines.length > 0 ? lines : [''], BODY, theme.ink, indent, {
-        text: marker,
-        x: nested,
-      });
+      setText(text === '' ? ' ' : text, BODY, indent, { text: marker, x: nested });
       y += PARA_GAP - 1.5;
     }
     first = false;
   }
+  return !overflow;
 }

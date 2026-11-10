@@ -88,6 +88,28 @@ describe('parseTerms', () => {
     });
   });
 
+  it('reads a short numbered title above a paragraph as a heading, not a list item', () => {
+    const paste = [
+      '1. Your quotation',
+      'It is valid for the period on its cover.',
+      '2. Payment',
+      '• The deposit is due after the survey.',
+      '3. Guarantees',
+      'Your installation is guaranteed.',
+    ].join('\n');
+    expect(parseTerms(paste).map((b) => b.kind)).toEqual([
+      'heading',
+      'para',
+      'heading',
+      'item',
+      'heading',
+      'para',
+    ]);
+    // A real numbered list stays a list.
+    const list = parseTerms('1. Panels\n2. Inverter\n3. Battery\nAll are included.');
+    expect(list.slice(0, 3).map((b) => b.kind)).toEqual(['item', 'item', 'item']);
+  });
+
   it('ends an unpunctuated bullet list at the heading and paragraph after it', () => {
     const paste = [
       'What we supply',
@@ -208,6 +230,39 @@ describe('terms page', () => {
     expect(hasTerms(docFor({}, undefined, snapshot({ terms: 'Pay on time.' })))).toBe(true);
     const pages = await pdfItems(await render((pdf) => drawTerms(pdf, blank, THEME)));
     expect(pages.flat().filter((i) => i.str.trim() !== '')).toEqual([]);
+  });
+
+  it('sets short terms in one full-width column', async () => {
+    const line =
+      'Your installation is covered by the manufacturer warranties listed in this quotation and by our own workmanship guarantee.';
+    const pages = await pdfItems(await terms(`Guarantees\n${line}`));
+    expect(pages).toHaveLength(1);
+    const body = pages[0]!.find((i) => i.str.startsWith('Your installation'))!;
+    // One line, wider than half the page: not squeezed into the left column.
+    expect(body.str).toBe(line);
+    expect(body.width).toBeGreaterThan(260);
+  });
+
+  it('starts beneath the quotation in its column when given a start, inside the bounds', async () => {
+    const text = Array.from(
+      { length: 60 },
+      (_, n) => `${n + 1}. CLAUSE ${n + 1}\nThe Customer shall allow access at reasonable times.`,
+    ).join('\n');
+    const buf = await render((pdf) =>
+      drawTerms(pdf, docFor({}, undefined, snapshot({ terms: text })), THEME, {
+        x: 212,
+        w: 343,
+        y: 500,
+      }),
+    );
+    const pages = await pdfItems(buf);
+    expect(pages.length).toBeGreaterThan(1);
+    // The first page's terms keep to the main column.
+    expect(pages[0]!.filter((i) => i.str.trim() !== '' && i.x < 211)).toEqual([]);
+    expect(outOfBounds(pages)).toEqual([]);
+    const t = (await pdfText(buf)).join(' ');
+    expect(t).toContain('CLAUSE 1 ');
+    expect(t).toContain('CLAUSE 60');
   });
 
   it('draws characters the fonts lack as a fallback, without throwing', async () => {

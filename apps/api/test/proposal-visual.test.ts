@@ -1,7 +1,10 @@
 /**
  * The visual check of the quotation: the sample PDF, with the default settings
- * and with every setting on, rasterised page by page. Set SUNNY_SHOTS_DIR to
- * keep the PNGs (under .cache/shots/quotation/) and look at them.
+ * and with every setting on, rasterised page by page.
+ *
+ * SUNNY_SHOTS_DIR is the directory the PNGs are written to, made if missing;
+ * unset, nothing is written. To look at them:
+ *   SUNNY_SHOTS_DIR=.cache/shots/quotation npx vitest run apps/api/test/proposal-visual.test.ts
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,7 +16,7 @@ import { PNG } from 'pngjs';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { MemoryBrandAssetStore } from '../src/branding/store.js';
-import { PAGE } from '../src/proposal/layout.js';
+import { CONTENT, PAGE } from '../src/proposal/layout.js';
 import { samplePdf } from '../src/proposal/sample.js';
 import { FileStore } from '../src/store.js';
 import { DEMO_TENANT } from '../src/tenants.js';
@@ -93,9 +96,8 @@ async function render(settings: QuotationSettings | undefined): Promise<Buffer> 
 async function shoot(buf: Buffer, name: string): Promise<number> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const { createCanvas } = await import('@napi-rs/canvas');
-  const out = process.env['SUNNY_SHOTS_DIR']
-    ? resolve(process.env['SUNNY_SHOTS_DIR'], '.cache/shots/quotation')
-    : null;
+  const dir = process.env['SUNNY_SHOTS_DIR'];
+  const out = dir ? resolve(dir) : null;
   if (out) mkdirSync(out, { recursive: true });
   const task = pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: false });
   const doc = await task.promise;
@@ -117,6 +119,42 @@ async function shoot(buf: Buffer, name: string): Promise<number> {
   return pages;
 }
 
+/**
+ * Per page: the text items, how much of the content band the text fills
+ * (0 to 1, from the top of the band to the lowest text in it), and whether it
+ * is a terms continuation page.
+ */
+async function pageFacts(buf: Buffer) {
+  return (await pdfItems(buf)).map((items) => {
+    const text = items.map((i) => i.str).join(' ');
+    let lowest: number = CONTENT.top;
+    for (const i of items) {
+      if (i.str.trim() === '') continue;
+      const bottom = PAGE.height - i.y;
+      if (bottom <= CONTENT.bottom + 1) lowest = Math.max(lowest, bottom);
+    }
+    return {
+      text,
+      used: (lowest - CONTENT.top) / (CONTENT.bottom - CONTENT.top),
+      termsContinued: /TERMS AND CONDITIONS, CONTINUED/.test(text),
+    };
+  });
+}
+
+/** The signature sits on the page with the estimated total, and no page is nearly empty. */
+async function expectWellLaidOut(buf: Buffer) {
+  const pages = await pageFacts(buf);
+  // Case matters: the rails print ESTIMATED TOTAL in capitals.
+  const signed = pages.findIndex((p) => /\bSigned\b/.test(p.text));
+  const total = pages.findIndex((p) => /Estimated total/.test(p.text));
+  expect(signed).toBeGreaterThan(-1);
+  expect(signed).toBe(total);
+  const sparse = pages
+    .map((p, i) => ({ page: i + 1, used: p.used, skip: p.termsContinued }))
+    .filter((p) => !p.skip && p.used < 0.25);
+  expect(sparse).toEqual([]);
+}
+
 /** Text items that lie, even partly, outside the page. */
 async function offPage(buf: Buffer): Promise<string[]> {
   const out: string[] = [];
@@ -136,13 +174,15 @@ describe('the quotation, looked at', () => {
     const buf = await render(undefined);
     expect(await shoot(buf, 'default')).toBe(5);
     expect(await offPage(buf)).toEqual([]);
+    await expectWellLaidOut(buf);
   }, 60_000);
 
   it('renders the sample with every setting on, all text on the page', async () => {
     const buf = await render(everything);
     const pages = await shoot(buf, 'everything');
     const text = (await pdfText(buf)).join(' ');
-    expect(pages).toBe(6);
+    expect(pages).toBeGreaterThan(1);
+    await expectWellLaidOut(buf);
     expect(text).toContain('Deposit, payable once your survey has confirmed the final price');
     expect(text).toContain('MCS NAP-12345');
     expect(text).toContain('Priya Shah');

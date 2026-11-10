@@ -4,7 +4,8 @@ import type { ProposalDoc } from './doc.js';
 import { PAGE, footer, header, registerFonts, themeFor, type PageContext } from './layout.js';
 import { drawCover } from './pages/cover.js';
 import { drawPerformance, PERFORMANCE_HAS_RAIL } from './pages/performance.js';
-import { drawQuotation } from './pages/quotation.js';
+import { MAIN_W, MAIN_X } from './pages/parts.js';
+import { drawQuotation, type QuotationEnd } from './pages/quotation.js';
 import { drawSavings, SAVINGS_HAS_RAIL } from './pages/savings.js';
 import { drawSystem, SYSTEM_HAS_RAIL } from './pages/system.js';
 import { drawTerms, hasTerms, TERMS_HAS_RAIL } from './pages/terms.js';
@@ -87,14 +88,23 @@ export async function renderProposal(doc: ProposalDoc): Promise<Buffer> {
   if (on.system) section(SYSTEM_HAS_RAIL, () => drawSystem(pdf, doc, theme, { othersHere: true }));
   if (on.performance) section(PERFORMANCE_HAS_RAIL, () => drawPerformance(pdf, doc, theme));
   if (on.savings) section(SAVINGS_HAS_RAIL, () => drawSavings(pdf, doc, theme));
-  section(true, () =>
-    drawQuotation(pdf, doc, theme, {
+  let end: QuotationEnd = { y: 0, continued: false };
+  section(true, () => {
+    end = drawQuotation(pdf, doc, theme, {
       mcsBlock: !on.performance,
       termsFollow: termsOn,
       othersHere: !on.system,
-    }),
-  );
-  if (termsOn) section(TERMS_HAS_RAIL, () => drawTerms(pdf, doc, theme));
+    });
+  });
+  if (termsOn && end.continued) {
+    // The quotation ran onto a page of its own: the terms start beneath it
+    // there, so that page is never left nearly empty.
+    const from = pageCount();
+    drawTerms(pdf, doc, theme, { x: MAIN_X, w: MAIN_W, y: end.y + 22 });
+    for (let i = from; i < pageCount(); i++) rail[i] = TERMS_HAS_RAIL;
+  } else if (termsOn) {
+    section(TERMS_HAS_RAIL, () => drawTerms(pdf, doc, theme));
+  }
 
   const ctx: PageContext = {
     companyName: snap.companyName,

@@ -548,9 +548,15 @@ describe('quotation page', () => {
       totalGbp: 100,
     }));
     const d = docFor({}, quote({}, { lineItems: many, priceGbp: 3000 }));
-    const buf = await quotation(d, { mcsBlock: true, termsFollow: true });
+    let end = { y: 0, continued: false };
+    const buf = await render((pdf) => {
+      end = drawQuotation(pdf, d, THEME, { mcsBlock: true, termsFollow: true });
+    });
     const pages = await pdfItems(buf);
     expect(pages.length).toBeGreaterThan(1);
+    // The terms start beneath it on the continuation page (pdf.ts), so no pointer line.
+    expect(end.continued).toBe(true);
+    expect(end.y).toBeLessThan(CONTENT.bottom);
     for (const page of pages) {
       for (const i of page) {
         if (i.str.trim() === '') continue;
@@ -559,7 +565,7 @@ describe('quotation page', () => {
     }
     const all = (await pdfText(buf)).join(' ');
     expect(all).toContain('Item number 30');
-    expect(all).toContain('Terms and conditions follow.');
+    expect(all).not.toContain('Terms and conditions follow.');
   });
 });
 

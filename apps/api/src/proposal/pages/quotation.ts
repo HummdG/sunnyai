@@ -1,9 +1,11 @@
 /**
  * The estimated quotation (always on): the title and the estimate notice, the
  * numbered items with their reasons, the estimated total, the deposit and
- * balance when the total is complete, the validity date, notes, the MCS block
- * when the Performance page is off, the acceptance block and the terms line.
- * Runs onto a continuation page (rail and all) when it does not fit on one.
+ * balance when the total is complete, the validity date and the acceptance
+ * block (kept together, so the signature never leaves the figures it signs
+ * for), then notes, the MCS block when the Performance page is off, the
+ * disclaimer and the terms line. Runs onto a continuation page (rail and all)
+ * when it does not fit on one; the terms then start beneath it (see pdf.ts).
  */
 
 import {
@@ -26,6 +28,12 @@ import { MAIN_W, MAIN_X, measure, para, railBrand, railItem, railPage, rule } fr
 import { drawOthers } from './others.js';
 
 type Pdf = PDFKit.PDFDocument;
+
+/** Where the quotation ended, and whether it ran onto a continuation page. */
+export interface QuotationEnd {
+  y: number;
+  continued: boolean;
+}
 
 interface Row {
   label: string;
@@ -73,7 +81,7 @@ export function drawQuotation(
   doc: ProposalDoc,
   theme: Theme,
   opts: { mcsBlock: boolean; termsFollow: boolean; othersHere?: boolean },
-): void {
+): QuotationEnd {
   const m = money(doc);
   drawRail(pdf, doc, theme, railPage(pdf, theme), m);
 
@@ -86,10 +94,12 @@ export function drawQuotation(
   const muted = theme.muted;
 
   let y = label(pdf, `Quotation · ${doc.reference}`, x, CONTENT.top, { width: w, color: muted });
+  let continued = false;
 
   /** Starts a continuation page when `h` more points will not fit. */
   const ensure = (h: number) => {
     if (y + h <= CONTENT.bottom) return;
+    continued = true;
     pdf.addPage();
     const col = railPage(pdf, theme);
     railBrand(pdf, doc, theme, col);
@@ -173,6 +183,18 @@ export function drawQuotation(
     rule(pdf, y, theme.rule);
   }
 
+  // ---- the figures and the signature, kept on one page when they fit on one
+  const small = { font: 'sans-400', size: 8.4, color: ink, width: w, lineGap: 1.5 };
+  const go = goAhead(doc);
+  const depositH =
+    m !== null && m.deposit !== null && m.balance !== null
+      ? 8 +
+        moneyRowH(pdf, ESTIMATE.depositLabel, `${depositBasis(doc)}, ${m.vatNote}`, w - 90) +
+        moneyRowH(pdf, `Balance, ${doc.snapshot.balanceDue}`, m.vatNote, w - 90)
+      : 0;
+  const acceptH = ACCEPT_H + measure(pdf, go, small);
+  ensure(48 + depositH + VALID_H + acceptH);
+
   // ---- total
   ensure(48);
   y += 6;
@@ -219,11 +241,7 @@ export function drawQuotation(
   // ---- deposit and balance, only with a complete total
   const moneyRow = (text: string, sub: string, value: string) => {
     const leftW = w - 90;
-    const h =
-      measure(pdf, text, { font: 'sans-400', size: 9, color: ink, width: leftW }) +
-      2 +
-      measure(pdf, sub, { font: 'sans-400', size: 7.8, color: muted, width: leftW }) +
-      12;
+    const h = moneyRowH(pdf, text, sub, leftW);
     ensure(h);
     const top = y + 6;
     const below = para(pdf, text, x, top, { font: 'sans-400', size: 9, color: ink, width: leftW });
@@ -245,20 +263,30 @@ export function drawQuotation(
     moneyRow(`Balance, ${doc.snapshot.balanceDue}`, m.vatNote, gbp(m.balance));
   }
 
-  ensure(24);
-  y = para(pdf, `Valid until ${longDate(doc.validUntil)}`, x, y + 12, {
+  ensure(VALID_H);
+  y = para(pdf, `Valid until ${longDate(doc.validUntil)}`, x, y + 10, {
     font: 'sans-600',
     size: 9,
     color: ink,
     width: w,
   });
 
+  // ---- acceptance
+  ensure(acceptH);
+  y = label(pdf, 'Acceptance', x, y + 12, { width: w, color: muted });
+  const lineY = y + 18;
+  const sign = { font: 'sans-400', size: 8.4, color: ink, width: 40 };
+  para(pdf, 'Signed', x, lineY - 9, sign);
+  rule(pdf, lineY, ink, 0.6, x + 36, w * 0.56 - 36);
+  para(pdf, 'Date', x + w * 0.64, lineY - 9, sign);
+  rule(pdf, lineY, ink, 0.6, x + w * 0.64 + 28, w * 0.36 - 28);
+  y = para(pdf, go, x, lineY + 10, small);
+
   // ---- notes
-  const small = { font: 'sans-400', size: 8.4, color: ink, width: w, lineGap: 1.5 };
   const list = notes(doc);
   if (list.length > 0) {
-    ensure(26 + measure(pdf, list[0]!, small));
-    y = label(pdf, 'Notes', x, y + 16, { width: w, color: muted }) + 2;
+    ensure(24 + measure(pdf, list[0]!, small));
+    y = label(pdf, 'Notes', x, y + 12, { width: w, color: muted }) + 2;
     for (const n of list) {
       ensure(measure(pdf, n, small) + 4);
       y = para(pdf, n, x, y, small) + 4;
@@ -268,8 +296,8 @@ export function drawQuotation(
   // ---- MCS, when the Performance page is off
   if (opts.mcsBlock) {
     const mcsText = { ...small, size: 7.8, color: muted };
-    ensure(50 + measure(pdf, MCS_DISCLAIMER, mcsText));
-    y = label(pdf, 'MCS performance estimate', x, y + 14, { width: w, color: muted }) + 2;
+    ensure(40 + measure(pdf, MCS_DISCLAIMER, mcsText));
+    y = label(pdf, 'MCS performance estimate', x, y + 10, { width: w, color: muted }) + 2;
     para(pdf, 'Estimated annual generation', x, y, { ...small, width: w - 150 });
     y = para(pdf, `${num(Math.round(doc.option.annualGenerationKwh))} kWh a year`, x + w - 150, y, {
       font: 'sans-600',
@@ -278,7 +306,7 @@ export function drawQuotation(
       width: 150,
       align: 'right',
     });
-    y = para(pdf, MCS_DISCLAIMER, x, y + 4, mcsText);
+    y = para(pdf, MCS_DISCLAIMER, x, y + 3, mcsText);
   }
 
   // ---- other options, when Your system is off
@@ -290,24 +318,32 @@ export function drawQuotation(
     });
   }
 
-  // ---- acceptance
-  const go = goAhead(doc);
-  ensure(70 + measure(pdf, go, small));
-  y = label(pdf, 'Acceptance', x, y + 14, { width: w, color: muted });
-  const lineY = y + 20;
-  const sign = { font: 'sans-400', size: 8.4, color: ink, width: 40 };
-  para(pdf, 'Signed', x, lineY - 9, sign);
-  rule(pdf, lineY, ink, 0.6, x + 36, w * 0.56 - 36);
-  para(pdf, 'Date', x + w * 0.64, lineY - 9, sign);
-  rule(pdf, lineY, ink, 0.6, x + w * 0.64 + 28, w * 0.36 - 28);
-  y = para(pdf, go, x, lineY + 12, small);
-
   const fine = { font: 'sans-400', size: 7.6, color: muted, width: w, lineGap: 1 };
-  ensure(measure(pdf, doc.quote.disclaimer, fine) + 30);
-  y = para(pdf, doc.quote.disclaimer, x, y + 12, fine);
-  if (opts.termsFollow) {
-    para(pdf, 'Terms and conditions follow.', x, y + 6, { ...fine, font: 'sans-600', color: ink });
+  ensure(measure(pdf, doc.quote.disclaimer, fine) + 14);
+  y = para(pdf, doc.quote.disclaimer, x, y + 10, fine);
+  // On a continuation page the terms start right here instead (see pdf.ts).
+  if (opts.termsFollow && !continued) {
+    ensure(16);
+    y = para(pdf, 'Terms and conditions follow.', x, y + 6, {
+      ...fine,
+      font: 'sans-600',
+      color: ink,
+    });
   }
+  return { y, continued };
+}
+
+/** Space the validity line takes; and the acceptance block, less its go-ahead line. */
+const VALID_H = 22;
+const ACCEPT_H = 52;
+
+function moneyRowH(pdf: Pdf, text: string, sub: string, width: number): number {
+  return (
+    measure(pdf, text, { font: 'sans-400', size: 9, color: '', width }) +
+    2 +
+    measure(pdf, sub, { font: 'sans-400', size: 7.8, color: '', width }) +
+    12
+  );
 }
 
 function drawRail(
