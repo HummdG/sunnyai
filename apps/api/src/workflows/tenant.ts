@@ -9,6 +9,7 @@
  */
 
 import {
+  ApiError,
   conversationFlowSchema,
   workflowSetSchema,
   type ConversationFlow,
@@ -80,4 +81,31 @@ export function resolvedFlowFor(workflow: Workflow): ResolvedFlow {
     return resolveFlow(flow, legacy ? LEGACY_SOLAR : bankFor('solar'));
   }
   return resolveFlow(flow, bankFor(outcome.kind === 'quote' ? outcome.engine : 'lead'));
+}
+
+/**
+ * The tenant with its workflow set changed by `change`, for `tenants.update`.
+ * Starts from what the tenant has stored, or from the migrated set when it has
+ * never saved one (that is the migration's first save). The set's version and
+ * time are bumped, the result must parse, and it is written without undefined
+ * fields (Firestore refuses them). Pure, so it is safe in a retried `mutate`.
+ */
+export function withWorkflowSet<T extends Pick<Tenant, 'id' | 'config'>>(
+  current: T,
+  now: string,
+  change: (set: WorkflowSet) => WorkflowSet,
+): { tenant: T; set: WorkflowSet } {
+  const { set } = workflowsForTenant(current);
+  const changed = change(structuredClone(set));
+  const next = JSON.parse(
+    JSON.stringify({ ...changed, version: set.version + 1, updatedAt: now }),
+  ) as unknown;
+  const parsed = workflowSetSchema.safeParse(next);
+  if (!parsed.success) {
+    throw new ApiError('bad_request', 'That workflow is not valid. Check each step.');
+  }
+  return {
+    tenant: { ...current, config: { ...current.config, workflows: parsed.data } },
+    set: parsed.data,
+  };
 }

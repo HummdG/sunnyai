@@ -74,6 +74,7 @@ import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/port
 import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
 import { registerQuotationRoutes } from './routes/quotation.js';
 import { registerConversationRoutes } from './routes/conversation.js';
+import { registerWorkflowRoutes } from './routes/workflows.js';
 import { pinBrandAssets } from './branding/meta.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
@@ -2177,7 +2178,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   // The installer's quote conversation in Studio (routes/conversation.ts).
-  registerConversationRoutes(app, {
+  const flowRouteDeps = {
     store,
     tenants,
     portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
@@ -2185,7 +2186,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     getProvider,
     enforceRateLimit,
-  });
+  };
+  registerConversationRoutes(app, flowRouteDeps);
+  // Studio's workflow builder (routes/workflows.ts).
+  registerWorkflowRoutes(app, flowRouteDeps);
 
   // The Email Assistant add-on (routes/email.ts).
   emailHooks = registerEmailRoutes(app, {

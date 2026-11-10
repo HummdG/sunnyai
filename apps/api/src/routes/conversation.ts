@@ -4,13 +4,21 @@
  * preview what a set of answers would do, and suggest each answer's price
  * changes. Every plan; admin and owner edit, viewer reads. Prices come only
  * from the published price list.
+ *
+ * Once the installer has saved workflows, this is a view of the solar workflow
+ * (`wf_solar`): its steps without the leading address question, which this
+ * editor treats as fixed. Before then it reads and writes the stored
+ * conversation exactly as it always has.
  */
 
 import {
   ApiError,
+  BUILTIN_WORKFLOW_IDS,
   FLOW_LIMITS,
   conversationFlowSchema,
   type ConversationFlow,
+  type FlowStep,
+  type WorkflowSet,
 } from '@sunny/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -24,7 +32,9 @@ import { resolveFlow } from '../flow/resolve.js';
 import { suggestEffects } from '../flow/suggest.js';
 import type { RateLimitRule } from '../ratelimit.js';
 import type { MemberRole, Store } from '../store.js';
-import type { TenantRegistry } from '../tenants.js';
+import type { Tenant, TenantRegistry } from '../tenants.js';
+import { resetToTemplate, solarTemplate } from '../workflows/templates.js';
+import { withWorkflowSet, workflowsForTenant } from '../workflows/tenant.js';
 import {
   describeEffect,
   presetViews,
@@ -54,9 +64,9 @@ export interface ConversationRouteDeps {
  * Suggestions per installer: Studio asks once a question stops changing, so a
  * busy editing session asks a few dozen times at most.
  */
-const SUGGEST_RULE: RateLimitRule = { limit: 120, windowMs: 10 * 60_000 };
+export const SUGGEST_RULE: RateLimitRule = { limit: 120, windowMs: 10 * 60_000 };
 
-const suggestBody = z.object({
+export const suggestBody = z.object({
   prompt: z.string().trim().min(1).max(FLOW_LIMITS.promptChars),
   choices: z
     .array(
@@ -112,9 +122,27 @@ export function registerConversationRoutes(
     return parsed.success ? parsed.data : null;
   }
 
+  const SOLAR_ID = BUILTIN_WORKFLOW_IDS.solar_quote;
+  const ADDRESS: FlowStep = { kind: 'preset', id: 'address' };
+  const isAddress = (s: FlowStep | undefined) => s?.kind === 'preset' && s.id === 'address';
+
+  /** The solar workflow as this editor's flow, or null when the set has none. */
+  function solarFlow(set: WorkflowSet): ConversationFlow | null {
+    const solar = set.workflows.find((w) => w.id === SOLAR_ID);
+    if (!solar) return null;
+    const steps = isAddress(solar.steps[0]) ? solar.steps.slice(1) : solar.steps;
+    return { version: solar.version, updatedAt: solar.updatedAt, steps };
+  }
+
+  /** What the editor shows: the solar workflow once workflows are saved, else the stored flow. */
+  function currentFlow(tenant: Pick<Tenant, 'id' | 'config'>): ConversationFlow | null {
+    if (tenant.config.workflows == null) return storedFlow(tenant.config);
+    return solarFlow(workflowsForTenant(tenant).set);
+  }
+
   app.get('/v1/portal/tenants/:tenantId/conversation', async (request) => {
     const tenant = await member(request, 'viewer');
-    return view(tenant.id, storedFlow(tenant.config));
+    return view(tenant.id, currentFlow(tenant));
   });
 
   app.put('/v1/portal/tenants/:tenantId/conversation', async (request, reply) => {
@@ -142,6 +170,29 @@ export function registerConversationRoutes(
     // written.
     const written: { flow: ConversationFlow | null } = { flow: null };
     const saved = await tenants.update(tenant.id, (current) => {
+      if (current.config.workflows != null) {
+        // Saved into the solar workflow, after the address it always opens with.
+        const now = new Date(deps.now()).toISOString();
+        const { steps } = body.data.flow;
+        const { tenant: next, set } = withWorkflowSet(current, now, (s) => {
+          const stored = s.workflows.find((w) => w.id === SOLAR_ID);
+          const solar = stored ?? solarTemplate(now);
+          const updated = {
+            ...solar,
+            steps: steps.some(isAddress) ? steps : [ADDRESS, ...steps],
+            version: solar.version + 1,
+            updatedAt: now,
+          };
+          return {
+            ...s,
+            workflows: stored
+              ? s.workflows.map((w) => (w.id === SOLAR_ID ? updated : w))
+              : [updated, ...s.workflows],
+          };
+        });
+        written.flow = solarFlow(set);
+        return next;
+      }
       // The version and time are the server's: whatever the client sent is ignored.
       const flow: ConversationFlow = {
         ...body.data.flow,
@@ -157,12 +208,26 @@ export function registerConversationRoutes(
 
   app.delete('/v1/portal/tenants/:tenantId/conversation', async (request) => {
     const tenant = await member(request, 'admin');
+    const written: { flow: ConversationFlow | null } = { flow: null };
     const saved = await tenants.update(tenant.id, (current) => {
+      if (current.config.workflows != null) {
+        // The solar workflow goes back to its template.
+        const now = new Date(deps.now()).toISOString();
+        const { tenant: next, set } = withWorkflowSet(current, now, (s) => {
+          const stored = s.workflows.find((w) => w.id === SOLAR_ID);
+          if (!stored) return { ...s, workflows: [solarTemplate(now), ...s.workflows] };
+          const reset = resetToTemplate(stored, now) ?? stored;
+          return { ...s, workflows: s.workflows.map((w) => (w.id === SOLAR_ID ? reset : w)) };
+        });
+        written.flow = solarFlow(set);
+        return next;
+      }
+      written.flow = null;
       const { conversation: _removed, ...config } = current.config;
       return { ...current, config };
     });
     if (!saved) throw new ApiError('not_found', 'No such installer.');
-    return view(tenant.id, null);
+    return view(tenant.id, written.flow);
   });
 
   // What Sunny would have each answer do, from the published list only. A

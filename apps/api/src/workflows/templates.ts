@@ -3,6 +3,8 @@
  * of it is theirs to edit, and `template.version` records which one it began as.
  */
 
+import { randomInt } from 'node:crypto';
+
 import {
   BUILTIN_WORKFLOW_IDS,
   type FlowStep,
@@ -53,5 +55,65 @@ export function defaultWorkflowSet(now: string): WorkflowSet {
     updatedAt: now,
     discovery: { enabled: true },
     workflows: [solarTemplate(now)],
+  };
+}
+
+/** The template a built-in kind starts from, or null when Sunny has none yet. */
+export function templateFor(kind: Workflow['kind'], now: string): Workflow | null {
+  return kind === 'solar_quote' ? solarTemplate(now) : null;
+}
+
+/** A random custom step id, matching the contract's `c_` pattern. */
+export function customStepId(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let id = 'c_';
+  for (let i = 0; i < 10; i++) id += chars[randomInt(chars.length)];
+  return id;
+}
+
+/** A new, switched-off lead workflow with one open question, on every page. */
+export function blankWorkflow(id: string, now: string): Workflow {
+  return {
+    id,
+    kind: 'custom',
+    name: 'New workflow',
+    enabled: false,
+    description: '',
+    triggers: [],
+    interests: [],
+    pages: { include: [], exclude: [] },
+    steps: [
+      {
+        kind: 'custom',
+        id: customStepId(),
+        prompt: 'What would you like help with?',
+        mode: 'lead',
+        answer: 'text',
+        choices: [],
+      },
+    ],
+    outcome: { kind: 'lead' },
+    template: null,
+    version: 1,
+    updatedAt: now,
+  };
+}
+
+/**
+ * A built-in workflow put back to its template: the steps, wording, triggers,
+ * interests and outcome return, while whether it is on and where it shows stay
+ * the installer's. The version counts on. Null when Sunny has no template.
+ */
+export function resetToTemplate(workflow: Workflow, now: string): Workflow | null {
+  const kind = workflow.kind !== 'custom' ? workflow.kind : workflow.template?.id;
+  const template = kind ? templateFor(kind, now) : null;
+  if (!template) return null;
+  return {
+    ...template,
+    id: workflow.id,
+    enabled: workflow.enabled,
+    pages: workflow.pages,
+    version: workflow.version + 1,
+    updatedAt: now,
   };
 }
