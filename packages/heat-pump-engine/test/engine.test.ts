@@ -33,8 +33,13 @@ describe('nationOf', () => {
     ['EH1 1AA', 'scotland'],
     ['BT1 1AA', 'northern_ireland'],
     ['CF10 1AA', 'wales'],
-    ['SY23 1AA', 'border'],
+    ['SY23 1AA', 'england'],
+    ['SY1 1AA', 'england'],
     ['TD15 1AA', 'border'],
+    ['DG1 1AA', 'border'],
+    ['IM1 1AA', 'crown_dependency'],
+    ['JE2 3AB', 'crown_dependency'],
+    ['GY1 1AA', 'crown_dependency'],
     ['NR4 7TJ', 'england'],
     ['G1 1AA', 'scotland'],
     ['GL1 1AA', 'england'],
@@ -216,8 +221,32 @@ describe('BUS', () => {
       'The Boiler Upgrade Scheme covers England and Wales. Home Energy Scotland offers its own support.',
     );
   });
-  it('border is unsure', () => {
-    expect(estimate({ ...base, postcode: 'TD15 1AA' }).bus.eligible).toBe('unsure');
+  it('border is unsure, and says England or Scotland', () => {
+    const b = estimate({ ...base, postcode: 'TD15 1AA' }).bus;
+    expect(b.eligible).toBe('unsure');
+    expect(b.reasons).toContain(
+      'We could not tell from the postcode whether this is in England or Scotland.',
+    );
+  });
+  it('SY (Shropshire and Powys) is eligible', () => {
+    expect(estimate({ ...base, postcode: 'SY23 1AA' }).bus.eligible).toBe(true);
+  });
+  it.each(['IM1 1AA', 'JE2 3AB', 'GY1 1AA'])('%s (crown dependency) is ineligible', (pc) => {
+    const b = estimate({ ...base, postcode: pc }).bus;
+    expect(b.eligible).toBe(false);
+    expect(b.reasons).toContain('The Boiler Upgrade Scheme covers England and Wales.');
+  });
+  it('other fuel is unsure, for the installer to check', () => {
+    const b = estimate({ ...base, currentFuel: 'other' }).bus;
+    expect(b.eligible).toBe('unsure');
+    expect(b.reasons).toContain(
+      'Your installer will check whether your current heating qualifies.',
+    );
+  });
+  it('other fuel stays ineligible where the nation rules it out', () => {
+    expect(estimate({ ...base, currentFuel: 'other', postcode: 'EH1 1AA' }).bus.eligible).toBe(
+      false,
+    );
   });
   it('NI is ineligible', () => {
     const b = estimate({ ...base, postcode: 'BT1 1AA' }).bus;
@@ -225,7 +254,11 @@ describe('BUS', () => {
     expect(b.reasons).toContain('The Boiler Upgrade Scheme covers England and Wales.');
   });
   it('unknown nation is unsure', () => {
-    expect(estimate({ ...base, postcode: 'garbage' }).bus.eligible).toBe('unsure');
+    const b = estimate({ ...base, postcode: 'garbage' }).bus;
+    expect(b.eligible).toBe('unsure');
+    expect(b.reasons).toContain(
+      'We could not tell from the postcode whether this is in England or Wales.',
+    );
   });
   it('EPC insulation advice adds a reason but does not block', () => {
     const b = estimate({ ...base, epcRecommendsInsulation: 'yes' }).bus;
@@ -252,9 +285,9 @@ describe('exports', () => {
     };
     for (const v of Object.values(engine)) if (typeof v !== 'function') walk(v);
     for (const ageBand of ['pre_1919', '2007_on'] as const)
-      for (const postcode of ['EH1 1AA', 'TD15 1AA', 'BT1 1AA', 'NR4 7TJ', 'garbage', 'SY1 1AA'])
+      for (const postcode of ['EH1 1AA', 'TD15 1AA', 'BT1 1AA', 'NR4 7TJ', 'garbage', 'SY1 1AA', 'IM1 1AA'])
         for (const ownership of ['own', 'rent'])
-          for (const currentFuel of ['gas', 'heat_pump', 'electric_direct'] as const)
+          for (const currentFuel of ['gas', 'heat_pump', 'electric_direct', 'other'] as const)
             for (const floorAreaM2 of [null, 90, 900])
               walk(
                 estimate({

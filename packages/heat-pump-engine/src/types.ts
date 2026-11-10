@@ -32,7 +32,14 @@ export interface HeatPumpInput {
   epcRecommendsInsulation: 'yes' | 'no' | 'unsure' | null;
 }
 
-export type Nation = 'england' | 'wales' | 'scotland' | 'northern_ireland' | 'border' | 'unknown';
+export type Nation =
+  | 'england'
+  | 'wales'
+  | 'scotland'
+  | 'northern_ireland'
+  | 'crown_dependency'
+  | 'border'
+  | 'unknown';
 
 export interface BusVerdict {
   eligible: boolean | 'unsure';

@@ -32,7 +32,7 @@
 2. **A heat pump quote reaching a solar-only consumer.** This covers the portal lead detail, email follow-up, `chosenPackage` and the roof plan. Each must not crash and must show heat pump facts or nothing. Test in Task 3/6.
 3. **No priced heat pump units.** The quote must be unpriced ("Priced by your installer"), not throw. It must not show a negative price after the grant. Test in Task 2/4.
 4. **Floor area unknown, or an absurd floor area (1 or 5000 m²).** The engine falls back to bedrooms or clamps, and never returns NaN or Infinity. Test in Task 1.
-5. **A postcode in Scotland or Northern Ireland, or a TD/DG border area.** No grant is deducted. Scotland and NI get a clear reason; TD and DG are `'unsure'`. Test in Task 1.
+5. **A postcode in Scotland, Northern Ireland or a crown dependency (IM, JE, GY), or a TD/DG border area.** No grant is deducted. Scotland, NI and the crown dependencies get a clear reason; TD and DG are `'unsure'`. Test in Task 1.
 
 ---
 
@@ -138,13 +138,14 @@
     - eligible when the nation is England or Wales, ownership is in (own, mortgage, landlord), and currentFuel is in (gas, oil, lpg, electric_storage, electric_direct, other).
     - `heat_pump` gives ineligible, reason `Already has a heat pump.`
     - Scotland gives ineligible, reason `The Boiler Upgrade Scheme covers England and Wales. Home Energy Scotland offers its own support.`
-    - NI gives ineligible, reason `The Boiler Upgrade Scheme covers England and Wales.`
-    - A border area gives `'unsure'`.
+    - NI, the Isle of Man, Jersey and Guernsey (`crown_dependency`) give ineligible, reason `The Boiler Upgrade Scheme covers England and Wales.`
+    - A border area (TD, DG) gives `'unsure'`, reason `We could not tell from the postcode whether this is in England or Scotland.`
+    - `other` fuel gives `'unsure'`, reason `Your installer will check whether your current heating qualifies.`
     - Renters give ineligible, reason `The grant goes to the property owner.`
     - `epcRecommendsInsulation === 'yes'` adds a reason line only (it no longer blocks; dated rule note), and does not change eligibility.
 - **Nation by postcode area:**
   - Scotland areas: AB, DD, DG, EH, FK, G, HS, IV, KA, KW, KY, ML, PA, PH, TD, ZE.
-  - DG and TD are `border`. NI is BT. Wales: CF, LD, LL, NP, SA, and SY is `border` (SY covers Shropshire and Powys).
+  - DG and TD are `border` (they straddle England and Scotland). NI is BT. IM, JE and GY are `crown_dependency`. Wales: CF, LD, LL, NP, SA. SY (Shropshire and Powys) is `england`: both nations are in the grant.
   - Everything else is England, and unparseable is `unknown` (giving `'unsure'`).
 
 - [ ] **Step 1: Write the failing tests:**
