@@ -4,8 +4,8 @@
  * font and the boxes' drawn heights; without them, widths and heights are
  * estimated from the text.
  *
- * The listed questions sit on a vertical spine between the locked start and
- * end. Group members and follow-ups branch to the right, one column per
+ * The listed questions sit on a vertical spine between the locked start (when
+ * there is one) and end. Group members and follow-ups branch to the right, one column per
  * level, each on a short curve carrying a pill that names the answer that
  * opens it (and what that answer does to the price). An answer that changes
  * the price but opens nothing shows its pill on a stub under its box.
@@ -119,6 +119,20 @@ const PILL_LINE = 14;
 export const FIXED_START = 'Address and roof check';
 export const FIXED_END = 'Quote, then contact details';
 
+/** The locked boxes around the listed questions: no start box when `start` is null. */
+export interface FixedEnds {
+  start: string | null;
+  end: string;
+}
+
+/** The conversation's own: the address and roof check first, the quote last. */
+export const CONVERSATION_ENDS: FixedEnds = { start: FIXED_START, end: FIXED_END };
+
+/** A workflow's last box: the quote, or the visitor's details passed to the installer. */
+export function workflowEnd(outcome: 'quote' | 'lead', assistant: string): string {
+  return outcome === 'lead' ? `Then ${assistant} passes their details to you` : FIXED_END;
+}
+
 /**
  * A box's width and estimated height: text and tag on one line when they fit
  * in `max`, else the text wraps at `max` with the tag on a line of its own.
@@ -184,6 +198,7 @@ export function layoutFlow(
   ctx: Context,
   heights: ReadonlyMap<string, number> = new Map(),
   m: Measure = ESTIMATE,
+  ends: FixedEnds = CONVERSATION_ENDS,
 ): FlowLayout {
   const pill = (text: string, price: boolean): Pill => {
     const [width, height] = pillSize(text, m);
@@ -245,17 +260,19 @@ export function layoutFlow(
   };
 
   const trees = draft.steps.map((step, i) => build(step, 0, i));
-  const start = sized({
-    key: 'start',
-    stepId: null,
-    kind: 'fixed',
-    label: FIXED_START,
-    tag: null,
-    tone: null,
-    index: null,
-    depth: 0,
-  });
-  const end = sized({ ...start, key: 'end', label: FIXED_END });
+  const fixed = (key: string, label: string) =>
+    sized({
+      key,
+      stepId: null,
+      kind: 'fixed',
+      label,
+      tag: null,
+      tone: null,
+      index: null,
+      depth: 0,
+    });
+  const start = ends.start === null ? null : fixed('start', ends.start);
+  const end = fixed('end', ends.end);
 
   // How far each column starts right of the one before: the widest parent (or
   // its stub pills) plus its widest branch pill and room for the curve.
@@ -331,14 +348,17 @@ export function layoutFlow(
     return y + node.height;
   };
 
-  let previousBottom = placeSpine(start, TOP);
-  let y = previousBottom + SPINE_GAP;
-  const link = (nextTop: number) =>
+  // Null until something sits above: no line runs down to the first box.
+  let previousBottom: number | null = start ? placeSpine(start, TOP) : null;
+  let y = previousBottom === null ? TOP : previousBottom + SPINE_GAP;
+  const link = (nextTop: number) => {
+    if (previousBottom === null) return;
     edges.push({
       key: `spine-${nextTop}`,
       d: `M ${spineX} ${previousBottom} V ${nextTop}`,
       price: false,
     });
+  };
   for (const tree of trees) {
     link(y);
     const blockBottom = place(tree, y);

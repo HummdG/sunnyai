@@ -4,7 +4,7 @@ import { useState, type DragEvent, type ReactNode } from 'react';
 
 import type { FlowStep } from '../../../lib/portal-api.js';
 import { Chip } from '../ui.js';
-import { FIXED_END, FIXED_START, toneOf } from './flow-layout.js';
+import { toneOf, type FixedEnds } from './flow-layout.js';
 import { Lock } from './flow-canvas.js';
 import {
   choicesOf,
@@ -28,6 +28,8 @@ export interface ListProps {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   issues: EditorIssue[];
+  /** The locked first and last rows (no first row when `start` is null). */
+  ends: FixedEnds;
   /** A change to the shape of the conversation: add, remove, reorder. */
   onDraft: (change: (draft: Draft) => Draft) => void;
   /** Remove a question (asking first when it carries a warning or follow-ups). */
@@ -51,7 +53,7 @@ function summaryOf(step: FlowStep, ctx: Context): string {
  * Rows select; editing happens in the side column.
  */
 export function QuestionList(props: ListProps) {
-  const { draft, readOnly, onSelect, onDraft } = props;
+  const { draft, readOnly, onSelect, onDraft, ends } = props;
   const [dragging, setDragging] = useState<string | null>(null);
 
   function add(): void {
@@ -63,7 +65,7 @@ export function QuestionList(props: ListProps) {
   return (
     <section className="flow-list" aria-label="Questions">
       <ol>
-        <FixedRow name={FIXED_START} note="always first" />
+        {ends.start === null ? null : <FixedRow name={ends.start} note="always first" />}
         {draft.steps.map((step, index) => (
           <TopRow
             key={step.id}
@@ -74,7 +76,7 @@ export function QuestionList(props: ListProps) {
             setDragging={setDragging}
           />
         ))}
-        <FixedRow name={FIXED_END} note="always last" />
+        <FixedRow name={ends.end} note="always last" />
       </ol>
       {readOnly ? null : (
         <button type="button" className="link-button flow-list-add" onClick={add}>

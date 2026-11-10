@@ -1,20 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   flowIssuesOf,
   getConversation,
   resetConversation,
   saveConversation,
-  type ConversationView,
+  workflowIssuesOf,
+  type ConversationFlow,
+  type ConversationPreview,
   type FlowStep,
+  type PresetView,
+  type PriceItemView,
+  type PriceSuggestion,
 } from '../../../lib/portal-api.js';
 import { possessive } from '../../../lib/assistant-name.js';
 import { SunnyLoading } from '../kit.js';
 import { ErrorNote, errorText } from '../ui.js';
 import { ChatPreview } from './chat-preview.js';
 import { FlowCanvas } from './flow-canvas.js';
+import { CONVERSATION_ENDS, type FixedEnds } from './flow-layout.js';
 import {
   deleteStep,
   draftFrom,
@@ -23,15 +29,44 @@ import {
   flowFrom,
   localIssues,
   rootsOf,
+  stepIssues,
   subtreeIds,
+  wholeIssues,
   type Context,
   type Draft,
   type EditorIssue,
 } from './model.js';
 import { QuestionList } from './question-list.js';
 import { SelectedQuestion } from './selected-question.js';
-import { useSuggestions } from './suggestions.js';
+import { useSuggestions, type Question } from './suggestions.js';
 import { useFlowView, type FlowView } from './view-switch.js';
+
+/** What the editor loads and saves: a flow, the questions and prices it draws on, and its flags. */
+export interface EditorView {
+  flow: ConversationFlow | null;
+  presets: PresetView[];
+  priceItems: PriceItemView[];
+  /** Flags beside their questions (a workflow's step-level issues, see `stepIssues`). */
+  issues: EditorIssue[];
+}
+
+/**
+ * Where the editor's questions come from and go: a workflow's routes, say.
+ * Without one, the editor runs on the installer's conversation.
+ */
+export interface EditorSource {
+  load(): Promise<EditorView>;
+  /** A rejected save throws; its body's `issues` are shown beside their questions. */
+  save(flow: ConversationFlow): Promise<EditorView>;
+  /** Back to the template. Absent: no reset button. */
+  reset?(): Promise<EditorView>;
+  preview(flow: ConversationFlow, answers: Record<string, string>): Promise<ConversationPreview>;
+  suggest(question: Question): Promise<PriceSuggestion>;
+  /** The locked start box's label, or null for none (a workflow asks the address itself). */
+  start: string | null;
+  /** The locked end box's label (`workflowEnd` in flow-layout). */
+  end: string;
+}
 
 /**
  * Studio's "Your conversation": the questions the assistant asks before a quote, in the
@@ -43,13 +78,19 @@ export function ConversationEditor({
   tenantId,
   canEdit,
   assistant,
+  source,
 }: {
   tenantId: string;
   canEdit: boolean;
   /** What the installer calls the assistant: a rename on another tab shows here at once. */
   assistant: string;
+  /**
+   * A workflow (or other source) to edit instead of the conversation. Loaded
+   * once: give the editor a `key` to switch to another.
+   */
+  source?: EditorSource;
 }) {
-  const [view, setView] = useState<ConversationView | null>(null);
+  const [view, setView] = useState<EditorView | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [issues, setIssues] = useState<EditorIssue[]>([]);
@@ -62,6 +103,12 @@ export function ConversationEditor({
   const [mode, setMode] = useFlowView();
   // A question to scroll into view once it has opened (a new object each time, so it repeats).
   const [reveal, setReveal] = useState<{ id: string } | null>(null);
+  // The newest source, read when called, so a new object each render loads nothing again.
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const start = source ? source.start : CONVERSATION_ENDS.start;
+  const end = source ? source.end : CONVERSATION_ENDS.end;
+  const ends: FixedEnds = useMemo(() => ({ start, end }), [start, end]);
 
   useEffect(() => {
     if (!reveal) return;
@@ -79,7 +126,7 @@ export function ConversationEditor({
       ?.scrollIntoView({ block: 'start' });
   }, [selectedId]);
 
-  function adopt(next: ConversationView): void {
+  function adopt(next: EditorView): void {
     setView(next);
     setDraft(draftFrom(next.flow, next.presets));
     setIssues(next.issues);
@@ -87,7 +134,8 @@ export function ConversationEditor({
   }
 
   useEffect(() => {
-    getConversation(tenantId)
+    const from = sourceRef.current;
+    (from ? from.load() : getConversation(tenantId))
       .then(adopt)
       .catch((failure: unknown) => setError(errorText(failure)));
   }, [tenantId]);
@@ -117,6 +165,7 @@ export function ConversationEditor({
     enabled: canEdit,
     selectedId,
     onDraft: edit,
+    ...(source ? { suggest: (q: Question) => source.suggest(q) } : {}),
   });
 
   if (!view || !draft || !ctx) {
@@ -178,13 +227,20 @@ export function ConversationEditor({
     }
     setBusy(true);
     try {
-      adopt(await saveConversation(tenantId, flow));
+      adopt(await (source ? source.save(flow) : saveConversation(tenantId, flow)));
       setSaved(`Saved. ${assistant} asks these questions from the next conversation.`);
     } catch (failure) {
-      const found = flowIssuesOf(failure);
+      // A workflow's flags may also be about the whole workflow (its pages, a
+      // missing address): those show as the error, not beside a question.
+      // Warnings never stop a save, so they are not what to fix.
+      const all = source ? workflowIssuesOf(failure).filter((i) => !i.warning) : [];
+      const found: EditorIssue[] = source ? stepIssues(all) : flowIssuesOf(failure);
+      const whole = wholeIssues(all).join(' ');
       setIssues(found);
-      if (found.length > 0) showIssues(found);
-      else setError(errorText(failure));
+      if (found.length > 0) {
+        showIssues(found);
+        if (whole) setError((current) => `${current ?? ''} ${whole}`.trim());
+      } else setError(whole || errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -195,7 +251,7 @@ export function ConversationEditor({
     setBusy(true);
     setError(null);
     try {
-      adopt(await resetConversation(tenantId));
+      adopt(await (source?.reset ? source.reset() : resetConversation(tenantId)));
       select(null);
       setSaved(`Back to ${possessive(assistant)} questions.`);
     } catch (failure) {
@@ -211,9 +267,11 @@ export function ConversationEditor({
     readOnly,
     selectedId,
     issues,
+    ends,
     onSelect: select,
     onDraft: edit,
   };
+  const canReset = !source || source.reset !== undefined;
 
   return (
     <div className="flow-editor">
@@ -227,21 +285,23 @@ export function ConversationEditor({
         {readOnly ? null : (
           <div className="flow-bar-actions">
             {dirty ? <span className="muted small">Unsaved changes</span> : null}
-            <button
-              type="button"
-              className="button secondary"
-              disabled={busy}
-              onClick={() => setConfirmReset(true)}
-            >
-              Reset to {possessive(assistant)} questions
-            </button>
+            {canReset ? (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => setConfirmReset(true)}
+              >
+                Reset to {possessive(assistant)} questions
+              </button>
+            ) : null}
             <button type="button" className="button" disabled={busy} onClick={() => void save()}>
               {busy ? 'Saving…' : 'Save conversation'}
             </button>
           </div>
         )}
       </div>
-      {confirmReset ? (
+      {confirmReset && canReset ? (
         <div
           className="flow-confirm"
           role="alertdialog"
@@ -292,7 +352,14 @@ export function ConversationEditor({
           />
           <section className="flow-card" aria-label={`How ${assistant} asks it`}>
             <h3>How {assistant} asks it</h3>
-            <ChatPreview tenantId={tenantId} flow={flow} ctx={ctx} selectedId={selectedId} />
+            <ChatPreview
+              tenantId={tenantId}
+              flow={flow}
+              ctx={ctx}
+              selectedId={selectedId}
+              ends={ends}
+              {...(source ? { preview: source.preview.bind(source) } : {})}
+            />
           </section>
         </aside>
       </div>

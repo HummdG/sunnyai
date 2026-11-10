@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutFlow, type FlowNode } from '../components/dashboard/conversation/flow-layout.js';
-import type { Context, Draft } from '../components/dashboard/conversation/model.js';
-import type { PresetView, PriceItemView } from '../lib/portal-api.js';
+import {
+  ESTIMATE,
+  layoutFlow,
+  workflowEnd,
+  type FlowNode,
+} from '../components/dashboard/conversation/flow-layout.js';
+import {
+  stepIssues,
+  wholeIssues,
+  type Context,
+  type Draft,
+} from '../components/dashboard/conversation/model.js';
+import type { PresetView, PriceItemView, WorkflowIssue } from '../lib/portal-api.js';
 
 const preset = (id: string, prompt: string, extra: Partial<PresetView> = {}): PresetView => ({
   id,
@@ -181,5 +191,51 @@ describe('the flow canvas layout', () => {
     const next = tall.nodes.find((n) => n.key === 'c_long')!;
     expect(ev.height).toBe(160);
     expect(next.y).toBeGreaterThan(ev.y + 160);
+  });
+
+  it('draws no start box when told none: the first question is first on the spine', () => {
+    const plain = layoutFlow(draft, ctx, new Map(), ESTIMATE, {
+      start: null,
+      end: 'Then Sunny passes their details to you',
+    });
+    const spine = plain.nodes.filter((n) => n.depth === 0).sort((a, b) => a.y - b.y);
+    expect(spine[0]!.key).toBe('shading');
+    expect(spine[0]!.kind).toBe('top');
+    expect(plain.nodes.some((n) => n.key === 'start')).toBe(false);
+    expect(plain.nodes.filter((n) => n.kind === 'fixed').map((n) => n.key)).toEqual(['end']);
+    expect(spine[spine.length - 1]!.label).toBe('Then Sunny passes their details to you');
+    // No line runs down to the first question from above.
+    expect(plain.edges.filter((e) => e.key.startsWith('spine-'))).toHaveLength(4);
+  });
+
+  it('labels the end box with whatever it is given, and keeps the start when given one', () => {
+    const custom = layoutFlow(draft, ctx, new Map(), ESTIMATE, { start: 'Begin', end: 'Finish' });
+    const spine = custom.nodes.filter((n) => n.depth === 0).sort((a, b) => a.y - b.y);
+    expect(spine[0]!.label).toBe('Begin');
+    expect(spine[spine.length - 1]!.label).toBe('Finish');
+  });
+});
+
+describe('a workflow end and its issues in the editor', () => {
+  it('ends a lead workflow with the assistant passing details on, a quote with the quote', () => {
+    expect(workflowEnd('lead', 'Ray')).toBe('Then Ray passes their details to you');
+    expect(workflowEnd('quote', 'Ray')).toBe('Quote, then contact details');
+  });
+
+  it('puts step-level issues beside their questions and keeps the rest for the workflow', () => {
+    const issues: WorkflowIssue[] = [
+      {
+        workflowId: 'wf_a',
+        stepId: 'c_ev',
+        choice: 'yes',
+        code: 'missing_item',
+        message: 'Pick a price item.',
+      },
+      { workflowId: 'wf_a', field: 'steps', code: 'needs_address', message: 'Ask the address.' },
+    ];
+    expect(stepIssues(issues)).toEqual([
+      { stepId: 'c_ev', choice: 'yes', message: 'Pick a price item.' },
+    ]);
+    expect(wholeIssues(issues)).toEqual(['Ask the address.']);
   });
 });
