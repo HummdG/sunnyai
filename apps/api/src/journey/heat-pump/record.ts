@@ -19,7 +19,11 @@ export interface HeatPumpOptionView {
   unitName: string;
   /** Null when the installer has no price for this unit. */
   priceGbp: number | null;
-  /** The Boiler Upgrade Scheme grant this option can claim (0 when not eligible). */
+  /**
+   * The Boiler Upgrade Scheme grant applied to this option: the scheme amount,
+   * capped at the price when there is one, so price less grant is never below
+   * zero (0 when not eligible).
+   */
   grantGbp: number;
   priceAfterGrantGbp: number | null;
   priceLabel: string;

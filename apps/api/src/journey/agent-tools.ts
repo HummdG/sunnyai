@@ -10,6 +10,7 @@
  */
 
 import type { Workflow } from '@sunny/contracts';
+import { HEAT_PUMP_VAT_PERCENT } from '@sunny/heat-pump-engine';
 import type { PricingSource } from '@sunny/quote-engine';
 
 import type { ToolContext, ToolResult } from '../agent/tools.js';
@@ -226,6 +227,7 @@ async function heatPumpOptions(
       kind: 'heat_pump',
       priced: quote.priced,
       recommendedKw: quote.estimate.recommendedKw,
+      vatRatePercent: quote.pricing?.vatRatePercent ?? HEAT_PUMP_VAT_PERCENT,
       grantEligible: quote.estimate.bus.eligible,
       grantNotes: quote.estimate.bus.reasons,
       options: quote.options.map((o) => ({

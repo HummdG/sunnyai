@@ -13,6 +13,7 @@ import type { Workflow } from '@sunny/contracts';
 import {
   estimate,
   HEAT_PUMP_DISCLAIMER,
+  STANDARD_SIZES_KW,
   type AgeBand,
   type Emitters,
   type Fuel,
@@ -165,22 +166,33 @@ interface Unit {
   priceGbp: number | null;
 }
 
-/** The unit at the recommended size, or the next priced size up. */
+/** How many standard sizes above the recommended one a priced unit may be. */
+const MAX_STEP_UP = 2;
+
+/** The largest unit offered for a recommended size: two standard sizes up at most. */
+export function largestUnitKwFor(kw: number): number {
+  const at = STANDARD_SIZES_KW.findIndex((s) => s >= kw);
+  if (at < 0) return kw;
+  return STANDARD_SIZES_KW[Math.min(at + MAX_STEP_UP, STANDARD_SIZES_KW.length - 1)]!;
+}
+
+/**
+ * The unit at the recommended size, or the nearest priced size up, no more
+ * than two standard sizes larger. Beyond that the installer prices the option.
+ */
 function unitFor(pricing: HeatPumpPricing | null, kw: number): Unit {
-  const big = (pricing?.units ?? []).filter((u) => u.outputKw >= kw);
+  const largest = largestUnitKwFor(kw);
+  const big = (pricing?.units ?? []).filter((u) => u.outputKw >= kw && u.outputKw <= largest);
   const unit = big.find((u) => u.priceGbp !== null) ?? big[0];
   return unit
     ? { name: unit.name, outputKw: unit.outputKw, sku: unit.sku, priceGbp: unit.priceGbp }
     : { name: `${kw} kW air source heat pump`, outputKw: kw, sku: null, priceGbp: null };
 }
 
-/**
- * Heat pump VAT is the engine's dated rule (zero now), never the list's solar
- * rate, so a zero rate says nothing about VAT at all.
- */
+/** Heat pump VAT is the engine's dated rule (zero now), never the list's solar rate. */
 function priceLabel(pricing: HeatPumpPricing): string {
   const vat = pricing.vatRatePercent;
-  return vat > 0 ? `Indicative price, including ${vat}% VAT` : 'Indicative price';
+  return vat > 0 ? `Indicative price, including ${vat}% VAT` : `Indicative price, ${vat}% VAT`;
 }
 
 /** About one radiator per room: from the bedrooms when known, else from the floor area. */
@@ -238,6 +250,8 @@ function optionsFor(
     const priceGbp = installerPriced
       ? null
       : Math.round(lines.reduce((sum, l) => sum + l.unitGbp * l.quantity, 0));
+    // The grant never takes more than the price: price less grant is the total, never below zero.
+    const grantGbp = priceGbp === null ? grant : Math.min(grant, priceGbp);
     return {
       id,
       label,
@@ -246,8 +260,8 @@ function optionsFor(
       outputKw: unit.outputKw,
       unitName: unit.name,
       priceGbp,
-      grantGbp: grant,
-      priceAfterGrantGbp: priceGbp === null ? null : Math.max(0, priceGbp - grant),
+      grantGbp,
+      priceAfterGrantGbp: priceGbp === null ? null : priceGbp - grantGbp,
       priceLabel: pricing && !installerPriced ? priceLabel(pricing) : 'Priced by your installer',
       // The priced lines stay, for the installer to see, even without a total.
       lineItems: lines.map((l): QuoteLineItem => ({
@@ -266,24 +280,33 @@ function optionsFor(
   };
 
   const kw = `${unit.outputKw} kW`;
+  // A larger unit than the home needs says so: it is the nearest the installer prices.
+  const stepUp = unit.outputKw > est.recommendedKw;
+  const unitPhrase = stepUp
+    ? `A ${kw} unit (the nearest your installer prices; the home needs about ${est.recommendedKw} kW)`
+    : `A ${kw} heat pump`;
   const unitInclusions = [`A ${kw} air source heat pump`, 'Installation and controls'];
-  const options: HeatPumpOptionView[] = [
-    option(
-      'heat_pump_only',
-      'Heat pump only',
-      `A ${kw} heat pump, sized to the home.`,
-      base,
-      unitInclusions,
-      [],
-      true,
-    ),
-  ];
+  const options: HeatPumpOptionView[] = [];
+  // A combi boiler heats water on demand: a heat pump needs a cylinder, so never the unit alone.
+  if (input.hotWater !== 'combi') {
+    options.push(
+      option(
+        'heat_pump_only',
+        'Heat pump only',
+        stepUp ? `${unitPhrase}.` : `${unitPhrase}, sized to the home.`,
+        base,
+        unitInclusions,
+        [],
+        true,
+      ),
+    );
+  }
   if (offersCylinder) {
     options.push(
       option(
         'with_cylinder',
         'With a new hot water cylinder',
-        `A ${kw} heat pump with a new hot water cylinder.`,
+        `${unitPhrase} with a new hot water cylinder.`,
         withCylinder,
         [...unitInclusions, 'A new hot water cylinder'],
         cylinderLine ? [] : ['Your installer will price the new cylinder.'],
@@ -299,8 +322,8 @@ function optionsFor(
         'with_radiators',
         'With radiator upgrades',
         newCylinder
-          ? `A ${kw} heat pump with a new cylinder and larger radiators.`
-          : `A ${kw} heat pump with larger radiators.`,
+          ? `${unitPhrase} with a new cylinder and larger radiators.`
+          : `${unitPhrase} with larger radiators.`,
         withRadiators,
         [
           ...unitInclusions,
@@ -321,7 +344,7 @@ function optionsFor(
 
   const recommended = offersRadiators
     ? 'with_radiators'
-    : input.hotWater === 'combi' && offersCylinder
+    : input.hotWater === 'combi'
       ? 'with_cylinder'
       : 'heat_pump_only';
   return options.map((o) => ({ ...o, isRecommended: o.id === recommended }));

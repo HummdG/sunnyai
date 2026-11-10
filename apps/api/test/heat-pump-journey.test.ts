@@ -335,26 +335,23 @@ describe('the heat pump quote', () => {
     const stored = await store.getWorkflowState(DEMO_TENANT.id, SESSION);
     expect(stored.completed[0]?.quoteId).toBe(quote!.id);
 
-    // A combi in a 1950s home with standard radiators: all three options, the
-    // radiator upgrade recommended.
+    // A combi in a 1950s home with standard radiators: a combi needs a cylinder,
+    // so no heat pump on its own; the radiator upgrade recommended.
     const labels = quote!.options.map((o) => o.label);
-    expect(labels).toEqual([
-      'Heat pump only',
-      'With a new hot water cylinder',
-      'With radiator upgrades',
-    ]);
-    expect(quote!.recommendedId).toBe(quote!.options[2]!.id);
+    expect(labels).toEqual(['With a new hot water cylinder', 'With radiator upgrades']);
+    expect(quote!.recommendedId).toBe(quote!.options[1]!.id);
     expect(quote!.options.filter((o) => o.isRecommended)).toHaveLength(1);
-    const [only, cylinder, radiators] = quote!.options;
-    expect(only!.outputKw).toBeGreaterThanOrEqual(quote!.estimate.recommendedKw);
-    expect(only!.grantGbp).toBe(7500);
-    expect(only!.priceGbp).toBe(only!.lineItems.reduce((sum, l) => sum + l.totalGbp, 0));
-    expect(only!.priceAfterGrantGbp).toBe(Math.max(0, only!.priceGbp! - 7500));
-    expect(cylinder!.priceGbp).toBe(only!.priceGbp! + 1000);
+    const [cylinder, radiators] = quote!.options;
+    expect(cylinder!.outputKw).toBeGreaterThanOrEqual(quote!.estimate.recommendedKw);
+    expect(cylinder!.grantGbp).toBe(7500);
+    expect(cylinder!.priceGbp).toBe(cylinder!.lineItems.reduce((sum, l) => sum + l.totalGbp, 0));
+    expect(cylinder!.lineItems.map((l) => l.sku)).toContain('INS-CYL');
+    expect(cylinder!.priceAfterGrantGbp).toBe(cylinder!.priceGbp! - 7500);
     // 95 square metres and no bedrooms: about one radiator per 12 square metres.
     expect(radiators!.lineItems.find((l) => l.sku === 'INS-RAD')?.quantity).toBe(8);
-    // Heat pump VAT is the engine's zero rate: the label names no VAT at all.
-    for (const o of quote!.options) expect(o.priceLabel).toBe('Indicative price');
+    // Heat pump VAT is the engine's dated zero rate, named on the label.
+    for (const o of quote!.options) expect(o.priceLabel).toBe('Indicative price, 0% VAT');
+    expect(result.data['vatRatePercent']).toBe(0);
     expect(card!.kind === 'heat_pump' && card!.options[0]!.grantStatus).toBe('eligible');
     expect(radiators!.priceGbp).toBeGreaterThan(cylinder!.priceGbp!);
     expect(quote!.disclaimer).toMatch(/indicative estimate/);
@@ -564,9 +561,8 @@ describe('installer pricing, warnings and the grant', () => {
       HP_LIST.filter((r) => !r.includes('INS-CYL')),
     );
     const { quote } = await quoteWith(store, HP_ANSWERS);
-    const [only, cylinder, radiators] = quote!.options;
-    expect(only!.installerPriced).toBe(false);
-    expect(only!.priceGbp).not.toBeNull();
+    const [cylinder, radiators] = quote!.options;
+    expect(quote!.options.map((o) => o.id)).toEqual(['with_cylinder', 'with_radiators']);
     for (const o of [cylinder!, radiators!]) {
       expect(o.installerPriced).toBe(true);
       expect(o.priceGbp).toBeNull();
@@ -585,7 +581,7 @@ describe('installer pricing, warnings and the grant', () => {
       HP_LIST.filter((r) => !r.includes('INS-BASE')),
     );
     const { quote } = await quoteWith(store, HP_ANSWERS);
-    expect(quote!.options).toHaveLength(3);
+    expect(quote!.options).toHaveLength(2);
     for (const o of quote!.options) {
       expect(o.installerPriced).toBe(true);
       expect(o.priceGbp).toBeNull();
@@ -602,13 +598,13 @@ describe('installer pricing, warnings and the grant', () => {
     );
     const { result, card } = await quoteWith(store, { ...HP_ANSWERS, hp_outdoor_space: 'no' });
     const options = result.data['options'] as Array<{ warnings: string[] }>;
-    expect(options[1]!.warnings).toContain('Your installer will price the new cylinder.');
+    expect(options[0]!.warnings).toContain('Your installer will price the new cylinder.');
     expect(options[0]!.warnings).toContain(
       'The installer will need to check where the outdoor unit can go.',
     );
     expect(card!.kind).toBe('heat_pump');
     if (card!.kind !== 'heat_pump') return;
-    expect(card!.options[1]!.warnings).toContain('Your installer will price the new cylinder.');
+    expect(card!.options[0]!.warnings).toContain('Your installer will price the new cylinder.');
     for (const o of card!.options) expect((o.warnings ?? []).length).toBeLessThanOrEqual(5);
   });
 
@@ -627,8 +623,92 @@ describe('installer pricing, warnings and the grant', () => {
     expect(card!.kind === 'heat_pump' && card!.options.map((o) => o.grantStatus)).toEqual([
       'unsure',
       'unsure',
-      'unsure',
     ]);
+  });
+
+  it('recommends the cylinder for a combi home with no radiator work', async () => {
+    const store = await tempStore();
+    await publish(store, HP_LIST);
+    const { quote } = await quoteWith(store, {
+      ...HP_ANSWERS,
+      hp_age: '2007_on',
+      hp_emitters: 'underfloor',
+    });
+    expect(quote!.options.map((o) => o.id)).toEqual(['with_cylinder']);
+    expect(quote!.recommendedId).toBe('with_cylinder');
+    expect(quote!.options[0]!.isRecommended).toBe(true);
+  });
+
+  it('takes no more grant than the price, so the rows add up', async () => {
+    const store = await tempStore();
+    await publish(store, [
+      'heat_pump,HP-7,Acme 7 kW,flat,"£4,500",,7,,GBP',
+      'heat_pump_install,INS-BASE,Base install,flat,"£2,000",,,base_install,GBP',
+    ]);
+    const { quote, card, result } = await quoteWith(store, {
+      ...HP_ANSWERS,
+      hp_age: '2007_on',
+      hp_emitters: 'underfloor',
+      hp_hot_water: 'cylinder',
+      hp_floor_area: '80',
+    });
+    const only = quote!.options[0]!;
+    expect(only.id).toBe('heat_pump_only');
+    expect(only.priceGbp).toBe(6500);
+    expect(only.grantGbp).toBe(6500);
+    expect(only.priceAfterGrantGbp).toBe(0);
+    expect(card!.kind === 'heat_pump' && card!.options[0]!.grantGbp).toBe(6500);
+    const data = (result.data['options'] as Array<{ grant: number; priceAfterGrant: number }>)[0]!;
+    expect(data.grant).toBe(6500);
+    expect(data.priceAfterGrant).toBe(0);
+    const text = (
+      await pdfText(await proposalPdf({ store }, DEMO_TENANT, quote!, null, new Date(NOW)))
+    ).join(' ');
+    expect(text).toContain('Boiler Upgrade Scheme grant −£6,500');
+    expect(text).not.toContain('−£7,500');
+  });
+
+  it('names a larger priced unit as the nearest the installer prices', async () => {
+    const store = await tempStore();
+    // Nothing priced at 5 kW: the 7 kW unit, two standard sizes up, is the nearest.
+    await publish(store, [
+      'heat_pump,HP-7,Acme 7 kW,flat,"£7,000",,7,,GBP',
+      'heat_pump_install,INS-BASE,Base install,flat,"£2,000",,,base_install,GBP',
+    ]);
+    const { quote } = await quoteWith(store, {
+      ...HP_ANSWERS,
+      hp_age: '2007_on',
+      hp_emitters: 'underfloor',
+      hp_hot_water: 'cylinder',
+    });
+    expect(quote!.estimate.recommendedKw).toBe(5);
+    const only = quote!.options[0]!;
+    expect(only.outputKw).toBe(7);
+    expect(only.installerPriced).toBe(false);
+    expect(only.headline).toBe(
+      'A 7 kW unit (the nearest your installer prices; the home needs about 5 kW).',
+    );
+  });
+
+  it('leaves the option to the installer beyond two sizes up', async () => {
+    const store = await tempStore();
+    await publish(store, [
+      'heat_pump,HP-8,Acme 8.5 kW,flat,"£8,000",,8.5,,GBP',
+      'heat_pump_install,INS-BASE,Base install,flat,"£2,000",,,base_install,GBP',
+    ]);
+    const { quote } = await quoteWith(store, {
+      ...HP_ANSWERS,
+      hp_age: '2007_on',
+      hp_emitters: 'underfloor',
+      hp_hot_water: 'cylinder',
+    });
+    expect(quote!.estimate.recommendedKw).toBe(5);
+    const only = quote!.options[0]!;
+    expect(only.outputKw).toBe(5);
+    expect(only.installerPriced).toBe(true);
+    expect(only.priceGbp).toBeNull();
+    expect(only.lineItems.map((l) => l.sku)).not.toContain('HP-8');
+    expect(only.headline).toBe('A 5 kW heat pump, sized to the home.');
   });
 
   it('reads a number from the visitor words for a numeric question', async () => {
