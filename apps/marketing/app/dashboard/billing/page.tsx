@@ -21,6 +21,9 @@ import {
   type BillingView,
 } from '../../../lib/portal-api.js';
 
+/** Package prices are hidden for now (owner, 2026-11-10); set true to show them again. */
+const SHOW_PLAN_PRICES = false;
+
 const STATUS_TEXT = {
   trialing: 'Trial',
   active: 'Active',
@@ -120,7 +123,7 @@ function Billing() {
               {view.plans.map((plan) => (
                 <div className="plan" key={plan.key}>
                   <span style={{ fontWeight: 700 }}>{PLAN_LABELS[plan.key].name}</span>
-                  <strong>{PLAN_LABELS[plan.key].price}</strong>
+                  {SHOW_PLAN_PRICES ? <strong>{PLAN_LABELS[plan.key].price}</strong> : null}
                   <span className="muted small">{PLAN_LABELS[plan.key].blurb}</span>
                   {isOwner ? (
                     <button
