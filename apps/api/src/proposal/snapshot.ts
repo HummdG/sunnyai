@@ -4,7 +4,11 @@
  * quote uses the same words, deposit and validity.
  */
 
-import { defaultQuotationSettings, type QuotationSettings } from '@sunny/contracts';
+import {
+  defaultQuotationSettings,
+  quotationSettingsSchema,
+  type QuotationSettings,
+} from '@sunny/contracts';
 
 import type { Tenant } from '../tenants.js';
 import { DEFAULT_BRAND } from './layout.js';
@@ -23,7 +27,10 @@ export function snapshotFor(
   tenant: Tenant,
   settings: QuotationSettings | undefined,
 ): QuotationSnapshot {
-  const base = settings ?? defaultQuotationSettings();
+  // Stored settings are never parsed on the way in, so they may predate a
+  // field: parse here so every field has its default.
+  const parsed = quotationSettingsSchema.safeParse(settings);
+  const base = parsed.success ? parsed.data : defaultQuotationSettings();
   const brand = /^#[0-9a-f]{6}$/i.test(tenant.config.primaryColor)
     ? tenant.config.primaryColor.toLowerCase()
     : DEFAULT_BRAND;

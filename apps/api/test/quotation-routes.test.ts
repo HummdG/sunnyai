@@ -176,6 +176,8 @@ describe('quotation settings routes', () => {
     const id = await signUp(app, OWNER);
     const fresh = await app.inject({ method: 'GET', url: url(id), headers: as(OWNER) });
     expect(fresh.json<View>().colourNotes.rail.hex).toMatch(/^#[0-9a-f]{6}$/);
+    expect(fresh.json<View>().colourNotes.rail.adjusted).toBe(false);
+    expect(fresh.json<View>().colourNotes.accent.adjusted).toBe(false);
     const response = await put(app, id, {
       ...body(),
       colours: { rail: '#FFE066', accent: '#1f5c3d' },

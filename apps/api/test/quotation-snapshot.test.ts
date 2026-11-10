@@ -259,4 +259,12 @@ describe('reasonsFor', () => {
     const bad = { ...TENANT, config: { ...TENANT.config, primaryColor: 'nope' } };
     expect(snapshotFor(bad, undefined).colours).toEqual({ rail: '#0f2a3d', accent: '#0f2a3d' });
   });
+
+  it('accepts stored settings saved before colours existed', () => {
+    const t = new TenantRegistry([TENANT]).byId(TENANT.id)!;
+    const { colours: _c, ...old } = saved();
+    const snap = snapshotFor(t, old as unknown as QuotationSettings);
+    expect(snap.colours).toEqual({ rail: '#123456', accent: '#123456' });
+    expect(snap.validityDays).toBe(14);
+  });
 });

@@ -42,6 +42,12 @@ export interface QuotationView {
   };
 }
 
+/** Only a colour the installer chose can be "adjusted"; the brand colour is not theirs to fix. */
+const noted = (r: { hex: string; adjusted: boolean }, chosen: string | null) => ({
+  hex: r.hex,
+  adjusted: chosen !== null && r.adjusted,
+});
+
 const MISSING_IMAGE = 'That image is no longer available. Upload it again.';
 
 export function registerQuotationRoutes(app: FastifyInstance, deps: QuotationRouteDeps): void {
@@ -92,8 +98,8 @@ export function registerQuotationRoutes(app: FastifyInstance, deps: QuotationRou
       saved: settings !== null,
       assets: { logo, accreditations },
       colourNotes: {
-        rail: readableRail(current.colours.rail ?? brand),
-        accent: readableAccent(current.colours.accent ?? brand),
+        rail: noted(readableRail(current.colours.rail ?? brand), current.colours.rail),
+        accent: noted(readableAccent(current.colours.accent ?? brand), current.colours.accent),
       },
     };
   }
