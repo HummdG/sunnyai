@@ -119,20 +119,27 @@ function depth(step: FlowStep): number {
   return max;
 }
 
+/** Flags any step whose follow-ups nest deeper than the limit. */
+export function checkFlowDepth(
+  steps: FlowStep[],
+  ctx: z.RefinementCtx,
+  path: (string | number)[],
+): void {
+  steps.forEach((s, i) => {
+    if (depth(s) > FLOW_LIMITS.followUpDepth) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Follow-ups can nest at most ${FLOW_LIMITS.followUpDepth} deep`,
+        path: [...path, i],
+      });
+    }
+  });
+}
+
 export const conversationFlowSchema: z.ZodType<ConversationFlow> = z
   .object({
     version: z.number().int().nonnegative(),
     updatedAt: z.string().min(1),
     steps: z.array(flowStepSchema).max(FLOW_LIMITS.steps),
   })
-  .superRefine((flow, ctx) => {
-    flow.steps.forEach((s, i) => {
-      if (depth(s) > FLOW_LIMITS.followUpDepth) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Follow-ups can nest at most ${FLOW_LIMITS.followUpDepth} deep`,
-          path: ['steps', i],
-        });
-      }
-    });
-  });
+  .superRefine((flow, ctx) => checkFlowDepth(flow.steps, ctx, ['steps']));

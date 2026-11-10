@@ -152,15 +152,47 @@ describe('request contracts', () => {
       chatRequestSchema.safeParse({ ...body, page: { path: '/' + 'a'.repeat(512) } }).success,
     ).toBe(false);
   });
-  it('session accepts an optional path', () => {
-    const base = { publicId: 'pub_x', origin: 'https://a.com' };
-    expect(sessionRequestSchema.safeParse({ ...base, path: '/x' }).success).toBe(
-      sessionRequestSchema.safeParse(base).success,
+  it('session accepts an optional path of up to 512 chars', () => {
+    const base = { publicId: 'w_abcdefghij', origin: 'https://a.com' };
+    expect(sessionRequestSchema.safeParse(base).success).toBe(true);
+    const r = sessionRequestSchema.safeParse({ ...base, path: '/x' });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.path).toBe('/x');
+    expect(sessionRequestSchema.safeParse({ ...base, path: '/' + 'a'.repeat(512) }).success).toBe(
+      false,
     );
   });
+
   it('lead accepts an optional workflowId up to 40 chars', () => {
     const b = { sessionId: 's', consent: true, email: 'a@b.co' };
     expect(leadRequestSchema.safeParse({ ...b, workflowId: 'wf_solar' }).success).toBe(true);
     expect(leadRequestSchema.safeParse({ ...b, workflowId: 'w'.repeat(41) }).success).toBe(false);
+  });
+});
+
+describe('workflow step limits and null paths', () => {
+  it('matches an unknown page for an exclude-only rule', () => {
+    expect(pathMatches({ include: [], exclude: ['/checkout'] }, null)).toBe(true);
+  });
+  it('rejects a workflow with 61 steps', () => {
+    const steps = Array.from({ length: 61 }, (_, i) => ({
+      kind: 'preset',
+      id: `p${i}`,
+    }));
+    expect(workflowSetSchema.safeParse(set([customWf('wf_abc', steps)])).success).toBe(false);
+  });
+  it('rejects follow-ups nested 3 deep', () => {
+    const lvl = (id: string, child?: unknown) => ({
+      ...custom(id),
+      ...(child ? { followUps: [{ when: ['yes'], step: child }] } : {}),
+    });
+    const deep = lvl('c_aaaaaa', lvl('c_bbbbbb', lvl('c_cccccc', lvl('c_dddddd'))));
+    expect(workflowSetSchema.safeParse(set([customWf('wf_abc', [deep])])).success).toBe(false);
+    const ok = lvl('c_aaaaaa', lvl('c_bbbbbb', lvl('c_cccccc')));
+    expect(workflowSetSchema.safeParse(set([customWf('wf_abc', [ok])])).success).toBe(true);
+  });
+  it('rejects the same custom step id twice in one workflow', () => {
+    const steps = [custom('c_abc123'), custom('c_abc123')];
+    expect(workflowSetSchema.safeParse(set([customWf('wf_abc', steps)])).success).toBe(false);
   });
 });

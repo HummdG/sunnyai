@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { type FlowStep, flowStepSchema } from './conversation-flow.js';
+import { FLOW_LIMITS, type FlowStep, checkFlowDepth, flowStepSchema } from './conversation-flow.js';
 
 /**
  * Installer-configured guided tasks. A workflow is a named, optional set of
@@ -86,7 +86,7 @@ export const workflowSchema: z.ZodType<Workflow> = z.object({
   triggers: z.array(z.string().trim().min(1).max(80)).max(WORKFLOW_LIMITS.triggers),
   interests: z.array(z.enum(DISCOVERY_INTERESTS)).max(DISCOVERY_INTERESTS.length),
   pages: pageRuleSchema,
-  steps: z.array(flowStepSchema),
+  steps: z.array(flowStepSchema).max(FLOW_LIMITS.steps),
   outcome: outcomeSchema,
   template: z
     .object({
@@ -150,11 +150,13 @@ export const workflowSetSchema: z.ZodType<WorkflowSet> = z
         }
       }
 
+      checkFlowDepth(w.steps, ctx, ['workflows', i, 'steps']);
+
       const found: string[] = [];
       w.steps.forEach((s) => customIds(s, found));
       for (const id of found) {
         const owner = stepOwner.get(id);
-        if (owner !== undefined && owner !== i) {
+        if (owner !== undefined) {
           ctx.addIssue({
             code: 'custom',
             message: 'A custom step id can belong to only one workflow',
@@ -190,7 +192,8 @@ function compile(glob: string): RegExp {
  * page; a restricted rule never matches an unknown (null) path. `exclude` wins.
  */
 export function pathMatches(rule: PageRule, path: string | null): boolean {
-  if (path === null) return rule.include.length === 0 && rule.exclude.length === 0;
+  // An unknown page is matched by an open include list; an exclude cannot match it.
+  if (path === null) return rule.include.length === 0;
   const p = trimSlash(path);
   if (rule.exclude.some((g) => compile(g).test(p))) return false;
   return rule.include.length === 0 || rule.include.some((g) => compile(g).test(p));
