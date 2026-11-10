@@ -28,7 +28,8 @@ describe('inbox reply formatting', () => {
       'Try this:\n\n1. Open the app\n2. Check the **mode**\n\nThanks [S1].',
     );
     expect(blocks.map((b) => b.kind)).toEqual(['p', 'ol', 'p']);
-    const list = blocks[1] as Extract<(typeof blocks)[number], { kind: 'ol' }>;
+    const list = blocks[1];
+    if (list?.kind !== 'ol') throw new Error('expected a numbered list');
     expect(list.items[1]).toContainEqual({ kind: 'bold', text: 'mode' });
   });
 
