@@ -95,6 +95,8 @@ import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
 import { flowFieldsFor } from './flow/answers.js';
 import { flowForTenant } from './flow/tenant.js';
+import { settle } from './workflows/session.js';
+import { workflowsForTenant } from './workflows/tenant.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
 import { sha256 } from './ingest/prepare.js';
@@ -715,6 +717,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const sunscanConnected = sunscan !== null;
     const userText = body.data.text;
     const clientMessageId = body.data.clientMessageId;
+    // The host page, path only: which workflows apply depends on it.
+    const sentPath = normalisePagePath(body.data.page?.path);
     // The assistant's effectful tool calls are audited, the same as any other
     // privileged act: `create_lead` and `request_callback` file a record, and
     // "which conversation was the callback promised in" is a question the trail
@@ -732,6 +736,14 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         // be read produces the same `error` frame as any other turn failure
         // instead of a bare 500 the widget's transport has no case for.
         const knowledge = await loadKnowledgeIndex(tenantSnapshot.id);
+        // Read once here and handed down, so the turn does not read it again.
+        const { set: workflows } = workflowsForTenant(tenantSnapshot);
+        const session = settle(
+          await store.getWorkflowState(tenantSnapshot.id, sessionIdSnapshot),
+          workflows,
+        );
+        // A message that names no page is on the page the session last named.
+        const pagePath = sentPath ?? session.lastPath;
         for await (const event of runTurn({
           tenant: tenantSnapshot,
           provider: chat,
@@ -748,6 +760,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           audit,
           origin,
           channel: 'chat',
+          workflows,
+          session,
+          pagePath,
           search: deps.passageSearch ?? knowledgePipeline.retrieve.passageSearch,
           quote: {
             pricing: quotePricing,
@@ -2208,6 +2223,25 @@ function bearer(request: FastifyRequest): string | undefined {
   if (typeof header !== 'string') return undefined;
   const [scheme, token] = header.split(' ');
   return scheme?.toLowerCase() === 'bearer' ? token : undefined;
+}
+
+/** The longest page path kept, as the workflow page rules allow. */
+const PAGE_PATH_MAX = 512;
+
+/**
+ * The host page's path from a chat request, or null. Only the path is kept:
+ * a query string or a fragment is dropped, and anything that is not a path
+ * (a full URL, a protocol-relative `//host`, a control character, an
+ * over-long value) is refused rather than guessed at.
+ */
+export function normalisePagePath(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const path = raw.split(/[?#]/, 1)[0]!.trim();
+  if (!path.startsWith('/') || path.startsWith('//')) return null;
+  if (path.length > PAGE_PATH_MAX || /\s/.test(path)) return null;
+  // A control character never belongs in a path.
+  if ([...path].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f)) return null;
+  return path;
 }
 
 /**

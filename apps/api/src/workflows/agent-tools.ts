@@ -211,6 +211,27 @@ async function currentStep(ctx: ToolContext): Promise<ToolResult> {
   return { ok: true, data: present(ctx, r, step), summary: summaryOf(r, step.view) };
 }
 
+/**
+ * The current step, as `get_workflow_step` gives it, buttons included. The
+ * turn calls it itself when the model left a running workflow's question
+ * without its buttons (an FAQ answered mid-workflow).
+ */
+export const offerCurrentStep = currentStep;
+
+/**
+ * The running workflow (or discovery) and its current step, for the turn's
+ * `<workflow_state>`. Read the same way the tools read it (roof included), and
+ * pushes nothing to the visitor.
+ */
+export async function activeStep(
+  ctx: ToolContext,
+): Promise<{ workflow: { id: string; name: string }; step: WorkflowView } | null> {
+  const r = running(ctx);
+  if (!r) return null;
+  const step = await stepOf(ctx, depsOn(ctx, r.flow), r);
+  return { workflow: refOf(r), step: step.view };
+}
+
 function refuse(ctx: ToolContext, reason: string): ToolResult {
   return {
     ok: false,

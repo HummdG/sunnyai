@@ -6,13 +6,26 @@ import { newId, type ConversationTurn, type ModelCall, type Store } from '../sto
 import type { Auditor } from '../audit.js';
 import { flowForTenant } from '../flow/tenant.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
-import { DISCOVERY_ID, settle, type WorkflowSession } from '../workflows/session.js';
+import {
+  DISCOVERY_ID,
+  available,
+  markResumeOffered,
+  settle,
+  type WorkflowSession,
+} from '../workflows/session.js';
+import { activeStep, offerCurrentStep } from '../workflows/agent-tools.js';
 import { resolvedFlowFor, workflowsForTenant } from '../workflows/tenant.js';
 import type { QuoteToolContext } from '../journey/agent-tools.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatProvider } from './provider.js';
 import { CHANNEL_POLICIES, assertEntitled, finalizeOutput, type Channel } from './channels.js';
-import { buildSystemInstruction, sandwich, userQuery } from './prompt.js';
+import {
+  buildSystemInstruction,
+  likelyWorkflow,
+  sandwich,
+  userQuery,
+  workflowState,
+} from './prompt.js';
 import {
   PlaceholderGuard,
   classifyIntent,
@@ -94,7 +107,10 @@ export interface TurnInput {
   workflows?: WorkflowSet;
   /** Where this visitor is among the workflows; absent means a fresh session. */
   session?: WorkflowSession;
-  /** The host page's path, when the widget sent one. */
+  /**
+   * The host page's path, already normalised. Absent means the page the
+   * session last named (`session.lastPath`); null means no page is known.
+   */
   pagePath?: string | null;
   signal?: AbortSignal;
 }
@@ -255,10 +271,12 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   const workflows = input.workflows ?? workflowsForTenant(input.tenant).set;
   // The visitor's place among the workflows, as the last turn left it; a
   // workflow the installer has since turned off is set aside.
-  const session = settle(
-    input.session ?? (await input.store.getWorkflowState(input.tenant.id, input.sessionId)),
-    workflows,
-  );
+  const stored =
+    input.session ?? (await input.store.getWorkflowState(input.tenant.id, input.sessionId));
+  const session = settle(stored, workflows);
+  const pagePath = input.pagePath === undefined ? session.lastPath : input.pagePath;
+  // Only a channel that can run workflows is told about them.
+  const workflowsOn = allowedTools.has('start_workflow');
   const ctx: ToolContext = {
     tenant: input.tenant,
     sessionId: input.sessionId,
@@ -282,8 +300,30 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     flow: turnFlow(input, workflows, session),
     workflows,
     session,
-    pagePath: input.pagePath ?? null,
+    pagePath,
   };
+
+  // What the server tells the model about the workflows this turn, between the
+  // evidence and the visitor's words. A paused workflow it lists as not yet
+  // offered is marked offered once the turn is done, so the offer is made once.
+  let state: string | undefined;
+  const resumeOffered: string[] = [];
+  if (workflowsOn) {
+    const open = available(workflows, pagePath);
+    const paused = ctx.session.paused.flatMap((p) => {
+      const workflow = open.find((w) => w.id === p.workflowId);
+      return workflow ? [{ workflow, resumeOffered: p.resumeOfferedAt !== null }] : [];
+    });
+    for (const p of paused) if (!p.resumeOffered) resumeOffered.push(p.workflow.id);
+    state = workflowState({
+      active: await activeStep(ctx),
+      paused,
+      available: open,
+      discovery: ctx.session.discovery,
+      discoveryEnabled: workflows.discovery.enabled,
+      likely: likelyWorkflow(open, input.message),
+    });
+  }
 
   let text = '';
   let usage: { inputTokens: number; outputTokens: number } | undefined;
@@ -298,6 +338,8 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     }
   };
   const toolsUsed: string[] = [];
+  // Whether the visitor was given the current question's buttons this turn.
+  let repliesSent = false;
   // The channel's allowlist is the declared surface: a tool outside it is
   // neither offered to the model nor run if the model names it anyway.
   const declaredTools = allowedTools;
@@ -336,7 +378,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
         role: t.role,
         text: t.role === 'user' ? userQuery(t.text) : t.text,
       })),
-      message: sandwich(contextPassages, input.message),
+      message: sandwich(contextPassages, input.message, state),
       tools: declarationsFor(policy.tools),
       // The model sees the tool's data plus its one-line summary; the events
       // the summary produces are drained into the stream between chunks, so a
@@ -359,6 +401,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
           if (disclaimerSent) continue;
           disclaimerSent = true;
         }
+        if (event.type === 'quick_replies') repliesSent = true;
         yield event;
       }
       if (chunk.type === 'text') {
@@ -384,6 +427,30 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       }
     }
 
+    for (const event of drain(events, messageId)) {
+      if (event.type === 'disclaimer') {
+        if (disclaimerSent) continue;
+        disclaimerSent = true;
+      }
+      if (event.type === 'quick_replies') repliesSent = true;
+      yield event;
+    }
+  }
+
+  // A workflow is running but the model only talked (an FAQ answered
+  // mid-workflow): the server puts the current question's buttons back under
+  // the answer, as get_workflow_step would, so the visitor can carry on.
+  if (
+    workflowsOn &&
+    !repliesSent &&
+    (ctx.session.active !== null || ctx.session.discovery.status === 'asking')
+  ) {
+    try {
+      const step = await offerCurrentStep(ctx);
+      noteForSilence('get_workflow_step', step.data);
+    } catch (error) {
+      console.warn('[workflows] could not re-offer the current question', error);
+    }
     for (const event of drain(events, messageId)) {
       if (event.type === 'disclaimer') {
         if (disclaimerSent) continue;
@@ -496,6 +563,23 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       answersChanged,
       answersRemoved,
     );
+  }
+
+  // The visitor's place among the workflows, as this turn leaves it. The tools
+  // have already saved what they changed into `ctx.session`; this adds the page
+  // and the resume offers, and writes only when something differs.
+  if (workflowsOn) {
+    const at = new Date().toISOString();
+    let next = ctx.session;
+    for (const id of resumeOffered) {
+      if (next.paused.some((p) => p.workflowId === id && p.resumeOfferedAt === null)) {
+        next = markResumeOffered(next, id, at);
+      }
+    }
+    if (next.lastPath !== pagePath) next = { ...next, lastPath: pagePath };
+    if (JSON.stringify(next) !== JSON.stringify(stored)) {
+      await input.store.saveWorkflowState(input.tenant.id, input.sessionId, next);
+    }
   }
 
   yield {

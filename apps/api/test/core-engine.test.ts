@@ -142,7 +142,7 @@ describe('the guardrail prompt', () => {
     const instruction = buildSystemInstruction(demo(), 'chat', 0);
     expect(instruction).toContain(fallbackLine());
     expect(fallbackLine()).toBe(
-      "I don't have that exact information on hand, but I can have one of our solar specialists reach out to you!",
+      "I don't have that exact information on hand, but I can have one of our specialists reach out to you!",
     );
     expect(instruction).toContain('customer assistant for Sunny');
     expect(instruction).toMatch(/Never invent a price, a tax credit/);
@@ -158,13 +158,13 @@ describe('the guardrail prompt', () => {
     expect(buildSystemInstruction(demo(), 'chat', 0)).toContain('You are Sunny, a customer');
   });
 
-  it('follows the fallback line through, and treats a survey as the quote journey', () => {
+  it('follows the fallback line through, and offers a survey as well as a quote', () => {
     // Seen live: "How do I get a survey?" got the fallback line and nothing
     // after it, so the visitor was offered a specialist and left there.
     const instruction = buildSystemInstruction(demo(), 'chat', 0);
     expect(instruction).toMatch(/After the fallback line, ask whether they would like/);
     expect(instruction).toMatch(/name and the best phone number or email/);
-    expect(instruction).toMatch(/wants a survey/);
+    expect(instruction).toMatch(/arrange a quote or a survey/);
   });
 
   it('escapes the visitor text so it cannot close its tag or open another', () => {
