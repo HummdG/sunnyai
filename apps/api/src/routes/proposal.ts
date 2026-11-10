@@ -54,6 +54,9 @@ const emailSchema = z.object({
 /** Per session, per day: enough to resend to a corrected address, not a spam relay. */
 const EMAILS_PER_SESSION_PER_DAY = 3;
 
+/** Per session, per minute: each download rebuilds the roof plan, so it is bounded too. */
+const DOWNLOADS_PER_SESSION_PER_MINUTE = 20;
+
 function bearer(request: FastifyRequest): string | undefined {
   const header = request.headers.authorization;
   if (typeof header !== 'string') return undefined;
@@ -79,6 +82,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     store,
   });
   const sent = new Map<string, number[]>();
+  const downloads = new Map<string, number[]>();
   const sources: ProposalSources = {
     store,
     brandAssets: deps.brandAssets ?? null,
@@ -106,7 +110,13 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
   }
 
   app.get('/v1/quote/:id/proposal.pdf', async (request, reply) => {
-    const { tenant, quote } = await visitorQuote(request);
+    const { tenant, quote, sessionId } = await visitorQuote(request);
+    const minuteAgo = now() - 60_000;
+    const recent = (downloads.get(sessionId) ?? []).filter((t) => t > minuteAgo);
+    if (recent.length >= DOWNLOADS_PER_SESSION_PER_MINUTE) {
+      throw new ApiError('rate_limited', 'Too many downloads at once. Try again in a minute.');
+    }
+    downloads.set(sessionId, [...recent, now()]);
     const pdf = await proposalPdf(
       sources,
       tenant,

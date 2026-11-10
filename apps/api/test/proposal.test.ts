@@ -817,6 +817,18 @@ describe('proposal routes', () => {
     void tenantId;
   });
 
+  it('limits how often one session can download its PDF', async () => {
+    const { app, quote, visitor } = await setup(null);
+    const get = (sess: string) =>
+      app.inject({
+        method: 'GET',
+        url: `/v1/quote/${quote.id}/proposal.pdf`,
+        headers: visitor(sess),
+      });
+    for (let i = 0; i < 20; i++) expect((await get('sess_1')).statusCode).toBe(200);
+    expect((await get('sess_1')).statusCode).toBe(429);
+  }, 60_000);
+
   it('gives the installer their lead’s proposal, and other installers nothing', async () => {
     const { app, tenantId, lead, owner, as } = await setup(null);
     const url = `/v1/portal/tenants/${tenantId}/leads/${lead.id}/quote/proposal.pdf`;

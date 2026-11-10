@@ -50,10 +50,17 @@ export function snapshotAssetIds(snap: QuotationSnapshot): string[] {
 export function snapshotFor(
   tenant: Tenant,
   settings: QuotationSettings | undefined,
+  log?: { warn: (object: object, message: string) => void },
 ): QuotationSnapshot {
   // Stored settings are never parsed on the way in, so they may predate a
   // field: parse here so every field has its default.
   const parsed = quotationSettingsSchema.safeParse(settings);
+  if (!parsed.success && settings !== undefined) {
+    log?.warn(
+      { tenantId: tenant.id, issues: parsed.error.issues.length },
+      'stored quotation settings are invalid; the quote snapshot uses defaults',
+    );
+  }
   const base = parsed.success ? parsed.data : defaultQuotationSettings();
   const brand = /^#[0-9a-f]{6}$/i.test(tenant.config.primaryColor)
     ? tenant.config.primaryColor.toLowerCase()

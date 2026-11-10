@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultQuotationSettings, type QuotationSettings } from '@sunny/contracts';
 
@@ -121,6 +121,41 @@ describe('the quotation snapshot', () => {
     if (!result.ok) throw new Error(`not ok: ${result.missing.join()}`);
     expect(result.quote.quotation).toEqual(snapshotFor(tenants.byId(TENANT.id)!, settings));
     expect(result.quote.quotation?.validityDays).toBe(14);
+  });
+
+  it('warns, and still makes a quote, when the stored settings cannot be read', async () => {
+    const { deps, tenants } = await setup();
+    await tenants.update(TENANT.id, (t) => ({
+      ...t,
+      config: { ...t.config, quotation: { validityDays: 'soon' } as never },
+    }));
+    const warn = vi.fn();
+    const result = await createQuote({ ...deps, log: { warn } }, TENANT.id, 's1');
+    if (!result.ok) throw new Error('not ok');
+    expect(result.quote.quotation?.validityDays).toBe(30);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![1]).toMatch(/quotation settings/);
+  });
+
+  it('warns, and still makes a quote, when pinning the logos fails', async () => {
+    const { deps, tenants } = await setup();
+    await tenants.update(TENANT.id, (t) => ({
+      ...t,
+      config: { ...t.config, quotation: saved({ logoAssetId: 'logo_1' }) },
+    }));
+    const warn = vi.fn();
+    const result = await createQuote(
+      {
+        ...deps,
+        log: { warn },
+        pinBrandAssets: () => Promise.reject(new Error('disk full')),
+      },
+      TENANT.id,
+      's1',
+    );
+    expect(result.ok).toBe(true);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![1]).toMatch(/pin/);
   });
 
   it('does not change when the settings change afterwards', async () => {

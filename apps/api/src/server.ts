@@ -752,6 +752,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           quote: {
             pricing: quotePricing,
             pinBrandAssets: (tenantId, ids) => pinBrandAssets(tenants, tenantId, ids),
+            log: app.log,
           },
           signal: abort.signal,
         })) {

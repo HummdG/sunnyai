@@ -102,6 +102,7 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     flow: (tenantId) => flowForTenant(deps.tenants.byId(tenantId)),
     tenant: (tenantId) => deps.tenants.byId(tenantId),
     pinBrandAssets: (tenantId, ids) => pinBrandAssets(deps.tenants, tenantId, ids),
+    log: app.log,
   };
 
   function caller(request: FastifyRequest, sessionId?: string) {

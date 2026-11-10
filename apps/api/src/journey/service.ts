@@ -62,6 +62,8 @@ export interface JourneyDeps {
    * (branding/meta.ts `pinBrandAssets`). Absent: nothing is pinned.
    */
   pinBrandAssets?: (tenantId: string, ids: string[]) => Promise<void>;
+  /** Where non-fatal problems are noted. Absent: they are not logged. */
+  log?: { warn: (object: object, message: string) => void };
 }
 
 function flowOf(deps: JourneyDeps, tenantId: string): ResolvedFlow {
@@ -247,11 +249,13 @@ export async function createQuote(
   // Fixed now: the settings in force at this moment, and why each item is here.
   const tenant = deps.tenant?.(tenantId);
   if (tenant) {
-    quote.quotation = snapshotFor(tenant, tenant.config.quotation);
+    quote.quotation = snapshotFor(tenant, tenant.config.quotation, deps.log);
     const ids = snapshotAssetIds(quote.quotation);
     if (ids.length > 0 && deps.pinBrandAssets) {
       // A pin that fails must not cost the visitor their quote.
-      await deps.pinBrandAssets(tenantId, ids).catch(() => undefined);
+      await deps.pinBrandAssets(tenantId, ids).catch((error: unknown) => {
+        deps.log?.warn({ err: error, tenantId }, 'could not pin brand assets for a new quote');
+      });
     }
   }
   const reasons: Record<string, string> = {};

@@ -108,7 +108,7 @@ export function QuotationTab({
         return;
       }
       const slug = tenant.companyName.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      saveFile(result.blob, result.fileName ?? `${slug || 'Sunny'}-sample-quotation.pdf`);
+      saveFile(result.blob, result.fileName ?? `${slug || 'solar'}-sample-quotation.pdf`);
     } catch (failure) {
       setError(errorText(failure));
     } finally {

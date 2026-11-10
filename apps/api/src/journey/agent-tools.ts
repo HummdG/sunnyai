@@ -30,6 +30,7 @@ export interface QuoteToolContext {
   pricing: PricingSource;
   /** Pins the brand assets a new quote's PDF prints (see JourneyDeps). */
   pinBrandAssets?: (tenantId: string, ids: string[]) => Promise<void>;
+  log?: { warn: (object: object, message: string) => void };
 }
 
 function depsFor(ctx: ToolContext): JourneyDeps | null {
@@ -43,6 +44,7 @@ function depsFor(ctx: ToolContext): JourneyDeps | null {
     flow: () => ctx.flow,
     tenant: () => ctx.tenant,
     ...(ctx.quote.pinBrandAssets ? { pinBrandAssets: ctx.quote.pinBrandAssets } : {}),
+    ...(ctx.quote.log ? { log: ctx.quote.log } : {}),
   };
 }
 

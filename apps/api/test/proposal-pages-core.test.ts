@@ -423,6 +423,41 @@ describe('quotation page', () => {
     expect(t).toContain('£9,958');
   });
 
+  it('prints a discount line as a negative price, so the rows add up to the total', async () => {
+    const q = quote(
+      {},
+      {
+        priceGbp: 12777,
+        lineItems: [
+          { sku: 'A', label: 'Solar panels', quantity: 1, totalGbp: 12000 },
+          { sku: 'BAT-DISCOUNT', label: 'Multi-unit discount', quantity: 1, totalGbp: -500 },
+          { sku: 'B', label: 'Installation', quantity: 1, totalGbp: 1277 },
+        ],
+      },
+    );
+    const t = await text(await quotation(docFor({}, q)));
+    expect(t).toContain('Multi-unit discount');
+    expect(t).toContain('-£500');
+    expect(t).not.toMatch(/Multi-unit discount\s+Included/);
+    expect(12000 - 500 + 1277).toBe(q.options[0]!.priceGbp);
+    expect(t).toContain('£12,777');
+  });
+
+  it('prints Balance alone, without a dangling comma, when no timing is set', async () => {
+    const t = await text(
+      await quotation(
+        docFor(
+          {},
+          quote(),
+          snapshot({ deposit: { kind: 'percent', percent: 25 }, balanceDue: '' }),
+        ),
+      ),
+    );
+    expect(t).toContain('£9,958');
+    expect(t).not.toMatch(/Balance,/);
+    expect(t).toMatch(/Balance/);
+  });
+
   it('prints a fixed deposit above the total as the total, and £0 balance', async () => {
     const t = await text(
       await quotation(

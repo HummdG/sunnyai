@@ -35,6 +35,12 @@ export interface QuotationEnd {
   continued: boolean;
 }
 
+/** `Balance, within 7 days`, or just `Balance` when no timing is set. */
+function balanceLabel(due: string): string {
+  const t = due.trim();
+  return t ? `Balance, ${t}` : 'Balance';
+}
+
 interface Row {
   label: string;
   price: string;
@@ -48,7 +54,7 @@ function rowsFor(doc: ProposalDoc): Row[] {
   const reasons = doc.quote.reasons ?? {};
   const rows: Row[] = o.lineItems.map((item) => ({
     label: item.quantity > 1 ? `${item.quantity} × ${item.label}` : item.label,
-    price: item.totalGbp > 0 ? gbp(item.totalGbp) : 'Included',
+    price: item.totalGbp === 0 ? 'Included' : gbp(item.totalGbp),
     priced: true,
     reason: reasons[item.sku] ?? null,
   }));
@@ -190,7 +196,7 @@ export function drawQuotation(
     m !== null && m.deposit !== null && m.balance !== null
       ? 8 +
         moneyRowH(pdf, ESTIMATE.depositLabel, `${depositBasis(doc)}, ${m.vatNote}`, w - 90) +
-        moneyRowH(pdf, `Balance, ${doc.snapshot.balanceDue}`, m.vatNote, w - 90)
+        moneyRowH(pdf, balanceLabel(doc.snapshot.balanceDue), m.vatNote, w - 90)
       : 0;
   const acceptH = ACCEPT_H + measure(pdf, go, small);
   ensure(48 + depositH + VALID_H + acceptH);
@@ -260,7 +266,7 @@ export function drawQuotation(
     y += 8;
     rule(pdf, y, theme.rule);
     moneyRow(ESTIMATE.depositLabel, `${depositBasis(doc)}, ${m.vatNote}`, gbp(m.deposit));
-    moneyRow(`Balance, ${doc.snapshot.balanceDue}`, m.vatNote, gbp(m.balance));
+    moneyRow(balanceLabel(doc.snapshot.balanceDue), m.vatNote, gbp(m.balance));
   }
 
   ensure(VALID_H);
@@ -376,7 +382,7 @@ function drawRail(
     );
     y = railItem(pdf, theme, col, y, 'Balance', {
       big: gbp(m.balance),
-      lines: [doc.snapshot.balanceDue],
+      lines: doc.snapshot.balanceDue.trim() ? [doc.snapshot.balanceDue] : [],
     });
   }
   y = railItem(pdf, theme, col, y, 'Valid until', { lines: [longDate(doc.validUntil)] });

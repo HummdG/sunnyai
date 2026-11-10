@@ -9,8 +9,6 @@ import type { AppliedEffect } from '../flow/effects.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
 import type { QuoteOptionView } from '../journey/quote.js';
 
-export { snapshotFor, type QuotationSnapshot } from './snapshot.js';
-
 const EVENING = 'You told us you use most of your electricity in the evening.';
 const EV_NOW = 'You told us you drive an electric car.';
 const EV_PLANNED = 'You told us you are planning an electric car.';
