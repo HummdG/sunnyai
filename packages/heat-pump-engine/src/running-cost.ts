@@ -12,8 +12,12 @@ export function boilerEfficiency(fuel: Fuel, scop: number): number {
       return BOILER_EFFICIENCY.lpg;
     case 'heat_pump':
       return scop;
-    default:
+    case 'electric_storage':
+    case 'electric_direct':
       return BOILER_EFFICIENCY.electric;
+    default:
+      // 'other' fuels are burned, so a boiler efficiency applies.
+      return BOILER_EFFICIENCY.gas;
   }
 }
 

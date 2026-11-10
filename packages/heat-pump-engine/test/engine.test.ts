@@ -36,6 +36,10 @@ describe('nationOf', () => {
     ['SY23 1AA', 'border'],
     ['TD15 1AA', 'border'],
     ['NR4 7TJ', 'england'],
+    ['G1 1AA', 'scotland'],
+    ['GL1 1AA', 'england'],
+    ['S1 1AA', 'england'],
+    ['SA1 1AA', 'wales'],
     ['garbage', 'unknown'],
   ])('%s is %s', (pc, nation) => {
     expect(nationOf(pc)).toBe(nation);
@@ -65,6 +69,21 @@ describe('estimate golden', () => {
     expect(e.bus.amountGbp).toBe(7500);
     expect(e.nation).toBe('england');
     expect(e.floorAreaAssumed).toBe(false);
+  });
+
+  it('pre-1919 homes lose 0.2 SCOP on standard radiators', () => {
+    expect(estimate({ ...base, ageBand: 'pre_1919' }).scop).toBe(2.8);
+  });
+
+  it('other fuels burn at boiler efficiency', () => {
+    const e = estimate({ ...base, currentFuel: 'other' });
+    expect(e.runningCost.boilerEfficiency).toBe(0.85);
+  });
+
+  it('electric fuels are 100% efficient', () => {
+    expect(estimate({ ...base, currentFuel: 'electric_direct' }).runningCost.boilerEfficiency).toBe(
+      1,
+    );
   });
 
   it('notes the spend without replacing the model', () => {
