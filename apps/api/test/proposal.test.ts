@@ -917,8 +917,14 @@ describe('proposal routes with a heat pump quote', () => {
     const { store } = ctx;
     const hpLead = { ...ctx.lead, id: 'lead_hp', sessionId: 'sess_hp' };
     await store.saveLead(hpLead);
-    await store.mergeAnswers(ctx.tenantId, 'sess_hp', { hp_current_heating: 'oil' });
-    const hp = hpQuote({ tenantId: ctx.tenantId, sessionId: 'sess_hp', leadId: hpLead.id });
+    // The answer now says gas; the quote was made with oil, and the PDF follows the quote.
+    await store.mergeAnswers(ctx.tenantId, 'sess_hp', { hp_current_heating: 'gas' });
+    const hp = hpQuote({
+      tenantId: ctx.tenantId,
+      sessionId: 'sess_hp',
+      leadId: hpLead.id,
+      currentFuel: 'oil',
+    });
     await store.saveQuote(hp);
     return { ...ctx, hp, hpLead };
   }

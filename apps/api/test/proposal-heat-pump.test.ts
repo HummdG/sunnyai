@@ -146,6 +146,46 @@ describe('the heat pump estimate PDF', () => {
     expect(quotation).toContain('Priced by your installer');
     expect(quotation).not.toContain('£5,000');
     expect(quotation).toContain('Your installer will price the new cylinder.');
+    // No total to take the grant from: a note, never the deduction row.
+    expect(quotation).not.toContain('\u2212£7,500');
+    expect(quotation).not.toContain('Boiler Upgrade Scheme grant \u2212');
+    expect(quotation).toContain(
+      'A Boiler Upgrade Scheme grant of £7,500 will come off your invoice once your installer has priced this.',
+    );
+    // The lines with figures are only part of the price.
+    expect(quotation).toContain('Priced so far');
+    expect(quotation.indexOf('Priced so far')).toBeLessThan(
+      quotation.indexOf('200 litre cylinder'),
+    );
+  });
+
+  it('heads the lines only when the option is priced by the installer', async () => {
+    const quotation = (await textOf(hpQuote())).find((p) => p.includes('Estimated quotation'))!;
+    expect(quotation).not.toContain('Priced so far');
+    expect(quotation).not.toContain('once your installer has priced this');
+  });
+
+  it('prints the current heating fixed on the quote, whatever the answer says now', async () => {
+    // The fixture store answers gas; the quote says oil.
+    const all = (await textOf(hpQuote({ currentFuel: 'oil' }))).join('\n');
+    expect(all).toContain('Oil boiler, now');
+    expect(all).not.toContain('Gas boiler');
+  });
+
+  it('says "Your current heating" for an old row with no stored fuel and no answer', async () => {
+    const { currentFuel: _fuel, ...old } = hpQuote();
+    void _fuel;
+    const blank: ProposalSources = {
+      store: { getConversation: () => Promise.resolve({ answers: {} }) } as unknown as Store,
+    };
+    const all = (await pdfText(await proposalPdf(blank, DEMO_TENANT, old, null, NOW))).join('\n');
+    expect(all).toContain('Your current heating, now');
+    expect(all).not.toContain('Gas boiler');
+  });
+
+  it('names an existing heat pump as such', async () => {
+    const all = (await textOf(hpQuote({ currentFuel: 'heat_pump' }))).join('\n');
+    expect(all).toContain('Your existing heat pump, now');
   });
 
   it('notes an unsure grant without deducting it', async () => {

@@ -19,6 +19,7 @@ import { extractAnswers } from '../src/journey/extract.js';
 import { heatPumpInputFrom, radiatorCountFor } from '../src/journey/heat-pump/service.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import { journeyView, sunscanRoofLookup } from '../src/journey/service.js';
+import { proposalPdf } from '../src/proposal/index.js';
 import { HEAT_PUMP_QUESTIONS, OPTION_LABELS } from '../src/questionnaire.js';
 import { registerQuoteRoutes } from '../src/routes/quote.js';
 import { issueSessionToken } from '../src/sessions.js';
@@ -28,6 +29,7 @@ import { EMPTY_SESSION, cloneSession } from '../src/workflows/session.js';
 import { defaultWorkflowSet, heatPumpTemplate, templateFor } from '../src/workflows/templates.js';
 import { resolvedFlowFor, workflowsForTenant } from '../src/workflows/tenant.js';
 
+import { pdfText } from './pdf-text.js';
 import { ScriptedProvider } from './scripted-provider.js';
 
 const NOW = '2026-11-10T10:00:00.000Z';
@@ -372,6 +374,26 @@ describe('the heat pump quote', () => {
     });
     expect(quote!.options.map((o) => o.label)).toEqual(['Heat pump only']);
     expect(quote!.options[0]!.isRecommended).toBe(true);
+  });
+
+  it('fixes the current heating on the quote, so a later answer never changes the PDF', async () => {
+    const store = await tempStore();
+    await publish(store, HP_LIST);
+    const { quote } = await quoteWith(store, { ...HP_ANSWERS, hp_current_heating: 'oil' });
+    expect(quote!.currentFuel).toBe('oil');
+    const text = async (s: FileStore) =>
+      (
+        await pdfText(await proposalPdf({ store: s }, DEMO_TENANT, quote!, null, new Date(NOW)))
+      ).join(' ');
+    // The visitor later changes the answer: the PDF still says oil.
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { hp_current_heating: 'gas' });
+    expect(await text(store)).toContain('Oil boiler, now');
+    expect(await text(store)).not.toContain('Gas boiler');
+    // The conversation is gone altogether: still oil.
+    const forgotten = Object.create(store, {
+      getConversation: { value: () => Promise.resolve(null) },
+    }) as FileStore;
+    expect(await text(forgotten)).toContain('Oil boiler, now');
   });
 
   it('gives no grant in Scotland', async () => {

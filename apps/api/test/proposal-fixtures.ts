@@ -262,6 +262,7 @@ export function hpQuote(
       currency: 'GBP',
     },
     estimate: hpEstimate(),
+    currentFuel: 'gas',
     postcode: 'NR4 7TJ',
     options: [
       hpOption({

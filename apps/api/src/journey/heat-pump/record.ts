@@ -5,7 +5,7 @@
  * missing kind as solar.
  */
 
-import type { HeatPumpEstimate } from '@sunny/heat-pump-engine';
+import type { Fuel, HeatPumpEstimate } from '@sunny/heat-pump-engine';
 
 import type { QuotationSnapshot } from '../../proposal/snapshot.js';
 import type { QuoteLineItem, QuoteRecord } from '../quote.js';
@@ -41,6 +41,12 @@ export interface HeatPumpQuoteRecord {
   priced: boolean;
   pricing: QuoteRecord['pricing'];
   estimate: HeatPumpEstimate;
+  /**
+   * How the home was heated when the quote was made (gas when the visitor did
+   * not say, as the estimate assumed). Fixed here so the PDF never follows a
+   * later answer. Absent on rows made before it was stored.
+   */
+  currentFuel?: Fuel;
   postcode: string;
   options: HeatPumpOptionView[];
   recommendedId: string;

@@ -365,6 +365,7 @@ export async function createHeatPumpQuote(
         }
       : null,
     estimate: est,
+    currentFuel: read.input.currentFuel,
     postcode: read.input.postcode,
     options,
     recommendedId: options.find((o) => o.isRecommended)!.id,

@@ -276,7 +276,8 @@ async function heatPumpDocFor(
     quote,
     option,
     chosen,
-    currentFuel: fuelOf(answers['hp_current_heating']),
+    // Fixed on the quote; only an older row without it falls back to the answer.
+    currentFuel: quote.currentFuel ?? fuelOf(answers['hp_current_heating']),
     snapshot,
     customer: {
       name: lead?.name ?? null,

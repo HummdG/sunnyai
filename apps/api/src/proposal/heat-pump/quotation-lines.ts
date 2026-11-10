@@ -34,6 +34,14 @@ export const GRANT_ROW = 'Boiler Upgrade Scheme grant';
 /** Shown when the postcode cannot tell whether the grant applies. */
 export const GRANT_UNSURE = 'The Boiler Upgrade Scheme may apply. Your installer will confirm.';
 
+/** In place of the deduction row when the option has no total to take it from. */
+export function grantPending(gbpAmount: number): string {
+  return (
+    `A Boiler Upgrade Scheme grant of ${gbp(gbpAmount)} will come off your invoice ` +
+    'once your installer has priced this.'
+  );
+}
+
 /** `−£7,500`, with a true minus sign (U+2212), never a dash. */
 export function deduction(gbpAmount: number): string {
   return `−${gbp(gbpAmount)}`;
@@ -79,13 +87,15 @@ function rowsFor(doc: HeatPumpProposalDoc): QuotationRow[] {
 }
 
 /** The notes: the unsure grant, then the option's and the quote's warnings, once each. */
-function notesFor(doc: HeatPumpProposalDoc): string[] {
+function notesFor(doc: HeatPumpProposalDoc, priced: boolean): string[] {
   const out: string[] = [];
   const add = (s: string) => {
     const t = s.trim();
     if (t && !out.includes(t)) out.push(t);
   };
   if (doc.quote.estimate.bus.eligible === 'unsure') add(GRANT_UNSURE);
+  // No total to take the grant from: say it will come off, deduct nothing.
+  if (!priced && doc.option.grantGbp > 0) add(grantPending(doc.option.grantGbp));
   for (const w of doc.option.warnings) add(w);
   for (const w of doc.quote.warnings) add(w);
   return out;
@@ -97,14 +107,17 @@ export function heatPumpQuotation(doc: HeatPumpProposalDoc, theme: Theme): Quota
   return {
     notice: HEAT_PUMP_NOTICE,
     rows: rowsFor(doc),
-    adjustments: o.grantGbp > 0 ? [{ label: GRANT_ROW, amount: deduction(o.grantGbp) }] : [],
+    // Lines with figures under an option the installer prices are only part of it.
+    ...(m === null && o.lineItems.length > 0 ? { rowsHeading: 'Priced so far' } : {}),
+    adjustments:
+      m !== null && o.grantGbp > 0 ? [{ label: GRANT_ROW, amount: deduction(o.grantGbp) }] : [],
     money: m,
     totalLabel: m && o.grantGbp > 0 ? 'Estimated total after the grant' : ESTIMATE.totalLabel,
     noTotal: PRICED_BY_INSTALLER,
     aboveTotal: doc.quote.disclaimer,
     depositBasis: depositBasis(doc),
     goAhead: goAhead(doc),
-    notes: notesFor(doc),
+    notes: notesFor(doc, m !== null),
     mcsGenerationKwh: null,
     disclaimer: null,
     others: (pdf, box, ensure) => drawOptionsCompared(pdf, doc, theme, box, ensure),

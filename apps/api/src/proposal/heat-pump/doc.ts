@@ -30,8 +30,11 @@ export interface HeatPumpProposalDoc extends ProposalBase {
   quote: HeatPumpQuoteRecord;
   /** The option the document is about: the visitor's choice, else the recommended one. */
   option: HeatPumpOptionView;
-  /** How the home is heated today, from the visitor's answer (gas when unanswered). */
-  currentFuel: Fuel;
+  /**
+   * How the home was heated when the quote was made, as stored on the quote.
+   * Null when it cannot be known (an old row with no stored fuel and no answer).
+   */
+  currentFuel: Fuel | null;
 }
 
 /** Either kind of quotation document. */
@@ -47,20 +50,20 @@ const FUEL_WORDS: Record<Fuel, string> = {
   lpg: 'LPG boiler',
   electric_storage: 'Electric storage heaters',
   electric_direct: 'Electric heaters',
-  heat_pump: 'Your current heat pump',
+  heat_pump: 'Your existing heat pump',
   other: 'Your current heating',
 };
 
-/** `Gas boiler`, `Electric storage heaters`, and so on. */
-export function fuelWords(fuel: Fuel): string {
-  return FUEL_WORDS[fuel];
+/** `Gas boiler`, `Electric storage heaters`, and so on; `Your current heating` when unknown. */
+export function fuelWords(fuel: Fuel | null): string {
+  return fuel ? FUEL_WORDS[fuel] : 'Your current heating';
 }
 
 const FUELS = Object.keys(FUEL_WORDS) as Fuel[];
 
-/** The visitor's answer as a fuel; gas when unanswered, as the estimate assumes. */
-export function fuelOf(answer: unknown): Fuel {
-  return FUELS.find((f) => f === answer) ?? 'gas';
+/** A stored answer as a fuel, or null when it is missing or not one. Never guessed. */
+export function fuelOf(answer: unknown): Fuel | null {
+  return FUELS.find((f) => f === answer) ?? null;
 }
 
 /** `7 kW`, `8.5 kW`. */

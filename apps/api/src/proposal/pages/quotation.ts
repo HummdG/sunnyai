@@ -62,6 +62,8 @@ export interface QuotationContent {
   /** The estimate notice under the title. */
   notice: string;
   rows: QuotationRow[];
+  /** A sub-heading set above the items, or absent for none. */
+  rowsHeading?: string;
   /**
    * Unnumbered rows after the items: VAT added on top, or a deduction such as
    * the Boiler Upgrade Scheme grant. The amount is printed as given.
@@ -222,6 +224,15 @@ export function drawQuotationWith(
     rule(pdf, below + 1, theme.railBg, 1);
     return below + 6;
   };
+  if (content.rowsHeading) {
+    y = para(pdf, content.rowsHeading, x, y, {
+      font: 'sans-600',
+      size: 9.5,
+      color: ink,
+      width: w,
+    });
+    y += 6;
+  }
   y = head(y);
   content.rows.forEach((row, i) => {
     const labelOpts = { font: 'sans-400', size: 9, color: ink, width: itemW, lineGap: 1 };
