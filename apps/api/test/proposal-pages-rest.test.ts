@@ -92,12 +92,29 @@ describe('system page', () => {
   it('shows the roof facts and the roof plan, marked Sample', async () => {
     const p = plan();
     expect(p).not.toBeNull();
-    const t = await text(await system(docFor({ roofPlan: p })));
+    const buf = await system(docFor({ roofPlan: p }));
+    const t = await text(buf);
     expect(t).toContain('Best-facing roof');
     expect(t).toContain('About 36°');
     expect(t).toContain('Up to 14');
+    expect(t).toContain('ROOF PLAN');
     expect(t).toContain('SAMPLE');
-    expect(t).toContain('OVERALL WIDTH');
+    expect(t).toContain('EAVE');
+    expect(t).toContain('RAFTER');
+    expect(t).not.toContain('OVERALL');
+    const rotated = (await pdfItems(buf))
+      .flat()
+      .filter((i) => i.str.trim() !== '')
+      .filter(
+        (i) =>
+          !(
+            Math.abs(i.transform[1]!) < 1e-6 &&
+            Math.abs(i.transform[2]!) < 1e-6 &&
+            i.transform[0]! > 0
+          ),
+      )
+      .map((i) => i.str);
+    expect(rotated).toEqual([]);
   });
 
   it('compares the other options from their stored figures', async () => {

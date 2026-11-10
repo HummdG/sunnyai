@@ -323,10 +323,25 @@ describe('cover page', () => {
     ) as unknown;
     const plan = roofPlanFor(spec, { panelCount: 10, reliable: true, sample: true });
     expect(plan).not.toBeNull();
-    const pages = await pdfText(await cover(docFor({ roofPlan: plan })));
+    const buf = await cover(docFor({ roofPlan: plan }));
+    const pages = await pdfText(buf);
     expect(pages).toHaveLength(1);
+    expect(pages[0]).toContain('ROOF PLAN');
     expect(pages[0]).toContain('SAMPLE');
-    expect(pages[0]).toContain('OVERALL WIDTH');
+    expect(pages[0]).toContain('EAVE');
+    expect(pages[0]).toContain('RAFTER');
+    expect(pages[0]).not.toContain('OVERALL');
+    // Every line of text is set level: no rotated labels.
+    for (const item of (await pdfItems(buf))[0]!.filter((i) => i.str.trim() !== '')) {
+      const [a, b, c] = item.transform;
+      expect({
+        str: item.str,
+        level: Math.abs(b!) < 1e-6 && Math.abs(c!) < 1e-6 && a! > 0,
+      }).toEqual({
+        str: item.str,
+        level: true,
+      });
+    }
   });
 
   it('keeps a long company name and a 3-line address inside the rail', async () => {

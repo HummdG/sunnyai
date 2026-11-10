@@ -30,6 +30,8 @@ export interface PdfTextItem {
   y: number;
   width: number;
   height: number;
+  /** The text matrix [a, b, c, d, e, f]; level text has b = c = 0 and a > 0. */
+  transform: number[];
 }
 
 /** Test helper: each page's text items with their positions. */
@@ -50,6 +52,7 @@ export async function pdfItems(buf: Buffer | Uint8Array): Promise<PdfTextItem[][
         y: item.transform[5] as number,
         width: item.width,
         height: item.height,
+        transform: item.transform as number[],
       });
     }
     pages.push(items);
