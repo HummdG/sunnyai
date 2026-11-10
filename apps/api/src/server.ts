@@ -96,8 +96,7 @@ import {
 import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
 import { flowFieldsFor } from './flow/answers.js';
-import { flowForTenant } from './flow/tenant.js';
-import { resolvedFlowFor, workflowsForTenant } from './workflows/tenant.js';
+import { resolvedFlowFor, sessionFlowForTenant, workflowsForTenant } from './workflows/tenant.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
 import { sha256 } from './ingest/prepare.js';
@@ -1017,6 +1016,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
 
     const existing = await store.getConversation(claims.tenantId, claims.sessionId);
+    // The session's running workflow, once workflows are saved, for the answers' questions.
+    const activeWorkflowId =
+      tenant.config.workflows != null
+        ? (await store.getWorkflowState(claims.tenantId, claims.sessionId)).active?.workflowId
+        : undefined;
     const result = await store.saveLead({
       id: newId('lead'),
       // From the verified token, never from the request body: a caller who could
@@ -1040,7 +1044,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       createdAt: new Date(now()).toISOString(),
       clientLeadId: body.data.clientLeadId,
       // The installer's questions and what the visitor answered, as the chat tool records them.
-      ...flowFieldsFor(flowForTenant(tenant), existing?.answers ?? {}),
+      ...flowFieldsFor(sessionFlowForTenant(tenant, activeWorkflowId), existing?.answers ?? {}),
     });
 
     if (result.outcome === 'conflict') {

@@ -13,7 +13,7 @@ import {
   type PriceItem,
   type PriceList,
 } from '../catalogue/price-list.js';
-import { LEGACY_SOLAR, type QuestionBank } from '../flow/banks.js';
+import { LEGACY_SOLAR, SKIPPED, type QuestionBank } from '../flow/banks.js';
 import {
   PACKAGE_UNITS,
   isFixedQuantity,
@@ -23,6 +23,7 @@ import {
   type WorkflowIssue,
 } from '../flow/check.js';
 import { PRESET_WARNINGS } from '../flow/presets.js';
+import type { ResolvedFlow } from '../flow/resolve.js';
 import { optionLabel } from '../questionnaire.js';
 
 export interface PresetView {
@@ -195,4 +196,30 @@ export async function refusing<T>(
       ...(err.issues ? { issues: err.issues } : {}),
     });
   }
+}
+
+/**
+ * What chat would set itself once the address is in, for a preview: a roof
+ * that mapped confidently, so the preview goes on to confirm it as chat would.
+ */
+const PREVIEW_SYSTEM_ANSWERS: Readonly<Record<string, string>> = { roof_confidence: 'high' };
+
+/**
+ * The next question the visitor would be asked. A question Sunny sets itself
+ * (the bank's systemSet) is never asked: it is filled as chat fills it and the
+ * walk goes on.
+ */
+export function previewNext(
+  resolved: ResolvedFlow,
+  answers: Record<string, string>,
+): string | null {
+  const filled = { ...answers };
+  const system = resolved.bank.systemSet;
+  for (let guard = 0; guard <= system.size; guard++) {
+    const nextId = resolved.next(resolved.reconcile(filled).answers);
+    if (nextId === null || !system.has(nextId)) return nextId;
+    filled[nextId] =
+      PREVIEW_SYSTEM_ANSWERS[nextId] ?? resolved.question(nextId)?.options?.[0] ?? SKIPPED;
+  }
+  return null;
 }

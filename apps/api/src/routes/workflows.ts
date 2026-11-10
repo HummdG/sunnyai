@@ -53,6 +53,7 @@ import { SUGGEST_RULE, suggestBody, type ConversationRouteDeps } from './convers
 import {
   describeEffect,
   presetViews,
+  previewNext,
   priceItemViews,
   refusing,
   Refusal,
@@ -65,6 +66,8 @@ export type WorkflowRouteDeps = ConversationRouteDeps;
 export interface WorkflowSetView {
   set: WorkflowSet;
   migrated: boolean;
+  /** The stored set no longer parses: `set` is Sunny's defaults and every write is refused. */
+  unreadable: boolean;
   presets: PresetView[];
   priceItems: PriceItemView[];
   issues: WorkflowIssue[];
@@ -142,10 +145,16 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRoute
     return tenant;
   }
 
-  function view(set: WorkflowSet, migrated: boolean, list: PriceList | null): WorkflowSetView {
+  function view(
+    set: WorkflowSet,
+    migrated: boolean,
+    list: PriceList | null,
+    unreadable = false,
+  ): WorkflowSetView {
     return {
       set,
       migrated,
+      unreadable,
       presets: presetViews(SOLAR),
       priceItems: priceItemViews(list),
       issues: checkWorkflowSet(set, list),
@@ -173,8 +182,8 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRoute
 
   app.get(base, async (request) => {
     const tenant = await member(request, 'viewer');
-    const { set, migrated } = workflowsForTenant(tenant);
-    return view(set, migrated, await getPublishedPriceList(store, tenant.id));
+    const { set, migrated, unreadable } = workflowsForTenant(tenant);
+    return view(set, migrated, await getPublishedPriceList(store, tenant.id), unreadable);
   });
 
   app.put(`${base}/settings`, async (request) => {
@@ -331,7 +340,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRoute
     const { workflow, answers, path } = body.data;
     const list = await getPublishedPriceList(store, tenant.id);
     const resolved = resolvedFlowFor(workflow);
-    const nextId = resolved.next(resolved.reconcile(answers).answers);
+    const nextId = previewNext(resolved, answers);
     const question = nextId ? resolved.question(nextId) : undefined;
     return {
       next: question

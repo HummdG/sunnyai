@@ -38,6 +38,7 @@ import { withWorkflowSet, workflowsForTenant } from '../workflows/tenant.js';
 import {
   describeEffect,
   presetViews,
+  previewNext,
   priceItemViews,
   refusing,
   Refusal,
@@ -268,7 +269,7 @@ export function registerConversationRoutes(
     const { flow, answers } = body.data;
     const list = await getPublishedPriceList(store, tenant.id);
     const resolved = resolveFlow(flow);
-    const nextId = resolved.next(resolved.reconcile(answers).answers);
+    const nextId = previewNext(resolved, answers);
     const question = nextId ? resolved.question(nextId) : undefined;
     return {
       next: question

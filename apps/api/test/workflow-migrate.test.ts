@@ -92,7 +92,9 @@ describe('workflowsForTenant', () => {
     const warn = vi.fn();
     const out = workflowsForTenant(tenantWith({ workflows: { nonsense: true } }), warn);
     expect(warn).toHaveBeenCalledOnce();
-    expect(out.migrated).toBe(true);
+    // Not a migration: the set is unreadable, and Studio says so.
+    expect(out.migrated).toBe(false);
+    expect(out.unreadable).toBe(true);
     expect(out.set.workflows[0]!.id).toBe('wf_solar');
   });
 

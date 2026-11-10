@@ -11,7 +11,9 @@ import { issueDevToken } from '../src/auth/dev.js';
 import { publishExample } from '../src/catalogue/price-list-service.js';
 import type { ServerConfig } from '../src/config.js';
 import { loadPortalConfig } from '../src/routes/portal-config.js';
+import { SOLAR } from '../src/flow/banks.js';
 import { buildServer } from '../src/server.js';
+import { issueSessionToken } from '../src/sessions.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry, defaultTenants } from '../src/tenants.js';
 import { workflowsForTenant } from '../src/workflows/tenant.js';
@@ -92,6 +94,7 @@ async function setup() {
 interface SetView {
   set: WorkflowSet;
   migrated: boolean;
+  unreadable?: boolean;
   presets: Array<{ id: string }>;
   priceItems: Array<{ key: string }>;
   issues: Array<{ workflowId: string; code: string; message: string; warning?: boolean }>;
@@ -490,6 +493,136 @@ describe('POST /workflows/:id/preview', () => {
     expect(body.next?.id).toBe('motivation');
     expect((await preview('/about')).json<{ appearsOnPage: boolean }>().appearsOnPage).toBe(false);
     expect((await preview()).json<{ appearsOnPage: null }>().appearsOnPage).toBeNull();
+  });
+
+  it('never asks a question Sunny sets itself, and confirms the roof after the address', async () => {
+    const { app, tenantId } = await setup();
+    const solar = solarOf(await getSet(app, tenantId));
+    const answers: Record<string, string> = {};
+    const asked: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      const response = await app.inject({
+        method: 'POST',
+        url: url(tenantId, '/wf_solar/preview'),
+        headers: as(VIEWER),
+        payload: { workflow: solar, answers },
+      });
+      expect(response.statusCode).toBe(200);
+      const next = response.json<{
+        next: { id: string; options: Array<{ value: string }> } | null;
+      }>().next;
+      if (!next) break;
+      expect(asked).not.toContain(next.id);
+      asked.push(next.id);
+      answers[next.id] =
+        next.id === 'address'
+          ? '164 Norwich Drive, Norwich NR4 7TJ'
+          : (next.options[0]?.value ?? '120');
+    }
+    for (const id of SOLAR.systemSet) expect(asked).not.toContain(id);
+    expect(asked[asked.indexOf('address') + 1]).toBe('roof_confirmed');
+    expect(asked.length).toBeGreaterThan(3);
+  });
+});
+
+describe('a stored set that no longer parses', () => {
+  async function corrupt() {
+    const ctx = await setup();
+    const broken = { version: 3, workflows: 'not a list' } as unknown as WorkflowSet;
+    await ctx.tenants.update(ctx.tenantId, (t) => ({
+      ...t,
+      config: { ...t.config, workflows: broken },
+    }));
+    return { ...ctx, broken };
+  }
+
+  it('reads as unreadable, not migrated', async () => {
+    const { app, tenantId } = await corrupt();
+    const view = await getSet(app, tenantId);
+    expect(view.unreadable).toBe(true);
+    expect(view.migrated).toBe(false);
+  });
+
+  it('refuses every write and leaves what is stored alone', async () => {
+    const { app, store, tenantId, broken } = await corrupt();
+    const solar = solarOf(await getSet(app, tenantId));
+    const put = await putWorkflow(app, tenantId, { ...solar, name: 'Overwrite' });
+    expect(put.statusCode).toBe(500);
+    expect(put.json<{ error: { message: string } }>().error.message).toBe(
+      'Your saved workflows could not be read. Nothing was changed.',
+    );
+    const settings = await app.inject({
+      method: 'PUT',
+      url: url(tenantId, '/settings'),
+      headers: as(OWNER),
+      payload: { discoveryEnabled: false },
+    });
+    expect(settings.statusCode).toBe(500);
+    const shim = await app.inject({
+      method: 'PUT',
+      url: `/v1/portal/tenants/${tenantId}/conversation`,
+      headers: as(OWNER),
+      payload: { flow: { version: 0, updatedAt: '2026-01-01T00:00:00Z', steps: [askStep] } },
+    });
+    expect(shim.statusCode).toBe(500);
+    expect((await store.getTenant(tenantId))?.config.workflows).toEqual(broken);
+  });
+});
+
+describe('a tenant with a stored conversation', () => {
+  it('keeps its steps, after the address, and its version through the first save', async () => {
+    const { app, store, tenants, tenantId } = await setup();
+    const conversation = {
+      version: 7,
+      updatedAt: '2026-10-01T00:00:00.000Z',
+      steps: [{ kind: 'preset', id: 'roof_size' }, askStep] as FlowStep[],
+    };
+    await tenants.update(tenantId, (t) => ({ ...t, config: { ...t.config, conversation } }));
+
+    const read = await getSet(app, tenantId);
+    expect(read.migrated).toBe(true);
+    const solar = solarOf(read);
+    expect(solar.steps.map((s) => s.id)).toEqual(['address', 'roof_size', 'c_askcar1']);
+    expect(solar.version).toBe(7);
+
+    const put = await putWorkflow(app, tenantId, solar);
+    expect(put.statusCode).toBe(200);
+    const saved = solarOf(put.json<SetView>());
+    expect(saved.steps).toEqual(solar.steps);
+    expect(saved.version).toBe(8);
+    expect((await store.getTenant(tenantId))?.config.conversation).toEqual(conversation);
+  });
+});
+
+describe('the quote journey once workflows are saved', () => {
+  it('asks the questions Studio added to the solar workflow', async () => {
+    const { app, tenantId } = await setup();
+    const solar = solarOf(await getSet(app, tenantId));
+    const quoteStep: FlowStep = {
+      kind: 'custom',
+      id: 'c_scaffold',
+      prompt: 'Is there room for scaffolding?',
+      mode: 'quote',
+      answer: 'choice',
+      choices: [
+        { value: 'yes', label: 'Yes', effects: [] },
+        { value: 'no', label: 'No', effects: [] },
+      ],
+    };
+    const put = await putWorkflow(app, tenantId, { ...solar, steps: [...solar.steps, quoteStep] });
+    expect(put.statusCode).toBe(200);
+
+    const session = issueSessionToken(
+      { tenantId, sessionId: 's_journey', expiresAt: NOW + 3_600_000 },
+      SECRET,
+    );
+    const journey = await app.inject({
+      method: 'GET',
+      url: '/v1/quote/journey',
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(journey.statusCode).toBe(200);
+    expect(journey.json<{ missing: string[] }>().missing).toContain('c_scaffold');
   });
 });
 

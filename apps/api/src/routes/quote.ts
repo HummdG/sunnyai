@@ -32,10 +32,10 @@ import {
   type JourneyDeps,
   type RoofLookupFn,
 } from '../journey/service.js';
-import { flowForTenant } from '../flow/tenant.js';
 import { verifySessionToken } from '../sessions.js';
 import type { Store } from '../store.js';
 import type { TenantRegistry } from '../tenants.js';
+import { sessionFlowForTenant } from '../workflows/tenant.js';
 
 export { sunscanRoofLookup, type RoofLookup } from '../journey/service.js';
 
@@ -98,8 +98,9 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     pricing: deps.pricing,
     roof: deps.roof,
     now: deps.now,
-    // The widget's quote journey is Sunny's chat: it follows the installer's flow.
-    flow: (tenantId) => flowForTenant(deps.tenants.byId(tenantId)),
+    // The widget's quote journey is Sunny's chat: it follows the installer's
+    // solar workflow once workflows are saved, else the stored conversation.
+    flow: (tenantId) => sessionFlowForTenant(deps.tenants.byId(tenantId)),
     tenant: (tenantId) => deps.tenants.byId(tenantId),
     pinBrandAssets: (tenantId, ids) => pinBrandAssets(deps.tenants, tenantId, ids),
     log: app.log,
