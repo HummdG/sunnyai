@@ -220,6 +220,9 @@ export class ChatClient {
           sessionId: this.#options.sessionId,
           clientMessageId,
           text,
+          // Which page the visitor is on, so the server can offer the workflows
+          // that belong there. Absent outside a browser.
+          ...(typeof location !== 'undefined' ? { page: { path: location.pathname } } : {}),
         }),
         signal: controller.signal,
       });
