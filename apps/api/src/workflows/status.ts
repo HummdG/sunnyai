@@ -5,6 +5,7 @@
 
 import type { Workflow } from '@sunny/contracts';
 
+import { batteryStatus } from '../journey/battery/status.js';
 import { hpStatus } from '../journey/heat-pump/status.js';
 import { journeyStatus, type JourneyStage, type JourneyView } from '../journey/journey.js';
 import type { MappedRoof } from '../journey/roof.js';
@@ -12,7 +13,8 @@ import type { ResolvedFlow } from '../flow/resolve.js';
 
 import { resolvedFlowFor } from './tenant.js';
 
-export type WorkflowStage = JourneyStage | 'ready_for_lead' | 'done';
+/** `not_suitable`: the answers rule this quote out (a battery for a home without solar). */
+export type WorkflowStage = JourneyStage | 'ready_for_lead' | 'done' | 'not_suitable';
 
 export interface WorkflowView {
   workflowId: string;
@@ -89,8 +91,11 @@ export function workflowStatus(
     return hpStatus(workflow, answers, { quoted: opts.quoted === true });
   }
 
-  // A lead outcome. The battery engine has no quote of its own yet (a later
-  // phase), so until then it collects answers like a lead.
+  if (outcome.kind === 'quote' && outcome.engine === 'battery') {
+    return batteryStatus(workflow, answers, { quoted: opts.quoted === true });
+  }
+
+  // A lead outcome.
   const missing = flow.required(answers);
   const left = unasked(flow, answers);
   const nextQuestionId = left[0] ?? null;

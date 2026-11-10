@@ -8,8 +8,8 @@
  * back to the defaults and says so in the log, Studio is told it is
  * `unreadable`, and every write is refused rather than built on the defaults.
  *
- * A built-in workflow Sunny added after a set was made (the heat pump quote) is
- * appended to any set read, switched off, so Studio can show it and the
+ * A built-in workflow Sunny added after a set was made (the heat pump and
+ * battery quotes) is appended to any set read, switched off, so Studio can show it and the
  * installer can turn it on. The set's version is left alone: nothing the
  * installer saved has changed, and the appended workflow is written with the
  * next save like any other.
@@ -17,7 +17,6 @@
 
 import {
   ApiError,
-  BUILTIN_WORKFLOW_IDS,
   WORKFLOW_LIMITS,
   conversationFlowSchema,
   workflowSetSchema,
@@ -31,7 +30,7 @@ import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { flowForTenant } from '../flow/tenant.js';
 import type { Tenant } from '../tenants.js';
 
-import { defaultWorkflowSet, heatPumpTemplate } from './templates.js';
+import { APPENDED_BUILT_INS, defaultWorkflowSet } from './templates.js';
 
 export interface TenantWorkflows {
   set: WorkflowSet;
@@ -44,16 +43,18 @@ export interface TenantWorkflows {
 export const UNREADABLE_WORKFLOWS = 'Your saved workflows could not be read. Nothing was changed.';
 
 /**
- * The set with any missing built-in workflow appended, disabled and stamped
- * with the set's own time, so reading a set twice gives the same set. A set
- * already at the workflow limit is left as it is.
+ * The set with every missing built-in workflow appended, in order, disabled and
+ * stamped with the set's own time, so reading a set twice gives the same set.
+ * Nothing is appended beyond the workflow limit.
  */
 function withBuiltIns(set: WorkflowSet): WorkflowSet {
-  const missing = !set.workflows.some(
-    (w) => w.kind === 'heat_pump_quote' || w.id === BUILTIN_WORKFLOW_IDS.heat_pump_quote,
-  );
-  if (!missing || set.workflows.length >= WORKFLOW_LIMITS.workflows) return set;
-  return { ...set, workflows: [...set.workflows, heatPumpTemplate(set.updatedAt)] };
+  const workflows = [...set.workflows];
+  for (const builtIn of APPENDED_BUILT_INS) {
+    if (workflows.length >= WORKFLOW_LIMITS.workflows) break;
+    if (workflows.some((w) => w.kind === builtIn.kind || w.id === builtIn.id)) continue;
+    workflows.push(builtIn.template(set.updatedAt));
+  }
+  return workflows.length === set.workflows.length ? set : { ...set, workflows };
 }
 
 export function workflowsForTenant(

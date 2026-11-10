@@ -5,7 +5,8 @@
  * first (what `resolveFlow(null)` has always been). SOLAR lets the address sit
  * anywhere, with its roof checks following it. DISCOVERY holds gentle opening
  * questions that quote nothing. HEAT_PUMP holds the shared property questions
- * and the heat pump estimate's own.
+ * and the heat pump estimate's own. BATTERY holds the shared usage, tariff and
+ * existing system questions and the battery estimate's own.
  *
  * Banks read QUESTIONS lazily (getters and functions only): questionnaire.ts
  * imports resolve.ts, which imports this module, so QUESTIONS may not exist yet
@@ -15,6 +16,7 @@
 import type { FlowStep, QuoteEngine } from '@sunny/contracts';
 
 import {
+  BATTERY_QUESTIONS,
   DISCOVERY_QUESTIONS,
   HEAT_PUMP_QUESTIONS,
   QUESTIONS,
@@ -26,7 +28,7 @@ import { FIXED_START, PRESET_GROUPS, SYSTEM_SET } from './presets.js';
 export const SKIPPED = 'skipped';
 
 export interface QuestionBank {
-  id: 'legacy_solar' | 'solar' | 'discovery' | 'heat_pump';
+  id: 'legacy_solar' | 'solar' | 'discovery' | 'heat_pump' | 'battery';
   questions: Record<string, Question>;
   fixedStart: readonly string[];
   /** Emitted right after their anchor. */
@@ -124,9 +126,43 @@ export const HEAT_PUMP: QuestionBank = {
   },
 };
 
+/** Questions the battery bank lets the visitor pass over. */
+const BATTERY_OPTIONAL: ReadonlySet<string> = new Set(['bat_pv_kwp']);
+
+export const BATTERY: QuestionBank = {
+  id: 'battery',
+  get questions() {
+    // In the default order. The usage follow-ups travel with usage_source.
+    return {
+      motivation: QUESTIONS.motivation!,
+      existing_system: QUESTIONS.existing_system!,
+      address: QUESTIONS.address!,
+      bat_pv_kwp: BATTERY_QUESTIONS.bat_pv_kwp!,
+      bat_panels: BATTERY_QUESTIONS.bat_panels!,
+      usage_source: QUESTIONS.usage_source!,
+      annual_kwh: QUESTIONS.annual_kwh!,
+      monthly_cost: QUESTIONS.monthly_cost!,
+      household_size: QUESTIONS.household_size!,
+      tariff_type: QUESTIONS.tariff_type!,
+      lifestyle: QUESTIONS.lifestyle!,
+      bat_inverter: BATTERY_QUESTIONS.bat_inverter!,
+      bat_goal: BATTERY_QUESTIONS.bat_goal!,
+    } as Record<string, Question>;
+  },
+  fixedStart: [],
+  followers: {},
+  groups: { usage_source: PRESET_GROUPS.usage_source! },
+  systemSet: new Set<string>(),
+  defaultSteps() {
+    return stepsFor(this.questions, new Set(), this.groups).map((step) =>
+      BATTERY_OPTIONAL.has(step.id) ? { ...step, optional: true } : step,
+    );
+  },
+};
+
 export function bankFor(engine: QuoteEngine | 'lead' | 'discovery'): QuestionBank {
   if (engine === 'discovery') return DISCOVERY;
   if (engine === 'heat_pump') return HEAT_PUMP;
-  // battery has no bank yet (a later phase adds BATTERY).
+  if (engine === 'battery') return BATTERY;
   return SOLAR;
 }

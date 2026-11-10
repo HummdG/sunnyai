@@ -5,7 +5,7 @@
 
 import type { Workflow } from '@sunny/contracts';
 
-import { SKIPPED } from '../../flow/resolve.js';
+import { SKIPPED, type ResolvedFlow } from '../../flow/resolve.js';
 import { QUESTIONS } from '../../questionnaire.js';
 import { unasked, type WorkflowView } from '../../workflows/status.js';
 import { resolvedFlowFor } from '../../workflows/tenant.js';
@@ -31,6 +31,22 @@ export function hpStatus(
     flow.question('hp_floor_area') || answers['hp_floor_area'] !== undefined
       ? answers
       : { ...answers, hp_floor_area: SKIPPED };
+  return addressQuoteStatus(workflow, flow, answers, probe, opts);
+}
+
+/**
+ * Where a visitor is in a quote workflow that needs a postcode from the
+ * address and nothing else from outside (heat pump, battery). `probe` is the
+ * answers as the flow should judge them (a stand-in question opened when the
+ * question it stands in for was removed).
+ */
+export function addressQuoteStatus(
+  workflow: Workflow,
+  flow: ResolvedFlow,
+  answers: Record<string, string>,
+  probe: Record<string, string>,
+  opts: { quoted?: boolean } = {},
+): WorkflowView {
   const missing = flow.required(probe);
   const left = unasked(flow, probe);
   const postcode = heatPumpPostcode(answers);

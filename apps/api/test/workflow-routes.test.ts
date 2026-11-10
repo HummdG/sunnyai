@@ -160,9 +160,10 @@ describe('GET /workflows', () => {
     const { app, tenantId } = await setup();
     const view = await getSet(app, tenantId);
     expect(view.migrated).toBe(true);
-    // The heat pump quote ships switched off, beside the solar one.
-    expect(view.set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump']);
+    // The heat pump and battery quotes ship switched off, beside the solar one.
+    expect(view.set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump', 'wf_battery']);
     expect(view.set.workflows[1]!.enabled).toBe(false);
+    expect(view.set.workflows[2]!.enabled).toBe(false);
     expect(view.set.discovery.enabled).toBe(true);
     expect(view.presets.length).toBeGreaterThan(0);
     expect(view.priceItems.length).toBeGreaterThan(0);
@@ -474,8 +475,8 @@ describe('POST /workflows', () => {
 
   it('refuses a 13th workflow', async () => {
     const { app, tenantId } = await setup();
-    // Solar and heat pump are built in, so ten more make twelve.
-    for (let i = 0; i < 10; i++) {
+    // Solar, heat pump and battery are built in, so nine more make twelve.
+    for (let i = 0; i < 9; i++) {
       expect((await create(app, tenantId, { from: 'blank' })).statusCode).toBe(200);
     }
     const thirteenth = await create(app, tenantId, { from: 'blank' });
@@ -510,6 +511,13 @@ describe('DELETE /workflows/:id', () => {
       headers: as(OWNER),
     });
     expect(heatPump.statusCode).toBe(400);
+    const battery = await app.inject({
+      method: 'DELETE',
+      url: url(tenantId, '/wf_battery'),
+      headers: as(OWNER),
+    });
+    expect(battery.statusCode).toBe(400);
+    expect((await getSet(app, tenantId)).set.workflows.map((w) => w.id)).toContain('wf_battery');
 
     const made = await create(app, tenantId, { from: 'blank' });
     const id = made.json<{ workflow: Workflow }>().workflow.id;
@@ -735,6 +743,25 @@ describe('POST /workflows/:id/reset', () => {
     expect(reset.enabled).toBe(true);
     expect(reset.steps).toEqual(hp.steps);
     expect(reset.template).toEqual({ id: 'heat_pump_quote', version: 1 });
+  });
+
+  it('resets the battery workflow to its template', async () => {
+    const { app, tenantId } = await setup();
+    const batOf = (view: SetView) => view.set.workflows.find((w) => w.id === 'wf_battery')!;
+    const bat = batOf(await getSet(app, tenantId));
+    const saved = await putWorkflow(app, tenantId, { ...bat, name: 'Batteries', enabled: true });
+    expect(saved.statusCode).toBe(200);
+    const response = await app.inject({
+      method: 'POST',
+      url: url(tenantId, '/wf_battery/reset'),
+      headers: as(OWNER),
+    });
+    expect(response.statusCode).toBe(200);
+    const reset = batOf(response.json<SetView>());
+    expect(reset.name).toBe('Battery quote');
+    expect(reset.enabled).toBe(true);
+    expect(reset.steps).toEqual(bat.steps);
+    expect(reset.template).toEqual({ id: 'battery_quote', version: 1 });
   });
 
   it('refuses a custom workflow', async () => {

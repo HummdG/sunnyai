@@ -157,6 +157,7 @@ export function workflowState(view: WorkflowStateView): string {
     );
     if (step.stage === 'ready_for_lead') lines.push('readyForLead: yes');
     else if (step.stage === 'quoted') lines.push('quoted: yes');
+    else if (step.stage === 'not_suitable') lines.push(`notSuitable: ${e(step.prompt ?? 'yes')}`);
     else if (step.ready) lines.push('readyForQuote: yes');
   } else {
     lines.push('active: none');

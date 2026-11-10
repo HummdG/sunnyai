@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConversationFlow, FlowStep } from '@sunny/contracts';
 
 import { FIXED_START, PRESET_GROUPS, PRESET_TOPICS, PRESET_WARNINGS } from '../src/flow/presets.js';
-import { DISCOVERY, HEAT_PUMP, SOLAR, bankFor } from '../src/flow/banks.js';
+import { BATTERY, DISCOVERY, HEAT_PUMP, SOLAR, bankFor } from '../src/flow/banks.js';
 import { resolveFlow } from '../src/flow/resolve.js';
 import { QUESTIONS } from '../src/questionnaire.js';
 
@@ -1097,6 +1097,6 @@ describe('question banks', () => {
     expect(bankFor('lead')).toBe(SOLAR);
     expect(bankFor('discovery')).toBe(DISCOVERY);
     expect(bankFor('heat_pump')).toBe(HEAT_PUMP);
-    expect(bankFor('battery')).toBe(SOLAR);
+    expect(bankFor('battery')).toBe(BATTERY);
   });
 });

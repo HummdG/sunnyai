@@ -168,7 +168,7 @@ describe('the heat pump template', () => {
     const { set, migrated } = workflowsForTenant(tenant);
     expect(migrated).toBe(false);
     expect(set.version).toBe(7);
-    expect(set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump']);
+    expect(set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump', 'wf_battery']);
     expect(set.workflows[0]).toEqual(stored.workflows[0]);
     expect(set.workflows[1]!.enabled).toBe(false);
     expect(set.workflows[1]!.template).toEqual({ id: 'heat_pump_quote', version: 1 });

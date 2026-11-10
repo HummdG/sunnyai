@@ -23,6 +23,7 @@ import { z } from 'zod';
 
 import { pinBrandAssets } from '../branding/meta.js';
 import { chosenPackage } from '../journey/choose.js';
+import { createBatteryQuote, publishedBatteryPricing } from '../journey/battery/service.js';
 import { hasProposal, isSolarRecord, type StoredQuote } from '../journey/quote-kinds.js';
 import { createHeatPumpQuote, publishedHeatPumpPricing } from '../journey/heat-pump/service.js';
 import type { QuoteRecord } from '../journey/quote.js';
@@ -158,26 +159,35 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     const body = sessionOnlySchema.safeParse(request.body);
     if (!body.success) throw badRequest(body.error);
     const who = caller(request, body.data.sessionId);
-    // The session's running workflow decides the engine: a heat pump workflow
-    // gets a heat pump quote, anything else the solar quote it always had.
+    // The session's running workflow decides the engine: an enabled heat pump
+    // or battery workflow gets its own quote, anything else the solar quote it
+    // always had.
     const active = (await deps.store.getWorkflowState(who.tenantId, who.sessionId)).active;
     const workflow = active
       ? workflowsForTenant(deps.tenants.byId(who.tenantId)).set.workflows.find(
           (w) => w.id === active.workflowId,
         )
       : undefined;
-    const heatPump =
-      workflow?.enabled === true &&
-      workflow.outcome.kind === 'quote' &&
-      workflow.outcome.engine === 'heat_pump';
-    const result = heatPump
-      ? await createHeatPumpQuote(
-          { ...journey, heatPumpPricing: publishedHeatPumpPricing(deps.store) },
-          who.tenantId,
-          who.sessionId,
-          workflow,
-        )
-      : await createQuote(journey, who.tenantId, who.sessionId);
+    const engine =
+      workflow?.enabled === true && workflow.outcome.kind === 'quote'
+        ? workflow.outcome.engine
+        : 'solar';
+    const result =
+      engine === 'heat_pump'
+        ? await createHeatPumpQuote(
+            { ...journey, heatPumpPricing: publishedHeatPumpPricing(deps.store) },
+            who.tenantId,
+            who.sessionId,
+            workflow!,
+          )
+        : engine === 'battery'
+          ? await createBatteryQuote(
+              { ...journey, batteryPricing: publishedBatteryPricing(deps.store) },
+              who.tenantId,
+              who.sessionId,
+              workflow!,
+            )
+          : await createQuote(journey, who.tenantId, who.sessionId);
     if (!result.ok) {
       throw new ApiError('bad_request', 'Not every answer the quote needs is in yet.', {
         missing: result.missing.join(','),

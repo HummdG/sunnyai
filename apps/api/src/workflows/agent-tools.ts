@@ -73,22 +73,14 @@ function isSolarQuote(r: Running): boolean {
   );
 }
 
-/** A workflow that ends in a quote Sunny builds in chat (solar or heat pump). */
+/** A workflow that ends in a quote Sunny builds in chat (solar, heat pump or battery). */
 function isQuote(r: Running): boolean {
-  return (
-    r.kind === 'workflow' &&
-    r.workflow.outcome.kind === 'quote' &&
-    (r.workflow.outcome.engine === 'solar' || r.workflow.outcome.engine === 'heat_pump')
-  );
+  return r.kind === 'workflow' && r.workflow.outcome.kind === 'quote';
 }
 
-/** A heat pump workflow: its address is not a roof to measure. */
-function isHeatPump(r: Running): boolean {
-  return (
-    r.kind === 'workflow' &&
-    r.workflow.outcome.kind === 'quote' &&
-    r.workflow.outcome.engine === 'heat_pump'
-  );
+/** A quote other than solar (heat pump, battery): its address is not a roof to measure. */
+function isNonSolarQuote(r: Running): boolean {
+  return isQuote(r) && !isSolarQuote(r);
 }
 
 /** Discovery can be offered once, when the installer has it on. */
@@ -197,6 +189,8 @@ function present(ctx: ToolContext, r: Running, step: Step): Record<string, unkno
     outstanding: view.missing,
     readyForQuote,
     readyForLead: view.stage === 'ready_for_lead',
+    // A quote the answers rule out offers the solar workflow, when it runs here.
+    ...(view.stage === 'not_suitable' ? notSuitable(ctx) : {}),
     ...(isSolarQuote(r)
       ? {
           roofStillBeingMeasured: step.roofPending,
@@ -211,7 +205,16 @@ function present(ctx: ToolContext, r: Running, step: Step): Record<string, unkno
   };
 }
 
+/** The solar workflow to suggest instead, when it is available on this page. */
+function notSuitable(ctx: ToolContext): Record<string, unknown> {
+  const solar = available(ctx.workflows, ctx.pagePath).find(
+    (w) => w.outcome.kind === 'quote' && w.outcome.engine === 'solar',
+  );
+  return { notSuitable: true, ...(solar ? { suggestWorkflowId: solar.id } : {}) };
+}
+
 function summaryOf(r: Running, view: WorkflowView): string {
+  if (view.stage === 'not_suitable') return view.prompt ?? 'This quote does not suit the home.';
   if (view.ready && isQuote(r)) return 'Everything needed for a quote is in.';
   if (view.stage === 'ready_for_lead' && !view.nextQuestionId) {
     return 'Everything this needs is in. Ask for their details to pass on.';
@@ -283,7 +286,7 @@ function closeDiscovery(ctx: ToolContext, s: WorkflowSession): WorkflowSession {
 /**
  * Measure an address the journey just accepted, as start_sunscan_assessment
  * would. Null when no address was accepted, SunScan is off, or the workflow is
- * a heat pump quote (it has no roof to measure).
+ * a quote other than solar (it has no roof to measure).
  */
 async function measureNewAddress(
   ctx: ToolContext,
@@ -291,7 +294,7 @@ async function measureNewAddress(
   result: Awaited<ReturnType<typeof submitAnswers>>,
 ): Promise<Awaited<ReturnType<typeof startRoofAssessment>> | null> {
   const address = result.accepted.find((a) => a.questionId === 'address');
-  return address && ctx.sunscan && !isHeatPump(r)
+  return address && ctx.sunscan && !isNonSolarQuote(r)
     ? startRoofAssessment(ctx, result.answers['address'] ?? address.value)
     : null;
 }
@@ -525,6 +528,7 @@ export const WORKFLOW_TOOLS = [
           `Saved ${saved}.` +
           (data['readyForQuote'] === true ? ' Ready for a quote.' : '') +
           (data['readyForLead'] === true ? ' Ready to pass on to the team.' : '') +
+          (step.view.stage === 'not_suitable' ? ` ${summaryOf(r, step.view)}` : '') +
           (r.kind === 'discovery' && step.view.ready
             ? suggestion
               ? ` Suggest: ${suggestion.name}.`

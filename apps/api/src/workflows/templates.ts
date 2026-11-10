@@ -14,6 +14,7 @@ import {
 
 export const SOLAR_TEMPLATE_VERSION = 1;
 export const HEAT_PUMP_TEMPLATE_VERSION = 1;
+export const BATTERY_TEMPLATE_VERSION = 1;
 
 function preset(id: string, extra: { prompt?: string; optional?: boolean } = {}): FlowStep {
   return { kind: 'preset', id, ...extra };
@@ -95,6 +96,53 @@ export function heatPumpTemplate(now: string): Workflow {
   };
 }
 
+/** Ships switched off: the installer turns it on once they price battery retrofits. */
+export function batteryTemplate(now: string): Workflow {
+  return {
+    id: BUILTIN_WORKFLOW_IDS.battery_quote,
+    kind: 'battery_quote',
+    name: 'Battery quote',
+    enabled: false,
+    description: 'Works out battery options for a home that already has solar panels.',
+    triggers: ['battery quote', 'add a battery', 'home battery', 'battery for my solar'],
+    interests: ['battery'],
+    pages: { include: [], exclude: [] },
+    steps: [
+      preset('motivation', { prompt: 'First, what would you most like from a home battery?' }),
+      preset('existing_system'),
+      preset('address'),
+      preset('bat_pv_kwp', { optional: true }),
+      preset('bat_panels'),
+      preset('usage_source'),
+      preset('tariff_type'),
+      preset('lifestyle'),
+      preset('bat_inverter'),
+      preset('bat_goal'),
+    ],
+    outcome: { kind: 'quote', engine: 'battery' },
+    template: { id: 'battery_quote', version: BATTERY_TEMPLATE_VERSION },
+    version: 1,
+    updatedAt: now,
+  };
+}
+
+/**
+ * The built-in workflows Sunny added after sets were first made, in the order
+ * they are appended to a set that lacks them (workflows/tenant.ts).
+ */
+export const APPENDED_BUILT_INS: ReadonlyArray<{
+  kind: Workflow['kind'];
+  id: string;
+  template: (now: string) => Workflow;
+}> = [
+  {
+    kind: 'heat_pump_quote',
+    id: BUILTIN_WORKFLOW_IDS.heat_pump_quote,
+    template: heatPumpTemplate,
+  },
+  { kind: 'battery_quote', id: BUILTIN_WORKFLOW_IDS.battery_quote, template: batteryTemplate },
+];
+
 export function defaultWorkflowSet(now: string): WorkflowSet {
   return {
     version: 1,
@@ -108,6 +156,7 @@ export function defaultWorkflowSet(now: string): WorkflowSet {
 export function templateFor(kind: Workflow['kind'], now: string): Workflow | null {
   if (kind === 'solar_quote') return solarTemplate(now);
   if (kind === 'heat_pump_quote') return heatPumpTemplate(now);
+  if (kind === 'battery_quote') return batteryTemplate(now);
   return null;
 }
 

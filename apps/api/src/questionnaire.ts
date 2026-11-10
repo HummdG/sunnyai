@@ -190,6 +190,38 @@ export const HEAT_PUMP_QUESTIONS: Readonly<Record<string, Question>> = {
   },
 };
 
+/**
+ * The battery bank's own questions (workflows): a battery for a home that
+ * already has solar. Option values are the battery engine's, so an answer goes
+ * to the estimate as it is. Kept apart from QUESTIONS so the SunScan parity of
+ * that record holds.
+ */
+export const BATTERY_QUESTIONS: Readonly<Record<string, Question>> = {
+  bat_pv_kwp: {
+    step: 'battery',
+    prompt:
+      'Do you know the size of your solar system in kWp? It is on your installation paperwork. You can skip this.',
+    numeric: { min: 0.5, max: 25, unit: 'kWp' },
+  },
+  // Only needed to estimate the system size, so only asked when that was skipped.
+  bat_panels: {
+    step: 'battery',
+    prompt: 'Roughly how many solar panels do you have?',
+    appearsWhen: { questionId: 'bat_pv_kwp', anyOf: ['skipped'] },
+    numeric: { min: 2, max: 60, unit: 'panels' },
+  },
+  bat_inverter: {
+    step: 'battery',
+    prompt: 'Is your solar inverter a hybrid one that can take a battery?',
+    options: ['hybrid', 'standard', 'unsure'],
+  },
+  bat_goal: {
+    step: 'battery',
+    prompt: 'What would you most like a battery to do?',
+    options: ['savings', 'backup', 'cheap_rate', 'unsure'],
+  },
+};
+
 export const QUESTIONS: Readonly<Record<string, Question>> = {
   address: { step: 'address', prompt: 'What is the address you would like assessed?' },
   // SunScan's roof confidence is how sure the *mapping* is, not the visitor:
@@ -576,6 +608,11 @@ export const OPTION_LABELS: Readonly<Record<string, string>> = {
   underfloor: 'Underfloor heating',
   cylinder: 'A hot water cylinder',
   combi: 'A combi boiler',
+  // The battery questions (BATTERY_QUESTIONS); `standard` and `unsure` are above.
+  hybrid: 'Hybrid',
+  savings: 'Store my solar to use later',
+  backup: 'Keep the lights on in a power cut',
+  cheap_rate: 'Charge on a cheap overnight rate',
 };
 
 /** The visitor-facing label for an option value (falls back to plain words). */
