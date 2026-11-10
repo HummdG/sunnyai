@@ -19,7 +19,7 @@ import {
   type Workflow,
   type WorkflowSet,
 } from '@sunny/contracts';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import type { ChatProvider } from '../agent/provider.js';
@@ -27,7 +27,12 @@ import { createAuthenticator, requireMembership } from '../auth/index.js';
 import type { PriceList } from '../catalogue/price-list.js';
 import { getPublishedPriceList } from '../catalogue/price-list-service.js';
 import { SOLAR } from '../flow/banks.js';
-import { checkWorkflow, checkWorkflowSet, type WorkflowIssue } from '../flow/check.js';
+import {
+  checkWorkflow,
+  checkWorkflowSet,
+  savingIssues,
+  type WorkflowIssue,
+} from '../flow/check.js';
 import { effectsFor } from '../flow/effects.js';
 import { suggestEffects } from '../flow/suggest.js';
 import type { Tenant } from '../tenants.js';
@@ -49,6 +54,8 @@ import {
   describeEffect,
   presetViews,
   priceItemViews,
+  refusing,
+  Refusal,
   type PresetView,
   type PriceItemView,
 } from './flow-views.js';
@@ -69,17 +76,6 @@ const isBuiltIn = (w: Workflow) => w.template !== null || BUILTIN_IDS.includes(w
 
 const NOT_FOUND = 'No such workflow.';
 const STALE = 'Someone else changed this workflow. Reload to see their changes.';
-
-/** A refusal that carries more than an ApiError can: a 409, or a 400 with issues. */
-class Refusal extends Error {
-  constructor(
-    readonly status: 400 | 409,
-    message: string,
-    readonly issues?: WorkflowIssue[],
-  ) {
-    super(message);
-  }
-}
 
 const createBody = z.object({
   from: z.union([
@@ -124,18 +120,6 @@ function freshIds(steps: FlowStep[]): FlowStep[] {
     }
     return copy;
   });
-}
-
-/** The custom step ids under these steps, follow-ups included. */
-function customIdsOf(steps: readonly FlowStep[], out = new Set<string>()): Set<string> {
-  for (const s of steps) {
-    if (s.kind === 'custom') out.add(s.id);
-    customIdsOf(
-      (s.followUps ?? []).map((f) => f.step),
-      out,
-    );
-  }
-  return out;
 }
 
 export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): void {
@@ -185,23 +169,6 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRoute
     });
     if (!saved || !written.set) throw new ApiError('not_found', 'No such installer.');
     return written.set;
-  }
-
-  /** Runs a route, turning a Refusal into its reply. */
-  async function refusing<T>(
-    request: FastifyRequest,
-    reply: FastifyReply,
-    run: () => Promise<T>,
-  ): Promise<T | FastifyReply> {
-    try {
-      return await run();
-    } catch (err) {
-      if (!(err instanceof Refusal)) throw err;
-      return reply.code(err.status).send({
-        error: { code: 'bad_request', message: err.message, requestId: String(request.id) },
-        ...(err.issues ? { issues: err.issues } : {}),
-      });
-    }
   }
 
   app.get(base, async (request) => {
@@ -313,15 +280,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: WorkflowRoute
           ...s,
           workflows: s.workflows.map((w) => (w.id === workflowId ? workflow : w)),
         };
-        // Only this workflow's problems block its save: a stale effect in
-        // another workflow is that workflow's to fix.
-        const mine = customIdsOf(workflow.steps);
-        const issues = checkWorkflowSet(next, list).filter(
-          (i) =>
-            !i.warning &&
-            (i.workflowId === workflowId ||
-              (i.code === 'duplicate_step_id' && i.stepId !== undefined && mine.has(i.stepId))),
-        );
+        const issues = savingIssues(next, list, workflowId);
         if (issues.length > 0) throw new Refusal(400, issues[0]!.message, issues);
         return next;
       });

@@ -281,3 +281,28 @@ export function checkWorkflowSet(set: WorkflowSet, list: PriceList | null): Work
   }
   return issues;
 }
+
+/**
+ * The issues that stop one workflow being saved into this set: its own
+ * problems, and a custom step id it shares with another workflow, whichever of
+ * the two the set check names. A stale effect in another workflow is that
+ * workflow's to fix, and warnings never block.
+ */
+export function savingIssues(
+  set: WorkflowSet,
+  list: PriceList | null,
+  workflowId: string,
+): WorkflowIssue[] {
+  const saved = set.workflows.find((w) => w.id === workflowId);
+  const mine = new Set(
+    allSteps(saved?.steps ?? [])
+      .filter((s) => s.kind === 'custom')
+      .map((s) => s.id),
+  );
+  return checkWorkflowSet(set, list).filter(
+    (i) =>
+      !i.warning &&
+      (i.workflowId === workflowId ||
+        (i.code === 'duplicate_step_id' && i.stepId !== undefined && mine.has(i.stepId))),
+  );
+}

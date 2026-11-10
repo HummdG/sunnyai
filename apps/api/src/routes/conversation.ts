@@ -26,7 +26,7 @@ import { z } from 'zod';
 import type { ChatProvider } from '../agent/provider.js';
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import { getPublishedPriceList } from '../catalogue/price-list-service.js';
-import { checkFlow } from '../flow/check.js';
+import { checkFlow, savingIssues } from '../flow/check.js';
 import { effectsFor } from '../flow/effects.js';
 import { resolveFlow } from '../flow/resolve.js';
 import { suggestEffects } from '../flow/suggest.js';
@@ -39,6 +39,8 @@ import {
   describeEffect,
   presetViews,
   priceItemViews,
+  refusing,
+  Refusal,
   type ConversationView,
 } from './flow-views.js';
 import type { PortalConfig } from './portal-config.js';
@@ -169,41 +171,48 @@ export function registerConversationRoutes(
     // than once (a retried transaction); the flow from its last run is the one
     // written.
     const written: { flow: ConversationFlow | null } = { flow: null };
-    const saved = await tenants.update(tenant.id, (current) => {
-      if (current.config.workflows != null) {
-        // Saved into the solar workflow, after the address it always opens with.
-        const now = new Date(deps.now()).toISOString();
-        const { steps } = body.data.flow;
-        const { tenant: next, set } = withWorkflowSet(current, now, (s) => {
-          const stored = s.workflows.find((w) => w.id === SOLAR_ID);
-          const solar = stored ?? solarTemplate(now);
-          const updated = {
-            ...solar,
-            steps: steps.some(isAddress) ? steps : [ADDRESS, ...steps],
-            version: solar.version + 1,
-            updatedAt: now,
-          };
-          return {
-            ...s,
-            workflows: stored
-              ? s.workflows.map((w) => (w.id === SOLAR_ID ? updated : w))
-              : [updated, ...s.workflows],
-          };
-        });
-        written.flow = solarFlow(set);
-        return next;
-      }
-      // The version and time are the server's: whatever the client sent is ignored.
-      const flow: ConversationFlow = {
-        ...body.data.flow,
-        version: (storedFlow(current.config)?.version ?? 0) + 1,
-        updatedAt: new Date(deps.now()).toISOString(),
-      };
-      written.flow = flow;
-      return { ...current, config: { ...current.config, conversation: flow } };
+    return refusing(request, reply, async () => {
+      const saved = await tenants.update(tenant.id, (current) => {
+        if (current.config.workflows != null) {
+          // Saved into the solar workflow, after the address it always opens with.
+          const now = new Date(deps.now()).toISOString();
+          const { steps } = body.data.flow;
+          const { tenant: next, set } = withWorkflowSet(current, now, (s) => {
+            const stored = s.workflows.find((w) => w.id === SOLAR_ID);
+            const solar = stored ?? solarTemplate(now);
+            const updated = {
+              ...solar,
+              steps: steps.some(isAddress) ? steps : [ADDRESS, ...steps],
+              version: solar.version + 1,
+              updatedAt: now,
+            };
+            const changed = {
+              ...s,
+              workflows: stored
+                ? s.workflows.map((w) => (w.id === SOLAR_ID ? updated : w))
+                : [updated, ...s.workflows],
+            };
+            // A custom question id another workflow already uses is refused
+            // with its issue, as the workflow editor's own save would be.
+            const blocking = savingIssues(changed, list, SOLAR_ID);
+            if (blocking.length > 0) throw new Refusal(400, blocking[0]!.message, blocking);
+            return changed;
+          });
+          written.flow = solarFlow(set);
+          return next;
+        }
+        // The version and time are the server's: whatever the client sent is ignored.
+        const flow: ConversationFlow = {
+          ...body.data.flow,
+          version: (storedFlow(current.config)?.version ?? 0) + 1,
+          updatedAt: new Date(deps.now()).toISOString(),
+        };
+        written.flow = flow;
+        return { ...current, config: { ...current.config, conversation: flow } };
+      });
+      if (!saved) throw new ApiError('not_found', 'No such installer.');
+      return view(tenant.id, written.flow);
     });
-    if (!saved) throw new ApiError('not_found', 'No such installer.');
-    return view(tenant.id, written.flow);
   });
 
   app.delete('/v1/portal/tenants/:tenantId/conversation', async (request) => {

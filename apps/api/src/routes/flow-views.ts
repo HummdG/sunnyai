@@ -5,6 +5,7 @@
  */
 
 import type { ConversationFlow, FlowEffect } from '@sunny/contracts';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import {
   describePricing,
@@ -19,6 +20,7 @@ import {
   targetIssue,
   unitOf,
   type FlowIssue,
+  type WorkflowIssue,
 } from '../flow/check.js';
 import { PRESET_WARNINGS } from '../flow/presets.js';
 import { optionLabel } from '../questionnaire.js';
@@ -159,5 +161,38 @@ export function describeEffect(
         label: `Replaces ${name(effect.fromKey)}: ${name(effect.toKey)}${times(effect.quantity)}`,
         priceText: priceText(find(effect.toKey), list, effect.quantity),
       };
+  }
+}
+
+/**
+ * A refusal thrown from inside a `tenants.update` mutate that carries more than
+ * an ApiError can: a 409, or a 400 with the issues behind it. It passes through
+ * the store's transaction unchanged (it has no `code`, so Firestore never
+ * retries it) and `refusing` turns it into the reply.
+ */
+export class Refusal extends Error {
+  constructor(
+    readonly status: 400 | 409,
+    message: string,
+    readonly issues?: WorkflowIssue[],
+  ) {
+    super(message);
+  }
+}
+
+/** Runs a route body, replying to a Refusal with its status, message and issues. */
+export async function refusing<T>(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  run: () => Promise<T>,
+): Promise<T | FastifyReply> {
+  try {
+    return await run();
+  } catch (err) {
+    if (!(err instanceof Refusal)) throw err;
+    return reply.code(err.status).send({
+      error: { code: 'bad_request', message: err.message, requestId: String(request.id) },
+      ...(err.issues ? { issues: err.issues } : {}),
+    });
   }
 }

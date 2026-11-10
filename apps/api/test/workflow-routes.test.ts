@@ -254,6 +254,68 @@ describe('PUT /workflows/:id', () => {
   });
 });
 
+describe('a custom step id shared by two workflows', () => {
+  /** A custom workflow holding `askStep` (c_askcar1, c_askcar2), and the solar one. */
+  async function withCustom() {
+    const ctx = await setup();
+    const made = await create(ctx.app, ctx.tenantId, { from: 'blank', name: 'EV chargers' });
+    const custom = made.json<{ workflow: Workflow }>().workflow;
+    const saved = await putWorkflow(ctx.app, ctx.tenantId, { ...custom, steps: [askStep] });
+    expect(saved.statusCode).toBe(200);
+    return { ...ctx, customId: custom.id };
+  }
+
+  it('refuses a solar save that reuses an id the custom workflow has', async () => {
+    const { app, tenantId } = await withCustom();
+    const solar = solarOf(await getSet(app, tenantId));
+    const response = await putWorkflow(app, tenantId, {
+      ...solar,
+      steps: [...solar.steps, askStep],
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ issues: Array<{ code: string }> }>().issues[0]!.code).toBe(
+      'duplicate_step_id',
+    );
+  });
+
+  it('refuses a custom save that reuses an id the solar workflow has', async () => {
+    const { app, tenantId, customId } = await setup().then(async (ctx) => {
+      const solar = solarOf(await getSet(ctx.app, ctx.tenantId));
+      const saved = await putWorkflow(ctx.app, ctx.tenantId, {
+        ...solar,
+        steps: [...solar.steps, askStep],
+      });
+      expect(saved.statusCode).toBe(200);
+      const made = await create(ctx.app, ctx.tenantId, { from: 'blank', name: 'EV chargers' });
+      return { ...ctx, customId: made.json<{ workflow: Workflow }>().workflow.id };
+    });
+    const custom = (await getSet(app, tenantId)).set.workflows.find((w) => w.id === customId)!;
+    const response = await putWorkflow(app, tenantId, { ...custom, steps: [askStep] });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ issues: Array<{ code: string }> }>().issues[0]!.code).toBe(
+      'duplicate_step_id',
+    );
+  });
+
+  it('refuses a /conversation save that reuses an id the custom workflow has', async () => {
+    const { app, store, tenantId } = await withCustom();
+    const before = solarOf(await getSet(app, tenantId));
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/v1/portal/tenants/${tenantId}/conversation`,
+      headers: as(OWNER),
+      payload: { flow: { version: 0, updatedAt: '2026-01-01T00:00:00Z', steps: [askStep] } },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ issues: Array<{ code: string }> }>().issues[0]!.code).toBe(
+      'duplicate_step_id',
+    );
+    // Nothing was written.
+    expect(solarOf(await getSet(app, tenantId))).toEqual(before);
+    expect((await store.getTenant(tenantId))?.config.conversation).toBeUndefined();
+  });
+});
+
 describe('viewers', () => {
   it('are refused PUT, POST and DELETE', async () => {
     const { app, tenantId } = await setup();
