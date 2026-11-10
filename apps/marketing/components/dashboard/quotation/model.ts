@@ -150,7 +150,8 @@ export function pagesOf(
   if (input.sections.savings) names.push('Savings');
   names.push('Quotation');
   if (input.sections.terms && input.terms.trim() !== '') names.push('Terms');
-  const last = pageCount ?? Number.POSITIVE_INFINITY;
+  // No page objects found means the count is unknown, not one page.
+  const last = pageCount && pageCount > 0 ? pageCount : Number.POSITIVE_INFINITY;
   return names.map((name, i) => ({ name, page: Math.max(1, Math.min(i + 1, last)) }));
 }
 

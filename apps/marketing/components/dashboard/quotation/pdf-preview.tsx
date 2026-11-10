@@ -37,6 +37,8 @@ export function PdfPreview({
   const latest = useRef<{ key: string; input: QuotationInput } | null>(null);
   const tried = useRef<string | null>(null);
   const inFlight = useRef(false);
+  /** A pause in typing (or the limit's wait) has passed and the latest draft is owed a render. */
+  const due = useRef(false);
   const pausedUntil = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,6 +59,7 @@ export function PdfPreview({
     const want = latest.current;
     if (!want || want.key === tried.current) return;
     if (inFlight.current || Date.now() < pausedUntil.current) return;
+    due.current = false;
     inFlight.current = true;
     tried.current = want.key;
     setDrawing(true);
@@ -77,7 +80,13 @@ export function PdfPreview({
         pausedUntil.current = Date.now() + result.retryAfterSec * 1000;
         setNote('Lots of changes at once. The preview catches up in a few seconds.');
         if (retry.current) clearTimeout(retry.current);
-        retry.current = setTimeout(() => void draw(), result.retryAfterSec * 1000 + 50);
+        retry.current = setTimeout(
+          () => {
+            due.current = true;
+            void draw();
+          },
+          result.retryAfterSec * 1000 + 50,
+        );
       } else {
         setNote(result.message);
       }
@@ -91,8 +100,9 @@ export function PdfPreview({
       inFlight.current = false;
       if (alive.current) {
         setDrawing(false);
-        // Changed while this one was drawing: draw the latest, once.
-        if (latest.current && latest.current.key !== tried.current) void draw();
+        // The changes settled while this one was drawing: draw the latest, once.
+        // Still typing (the timer has not fired): the timer draws it instead.
+        if (due.current && latest.current && latest.current.key !== tried.current) void draw();
       }
     }
   }
@@ -102,7 +112,13 @@ export function PdfPreview({
     latest.current = { key, input };
     if (timer.current) clearTimeout(timer.current);
     // The first preview at once; later ones once the changes settle.
-    timer.current = setTimeout(() => void draw(), url.current ? SETTLE_MS : 0);
+    timer.current = setTimeout(
+      () => {
+        due.current = true;
+        void draw();
+      },
+      url.current ? SETTLE_MS : 0,
+    );
     // `input` is the same draft as `key`; the key is what changes.
   }, [key]);
 

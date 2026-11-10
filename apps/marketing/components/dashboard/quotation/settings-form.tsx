@@ -14,6 +14,10 @@ const DEPOSITS: Array<{ kind: DepositKind; title: string }> = [
   { kind: 'none', title: 'None' },
 ];
 
+/** Starting figures when a deposit kind is first picked. */
+const DEFAULT_PERCENT = '25';
+const DEFAULT_AMOUNT = '500';
+
 const thousands = (n: number) => n.toLocaleString('en-GB');
 
 /** "9 December 2026": today plus the days, as the PDF prints a quote's date. */
@@ -74,7 +78,16 @@ function ColourChoice({
           <input
             type="checkbox"
             checked={value === null}
-            onChange={(event) => onChange(event.target.checked ? null : used.hex)}
+            // Picking a colour starts from the brand colour itself, not its darkened print.
+            onChange={(event) =>
+              onChange(
+                event.target.checked
+                  ? null
+                  : /^#[0-9a-f]{6}$/i.test(brand)
+                    ? brand.toLowerCase()
+                    : used.hex,
+              )
+            }
           />{' '}
           Use my brand colour
         </label>
@@ -182,7 +195,21 @@ export function SettingsForm({
                   key={d.kind}
                   type="button"
                   aria-pressed={draft.depositKind === d.kind}
-                  onClick={() => set('depositKind', d.kind)}
+                  onClick={() =>
+                    // An empty field gets a starting figure, so the draft stays valid.
+                    onEdit((current) => ({
+                      ...current,
+                      depositKind: d.kind,
+                      percent:
+                        d.kind === 'percent' && current.percent.trim() === ''
+                          ? DEFAULT_PERCENT
+                          : current.percent,
+                      amount:
+                        d.kind === 'fixed' && current.amount.trim() === ''
+                          ? DEFAULT_AMOUNT
+                          : current.amount,
+                    }))
+                  }
                 >
                   {d.title}
                 </button>
