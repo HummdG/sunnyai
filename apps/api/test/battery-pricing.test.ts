@@ -86,28 +86,27 @@ describe('batteryPricingFrom', () => {
     expect(batteryPricingFrom(l)!.vatRatePercent).toBe(0);
   });
 
-  it('leaves the solar pricing identical when an inverter gains the ac_coupling role', () => {
-    const row = (role: string) =>
-      Array.from(
-        { length: 31 },
-        (_, i) =>
-          ({
-            1: 'inverter',
-            2: 'AC-1',
-            3: 'AC coupled',
-            6: 'flat',
-            7: '£700',
-            23: role,
-            30: 'GBP',
-          })[i + 1] ?? '',
-      ).join(',');
-    const build = (role: string) =>
-      importPriceList(HSENERGY_PRICE_LIST_CSV.trimEnd() + '\n' + row(role) + '\n').list!;
-    const plain = build('');
-    const withRole = build('ac_coupling');
-    expect(withRole.items.find((i) => i.key === 'AC-1')?.role).toBe('ac_coupling');
-    expect(plain.items.find((i) => i.key === 'AC-1')?.role).toBeUndefined();
-    expect(pricingFromPriceList(withRole)).toEqual(pricingFromPriceList(plain));
+  it('never offers an ac_coupling inverter as a solar inverter, and leaves solar pricing identical', () => {
+    const NL = String.fromCharCode(10);
+    const headers = HSENERGY_PRICE_LIST_CSV.split(NL)[0]!.split(',');
+    const cells: Record<string, string> = {
+      Category: 'inverter',
+      Key: 'AC-1',
+      Name: 'AC coupled inverter',
+      Pricing: 'flat',
+      Amount: '£700',
+      'Power (kW)': '3',
+      Role: 'ac_coupling',
+      Currency: 'GBP',
+    };
+    const acRow = headers.map((h) => cells[h] ?? '').join(',');
+    const base = importPriceList(HSENERGY_PRICE_LIST_CSV).list!;
+    const withAc = importPriceList(HSENERGY_PRICE_LIST_CSV.trimEnd() + NL + acRow + NL).list!;
+    expect(withAc.items.find((i) => i.key === 'AC-1')?.role).toBe('ac_coupling');
+    const solar = pricingFromPriceList(withAc)!;
+    expect(solar).toEqual(pricingFromPriceList(base));
+    expect(JSON.stringify(solar)).not.toContain('AC-1');
+    expect(JSON.stringify(solar.pricing.catalogue.inverters)).not.toContain('AC coupled');
   });
 
   it('warns about a role that does not fit the category', () => {
