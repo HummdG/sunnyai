@@ -7,7 +7,7 @@ import {
   type V3,
 } from '../src/proposal/roof-plan.js';
 
-import { HIP_SPEC, L_SPEC, SAMPLE } from './roof-fixtures.js';
+import { HIP_SPEC, L_SPEC, SAMPLE, SEMI_SPEC } from './roof-fixtures.js';
 
 interface SampleSpec {
   parts: {
@@ -175,6 +175,43 @@ describe('roofPlanFor', () => {
       }
       expect(nb.cut).not.toBeNull();
       expect(nb.roofs).toHaveLength(2);
+    }
+  });
+
+  it("carries the house's slopes on into its terraced neighbours: one eave line, one ridge", () => {
+    for (const spec of [SAMPLE, SEMI_SPEC]) {
+      const p = roofPlanFor(spec, { panelCount: 10, reliable: true })!;
+      expect(p.neighbours).toHaveLength(spec === SAMPLE ? 2 : 1);
+      for (const nb of p.neighbours) {
+        expect(nb.joined).toBe(true);
+        expect(nb.reach).toBeGreaterThan(0);
+        expect(nb.reach).toBeLessThanOrEqual(NEIGHBOUR_STUB_M + 0.01);
+        expect(Math.hypot(...nb.away)).toBeCloseTo(1, 6);
+        for (const roof of nb.roofs) {
+          // the house slope it carries on: same plane, sharing the edge on the party line
+          const face = p.faces.find(
+            (f) =>
+              Math.abs(
+                f.normal[0] * roof.normal[0] +
+                  f.normal[1] * roof.normal[1] +
+                  f.normal[2] * roof.normal[2],
+              ) >
+              1 - 1e-4,
+          )!;
+          expect(face).toBeDefined();
+          const o = face.outline[0]!;
+          for (const q of roof.pts) {
+            const off =
+              (q[0] - o[0]) * face.normal[0] +
+              (q[1] - o[1]) * face.normal[1] +
+              (q[2] - o[2]) * face.normal[2];
+            expect(Math.abs(off)).toBeLessThan(0.01);
+          }
+          // its eave and ridge at the house's eave and ridge heights
+          expect(bottom(roof.pts)).toBeCloseTo(bottom(face.outline), 3);
+          expect(top(roof.pts)).toBeCloseTo(top(face.outline), 3);
+        }
+      }
     }
   });
 

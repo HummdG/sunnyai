@@ -4,8 +4,9 @@
  * turned off square so two walls show. Walls in fine ink line on white (the
  * side out of the light a shade darker), roof slopes lightly shaded, the
  * quoted panels on the roof as tinted cells, windows and doors where the model
- * has them, the attached neighbours as faint short stubs, a north arrow laid
- * on the ground plane, and a mono caption underneath. Hidden faces are culled
+ * has them, the attached neighbours as the rest of the row (drawn light and
+ * fading out a short way along, so the house reads as one in its terrace), a
+ * compass needle for north, and a mono caption underneath. Hidden faces are culled
  * and the rest painted back to front. All text is set level.
  */
 
@@ -104,6 +105,11 @@ export interface Shape {
   /** Panel cell lines: [cols, rows] across the four corners. */
   cells?: [number, number];
   cellStroke?: string;
+  /**
+   * Fades to white across the face, from the line through `from` to the line
+   * through `to`, both running along `iso` (an attached neighbour running out).
+   */
+  fade?: { from: V3; to: V3; iso: V3 };
 }
 
 const hex = (s: string): [number, number, number] =>
@@ -120,7 +126,7 @@ function mix(a: string, b: string, t: number): string {
     .join('')}`;
 }
 
-const NEIGHBOUR_LINE = '#bcc6cc';
+const NEIGHBOUR_LINE = '#aab4ba';
 const SHADE = '#7d878e';
 
 /** Everything to paint, back to front, culled to what the view sees. */
@@ -140,19 +146,23 @@ export function shapesFor(plan: RoofPlan, view: View, theme: Theme): Shape[] {
 
   const groups: { depth: number; shapes: Shape[] }[] = [];
 
-  // the attached neighbours, faint
+  const roofTone = (n: V3) => mix('#ffffff', SHADE, 0.12 + 0.3 * (1 - lit(n)));
+
+  // The attached neighbours: the same row, drawn light and fading out a short
+  // way along, so the house reads as one in a terrace. Their cut ends are not
+  // drawn; the fade ends them.
   for (const nb of plan.neighbours) {
     const shapes: Shape[] = [];
     const seen = (q: Poly3) => facing(view, q.normal);
     const byDepth = (list: Poly3[]) => list.filter(seen).sort((x, y) => mid(x.pts) - mid(y.pts));
+    const fade = (q: Poly3) => fadeAcross(q, nb.shared[0], nb.away, nb.reach);
     for (const w of byDepth(nb.walls)) {
-      shapes.push({ pts: w.pts, fill: '#ffffff', stroke: NEIGHBOUR_LINE, width: 0.4 });
-    }
-    if (nb.cut && seen(nb.cut)) {
-      shapes.push({ pts: nb.cut.pts, fill: '#ffffff', stroke: NEIGHBOUR_LINE, width: 0.3 });
+      const fill = lit(w.normal) > 0.25 ? '#f8f9fa' : '#f1f3f4';
+      shapes.push({ pts: w.pts, fill, stroke: NEIGHBOUR_LINE, width: 0.4, ...fade(w) });
     }
     for (const r of byDepth(nb.roofs)) {
-      shapes.push({ pts: r.pts, fill: '#f6f7f8', stroke: NEIGHBOUR_LINE, width: 0.4 });
+      const fill = mix(roofTone(r.normal), '#ffffff', 0.35);
+      shapes.push({ pts: r.pts, fill, stroke: NEIGHBOUR_LINE, width: 0.4, ...fade(r) });
     }
     // Behind the house whatever their depth: they only ever abut it, and the house is the subject.
     groups.push({ depth: depth(nb.centroid) - 1e6, shapes });
@@ -182,8 +192,7 @@ export function shapesFor(plan: RoofPlan, view: View, theme: Theme): Shape[] {
       .filter((f) => f.partId === part.id && facing(view, f.normal))
       .sort((x, y) => mid(x.outline) - mid(y.outline));
     for (const f of faces) {
-      const shade = mix('#ffffff', SHADE, 0.12 + 0.3 * (1 - lit(f.normal)));
-      shapes.push({ pts: f.outline, fill: shade, stroke: theme.ink, width: 0.8 });
+      shapes.push({ pts: f.outline, fill: roofTone(f.normal), stroke: theme.ink, width: 0.8 });
       for (const p of plan.panels) {
         if (p.faceId !== f.id) continue;
         shapes.push({
@@ -200,6 +209,26 @@ export function shapesFor(plan: RoofPlan, view: View, theme: Theme): Shape[] {
   }
   groups.sort((a, b) => a.depth - b.depth);
   return groups.flatMap((g) => g.shapes);
+}
+
+/**
+ * The fade across a neighbour's face: from where it meets the party line to
+ * `reach` metres away, along the face (none for a face square to the row).
+ */
+function fadeAcross(q: Poly3, at: [number, number], away: [number, number], reach: number) {
+  const a: V3 = [away[0], away[1], 0];
+  const n = q.normal;
+  const k = dot(n, a);
+  const u: V3 = [a[0] - n[0] * k, a[1] - n[1] * k, a[2] - n[2] * k];
+  const gain = dot(u, a);
+  if (gain < 0.1) return {};
+  const dist = (p: V3) => (p[0] - at[0]) * away[0] + (p[1] - at[1]) * away[1];
+  const p0 = q.pts.reduce((best, p) => (dist(p) < dist(best) ? p : best));
+  const s = (reach - dist(p0)) / gain;
+  const iso: V3 = [n[1] * a[2] - n[2] * a[1], n[2] * a[0] - n[0] * a[2], n[0] * a[1] - n[1] * a[0]];
+  return {
+    fade: { from: p0, to: [p0[0] + u[0] * s, p0[1] + u[1] * s, p0[2] + u[2] * s] as V3, iso },
+  };
 }
 
 /** A wall standing on the line an attached neighbour shares: inside the terrace, not drawn. */
@@ -296,6 +325,40 @@ export function fitDrawing(
   return { view, shapes, at, area, north: { cx: best[0], cy: best[1] } };
 }
 
+// ---- the north arrow -------------------------------------------------------------
+
+/**
+ * The north arrow: a slim needle (tip, left, tail, right) along north as the
+ * drawing projects it, at the corner the fit left free, and where its N goes
+ * (its top left and width), kept inside the box above the caption.
+ */
+export function northArrow(
+  pdf: Pdf,
+  fit: Fitted,
+  box: Rect,
+  capTop: number,
+): { needle: [Pt, Pt, Pt, Pt]; label: { x: number; y: number; w: number } } {
+  const { cx, cy } = fit.north;
+  const n: V3 = [0, 1, 0];
+  let d: Pt = [dot(fit.view.right, n), -dot(fit.view.up, n)];
+  const dl = Math.hypot(d[0], d[1]);
+  d = dl > 1e-6 ? [d[0] / dl, d[1] / dl] : [0, -1];
+  const p: Pt = [-d[1], d[0]];
+  const r = NORTH_R - 2;
+  const w = r * 0.32;
+  const needle: [Pt, Pt, Pt, Pt] = [
+    [cx + d[0] * r, cy + d[1] * r],
+    [cx + p[0] * w, cy + p[1] * w],
+    [cx - d[0] * r, cy - d[1] * r],
+    [cx - p[0] * w, cy - p[1] * w],
+  ];
+  const nW = textWidth(pdf, 'N');
+  const reach = r + 5;
+  const x = Math.min(Math.max(cx + d[0] * reach - nW / 2, box.x), box.x + box.w - nW - 2);
+  const y = Math.min(Math.max(cy + d[1] * reach - TEXT / 2, box.y), capTop - TEXT - 2);
+  return { needle, label: { x, y, w: nW } };
+}
+
 // ---- drawing -------------------------------------------------------------------
 
 function textWidth(pdf: Pdf, text: string): number {
@@ -343,11 +406,29 @@ export function drawRoofPlan(pdf: Pdf, plan: RoofPlan, box: Rect, theme: Theme):
     for (const p of rest) pdf.lineTo(p[0], p[1]);
     pdf.closePath();
   };
+  const paint = (colour: string, s: Shape) => {
+    if (!s.fade) return colour;
+    const [x1, y1] = fit.at(s.fade.from);
+    const [tx, ty] = fit.at(s.fade.to);
+    const f = s.fade.from;
+    const [ix, iy] = fit.at([f[0] + s.fade.iso[0], f[1] + s.fade.iso[1], f[2] + s.fade.iso[2]]);
+    // across the projected lines of equal distance from the party wall
+    let g: Pt = [-(iy - y1), ix - x1];
+    const gl = Math.hypot(g[0], g[1]);
+    if (gl < 1e-9) return colour;
+    g = [g[0] / gl, g[1] / gl];
+    const l = (tx - x1) * g[0] + (ty - y1) * g[1];
+    return pdf
+      .linearGradient(x1, y1, x1 + g[0] * l, y1 + g[1] * l)
+      .stop(0, colour)
+      .stop(0.4, colour)
+      .stop(1, '#ffffff');
+  };
   for (const s of fit.shapes) {
     if (s.pts.length < 3) continue;
     if (s.fill) {
       path(s.pts);
-      pdf.fillColor(s.fill).fill();
+      pdf.fillColor(paint(s.fill, s)).fill();
     }
     if (s.cells && s.cellStroke && s.pts.length === 4) {
       const [a, b, c, d] = s.pts.map(fit.at) as [Pt, Pt, Pt, Pt];
@@ -370,52 +451,30 @@ export function drawRoofPlan(pdf: Pdf, plan: RoofPlan, box: Rect, theme: Theme):
     }
     if (s.stroke && s.width > 0) {
       path(s.pts);
-      pdf.lineWidth(s.width).strokeColor(s.stroke).stroke();
+      pdf.lineWidth(s.width).strokeColor(paint(s.stroke, s)).stroke();
     }
   }
   pdf.restore();
 
-  // ---- north arrow, on the ground plane
-  const { cx, cy } = fit.north;
-  const ground = (x: number, y: number): Pt => [
-    dot(fit.view.right, [x, y, 0]),
-    -dot(fit.view.up, [x, y, 0]),
-  ];
-  // scale the ground circle so its widest reach is NORTH_R
-  const ring = Array.from({ length: 48 }, (_, k) => {
-    const t = (k / 48) * 2 * Math.PI;
-    return ground(Math.cos(t), Math.sin(t));
-  });
-  const reach = Math.max(...ring.map((p) => Math.hypot(p[0], p[1])));
-  const k = NORTH_R / reach;
-  const on = ([x, y]: Pt): Pt => [cx + x * k, cy + y * k];
-  pdf.save().lineWidth(0.5).strokeColor(theme.ink);
-  ring.forEach((p, i) => {
-    const q = on(p);
-    if (i === 0) pdf.moveTo(q[0], q[1]);
-    else pdf.lineTo(q[0], q[1]);
-  });
-  pdf.closePath().stroke();
-  const tip = on(ground(0, 1.2));
-  const tail = on(ground(0, -1));
-  const left = on(ground(-0.3, 0.5));
-  const right = on(ground(0.3, 0.5));
-  const centre = on(ground(0, 0));
-  pdf.moveTo(tail[0], tail[1]).lineTo(tip[0], tip[1]).stroke();
+  // ---- north arrow: a compass needle pointing north as the drawing has it, the N past its tip
+  const arrow = northArrow(pdf, fit, box, capTop);
+  pdf.save().lineWidth(0.5).strokeColor(theme.ink).lineJoin('miter');
+  const [tip, left, tail, right] = arrow.needle;
   pdf
     .moveTo(tip[0], tip[1])
     .lineTo(left[0], left[1])
     .lineTo(right[0], right[1])
     .closePath()
     .fillAndStroke(theme.ink, theme.ink);
+  pdf
+    .moveTo(tail[0], tail[1])
+    .lineTo(left[0], left[1])
+    .lineTo(right[0], right[1])
+    .closePath()
+    .fillAndStroke('#ffffff', theme.ink);
   pdf.restore();
-  // the N just beyond the tip, level
-  const dir: Pt = [tip[0] - centre[0], tip[1] - centre[1]];
-  const dl = Math.hypot(dir[0], dir[1]) || 1;
-  const nW = textWidth(pdf, 'N');
-  const nx = Math.min(Math.max(tip[0] + (dir[0] / dl) * 6 - nW / 2, box.x), box.x + box.w - nW - 2);
-  const ny = Math.min(Math.max(tip[1] + (dir[1] / dl) * 6 - TEXT / 2, box.y), capTop - TEXT - 2);
-  label(pdf, 'N', nx - 1, ny, { width: nW + 2, align: 'center', color: theme.ink, size: TEXT });
+  const n = arrow.label;
+  label(pdf, 'N', n.x - 1, n.y, { width: n.w + 2, align: 'center', color: theme.ink, size: TEXT });
 
   pdf.x = saveX;
   pdf.y = saveY;

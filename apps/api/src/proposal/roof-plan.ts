@@ -10,7 +10,9 @@
  * and the windows and doors come from the mesh; attached neighbours
  * (`context.neighbours[]` with `attached: true`) become short boxes, gabled
  * where their heights say so, cut a few metres from the party wall so they
- * set the house in its terrace without taking over the drawing.
+ * set the house in its terrace without taking over the drawing. Where a
+ * neighbour's heights match the house's, its roof carries on the house's own
+ * slopes, so the row has one eave line and one ridge.
  *
  * Never a schematic: when the assessment is not reliable, the spec does not
  * rebuild, or the layout cannot place every quoted panel, there is no plan.
@@ -58,6 +60,11 @@ export interface RoofPlan {
     centroid: V3;
     /** The line on the ground it shares with the house (that wall of the house is hidden). */
     shared: [[number, number], [number, number]];
+    /** Unit direction in plan from the shared line into the neighbour, and how far it is drawn. */
+    away: [number, number];
+    reach: number;
+    /** Its roof slopes carry on the house's own (one terrace roof: same eave and ridge lines). */
+    joined: boolean;
   }[];
   /** The face holding most panels. */
   mainFace: { id: number; pitchDeg: number; azimuthDeg: number };
@@ -654,6 +661,7 @@ function neighboursOf(
   spec: HouseModelSpec,
   parts: SpecPart[],
   ridgeOf: Map<string, number>,
+  faces: RoofPlan['faces'],
 ): RoofPlan['neighbours'] {
   const list = (spec.context as { neighbours?: unknown }).neighbours;
   if (!Array.isArray(list)) return [];
@@ -682,10 +690,12 @@ function neighboursOf(
     // A terrace shares one roof line; the neighbour's measured heights are
     // rougher than the house's own, so close enough means the same.
     const ownRidge = own ? ridgeOf.get(own.id) : undefined;
+    let snapped = false;
     if (own && ownRidge !== undefined) {
       if (Math.abs(eave - own.eaveZ) < 1.2 && Math.abs(ridge - ownRidge) < 1.2) {
         eave = own.eaveZ;
         ridge = ownRidge;
+        snapped = true;
       }
     }
     const [s0, s1] = edge;
@@ -745,6 +755,11 @@ function neighboursOf(
         );
       }
     });
+    // One terrace roof: the house's slopes that meet the party line carry on
+    // into the neighbour, so their eave and ridge lines run straight through.
+    const carried =
+      gable && snapped && own ? carryOn(faces, own.id, s0, s1, away, farD, inside) : null;
+    if (carried) roofs.splice(0, roofs.length, ...carried);
     if (!gable) {
       roofs.push(
         outward(
@@ -759,9 +774,42 @@ function neighboursOf(
       cut: cutFace,
       centroid: [inside[0], inside[1], ridge / 2],
       shared: [s0, s1],
+      away,
+      reach: farD,
+      joined: carried !== null,
     });
   }
   return out;
+}
+
+/**
+ * The house's roof slopes that meet the party line (an edge of the slope on
+ * it, in plan), each carried on `reach` metres into the neighbour; null
+ * unless there are two such slopes (a gable on the party wall).
+ */
+function carryOn(
+  faces: RoofPlan['faces'],
+  partId: string,
+  s0: P2,
+  s1: P2,
+  away: P2,
+  reach: number,
+  inside: V3,
+): Poly3[] | null {
+  const sl = Math.hypot(s1[0] - s0[0], s1[1] - s0[1]) || 1;
+  const off = (p: V3) =>
+    Math.abs(((p[0] - s0[0]) * (s1[1] - s0[1]) - (p[1] - s0[1]) * (s1[0] - s0[0])) / sl);
+  const out: Poly3[] = [];
+  for (const f of faces) {
+    if (f.partId !== partId) continue;
+    const on = f.outline.filter((p) => off(p) < 0.05);
+    if (on.length !== 2) continue;
+    const [a, b] = on as [V3, V3];
+    if (Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) < 0.5) continue;
+    const go = (p: V3): V3 => [p[0] + away[0] * reach, p[1] + away[1] * reach, p[2]];
+    out.push(outward([a, b, go(b), go(a)], [inside[0], inside[1], 0]));
+  }
+  return out.length === 2 ? out : null;
 }
 
 /** The first line of the spec's address (`address.input`, up to its first comma). */
@@ -846,7 +894,7 @@ export function roofPlanFor(
       corners: panelCorners(p),
       portrait: p.heightM >= p.widthM,
     })),
-    neighbours: neighboursOf(spec, specParts, ridgeOf),
+    neighbours: neighboursOf(spec, specParts, ridgeOf, faces),
     mainFace: { id: mainFace.id, pitchDeg: mainFace.pitchDeg, azimuthDeg: mainFace.azimuthDeg },
     mainFacing: facingWord(mainFace.azimuthDeg),
     address: addressOf(spec),

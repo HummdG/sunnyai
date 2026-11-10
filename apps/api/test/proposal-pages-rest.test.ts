@@ -11,6 +11,7 @@ import {
   drawRoofPlan,
   facing,
   fitDrawing,
+  northArrow,
   shapesFor,
   viewFor,
 } from '../src/proposal/plan-drawing.js';
@@ -20,7 +21,7 @@ import { drawSystem, equipment, SYSTEM_HAS_RAIL } from '../src/proposal/pages/sy
 import { roofPlanFor } from '../src/proposal/roof-plan.js';
 import { docFor, option, outOfBounds, quote, render } from './proposal-fixtures.js';
 import { pdfItems, pdfText } from './pdf-text.js';
-import { HIP_SPEC, L_SPEC } from './roof-fixtures.js';
+import { HIP_SPEC, L_SPEC, SEMI_SPEC } from './roof-fixtures.js';
 
 const THEME = themeFor('#0f2a3d');
 const text = async (buf: Buffer) => (await pdfText(buf)).join(' ');
@@ -231,6 +232,70 @@ describe('the house drawing', () => {
       for (const s of fit.shapes) for (const q of s.pts) expect(inside(fit.at(q))).toBe(true);
       expect(inside([fit.north.cx, fit.north.cy])).toBe(true);
     }
+  });
+
+  it('draws terraced neighbours first, light and fading out, their cut ends not drawn', () => {
+    for (const p of [plan()!, roofPlanFor(SEMI_SPEC, { panelCount: 10, reliable: true })!]) {
+      const shapes = shapesFor(p, viewFor(p), THEME);
+      const nbPolys = p.neighbours.flatMap((nb) => [...nb.walls, ...nb.roofs]).map((q) => q.pts);
+      const isNb = (s: (typeof shapes)[number]) => nbPolys.includes(s.pts);
+      const firstHouse = shapes.findIndex((s) => !isNb(s));
+      const nbShapes = shapes.filter(isNb);
+      expect(nbShapes.length).toBeGreaterThan(0);
+      expect(shapes.slice(0, firstHouse)).toEqual(nbShapes);
+      for (const s of nbShapes) {
+        expect(s.width).toBeLessThan(0.5);
+        expect(s.stroke).not.toBe(THEME.ink);
+      }
+      // the roof slopes each fade out along the row
+      for (const r of p.neighbours.flatMap((nb) => nb.roofs)) {
+        const s = shapes.find((x) => x.pts === r.pts);
+        if (s) expect(s.fade).toBeDefined();
+      }
+      for (const nb of p.neighbours) {
+        if (nb.cut) expect(shapes.some((s) => s.pts === nb.cut!.pts)).toBe(false);
+      }
+      // the house's own slopes are outlined in full ink
+      for (const f of p.faces) {
+        const s = shapes.find((x) => x.pts === f.outline);
+        if (s) expect([s.stroke, s.width]).toEqual([THEME.ink, 0.8]);
+      }
+    }
+  });
+
+  it('points a compass needle north, inside the box, with its N', async () => {
+    const cases = [
+      plan()!,
+      roofPlanFor(SEMI_SPEC, { panelCount: 10, reliable: true })!,
+      roofPlanFor(HIP_SPEC, { panelCount: 4, reliable: true })!,
+      roofPlanFor(L_SPEC, { panelCount: 4, reliable: true })!,
+    ];
+    const capTop = BOX.y + BOX.h - 16;
+    await render((pdf) => {
+      for (const p of cases) {
+        const fit = fitDrawing(p, BOX, THEME, 16)!;
+        const { needle, label: n } = northArrow(pdf, fit, BOX, capTop);
+        const inside = ([x, y]: [number, number]) =>
+          x >= BOX.x && x <= BOX.x + BOX.w && y >= BOX.y && y <= capTop;
+        for (const q of needle) expect(inside(q)).toBe(true);
+        expect(inside([n.x, n.y])).toBe(true);
+        expect(inside([n.x + n.w, n.y])).toBe(true);
+        // tip to tail along north as the drawing projects it (page y runs down)
+        const [tip, , tail] = needle;
+        const d = [tip[0] - tail[0], tip[1] - tail[1]];
+        const north = [
+          fit.at([0, 1, 0])[0] - fit.at([0, 0, 0])[0],
+          fit.at([0, 1, 0])[1] - fit.at([0, 0, 0])[1],
+        ];
+        const cos =
+          (d[0]! * north[0]! + d[1]! * north[1]!) /
+          Math.hypot(d[0]!, d[1]!) /
+          Math.hypot(north[0]!, north[1]!);
+        expect(cos).toBeGreaterThan(0.999);
+        // a needle, not a squashed ring: long and slim
+        expect(Math.hypot(d[0]!, d[1]!)).toBeGreaterThan(10);
+      }
+    });
   });
 
   it('captions the drawing level, and says flat for a flat roof', async () => {
