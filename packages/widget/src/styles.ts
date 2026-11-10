@@ -410,6 +410,9 @@ export function styles(): string {
 .turn.assistant li + li { margin-top: 4px; }
 .turn.assistant li::marker { color: var(--sunny-accent-ink); }
 .turn.assistant strong { font-weight: 700; }
+.turn.assistant a { color: var(--sunny-accent-ink); text-decoration: underline;
+  text-underline-offset: 2px; overflow-wrap: anywhere; }
+.turn.assistant a:focus-visible { outline: 2px solid var(--sunny-accent-ink); outline-offset: 2px; }
 .turn.system { align-self: center; font-size: 12.5px; color: var(--sunny-muted);
   background: transparent; text-align: center; max-width: 100%; }
 .turn.error { align-self: stretch; max-width: 100%; font-size: 13px;

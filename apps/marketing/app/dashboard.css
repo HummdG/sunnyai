@@ -555,6 +555,27 @@
   opacity: 0.7;
   margin-top: 4px;
 }
+.dash .rich-reply p {
+  margin: 0;
+}
+.dash .rich-reply p + p,
+.dash .rich-reply p + ul,
+.dash .rich-reply p + ol,
+.dash .rich-reply ul + p,
+.dash .rich-reply ol + p {
+  margin-top: 8px;
+}
+.dash .rich-reply ul,
+.dash .rich-reply ol {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.dash .rich-reply a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
 
 .dash pre.snippet {
   background: var(--sunny-ink);

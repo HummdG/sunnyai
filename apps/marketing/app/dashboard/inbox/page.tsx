@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from 'react';
 
 import { EmptyState, SkeletonRows } from '../../../components/dashboard/kit.js';
 import { PortalShell, usePortal } from '../../../components/dashboard/portal.js';
+import { RichReply } from '../../../components/dashboard/rich-reply.js';
 import {
   Card,
   Chip,
@@ -230,7 +231,7 @@ function Inbox() {
               <div className="transcript">
                 {detail.turns.map((turn, index) => (
                   <div key={index} className={`bubble ${turn.role}`}>
-                    {turn.text}
+                    {turn.role === 'assistant' ? <RichReply text={turn.text} /> : turn.text}
                     <time dateTime={turn.at}>{formatDate(turn.at)}</time>
                   </div>
                 ))}

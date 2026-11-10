@@ -47,7 +47,8 @@ export function buildSystemInstruction(
     '- A passage that mentions what was asked about is not always an answer to it. If the passages name a role but not who holds it, or a topic but not the fact asked for, call retrieve_knowledge again with other words (spell out abbreviations such as MD or CEO) before answering.',
     '- Never answer with the question\'s own words, such as "the MD is the Group MD". If you cannot find the actual fact, use the line below.',
     `- If the answer is not there, say exactly: "${fallbackLine()}"`,
-    '- After the fallback line, ask whether they would like that. If they agree, ask for their name and the best phone number or email, then record it (request_callback or create_lead). Never leave the offer hanging.',
+    '- After the fallback line, ask whether they would like that, unless they have already said they do not want to be contacted. If they agree, ask for their name and the best phone number or email, then record it (request_callback or create_lead). Never leave the offer hanging.',
+    '- How to contact the installer is never a question for the fallback line: use the contact details below.',
     '- Never invent a price, a tax credit, a tariff, a warranty term, a saving or a timescale. Never quote a figure that did not come from <verified_context> or a tool call in this conversation.',
     `- Any savings or system-size figure is non-binding. Whenever you give one, say: "${ESTIMATE_DISCLAIMER}"`,
     '',
@@ -65,7 +66,9 @@ export function buildSystemInstruction(
     "- Never discuss another installer, or anyone else's enquiry.",
     '- Only record a lead or a callback once the visitor has agreed to be contacted.',
     '- Hand over to a person when you cannot help, or the visitor asks for one.',
+    '- Answer the question the visitor actually asked, in as few words as it needs. Give one clear next step, never two that contradict each other.',
     '',
+    ...contactRules(tenant),
     supportRules(tenant),
     '',
     ...(channel === 'chat' ? workflowRules() : []),
@@ -76,6 +79,36 @@ export function buildSystemInstruction(
       : `This installer has ${knowledgeSourceCount} knowledge source(s); retrieve_knowledge searches them.`,
     '</system_instructions>',
   ].join('\n');
+}
+
+/**
+ * How a visitor reaches the installer, from the installer's own settings.
+ *
+ * These are the installer's facts, entered in the dashboard, so the model may
+ * give them whenever asked: they are not a document question, and a visitor
+ * who wants to ring the installer must never be told the number is unknown or
+ * be pushed into a callback they have just turned down.
+ */
+export function contactRules(tenant: Tenant): string[] {
+  const company = tenant.config.companyName;
+  const contact = tenant.config.supportContact;
+  const phone = contact?.phone?.trim();
+  const email = contact?.email?.trim();
+  const hours = contact?.hours?.trim();
+  const details = [
+    phone ? `phone ${escapeTagText(phone)}${hours ? ` (${escapeTagText(hours)})` : ''}` : null,
+    email ? `email ${escapeTagText(email)}` : null,
+  ].filter((part): part is string => part !== null);
+  return [
+    `Contacting ${company}:`,
+    details.length > 0
+      ? `- ${company}'s contact details: ${details.join(', ')}. These come from the installer's own settings, so you may always give them.`
+      : `- ${company} has not set a phone number or email for customers. If a visitor wants to get in touch, offer a callback and record it once they agree.`,
+    '- When a visitor asks for a phone number or email, asks how to get in touch, asks to speak to someone, or says they would rather call, give the contact details straight away in one short sentence. Do not search the documents for them and do not use the fallback line.',
+    '- If a visitor says no to a callback, or says they will get in touch themselves, respect it: give the contact details and do not offer a callback again in this conversation unless they ask.',
+    `- You can only arrange for someone from ${company} to get in touch. You cannot arrange for a manufacturer or anyone else to contact the visitor: tell them how to contact the manufacturer themselves.`,
+    '',
+  ];
 }
 
 /**

@@ -57,7 +57,13 @@ export class CitationLedger {
    * citation claiming to support something it does not.
    */
   cited(text: string): CitedPassage[] {
-    const refs = new Set([...text.matchAll(/\[(S\d+)\]/g)].map((m) => m[1]));
+    // A single marker ("[S6]") or a group ("[S6, S7]", "[S6,S7]"): the model
+    // writes both, and a grouped source the visitor never sees is a lost link.
+    const refs = new Set(
+      [...text.matchAll(/\[(S\d+(?:\s*,\s*S\d+)*)\]/g)].flatMap((m) =>
+        m[1]!.split(',').map((ref) => ref.trim()),
+      ),
+    );
     return [...this.#byChunk.values()].filter((p) => refs.has(p.ref));
   }
 }

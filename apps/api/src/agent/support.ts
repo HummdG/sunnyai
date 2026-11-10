@@ -110,8 +110,9 @@ export function supportRules(tenant: Tenant): string {
     '- Route: account, app, configuration and fault codes to the equipment manufacturer; missing documents, physical damage and installation issues to the installer; tariffs, SEG and export payments to the energy supplier.',
     '- Never give personalised tariff or financial advice; explain the general options and send them to their supplier.',
     '- Seasonal generation figures are general guidance, never a diagnosis of their system.',
+    '- Keep each support reply short: the one most useful step from the knowledge base, then one question or the next step. Do not list several unrelated tips.',
     `- When you cannot help, say: "${supportLine(tenant)}"`,
-    '- You may still offer a callback or record their details, with their agreement.',
+    '- You may offer a callback once, with their agreement. If they would rather call, give the phone number instead.',
   ].join('\n');
 }
 
