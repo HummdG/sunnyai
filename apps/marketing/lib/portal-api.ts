@@ -12,7 +12,11 @@ import type {
   FlowStep,
   LeadFlowAnswer,
   LogoEffect,
+  PageRule,
   QuotationSettings,
+  Workflow,
+  WorkflowOutcome,
+  WorkflowSet,
 } from '@sunny/contracts';
 
 export type {
@@ -22,7 +26,11 @@ export type {
   FlowFollowUp,
   FlowStep,
   LogoEffect,
+  PageRule,
   QuotationSettings,
+  Workflow,
+  WorkflowOutcome,
+  WorkflowSet,
 };
 export type Role = 'viewer' | 'sales' | 'admin' | 'owner';
 export type AddonKey = 'web_chat' | 'email_assistant';
@@ -431,6 +439,158 @@ export function suggestPriceChanges(
   question: { prompt: string; choices: Array<{ value: string; label: string }> },
 ): Promise<PriceSuggestion> {
   return api<PriceSuggestion>(conversationPath(tenantId, '/suggest'), { body: question });
+}
+
+// ── workflows (Studio's workflow builder) ──────────────────────────────────
+
+export interface WorkflowIssue {
+  workflowId: string;
+  stepId?: string;
+  choice?: string;
+  field?: 'pages' | 'steps' | 'interests';
+  code:
+    | FlowIssue['code']
+    | 'needs_address'
+    | 'bad_page_pattern'
+    | 'duplicate_step_id'
+    | 'interest_overlap';
+  message: string;
+  /** Worth knowing, but it does not stop a save. */
+  warning?: boolean;
+}
+
+export interface WorkflowSetView {
+  set: WorkflowSet;
+  /** The set was made from the installer's earlier settings and is not yet saved. */
+  migrated: boolean;
+  presets: PresetView[];
+  priceItems: PriceItemView[];
+  issues: WorkflowIssue[];
+}
+
+export interface WorkflowView {
+  workflow: Workflow;
+  presets: PresetView[];
+  priceItems: PriceItemView[];
+  issues: WorkflowIssue[];
+}
+
+export interface WorkflowPreview extends Omit<ConversationPreview, 'issues'> {
+  issues: WorkflowIssue[];
+  /** Whether the workflow is offered on `path`; null when no path was given. */
+  appearsOnPage: boolean | null;
+}
+
+const workflowPath = (tenantId: string, rest = '') => tenantPath(tenantId, `/workflows${rest}`);
+const workflowIdPath = (tenantId: string, id: string, rest = '') =>
+  workflowPath(tenantId, `/${encodeURIComponent(id)}${rest}`);
+
+export function getWorkflows(tenantId: string): Promise<WorkflowSetView> {
+  return api<WorkflowSetView>(workflowPath(tenantId));
+}
+
+/** Start from the solar template, a blank workflow, or a copy of one of the installer's own. */
+export function createWorkflow(
+  tenantId: string,
+  from: 'solar_quote' | 'blank' | { copy: string },
+  name?: string,
+): Promise<{ workflow: Workflow; view: WorkflowSetView }> {
+  return api<{ workflow: Workflow; view: WorkflowSetView }>(workflowPath(tenantId), {
+    body: { from, ...(name === undefined ? {} : { name }) },
+  });
+}
+
+export function getWorkflow(tenantId: string, id: string): Promise<WorkflowView> {
+  return api<WorkflowView>(workflowIdPath(tenantId, id));
+}
+
+/**
+ * Save a workflow at the version it was loaded. A 409 (someone else saved first)
+ * and a 400 with `issues` arrive as an `ApiFailure`; see `workflowIssuesOf`.
+ */
+export function saveWorkflow(tenantId: string, workflow: Workflow): Promise<WorkflowSetView> {
+  return api<WorkflowSetView>(workflowIdPath(tenantId, workflow.id), {
+    method: 'PUT',
+    body: { workflow },
+  });
+}
+
+export function deleteWorkflow(tenantId: string, id: string): Promise<WorkflowSetView> {
+  return api<WorkflowSetView>(workflowIdPath(tenantId, id), { method: 'DELETE' });
+}
+
+/** A built-in workflow back to its template. */
+export function resetWorkflow(tenantId: string, id: string): Promise<WorkflowSetView> {
+  return api<WorkflowSetView>(workflowIdPath(tenantId, id, '/reset'), { method: 'POST', body: {} });
+}
+
+export function previewWorkflow(
+  tenantId: string,
+  workflow: Workflow,
+  answers: Record<string, string>,
+  path?: string,
+): Promise<WorkflowPreview> {
+  return api<WorkflowPreview>(workflowIdPath(tenantId, workflow.id, '/preview'), {
+    body: { workflow, answers, ...(path === undefined ? {} : { path }) },
+  });
+}
+
+export function suggestWorkflowPriceChanges(
+  tenantId: string,
+  workflowId: string,
+  question: { prompt: string; choices: Array<{ value: string; label: string }> },
+): Promise<PriceSuggestion> {
+  return api<PriceSuggestion>(workflowIdPath(tenantId, workflowId, '/suggest'), {
+    body: question,
+  });
+}
+
+export function saveWorkflowSettings(
+  tenantId: string,
+  settings: { discoveryEnabled: boolean },
+): Promise<WorkflowSetView> {
+  return api<WorkflowSetView>(workflowPath(tenantId, '/settings'), {
+    method: 'PUT',
+    body: settings,
+  });
+}
+
+/** The issues a rejected workflow save explained, or none. */
+export function workflowIssuesOf(failure: unknown): WorkflowIssue[] {
+  if (!(failure instanceof ApiFailure)) return [];
+  const issues = (failure.body as { issues?: unknown } | null)?.issues;
+  return Array.isArray(issues) ? (issues as WorkflowIssue[]) : [];
+}
+
+function trimSlash(s: string): string {
+  return s.length > 1 ? s.replace(/\/+$/, '') || '/' : s;
+}
+
+function compileGlob(glob: string): RegExp {
+  const g = trimSlash(glob);
+  let src = '';
+  for (let i = 0; i < g.length; i++) {
+    const c = g[i]!;
+    if (c === '*') {
+      if (g[i + 1] === '*') {
+        src += '.*';
+        i++;
+      } else src += '[^/]*';
+    } else src += c.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${src}$`);
+}
+
+/**
+ * Whether a page rule offers a workflow on a path. A copy of `pathMatches` in
+ * @sunny/contracts (workflow.ts), kept here so zod stays out of the page; keep
+ * the two the same.
+ */
+export function pathMatches(rule: PageRule, path: string | null): boolean {
+  if (path === null) return rule.include.length === 0;
+  const p = trimSlash(path);
+  if (rule.exclude.some((g) => compileGlob(g).test(p))) return false;
+  return rule.include.length === 0 || rule.include.some((g) => compileGlob(g).test(p));
 }
 
 // ── the quotation PDF (Studio's "Your quotation") ──────────────────────────
