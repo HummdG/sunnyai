@@ -336,7 +336,7 @@ export function toQuoteCard(
   };
 }
 
-/** A heat pump quote as cards. No PDF proposal yet, so none is offered. */
+/** A heat pump quote as cards. Its PDF is the heat pump estimate (routes/proposal.ts). */
 function heatPumpCard(
   quote: HeatPumpQuoteRecord,
   options: { emailAvailable?: boolean },
@@ -346,7 +346,8 @@ function heatPumpCard(
     quoteId: quote.id,
     priced: quote.priced,
     disclaimer: quote.disclaimer,
-    proposalAvailable: false,
+    // Every stored quote renders as a PDF, as a solar quote does.
+    proposalAvailable: true,
     emailAvailable: options.emailAvailable ?? proposalEmailConfigured(),
     options: quote.options.map((o) => ({
       id: o.id,

@@ -3,7 +3,7 @@
  * figure blocks, and a paragraph that reports where it ended.
  */
 
-import type { ProposalDoc } from '../doc.js';
+import type { ProposalBase } from '../doc.js';
 import { CONTENT, PAGE, RAIL_FRACTION, drawLogo, label, rail, type Theme } from '../layout.js';
 
 type Pdf = PDFKit.PDFDocument;
@@ -63,7 +63,7 @@ export function para(pdf: Pdf, text: string, x: number, y: number, o: TextOpts):
 /** The installer's logo on its plate, or the company name, at the top of the rail. */
 export function railBrand(
   pdf: Pdf,
-  doc: ProposalDoc,
+  doc: ProposalBase,
   theme: Theme,
   col: { x: number; width: number },
 ): number {

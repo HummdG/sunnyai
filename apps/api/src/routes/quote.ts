@@ -91,14 +91,14 @@ export function publicQuote(
 ): Omit<QuoteRecord, 'tenantId'> & { proposalAvailable: true };
 export function publicQuote(
   record: StoredQuote,
-): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean };
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: true };
 export function publicQuote(
   record: StoredQuote,
-): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean } {
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: true } {
   const { tenantId: _tenantId, ...rest } = record;
-  // GET /v1/quote/:id/proposal.pdf renders a solar quote (routes/proposal.ts);
-  // a heat pump quote has no PDF proposal yet.
-  return { ...rest, proposalAvailable: isSolarRecord(record) };
+  // GET /v1/quote/:id/proposal.pdf renders every stored quote (routes/proposal.ts):
+  // a solar proposal or a heat pump estimate.
+  return { ...rest, proposalAvailable: true };
 }
 
 export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps): void {

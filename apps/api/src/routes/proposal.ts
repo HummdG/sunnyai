@@ -5,8 +5,7 @@ import { z } from 'zod';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import type { BrandAssetStore } from '../branding/store.js';
-import { isSolarRecord } from '../journey/heat-pump/record.js';
-import type { QuoteRecord } from '../journey/quote.js';
+import { isSolarRecord, type StoredQuote } from '../journey/heat-pump/record.js';
 import {
   proposalFilename,
   proposalPdf,
@@ -19,7 +18,8 @@ import type { Tenant, TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
 
 /**
- * The customer quotation PDF (proposal/pdf.ts), three ways:
+ * The customer quotation PDF (proposal/pdf.ts): a solar proposal, or a heat
+ * pump estimate for a heat pump quote. Three ways:
  *
  *   GET  /v1/quote/:id/proposal.pdf          the visitor's own quote (widget session)
  *   POST /v1/quote/:id/proposal/email        email it to the visitor, with consent
@@ -93,7 +93,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
   /** The visitor's quote: their session, their tenant, their quote. */
   async function visitorQuote(
     request: FastifyRequest,
-  ): Promise<{ tenant: Tenant; quote: QuoteRecord; sessionId: string }> {
+  ): Promise<{ tenant: Tenant; quote: StoredQuote; sessionId: string }> {
     const claims = verifySessionToken(bearer(request), deps.sessionSecret, now());
     if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
     const tenant = tenants.byId(claims.tenantId);
@@ -102,12 +102,10 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     if (!tenant || !quote || quote.sessionId !== claims.sessionId) {
       throw new ApiError('not_found', 'No such quote.');
     }
-    // Only a solar quote has a PDF proposal so far.
-    if (!isSolarRecord(quote)) throw new ApiError('not_found', 'This quote has no proposal.');
     return { tenant, quote, sessionId: claims.sessionId };
   }
 
-  async function leadFor(tenant: Tenant, quote: QuoteRecord): Promise<LeadRecord | null> {
+  async function leadFor(tenant: Tenant, quote: StoredQuote): Promise<LeadRecord | null> {
     if (!quote.leadId) return null;
     return (await store.listAllLeads(tenant.id)).find((l) => l.id === quote.leadId) ?? null;
   }
@@ -158,16 +156,21 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     );
     const company = tenant.config.companyName;
     const contact = tenant.config.supportContact;
+    const solar = isSolarRecord(quote);
     await deps.mailer.send({
       to: body.data.email,
       replyTo: contact?.email ?? null,
       fromName: `${company} via Sunny`,
-      subject: `Your solar quote from ${company}`,
+      subject: solar ? `Your solar quote from ${company}` : `Your heat pump quote from ${company}`,
       text: [
         'Hello,',
         '',
-        `Here is the solar proposal you asked for, from ${company}. It sets out the system we ` +
-          'recommend, the other options you were shown, and what each should generate and save.',
+        solar
+          ? `Here is the solar proposal you asked for, from ${company}. It sets out the system we ` +
+            'recommend, the other options you were shown, and what each should generate and save.'
+          : `Here is the heat pump estimate you asked for, from ${company}. It sets out the heat ` +
+            'pump we recommend, the options you were shown, the running costs and the Boiler ' +
+            'Upgrade Scheme grant.',
         '',
         'Every figure is indicative and non-binding until we have surveyed your property.',
         '',
@@ -198,8 +201,6 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
       const quotes = await store.listQuotes(tenant.id, lead.sessionId);
       const quote = quotes.filter((q) => q.leadId === lead.id).at(-1) ?? quotes.at(-1) ?? null;
       if (!quote) throw new ApiError('not_found', 'This lead has no quote.');
-      // Only a solar quote has a PDF proposal so far.
-      if (!isSolarRecord(quote)) throw new ApiError('not_found', 'This quote has no proposal.');
       const pdf = await proposalPdf(sources, tenant, quote, lead, new Date(now()));
       return sendPdf(reply, pdf, proposalFilename(tenant, quote));
     },

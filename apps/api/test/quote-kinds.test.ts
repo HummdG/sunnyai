@@ -244,7 +244,7 @@ describe('quote cards by kind', () => {
       quoteId: 'q_hp_1',
       priced: true,
       disclaimer: 'Indicative and non-binding.',
-      proposalAvailable: false,
+      proposalAvailable: true,
       emailAvailable: true,
       options: [
         {
@@ -368,18 +368,23 @@ describe('quote routes with a heat pump quote', () => {
     expect(bogus.statusCode).toBe(404);
   });
 
-  it('serves a heat pump quote without a proposal, and refuses its PDF with a 404', async () => {
+  it('serves a heat pump quote with its PDF, the heat pump estimate', async () => {
     const { app, store, auth } = await server();
     await store.saveQuote(heatPump());
     const got = await app.inject({ method: 'GET', url: '/v1/quote/q_hp_1', headers: auth });
     expect(got.statusCode).toBe(200);
-    expect(got.json()).toMatchObject({ kind: 'heat_pump', proposalAvailable: false });
+    expect(got.json()).toMatchObject({ kind: 'heat_pump', proposalAvailable: true });
     expect(got.json().tenantId).toBeUndefined();
     const pdf = await app.inject({
       method: 'GET',
       url: '/v1/quote/q_hp_1/proposal.pdf',
       headers: auth,
     });
-    expect(pdf.statusCode).toBe(404);
+    expect(pdf.statusCode).toBe(200);
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+    expect(pdf.headers['content-disposition']).toBe(
+      'attachment; filename="heat-pump-estimate-NR4-7TJ.pdf"',
+    );
+    expect(pdf.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
   });
 });

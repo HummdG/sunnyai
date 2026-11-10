@@ -18,20 +18,17 @@ import type { ProposalRoof } from './pdf.js';
 import type { RoofPlan } from './roof-plan.js';
 import type { QuotationSnapshot } from './snapshot.js';
 
-export interface ProposalDoc {
-  quote: QuoteRecord;
-  /** The option the document is about: the visitor's choice, else the recommended one. */
-  option: QuoteOptionView;
-  /** True when `option` is the package the visitor chose. */
+/**
+ * What every quotation PDF carries, whatever the quote's kind: the installer's
+ * snapshot, the customer, the logos, the reference and the dates. The pages
+ * every kind shares (the rail's brand mark, Terms) need only this.
+ */
+export interface ProposalBase {
+  /** True when the document's option is the one the visitor chose. */
   chosen: boolean;
-  /** The quote's other options, for "Other options we looked at". */
-  others: QuoteOptionView[];
   /** The installer's settings when the quote was made (or the defaults). */
   snapshot: QuotationSnapshot;
   customer: { name: string | null; address: string | null };
-  /** The real roof with the quoted panels, or null when it cannot be drawn honestly. */
-  roofPlan: RoofPlan | null;
-  roofFacts: ProposalRoof | null;
   /** The logo PNG for the PDF, or null to set the company name instead. */
   logo: Buffer | null;
   accreditationLogos: Buffer[];
@@ -45,4 +42,15 @@ export interface ProposalDoc {
   reference: string;
   /** The quote's `createdAt` plus the snapshot's validity days. */
   validUntil: Date;
+}
+
+export interface ProposalDoc extends ProposalBase {
+  quote: QuoteRecord;
+  /** The option the document is about: the visitor's choice, else the recommended one. */
+  option: QuoteOptionView;
+  /** The quote's other options, for "Other options we looked at". */
+  others: QuoteOptionView[];
+  /** The real roof with the quoted panels, or null when it cannot be drawn honestly. */
+  roofPlan: RoofPlan | null;
+  roofFacts: ProposalRoof | null;
 }

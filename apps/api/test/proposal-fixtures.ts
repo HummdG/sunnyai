@@ -1,12 +1,15 @@
 /** Shared fixtures for the proposal page tests: a stored quote, a snapshot and a ProposalDoc. */
 import { defaultQuotationSettings } from '@sunny/contracts';
+import { HEAT_PUMP_DISCLAIMER, type HeatPumpEstimate } from '@sunny/heat-pump-engine';
 import PDFDocument from 'pdfkit';
 
+import type { HeatPumpOptionView, HeatPumpQuoteRecord } from '../src/journey/heat-pump/record.js';
 import type { QuoteOptionView, QuoteRecord } from '../src/journey/quote.js';
 import { referenceFor } from '../src/proposal/copy.js';
 import type { ProposalDoc } from '../src/proposal/doc.js';
 import { CONTENT, PAGE, registerFonts } from '../src/proposal/layout.js';
 import type { QuotationSnapshot } from '../src/proposal/snapshot.js';
+import { DEMO_TENANT } from '../src/tenants.js';
 import type { PdfTextItem } from './pdf-text.js';
 
 export function option(over: Partial<QuoteOptionView> = {}): QuoteOptionView {
@@ -181,4 +184,101 @@ export function outOfBounds(pages: PdfTextItem[][], slack = 0.6): string[] {
     }
   });
   return out;
+}
+
+// ---- Heat pump ---------------------------------------------------------------
+
+export function hpEstimate(over: Partial<HeatPumpEstimate> = {}): HeatPumpEstimate {
+  return {
+    floorAreaM2: 95,
+    floorAreaAssumed: true,
+    peakHeatLossKw: 6.4,
+    annualSpaceHeatKwh: 9800,
+    annualHotWaterKwh: 2400,
+    recommendedKw: 7,
+    scop: 3.2,
+    runningCost: {
+      currentGbp: 1150,
+      heatPumpGbp: 940,
+      fuelPencePerKwh: 6.3,
+      elecPencePerKwh: 24.5,
+      boilerEfficiency: 0.85,
+    },
+    bus: {
+      eligible: true,
+      amountGbp: 7500,
+      reasons: ['Your home is in England.', 'You own the property.'],
+    },
+    nation: 'england',
+    warnings: [],
+    assumptions: ['Floor area assumed from 3 bedrooms.'],
+    ...over,
+  };
+}
+
+export function hpOption(over: Partial<HeatPumpOptionView> = {}): HeatPumpOptionView {
+  return {
+    id: 'with_cylinder',
+    label: 'With a new hot water cylinder',
+    isRecommended: true,
+    headline: 'A 7 kW heat pump with a new hot water cylinder.',
+    outputKw: 7,
+    unitName: 'Vaillant aroTHERM plus 7 kW',
+    priceGbp: 12500,
+    grantGbp: 7500,
+    priceAfterGrantGbp: 5000,
+    priceLabel: 'Indicative price',
+    lineItems: [
+      { sku: 'HP-7', label: 'Vaillant aroTHERM plus 7 kW', quantity: 1, totalGbp: 8000 },
+      { sku: 'HP-INSTALL', label: 'Installation and commissioning', quantity: 1, totalGbp: 3000 },
+      { sku: 'HP-CYL', label: '200 litre cylinder', quantity: 1, totalGbp: 1500 },
+    ],
+    runningCostGbp: 940,
+    currentCostGbp: 1150,
+    annualSavingsGbp: 210,
+    inclusions: ['A 7 kW air source heat pump', 'Installation and controls'],
+    warnings: [],
+    installerPriced: false,
+    ...over,
+  };
+}
+
+export function hpQuote(
+  over: Partial<HeatPumpQuoteRecord> = {},
+  snap: QuotationSnapshot = snapshot(),
+): HeatPumpQuoteRecord {
+  return {
+    kind: 'heat_pump',
+    id: 'q_hp7f3a9c2e41b8',
+    tenantId: DEMO_TENANT.id,
+    sessionId: 's1',
+    createdAt: '2026-11-09T10:00:00.000Z',
+    priced: true,
+    pricing: {
+      label: 'Heat pump quote',
+      version: '1',
+      priceStatus: 'indicative',
+      vatRatePercent: 0,
+      currency: 'GBP',
+    },
+    estimate: hpEstimate(),
+    postcode: 'NR4 7TJ',
+    options: [
+      hpOption({
+        id: 'heat_pump_only',
+        label: 'Heat pump only',
+        isRecommended: false,
+        headline: 'A 7 kW heat pump, sized to the home.',
+        priceGbp: 11000,
+        priceAfterGrantGbp: 3500,
+      }),
+      hpOption(),
+    ],
+    recommendedId: 'with_cylinder',
+    warnings: [],
+    disclaimer: HEAT_PUMP_DISCLAIMER,
+    leadId: null,
+    quotation: snap,
+    ...over,
+  };
 }

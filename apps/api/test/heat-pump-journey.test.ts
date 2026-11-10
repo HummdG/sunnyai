@@ -523,7 +523,7 @@ describe('POST /v1/quote/options', () => {
     const body = res.json<{ kind?: string; tenantId?: string; proposalAvailable: boolean }>();
     expect(body.kind).toBe('heat_pump');
     expect(body.tenantId).toBeUndefined();
-    expect(body.proposalAvailable).toBe(false);
+    expect(body.proposalAvailable).toBe(true);
   });
 
   it('does not build one for a heat pump workflow that is switched off', async () => {

@@ -21,7 +21,7 @@ import {
   num,
   vatRow,
 } from '../copy.js';
-import type { ProposalDoc } from '../doc.js';
+import type { ProposalBase, ProposalDoc } from '../doc.js';
 import { CONTENT, label, type Theme } from '../layout.js';
 
 import { MAIN_W, MAIN_X, measure, para, railBrand, railItem, railPage, rule } from './parts.js';
@@ -41,12 +41,56 @@ function balanceLabel(due: string): string {
   return t ? `Balance, ${t}` : 'Balance';
 }
 
-interface Row {
+/** A numbered item: its label, its price (or "Priced by your installer") and its reason. */
+export interface QuotationRow {
   label: string;
   price: string;
   priced: boolean;
   reason: string | null;
 }
+type Row = QuotationRow;
+
+/** The total, deposit and balance as the page prints them; see `money` in copy.ts. */
+export type QuotationMoney = NonNullable<ReturnType<typeof money>>;
+
+/**
+ * What the Estimated quotation page says, for any kind of quote. The solar
+ * page builds it from the option (`drawQuotation`); the heat pump page builds
+ * its own (proposal/heat-pump/quotation-lines.ts).
+ */
+export interface QuotationContent {
+  /** The estimate notice under the title. */
+  notice: string;
+  rows: QuotationRow[];
+  /**
+   * Unnumbered rows after the items: VAT added on top, or a deduction such as
+   * the Boiler Upgrade Scheme grant. The amount is printed as given.
+   */
+  adjustments: { label: string; amount: string }[];
+  /** Null when the total is not complete: no total figure, deposit or balance. */
+  money: QuotationMoney | null;
+  /** The total's label in the main column. */
+  totalLabel: string;
+  /** Printed in place of the total figure when `money` is null. */
+  noTotal: string;
+  /** A paragraph set just above the total, or null. */
+  aboveTotal: string | null;
+  depositBasis: string | null;
+  goAhead: string;
+  notes: string[];
+  /** The MCS block's generation figure; null: the block is never drawn. */
+  mcsGenerationKwh: number | null;
+  /** The quote's own disclaimer at the foot, or null for none. */
+  disclaimer: string | null;
+  /** Draws "Other options we looked at" (see others.ts); absent: none here. */
+  others?: (
+    pdf: Pdf,
+    box: { x: number; w: number; y: number },
+    ensure: (h: number, y: number) => number,
+  ) => number;
+}
+
+const NO_TOTAL = 'To be priced by your installer after a survey';
 
 /** The numbered rows: the priced items, else the main components, then installer-priced items. */
 function rowsFor(doc: ProposalDoc): Row[] {
@@ -88,8 +132,40 @@ export function drawQuotation(
   theme: Theme,
   opts: { mcsBlock: boolean; termsFollow: boolean; othersHere?: boolean },
 ): QuotationEnd {
-  const m = money(doc);
-  drawRail(pdf, doc, theme, railPage(pdf, theme), m);
+  const vat = vatRow(doc);
+  return drawQuotationWith(
+    pdf,
+    doc,
+    theme,
+    {
+      notice: ESTIMATE.notice,
+      rows: rowsFor(doc),
+      adjustments: vat ? [{ label: vat.label, amount: gbp(vat.amount) }] : [],
+      money: money(doc),
+      totalLabel: ESTIMATE.totalLabel,
+      noTotal: NO_TOTAL,
+      aboveTotal: null,
+      depositBasis: depositBasis(doc),
+      goAhead: goAhead(doc),
+      notes: notes(doc),
+      mcsGenerationKwh: doc.option.annualGenerationKwh,
+      disclaimer: doc.quote.disclaimer,
+      others: (p, box, ensure) => drawOthers(p, doc, theme, box, ensure),
+    },
+    opts,
+  );
+}
+
+/** Draws the Estimated quotation from its content: solar and heat pump alike. */
+export function drawQuotationWith(
+  pdf: Pdf,
+  doc: ProposalBase,
+  theme: Theme,
+  content: QuotationContent,
+  opts: { mcsBlock: boolean; termsFollow: boolean; othersHere?: boolean },
+): QuotationEnd {
+  const m = content.money;
+  drawRail(pdf, doc, theme, railPage(pdf, theme), m, content.noTotal);
 
   const x = MAIN_X;
   const w = MAIN_W;
@@ -124,7 +200,7 @@ export function drawQuotation(
   pdf.font('sans-800').text(bold, { lineBreak: false });
   y += pdf.currentLineHeight(true) + 12;
   rule(pdf, y, ink, 0.8);
-  y = para(pdf, ESTIMATE.notice, x, y + 9, {
+  y = para(pdf, content.notice, x, y + 9, {
     font: 'sans-400',
     size: 10,
     color: ink,
@@ -147,7 +223,7 @@ export function drawQuotation(
     return below + 6;
   };
   y = head(y);
-  rowsFor(doc).forEach((row, i) => {
+  content.rows.forEach((row, i) => {
     const labelOpts = { font: 'sans-400', size: 9, color: ink, width: itemW, lineGap: 1 };
     const reasonOpts = { font: 'sans-400', size: 7.6, color: theme.accent, width: itemW };
     const priceOpts = row.priced
@@ -172,30 +248,36 @@ export function drawQuotation(
     rule(pdf, y, theme.rule);
   });
 
-  // ---- VAT added on top of the ex-VAT item prices
-  const vat = vatRow(doc);
-  if (vat) {
+  // ---- VAT added on top of the ex-VAT item prices; deductions such as a grant
+  for (const adj of content.adjustments) {
     ensure(24);
     const top = y + 4.5;
-    para(pdf, vat.label, itemX, top, { font: 'sans-400', size: 9, color: ink, width: itemW });
-    para(pdf, gbp(vat.amount), x + w - priceW, top, {
+    para(pdf, adj.label, itemX, top, { font: 'sans-400', size: 9, color: ink, width: itemW });
+    para(pdf, adj.amount, x + w - priceW, top, {
       font: 'sans-600',
       size: 9,
       color: ink,
       width: priceW,
       align: 'right',
     });
-    y += measure(pdf, vat.label, { font: 'sans-400', size: 9, color: ink, width: itemW }) + 9;
+    y += measure(pdf, adj.label, { font: 'sans-400', size: 9, color: ink, width: itemW }) + 9;
     rule(pdf, y, theme.rule);
   }
 
-  // ---- the figures and the signature, kept on one page when they fit on one
+  // ---- a paragraph the kind sets just above its total
   const small = { font: 'sans-400', size: 8.4, color: ink, width: w, lineGap: 1.5 };
-  const go = goAhead(doc);
+  if (content.aboveTotal) {
+    const above = { ...small, size: 8, color: muted };
+    ensure(measure(pdf, content.aboveTotal, above) + 12);
+    y = para(pdf, content.aboveTotal, x, y + 10, above);
+  }
+
+  // ---- the figures and the signature, kept on one page when they fit on one
+  const go = content.goAhead;
   const depositH =
     m !== null && m.deposit !== null && m.balance !== null
       ? 8 +
-        moneyRowH(pdf, ESTIMATE.depositLabel, `${depositBasis(doc)}, ${m.vatNote}`, w - 90) +
+        moneyRowH(pdf, ESTIMATE.depositLabel, `${content.depositBasis}, ${m.vatNote}`, w - 90) +
         moneyRowH(pdf, balanceLabel(doc.snapshot.balanceDue), m.vatNote, w - 90)
       : 0;
   const acceptH = ACCEPT_H + measure(pdf, go, small);
@@ -206,7 +288,7 @@ export function drawQuotation(
   y += 6;
   rule(pdf, y, theme.railBg, 1.6);
   const totalTop = y + 8;
-  let left = para(pdf, ESTIMATE.totalLabel, x, totalTop + 3, {
+  let left = para(pdf, content.totalLabel, x, totalTop + 3, {
     font: 'sans-600',
     size: 10.5,
     color: ink,
@@ -228,19 +310,13 @@ export function drawQuotation(
     });
     y = Math.max(left, totalTop + 24);
   } else {
-    const r = para(
-      pdf,
-      'To be priced by your installer after a survey',
-      x + w - 170,
-      totalTop + 2,
-      {
-        font: 'sans-400',
-        size: 9,
-        color: muted,
-        width: 170,
-        align: 'right',
-      },
-    );
+    const r = para(pdf, content.noTotal, x + w - 170, totalTop + 2, {
+      font: 'sans-400',
+      size: 9,
+      color: muted,
+      width: 170,
+      align: 'right',
+    });
     y = Math.max(left, r);
   }
 
@@ -265,7 +341,7 @@ export function drawQuotation(
   if (m && m.deposit !== null && m.balance !== null) {
     y += 8;
     rule(pdf, y, theme.rule);
-    moneyRow(ESTIMATE.depositLabel, `${depositBasis(doc)}, ${m.vatNote}`, gbp(m.deposit));
+    moneyRow(ESTIMATE.depositLabel, `${content.depositBasis}, ${m.vatNote}`, gbp(m.deposit));
     moneyRow(balanceLabel(doc.snapshot.balanceDue), m.vatNote, gbp(m.balance));
   }
 
@@ -289,7 +365,7 @@ export function drawQuotation(
   y = para(pdf, go, x, lineY + 10, small);
 
   // ---- notes
-  const list = notes(doc);
+  const list = content.notes;
   if (list.length > 0) {
     ensure(24 + measure(pdf, list[0]!, small));
     y = label(pdf, 'Notes', x, y + 12, { width: w, color: muted }) + 2;
@@ -300,12 +376,12 @@ export function drawQuotation(
   }
 
   // ---- MCS, when the Performance page is off
-  if (opts.mcsBlock) {
+  if (opts.mcsBlock && content.mcsGenerationKwh !== null) {
     const mcsText = { ...small, size: 7.8, color: muted };
     ensure(40 + measure(pdf, MCS_DISCLAIMER, mcsText));
     y = label(pdf, 'MCS performance estimate', x, y + 10, { width: w, color: muted }) + 2;
     para(pdf, 'Estimated annual generation', x, y, { ...small, width: w - 150 });
-    y = para(pdf, `${num(Math.round(doc.option.annualGenerationKwh))} kWh a year`, x + w - 150, y, {
+    y = para(pdf, `${num(Math.round(content.mcsGenerationKwh))} kWh a year`, x + w - 150, y, {
       font: 'sans-600',
       size: 9,
       color: ink,
@@ -316,8 +392,8 @@ export function drawQuotation(
   }
 
   // ---- other options, when Your system is off
-  if (opts.othersHere) {
-    y = drawOthers(pdf, doc, theme, { x, w, y }, (h, at) => {
+  if (opts.othersHere && content.others) {
+    y = content.others(pdf, { x, w, y }, (h, at) => {
       y = at;
       ensure(h);
       return y;
@@ -325,8 +401,10 @@ export function drawQuotation(
   }
 
   const fine = { font: 'sans-400', size: 7.6, color: muted, width: w, lineGap: 1 };
-  ensure(measure(pdf, doc.quote.disclaimer, fine) + 14);
-  y = para(pdf, doc.quote.disclaimer, x, y + 10, fine);
+  if (content.disclaimer) {
+    ensure(measure(pdf, content.disclaimer, fine) + 14);
+    y = para(pdf, content.disclaimer, x, y + 10, fine);
+  }
   // On a continuation page the terms start right here instead (see pdf.ts).
   if (opts.termsFollow && !continued) {
     ensure(16);
@@ -354,10 +432,11 @@ function moneyRowH(pdf: Pdf, text: string, sub: string, width: number): number {
 
 function drawRail(
   pdf: Pdf,
-  doc: ProposalDoc,
+  doc: ProposalBase,
   theme: Theme,
   col: { x: number; width: number },
-  m: ReturnType<typeof money>,
+  m: QuotationMoney | null,
+  noTotal: string,
 ): void {
   let y = railBrand(pdf, doc, theme, col) + 6;
   y = railItem(
@@ -366,9 +445,7 @@ function drawRail(
     col,
     y,
     ESTIMATE.totalLabel,
-    m
-      ? { big: gbp(m.total!), lines: [m.vatNote] }
-      : { lines: ['To be priced by your installer after a survey'] },
+    m ? { big: gbp(m.total!), lines: [m.vatNote] } : { lines: [noTotal] },
   );
   if (m && m.deposit !== null && m.balance !== null) {
     const rule = doc.snapshot.deposit;
