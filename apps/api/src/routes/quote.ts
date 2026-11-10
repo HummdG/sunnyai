@@ -21,6 +21,7 @@ import type { PricingSource } from '@sunny/quote-engine';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
+import { pinBrandAssets } from '../branding/meta.js';
 import { chosenPackage } from '../journey/choose.js';
 import type { QuoteRecord } from '../journey/quote.js';
 import {
@@ -99,6 +100,9 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     now: deps.now,
     // The widget's quote journey is Sunny's chat: it follows the installer's flow.
     flow: (tenantId) => flowForTenant(deps.tenants.byId(tenantId)),
+    tenant: (tenantId) => deps.tenants.byId(tenantId),
+    pinBrandAssets: (tenantId, ids) => pinBrandAssets(deps.tenants, tenantId, ids),
+    log: app.log,
   };
 
   function caller(request: FastifyRequest, sessionId?: string) {

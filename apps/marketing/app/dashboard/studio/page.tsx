@@ -14,6 +14,7 @@ import {
 import { ConversationEditor } from '../../../components/dashboard/conversation/editor.js';
 import { SkeletonRows } from '../../../components/dashboard/kit.js';
 import { PortalShell, usePortal } from '../../../components/dashboard/portal.js';
+import { QuotationTab } from '../../../components/dashboard/quotation/quotation-tab.js';
 import { StudioForm, type StudioPart } from '../../../components/dashboard/studio-form.js';
 import { Card, PageHeader } from '../../../components/dashboard/ui.js';
 import { assistantNameOf } from '../../../lib/assistant-name.js';
@@ -22,6 +23,7 @@ const TABS = [
   { key: 'brand', title: 'Your brand' },
   { key: 'conversation', title: 'Your conversation' },
   { key: 'settings', title: 'Assistant settings' },
+  { key: 'quotation', title: 'Your quotation' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -96,6 +98,10 @@ function Studio() {
       />
     ),
     settings: <Card>{form('settings')}</Card>,
+    // Keyed by installer, as the conversation: a draft never follows the owner to another one.
+    quotation: (
+      <QuotationTab key={tenant.id} tenant={tenant} canEdit={canEdit} assistant={assistant} />
+    ),
   };
 
   return (

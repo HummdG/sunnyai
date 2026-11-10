@@ -1,25 +1,30 @@
 # Customer proposal PDF and "email me my quote"
 
 A stored quote (the quote journey's three options) renders as a PDF proposal,
-branded as the **installer** — their name, colour and contact details; Sunny.ai
-appears only as "Prepared with Sunny.ai" in the footer.
+branded as the **installer**: their name, logo, colours and contact details;
+Sunny appears only as "Prepared with Sunny" in the footer.
 
-Modelled on a real installer proposal (`SunScan/Proposal_164_Norwich_Drive.pdf`,
-read-only). Sections we have data for are mirrored; sections we have no data for
-(a validity date, finance, signature/acceptance, product datasheets, trees and
-flights equivalents) are left out rather than invented.
+The document (`apps/api/src/proposal/pdf.ts`, design in
+`docs/superpowers/specs/2026-11-09-quotation-tab-design.md`) is rendered from the
+stored quote and the snapshot of the installer's quotation settings taken when
+the quote was made (`QuoteRecord.quotation`; quotes without one use the
+defaults), so a re-download is the same document byte for byte. Pages, in order:
 
-| Page | Contents                                                                                                                                                                                                                        |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Prepared by / for, quote reference, date; title band; introduction; recommended system (kWp, yearly savings, price, payback); the roof from the 3D assessment (facing, pitch, usable area, panels, confidence)                  |
-| 2    | Your solution (panels, inverter, battery, generation, inclusions); all three options side by side (incl. Sentinel when offered); above-budget marks                                                                             |
-| 3    | System performance: monthly generation chart; MCS method — A. installation data (kWp, orientation from south, inclination, zone), B. Kk from the MCS zone table, shade factor, output; C. self-consumption and self-sufficiency |
-| 4    | Savings and payback: 25-year bill savings, net savings, cumulative chart; environmental benefits (CO2 a year and over 25 years, share of use generated); assumptions (import/export prices, inflation, degradation, region)     |
-| 5    | Quotation: line items, total and the installer's VAT position; Sentinel note; next steps; the full non-binding / survey disclaimer                                                                                              |
+| Page                 | When                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| Cover                | Always                                                                                            |
+| Your system          | Section on (default); carries Other options we looked at                                          |
+| Performance (MCS)    | Section on (default)                                                                              |
+| Savings and payback  | Section on (default)                                                                              |
+| Estimated quotation  | Always; adds the MCS block when Performance is off, and the other options when Your system is off |
+| Terms and conditions | Section on and terms text saved                                                                   |
 
-Every figure comes from the stored quote and the ported SunScan engine
-(`calcMonthlyGenProfile`, `calc25YearSavings`). The PDF says on page 1 and page 5
-that it is indicative and subject to a survey.
+Cover and Quotation carry the dark rail with the installer's logo or name; the
+other pages carry the logo in the header. Every page has the footer (company,
+MCS number, accreditation logos, contact, `NN / MM`, Prepared with Sunny). The
+roof plan comes from the quote's assessment `spec.json` (`roof-plan.ts`) and is
+left out when it cannot be drawn honestly. Warranty years are fixed on the quote
+when it is made (`QuoteRecord.warranties`, `proposal/warranties.ts`).
 
 ## Routes
 
@@ -48,6 +53,4 @@ Postmark account (owner action).
 
 ## Fonts
 
-`apps/api/assets/fonts/PlusJakartaSans-{Regular,SemiBold,ExtraBold}.ttf` are
-static instances of the brand's variable font (`packages/ui/fonts`), made with
-fontTools `instancer` (SIL OFL 1.1, licence alongside).
+Inter Tight and IBM Plex Mono, in `apps/api/assets/fonts` (SIL OFL 1.1, sources in its README).

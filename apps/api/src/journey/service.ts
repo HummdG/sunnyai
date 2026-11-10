@@ -14,7 +14,11 @@ import { toRoofAssessmentSummary, type SunScanService } from '@sunny/sunscan-ada
 import { getPublishedPriceList } from '../catalogue/price-list-service.js';
 import { effectsFor } from '../flow/effects.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
+import { reasonsFor } from '../proposal/reasons.js';
+import { snapshotAssetIds, snapshotFor } from '../proposal/snapshot.js';
+import { warrantiesFor } from '../proposal/warranties.js';
 import type { Store } from '../store.js';
+import type { Tenant } from '../tenants.js';
 
 import { applyProposals, extractAnswers, type AppliedAnswers, type Proposal } from './extract.js';
 import {
@@ -51,6 +55,15 @@ export interface JourneyDeps {
    * installer saves applies from the next request. Absent means Sunny's own.
    */
   flow?: (tenantId: string) => ResolvedFlow;
+  /** The tenant, for the quotation snapshot a new quote carries. */
+  tenant?: (tenantId: string) => Tenant | null | undefined;
+  /**
+   * Keep the brand assets a new quote's PDF prints safe from pruning
+   * (branding/meta.ts `pinBrandAssets`). Absent: nothing is pinned.
+   */
+  pinBrandAssets?: (tenantId: string, ids: string[]) => Promise<void>;
+  /** Where non-fatal problems are noted. Absent: they are not logged. */
+  log?: { warn: (object: object, message: string) => void };
 }
 
 function flowOf(deps: JourneyDeps, tenantId: string): ResolvedFlow {
@@ -178,6 +191,30 @@ export async function submitAnswers(
   };
 }
 
+/**
+ * The catalogue's warranty years for the quote's items, fixed now. A catalogue
+ * that cannot be read leaves the quote without warranties rather than failing it.
+ */
+async function warrantiesNow(
+  store: Store,
+  tenantId: string,
+  quote: QuoteRecord,
+): Promise<Record<string, number>> {
+  try {
+    const [list, products] = await Promise.all([
+      getPublishedPriceList(store, tenantId),
+      store.listProducts(tenantId),
+    ]);
+    return warrantiesFor(
+      quote.options.flatMap((o) => o.lineItems),
+      list,
+      products,
+    );
+  } catch {
+    return {};
+  }
+}
+
 export type CreateQuoteResult =
   { ok: true; quote: QuoteRecord } | { ok: false; missing: string[]; next: string | null };
 
@@ -195,12 +232,9 @@ export async function createQuote(
   if (!qa) return { ok: false, missing: status.missing, next: status.nextQuestionId };
   // An installer's flow can change the quote: what the answers add, remove and
   // swap is priced from the same published list the pricing came from.
+  const effects = flow.custom ? effectsFor(flow.stored, answers) : [];
   const custom = flow.custom
-    ? {
-        flow,
-        effects: effectsFor(flow.stored, answers),
-        priceList: await getPublishedPriceList(deps.store, tenantId),
-      }
+    ? { flow, effects, priceList: await getPublishedPriceList(deps.store, tenantId) }
     : {};
   const quote = buildQuote({
     id: `q_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
@@ -212,6 +246,24 @@ export async function createQuote(
     pricing,
     ...custom,
   });
+  // Fixed now: the settings in force at this moment, and why each item is here.
+  const tenant = deps.tenant?.(tenantId);
+  if (tenant) {
+    quote.quotation = snapshotFor(tenant, tenant.config.quotation, deps.log);
+    const ids = snapshotAssetIds(quote.quotation);
+    if (ids.length > 0 && deps.pinBrandAssets) {
+      // A pin that fails must not cost the visitor their quote.
+      await deps.pinBrandAssets(tenantId, ids).catch((error: unknown) => {
+        deps.log?.warn({ err: error, tenantId }, 'could not pin brand assets for a new quote');
+      });
+    }
+  }
+  const reasons: Record<string, string> = {};
+  for (const option of quote.options) {
+    Object.assign(reasons, reasonsFor(effects, flow, answers, option));
+  }
+  quote.reasons = reasons;
+  quote.warranties = await warrantiesNow(deps.store, tenantId, quote);
   await deps.store.saveQuote(quote);
   return { ok: true, quote };
 }

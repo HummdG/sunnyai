@@ -7,13 +7,23 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./types": "./src/types.ts",
+    "./types": {
+      "sunny-facade": "./src/public.d.ts",
+      "default": "./src/types.ts"
+    },
     "./geometry": "./src/geometry/index.ts",
     "./geo": "./src/geo/index.ts",
     "./fit": "./src/fit/index.ts",
-    "./model": "./src/model/index.ts",
+    "./model": {
+      "sunny-facade": "./src/public.d.ts",
+      "default": "./src/model/index.ts"
+    },
     "./interior": "./src/interior/index.ts",
-    "./footprint": "./src/footprint/index.ts"
+    "./footprint": "./src/footprint/index.ts",
+    "./layout": {
+      "sunny-facade": "./src/public.d.ts",
+      "default": "./src/layout/index.ts"
+    }
   },
   "devDependencies": {
     "geotiff": "3.0.5",

@@ -54,7 +54,7 @@ async function forward(request: NextRequest, context: Context): Promise<NextResp
     );
   }
   const out = new NextResponse(response.body, { status: response.status });
-  for (const name of ['content-type', 'content-disposition', 'cache-control']) {
+  for (const name of ['content-type', 'content-disposition', 'cache-control', 'retry-after']) {
     const value = response.headers.get(name);
     if (value) out.headers.set(name, value);
   }

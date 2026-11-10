@@ -71,7 +71,9 @@ import { DEMO_TENANT, type Tenant, type TenantRegistry } from './tenants.js';
 import { summariseUsage } from './usage.js';
 import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/portal.js';
 import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
+import { registerQuotationRoutes } from './routes/quotation.js';
 import { registerConversationRoutes } from './routes/conversation.js';
+import { pinBrandAssets } from './branding/meta.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
@@ -747,7 +749,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           origin,
           channel: 'chat',
           search: deps.passageSearch ?? knowledgePipeline.retrieve.passageSearch,
-          quote: { pricing: quotePricing },
+          quote: {
+            pricing: quotePricing,
+            pinBrandAssets: (tenantId, ids) => pinBrandAssets(tenants, tenantId, ids),
+            log: app.log,
+          },
           signal: abort.signal,
         })) {
           if (abort.signal.aborted) break;
@@ -2067,6 +2073,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   }
 
   // The customer proposal PDF and "email me my quote" (routes/proposal.ts).
+  const brandAssets = deps.brandAssets ?? brandAssetStoreFromEnv(config.dataDir, process.env);
+
   registerProposalRoutes(app, {
     store,
     tenants,
@@ -2074,9 +2082,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     sessionSecret: config.sessionSecret,
     now,
     mailer: deps.proposalMailer !== undefined ? deps.proposalMailer : mailerFromEnv(process.env),
+    brandAssets,
+    sunscan,
   });
-
-  const brandAssets = deps.brandAssets ?? brandAssetStoreFromEnv(config.dataDir, process.env);
 
   // The installer portal and billing (routes/portal.ts).
   registerPortalRoutes(app, {
@@ -2120,6 +2128,17 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   // Custom logo upload and asset serving (routes/branding.ts).
   registerBrandingRoutes(app, {
+    store,
+    tenants,
+    portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
+    sessionSecret: config.sessionSecret,
+    now,
+    brandAssets,
+    enforceRateLimit,
+  });
+
+  // The installer's quotation PDF settings in Studio (routes/quotation.ts).
+  registerQuotationRoutes(app, {
     store,
     tenants,
     portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),

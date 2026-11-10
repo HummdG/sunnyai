@@ -1,17 +1,24 @@
 import { ApiError } from '@sunny/contracts';
+import type { SunScanService } from '@sunny/sunscan-adapter';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
+import type { BrandAssetStore } from '../branding/store.js';
 import type { QuoteRecord } from '../journey/quote.js';
-import { proposalFilename, proposalPdf, type ProposalMailer } from '../proposal/index.js';
+import {
+  proposalFilename,
+  proposalPdf,
+  type ProposalMailer,
+  type ProposalSources,
+} from '../proposal/index.js';
 import { verifySessionToken } from '../sessions.js';
 import type { LeadRecord, Store } from '../store.js';
 import type { Tenant, TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
 
 /**
- * The customer proposal PDF (proposal/pdf.ts), three ways:
+ * The customer quotation PDF (proposal/pdf.ts), three ways:
  *
  *   GET  /v1/quote/:id/proposal.pdf          the visitor's own quote (widget session)
  *   POST /v1/quote/:id/proposal/email        email it to the visitor, with consent
@@ -32,6 +39,10 @@ export interface ProposalRouteDeps {
   /** Null when outbound email is not configured: the email route refuses. */
   mailer: ProposalMailer | null;
   fetch?: typeof fetch;
+  /** The installer's uploaded logos, for the PDF logo and accreditations. */
+  brandAssets?: BrandAssetStore | null;
+  /** The roof assessment service, for the roof plan's spec.json. */
+  sunscan?: Pick<SunScanService, 'getArtefact'> | null;
 }
 
 const emailSchema = z.object({
@@ -42,6 +53,9 @@ const emailSchema = z.object({
 
 /** Per session, per day: enough to resend to a corrected address, not a spam relay. */
 const EMAILS_PER_SESSION_PER_DAY = 3;
+
+/** Per session, per minute: each download rebuilds the roof plan, so it is bounded too. */
+const DOWNLOADS_PER_SESSION_PER_MINUTE = 20;
 
 function bearer(request: FastifyRequest): string | undefined {
   const header = request.headers.authorization;
@@ -68,6 +82,12 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     store,
   });
   const sent = new Map<string, number[]>();
+  const downloads = new Map<string, number[]>();
+  const sources: ProposalSources = {
+    store,
+    brandAssets: deps.brandAssets ?? null,
+    sunscan: deps.sunscan ?? null,
+  };
 
   /** The visitor's quote: their session, their tenant, their quote. */
   async function visitorQuote(
@@ -90,9 +110,15 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
   }
 
   app.get('/v1/quote/:id/proposal.pdf', async (request, reply) => {
-    const { tenant, quote } = await visitorQuote(request);
+    const { tenant, quote, sessionId } = await visitorQuote(request);
+    const minuteAgo = now() - 60_000;
+    const recent = (downloads.get(sessionId) ?? []).filter((t) => t > minuteAgo);
+    if (recent.length >= DOWNLOADS_PER_SESSION_PER_MINUTE) {
+      throw new ApiError('rate_limited', 'Too many downloads at once. Try again in a minute.');
+    }
+    downloads.set(sessionId, [...recent, now()]);
     const pdf = await proposalPdf(
-      store,
+      sources,
       tenant,
       quote,
       await leadFor(tenant, quote),
@@ -121,7 +147,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
       throw new ApiError('rate_limited', 'Your quote has already been emailed a few times today.');
     }
     const pdf = await proposalPdf(
-      store,
+      sources,
       tenant,
       quote,
       await leadFor(tenant, quote),
@@ -169,7 +195,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
       const quotes = await store.listQuotes(tenant.id, lead.sessionId);
       const quote = quotes.filter((q) => q.leadId === lead.id).at(-1) ?? quotes.at(-1) ?? null;
       if (!quote) throw new ApiError('not_found', 'This lead has no quote.');
-      const pdf = await proposalPdf(store, tenant, quote, lead, new Date(now()));
+      const pdf = await proposalPdf(sources, tenant, quote, lead, new Date(now()));
       return sendPdf(reply, pdf, proposalFilename(tenant, quote));
     },
   );

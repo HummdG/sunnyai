@@ -1,0 +1,30 @@
+{
+  "id": "q_sample0000005a3b1f",
+  "sessionId": "sample-session",
+  "createdAt": "2026-11-01T09:00:00.000Z",
+  "customer": { "name": "Sam Sample", "address": "20 Forthlin Road, Liverpool L18 9TN" },
+  "roof": { "azimuthDeg": 162, "pitchDeg": 42, "maxPanels": 12 },
+  "answers": {
+    "postcode": "L18 9TN",
+    "roof": {
+      "pitchDeg": 42,
+      "mcsOrientationDeg": 18,
+      "maxPanelCount": 12,
+      "roofType": "pitched",
+      "confidence": "high"
+    },
+    "usage": {
+      "source": "manual_kwh",
+      "annualKwh": 3800,
+      "unitRatePence": null,
+      "exportTariffPence": null,
+      "monthlyCostGbp": null,
+      "householdSize": null
+    },
+    "tariffType": null,
+    "lifestyle": ["evening_use"],
+    "motivation": null,
+    "existing": null,
+    "budgetBandId": null
+  }
+}

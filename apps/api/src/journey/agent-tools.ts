@@ -28,6 +28,9 @@ import {
 /** Where the quote tools find the tenant's pricing; set on the tool context by the chat route. */
 export interface QuoteToolContext {
   pricing: PricingSource;
+  /** Pins the brand assets a new quote's PDF prints (see JourneyDeps). */
+  pinBrandAssets?: (tenantId: string, ids: string[]) => Promise<void>;
+  log?: { warn: (object: object, message: string) => void };
 }
 
 function depsFor(ctx: ToolContext): JourneyDeps | null {
@@ -39,6 +42,9 @@ function depsFor(ctx: ToolContext): JourneyDeps | null {
     now: () => Date.now(),
     // The turn's flow, so the journey and the tools agree on what is asked.
     flow: () => ctx.flow,
+    tenant: () => ctx.tenant,
+    ...(ctx.quote.pinBrandAssets ? { pinBrandAssets: ctx.quote.pinBrandAssets } : {}),
+    ...(ctx.quote.log ? { log: ctx.quote.log } : {}),
   };
 }
 

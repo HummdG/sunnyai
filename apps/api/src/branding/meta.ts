@@ -1,6 +1,8 @@
 import type { LogoEffect } from '@sunny/contracts';
 
 import type { ProcessedLogo } from './process.js';
+import type { TenantRegistry } from '../tenants.js';
+
 import type { BrandAssetStore } from './store.js';
 
 /** What `<id>.json` holds: a processed logo without its bytes. */
@@ -55,12 +57,55 @@ export async function pruneBrandAssets(
   return [...removed];
 }
 
-/** The asset ids a saved branding still uses. */
-export function brandingIds(branding: StoredBranding | undefined): Set<string> {
+/**
+ * The asset ids a tenant still uses: the branding's icon and wordmark, the
+ * quotation PDF's logo and accreditation logos, and every asset a stored
+ * quote's PDF prints (`pinnedBrandAssetIds`, kept for good).
+ */
+export function brandingIds(config: {
+  branding?: StoredBranding | undefined;
+  quotation?:
+    | {
+        logoAssetId: string | null;
+        accreditations: { logoAssetIds: readonly string[] };
+      }
+    | undefined;
+  pinnedBrandAssetIds?: readonly string[] | undefined;
+}): Set<string> {
+  const { branding, quotation } = config;
   const ids = new Set<string>();
   if (branding?.icon) ids.add(branding.icon.id);
   if (branding?.wordmark) ids.add(branding.wordmark.id);
+  if (quotation?.logoAssetId) ids.add(quotation.logoAssetId);
+  for (const id of quotation?.accreditations?.logoAssetIds ?? []) ids.add(id);
+  for (const id of config.pinnedBrandAssetIds ?? []) ids.add(id);
   return ids;
+}
+
+/**
+ * Pin the assets a new quote's PDF prints, so pruning never removes them.
+ * Writes only when an id is not pinned yet, through `update` (never a
+ * whole-tenant save).
+ */
+export async function pinBrandAssets(
+  tenants: Pick<TenantRegistry, 'byId' | 'update'>,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<void> {
+  const missing = (pinned: readonly string[] | undefined) =>
+    ids.filter((id, i) => ids.indexOf(id) === i && !(pinned ?? []).includes(id));
+  if (missing(tenants.byId(tenantId)?.config.pinnedBrandAssetIds).length === 0) return;
+  await tenants.update(tenantId, (current) => {
+    const add = missing(current.config.pinnedBrandAssetIds);
+    if (add.length === 0) return current;
+    return {
+      ...current,
+      config: {
+        ...current.config,
+        pinnedBrandAssetIds: [...(current.config.pinnedBrandAssetIds ?? []), ...add],
+      },
+    };
+  });
 }
 
 /**
