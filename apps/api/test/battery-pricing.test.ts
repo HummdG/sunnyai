@@ -17,7 +17,7 @@ function list(rows: string[]) {
 
 describe('batteryPricingFrom', () => {
   it('uses the retrofit price and carries the expansion (hsenergy fixture)', () => {
-    const p = batteryPricingFrom(importPriceList(HSENERGY_PRICE_LIST_CSV).list!)!;
+    const p = batteryPricingFrom(importPriceList(HSENERGY_PRICE_LIST_CSV).list)!;
     const fox = p.batteries.find((b) => b.sku === 'FOX-EC2900')!;
     expect(fox.priceGbp).toBe(3195);
     expect(fox.capacityKwh).toBe(5.8);

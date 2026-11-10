@@ -216,6 +216,39 @@ describe('GET /workflows', () => {
     // `presets` stays the solar bank's, for older Studio builds.
     expect(view.presets.map((p) => p.id)).not.toContain('hp_age');
   });
+
+  it('gives the battery workflow the battery bank', async () => {
+    const { app, tenantId } = await setup();
+    const one = await app.inject({
+      method: 'GET',
+      url: url(tenantId, '/wf_battery'),
+      headers: as(VIEWER),
+    });
+    expect(one.statusCode).toBe(200);
+    const ids = one.json<{ presets: Array<{ id: string }> }>().presets.map((p) => p.id);
+    expect(ids).toContain('bat_inverter');
+    expect(ids).not.toContain('hp_age');
+    expect(ids).not.toContain('roof_direction');
+
+    const view = await getSet(app, tenantId);
+    expect(view.presetsByWorkflow['wf_battery']!.map((p) => p.id)).toContain('bat_inverter');
+    expect(view.presetsByWorkflow['wf_heat_pump']!.map((p) => p.id)).not.toContain('bat_inverter');
+    expect(view.presets.map((p) => p.id)).not.toContain('bat_inverter');
+  });
+
+  it('gives a custom workflow ending in a battery quote the battery bank', async () => {
+    const { app, tenantId } = await setup();
+    const made = await create(app, tenantId, { from: 'blank', name: 'Battery offers' });
+    const custom = made.json<{ workflow: Workflow }>().workflow;
+    const saved = await putWorkflow(app, tenantId, {
+      ...custom,
+      outcome: { kind: 'quote', engine: 'battery' },
+      steps: [{ kind: 'preset', id: 'address' }],
+    });
+    expect(saved.statusCode).toBe(200);
+    const view = await getSet(app, tenantId);
+    expect(view.presetsByWorkflow[custom.id]!.map((p) => p.id)).toContain('bat_inverter');
+  });
 });
 
 describe('PUT /workflows/:id', () => {

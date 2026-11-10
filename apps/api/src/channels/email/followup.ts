@@ -107,16 +107,18 @@ function heatPumpFacts(quote: HeatPumpQuoteRecord): string {
 function batteryFacts(quote: BatteryQuoteRecord): string {
   const chosen = quote.chosenOptionId ?? null;
   const lines = quote.options.map((o) => {
-    const parts = [
-      `${o.capacityKwh} kWh battery`,
-      o.priceGbp !== null ? `${gbp(o.priceGbp)} (${o.priceLabel})` : 'priced at survey',
-      `about ${gbp(o.annualSavingsGbp)} saved a year`,
-    ];
+    // An installer-priced option is never given a price, even a partial one.
+    const price =
+      o.priceGbp !== null && !o.installerPriced
+        ? `${gbp(o.priceGbp)} (${o.priceLabel})`
+        : 'priced at survey';
+    const saving = gbp(o.annualSavingsGbp);
     const tags = [
       o.id === chosen ? 'the one they chose' : null,
       o.isRecommended ? 'recommended' : null,
     ].filter(Boolean);
-    return `- ${o.label}: ${parts.join(', ')}${tags.length ? ` [${tags.join(', ')}]` : ''}`;
+    const facts = `${o.capacityKwh} kWh battery, ${price}, saves about ${saving} a year`;
+    return `- ${o.label}: ${facts}${tags.length ? ` [${tags.join(', ')}]` : ''}`;
   });
   return [`Quote for ${quote.postcode}:`, ...lines, quote.disclaimer].join('\n');
 }

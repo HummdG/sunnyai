@@ -429,10 +429,16 @@ describe('email follow-up facts', () => {
     expect(facts).toBe(
       [
         'Quote for NR4 7TJ:',
-        '- Recommended: 5 kWh battery, £3,200 (Indicative price, 0% VAT), about £400 saved a year [the one they chose, recommended]',
+        '- Recommended: 5 kWh battery, £3,200 (Indicative price, 0% VAT), saves about £400 a year [the one they chose, recommended]',
         BATTERY_DISCLAIMER,
       ].join('\n'),
     );
+  });
+
+  it('never gives an installer-priced battery option a price', () => {
+    const row = battery();
+    row.options = row.options.map((o) => ({ ...o, installerPriced: true }));
+    expect(quoteFacts(row)).toContain('5 kWh battery, priced at survey, saves about £400 a year');
   });
 
   it('describes a solar quote as before', () => {

@@ -11,6 +11,7 @@ import {
 import type {
   Brand,
   ChatStreamEvent,
+  BatteryQuoteCard,
   HeatPumpQuoteCard,
   QuoteCard,
   PageAction,
@@ -30,6 +31,7 @@ import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el } from './dom.js';
+import { batteryCardText } from './battery-card.js';
 import { gbp, heatPumpCardText } from './heat-pump-card.js';
 import { optionArt } from './quote-art.js';
 import { renderRich } from './rich.js';
@@ -947,7 +949,11 @@ export class SunnyWidget {
       this.#showHeatPumpQuote(quote);
       return;
     }
-    // A kind this widget has no cards for yet (a battery quote) shows nothing.
+    if (quote.kind === 'battery') {
+      this.#showBatteryQuote(quote);
+      return;
+    }
+    // A kind this widget has no cards for yet shows nothing.
     if (quote.kind !== undefined && quote.kind !== 'solar') return;
     // Smallest to largest, with the recommended one in the middle: the eye
     // lands there first, and the other two read as "less" and "more".
@@ -1056,6 +1062,53 @@ export class SunnyWidget {
   }
 
   /**
+   * The battery quote's options, as cards: the battery's size, its price (or
+   * that the installer prices it), what it should save a year (and how much of
+   * that is cheap-rate charging), and when it pays back. No solar art: the
+   * home has its panels already. The words come from `batteryCardText`.
+   */
+  #showBatteryQuote(quote: BatteryQuoteCard): void {
+    // As solar: the recommended option in the middle.
+    const best = quote.options.find((o) => o.isRecommended);
+    const rest = quote.options.filter((o) => o !== best);
+    const ordered = best ? [...rest.slice(0, 1), best, ...rest.slice(1)] : [...quote.options];
+
+    const cards = ordered.map((o) => {
+      const text = batteryCardText(o);
+      return el('li', { class: `quote-option${o.isRecommended ? ' recommended' : ''}` }, [
+        ...(o.isRecommended ? [el('span', { class: 'quote-badge', text: 'Best for you' })] : []),
+        el('strong', { class: 'quote-name', text: o.label }),
+        el('p', { class: 'quote-size', text: text.size }),
+        el('p', { class: `quote-hero${text.priced ? '' : ' unpriced'}` }, [
+          el('span', { class: 'quote-figure', text: text.figure }),
+          el('span', { class: 'quote-figure-label', text: text.figureLabel }),
+        ]),
+        ...(text.stats.length > 0
+          ? [
+              el(
+                'ul',
+                { class: 'quote-lines' },
+                text.stats.map((line) => el('li', { text: line })),
+              ),
+            ]
+          : []),
+        ...(text.notes.length > 0
+          ? [el('p', { class: 'quote-note', text: text.notes.join(' · ') })]
+          : []),
+        this.#chooseButton(quote.quoteId, o.id, o.label),
+      ]);
+    });
+
+    this.#presentQuote(
+      quote,
+      cards,
+      ordered.map((o) => o.label),
+      best ? ordered.indexOf(best) : 0,
+      quote.options.every((o) => !batteryCardText(o).priced),
+    );
+  }
+
+  /**
    * Puts a quote's option cards in the log: a row to swipe through on a narrow
    * panel, with dots that say where you are, then the disclaimer and the PDF
    * and email actions. The card at `centred` (the recommended one) is brought
@@ -1122,7 +1175,9 @@ export class SunnyWidget {
     this.#liveRegion.textContent =
       quote.kind === 'heat_pump'
         ? `${quote.options.length} heat pump quote options shown.`
-        : `${quote.options.length} quote options shown.`;
+        : quote.kind === 'battery'
+          ? `${quote.options.length} battery quote options shown.`
+          : `${quote.options.length} quote options shown.`;
   }
 
   /** "Choose this package" on one option card. */
@@ -1170,7 +1225,8 @@ export class SunnyWidget {
     const survey =
       "When you're ready, I can arrange a free survey to confirm everything. Just say “book a survey”.";
     if ('chosen' in body) {
-      // A heat pump choice is saved as is: there is no savings timeline to play.
+      // A heat pump or battery choice is saved as is: there is no savings
+      // timeline to play.
       this.#animator.dispatch({ type: 'celebrate' }, performance.now());
       this.#appendTurn('assistant', `Great choice: the ${body.chosen.label} option.`);
       this.#appendTurn('assistant', survey);
@@ -1211,7 +1267,12 @@ export class SunnyWidget {
           if (!r.ok) throw new Error(String(r.status));
           const link = el('a', {
             href: URL.createObjectURL(await r.blob()),
-            download: quote.kind === 'heat_pump' ? 'heat-pump-estimate.pdf' : 'solar-quote.pdf',
+            download:
+              quote.kind === 'heat_pump'
+                ? 'heat-pump-estimate.pdf'
+                : quote.kind === 'battery'
+                  ? 'battery-estimate.pdf'
+                  : 'solar-quote.pdf',
           });
           link.click();
           setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
@@ -1713,7 +1774,7 @@ const FIZZ: readonly (readonly [number, number, number, number])[] = [
   [38, 8, -14, 156],
 ];
 
-/** POST /v1/quote/:id/choose on a heat pump quote: the option, saved as chosen. */
+/** POST /v1/quote/:id/choose on a heat pump or battery quote: the option, saved as chosen. */
 interface ChosenHeatPump {
   chosen: { id: string; label: string };
 }

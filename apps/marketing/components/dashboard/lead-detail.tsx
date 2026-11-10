@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { api, tenantPath, type LeadRow } from '../../lib/portal-api.js';
+import { batteryPaybackText, batteryPriceText, batterySavingsText } from './battery-lead-text.js';
 import { heatPumpGrantText, heatPumpSavingsText, money } from './heat-pump-lead-text.js';
 import { SkeletonRows } from './kit.js';
 import { usePortal } from './portal.js';
@@ -82,6 +83,12 @@ interface BatteryOption {
   capacityKwh: number;
   priceGbp: number | null;
   annualSavingsGbp: number;
+  /** The part of the saving from cheap-rate charging (0 off a time-of-use tariff). */
+  shiftSavingGbp?: number;
+  paybackYears?: number | null;
+  installerPriced?: boolean;
+  /** What the installer will need to check. */
+  warnings?: string[];
 }
 
 interface BatteryQuote extends QuoteBase {
@@ -96,7 +103,7 @@ function solarOptionsOf(quote: Quote): QuoteOption[] {
   return quote.kind === undefined || quote.kind === 'solar' ? quote.options : [];
 }
 
-/** A battery option on the lead page: its size, price and saving. */
+/** A battery option on the lead page: its size, price, saving, payback and warnings. */
 function BatteryOptionCard({ quote, option }: { quote: BatteryQuote; option: BatteryOption }) {
   const chosen = option.id === quote.chosenOptionId;
   return (
@@ -113,15 +120,26 @@ function BatteryOptionCard({ quote, option }: { quote: BatteryQuote; option: Bat
         {chosen ? <Chip tone="orange">Chosen by the customer</Chip> : null}
       </div>
       <h3>{option.headline}</h3>
-      <p className="quote-price">
-        {option.priceGbp === null ? 'Priced at survey' : `About ${money(option.priceGbp)}`}
+      <p className="quote-price">{batteryPriceText(option)}</p>
+      <p className="small muted">
+        {quote.pricing?.priceStatus === 'verified' ? 'From your price list' : 'Indicative'}, subject
+        to a survey
       </p>
       <dl>
         <dt>Battery</dt>
         <dd>{option.capacityKwh.toLocaleString('en-GB')} kWh</dd>
         <dt>Savings</dt>
-        <dd>About {money(option.annualSavingsGbp)} a year</dd>
+        <dd>{batterySavingsText(option.annualSavingsGbp, option.shiftSavingGbp ?? 0)}</dd>
+        <dt>Payback</dt>
+        <dd>{batteryPaybackText({ ...option, paybackYears: option.paybackYears ?? null })}</dd>
       </dl>
+      {option.warnings && option.warnings.length > 0 ? (
+        <ul className="small muted" aria-label="To check at the survey">
+          {option.warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      ) : null}
     </article>
   );
 }

@@ -36,7 +36,7 @@ export interface BatteryEstimate {
   offPeakPence: number | null;
   peakPence: number | null;
   recommendedKwh: number;
-  sizing(capacityKwh: number): BatterySizing;
+  sizing: (capacityKwh: number) => BatterySizing;
   warnings: string[];
   assumptions: string[];
 }

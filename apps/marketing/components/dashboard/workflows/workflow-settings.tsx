@@ -23,6 +23,7 @@ const INTERESTS: Array<{ key: Interest; label: string }> = [
 const LEAD: WorkflowOutcome = { kind: 'lead' };
 const SOLAR: WorkflowOutcome = { kind: 'quote', engine: 'solar' };
 const HEAT_PUMP: WorkflowOutcome = { kind: 'quote', engine: 'heat_pump' };
+const BATTERY: WorkflowOutcome = { kind: 'quote', engine: 'battery' };
 
 /** What the settings card edits: everything but the pages, the questions and the switch. */
 export type SettingsDraft = Pick<
@@ -135,7 +136,7 @@ export function WorkflowSettings({
   const triggerDraft = useChipDraft();
   const set = <K extends keyof SettingsDraft>(key: K, value: SettingsDraft[K]) =>
     onChange((d) => ({ ...d, [key]: value }));
-  const outcomes = [LEAD, SOLAR, HEAT_PUMP];
+  const outcomes = [LEAD, SOLAR, HEAT_PUMP, BATTERY];
   // A custom workflow made elsewhere may end in another quote: keep it on the list.
   if (!outcomes.some((o) => outcomeKey(o) === outcomeKey(draft.outcome))) {
     outcomes.push(draft.outcome);
