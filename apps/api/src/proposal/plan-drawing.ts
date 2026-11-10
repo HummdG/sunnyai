@@ -1,6 +1,7 @@
 /**
  * The roof drawn as an architect's roof plan: white ground inside a thin frame,
- * the house's own footprint as the heavy wall line (party walls dashed), the
+ * the house's outside walls as the heavy line (party walls dashed; the cuts between
+ * fitted parts are not walls), the
  * attached neighbours in faint line, every roof face in fine ink line (the
  * panelled ones a little heavier), ridges, hips and valleys, the panels as
  * fine-outlined cells with a light accent tint, one dimension along the main
@@ -72,6 +73,12 @@ export function drawRoofPlan(pdf: Pdf, plan: RoofPlan, box: Rect, theme: Theme):
   const pad = { l: rafterW + 24, r: 36, t: 14, b: 26 };
   const iw = area.w - pad.l - pad.r;
   const ih = area.h - pad.t - pad.b;
+  if (iw <= 0 || ih <= 0) {
+    // Too small a box to draw a plan in: leave it at the frame and title.
+    pdf.x = saveX;
+    pdf.y = saveY;
+    return;
+  }
   const { minX, minY, maxX, maxY } = plan.bounds;
   const dx = Math.max(maxX - minX, 0.01);
   const dy = Math.max(maxY - minY, 0.01);
@@ -108,26 +115,14 @@ export function drawRoofPlan(pdf: Pdf, plan: RoofPlan, box: Rect, theme: Theme):
   }
   pdf.restore();
 
-  // ---- the house's walls: the heaviest line, party walls dashed
-  for (const fp of plan.footprints) {
-    const pts = fp.outline.map(at);
-    const n = pts.length;
-    pdf.save().lineWidth(1.4).lineCap('square').strokeColor(theme.ink);
-    for (let i = 0; i < n; i++) {
-      if (fp.partyEdges.includes(i)) continue;
-      const a = pts[i]!;
-      const b = pts[(i + 1) % n]!;
-      pdf.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke();
-    }
-    pdf.restore();
-    pdf.save().lineWidth(1.4).lineCap('butt').strokeColor(theme.ink).dash(3, { space: 2 });
-    for (const i of fp.partyEdges) {
-      const a = pts[i]!;
-      const b = pts[(i + 1) % n]!;
-      pdf.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke();
-    }
-    pdf.restore();
-  }
+  // ---- the house's outside walls: the heaviest line (party walls follow the faces)
+  const seg = (w: RoofPlan['walls'][number]) => {
+    const [a, b] = [at(w.from), at(w.to)];
+    pdf.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke();
+  };
+  pdf.save().lineWidth(1.4).lineCap('square').strokeColor(theme.ink);
+  for (const w of plan.walls) if (!w.party) seg(w);
+  pdf.restore();
 
   // ---- roof faces, ridges, hips and valleys
   for (const f of plan.faces) {
@@ -147,6 +142,14 @@ export function drawRoofPlan(pdf: Pdf, plan: RoofPlan, box: Rect, theme: Theme):
     path([l.from, l.to], false);
     pdf.stroke().restore();
   }
+
+  // ---- party walls, dashed on a clean ground so the dash reads over the verge line
+  pdf.save().lineWidth(1.8).lineCap('butt').strokeColor('#ffffff');
+  for (const w of plan.walls) if (w.party) seg(w);
+  pdf.restore();
+  pdf.save().lineWidth(1.4).lineCap('butt').strokeColor(theme.ink).dash(3, { space: 2 });
+  for (const w of plan.walls) if (w.party) seg(w);
+  pdf.restore();
 
   // ---- panels: fine-outlined cells with a light tint
   for (const panel of plan.panels) {

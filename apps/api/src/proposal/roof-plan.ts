@@ -21,11 +21,19 @@ import type { HouseMesh, HouseModelSpec } from '@sunny/sunscan-core/types';
 type P2 = [number, number];
 type V3 = [number, number, number];
 
+const TOL = 0.02; // metres
+
 export type RoofLineKind = 'ridge' | 'hip' | 'valley';
 
 export interface RoofPlan {
   /** The house's own polygon: every spec part's outer footprint; partyEdges = indices of party-wall edges. */
   footprints: { outline: [number, number][]; partyEdges: number[] }[];
+  /**
+   * The outside walls to draw: every footprint edge less any stretch another
+   * part's footprint shares (the fitter's internal cut between parts is not a
+   * wall). `party` for party walls.
+   */
+  walls: { from: [number, number]; to: [number, number]; party: boolean }[];
   /** Attached neighbours' outer rings, for context; they never extend `bounds`. */
   neighbours: [number, number][][];
   /** Every roof face; `panelled` where the quote puts panels. */
@@ -109,6 +117,49 @@ function footprintsOf(spec: HouseModelSpec): RoofPlan['footprints'] {
     const partyEdges = outline.flatMap((_, i) => (kinds[i] === 'party' ? [i] : []));
     out.push({ outline, partyEdges });
   }
+  return out;
+}
+
+/**
+ * The house's outside walls: each footprint edge with the stretches that
+ * another part's edge also covers (the internal cut chords between parts,
+ * stored as plain edges) taken out.
+ */
+function wallsOf(footprints: RoofPlan['footprints']): RoofPlan['walls'] {
+  const out: RoofPlan['walls'] = [];
+  const edges = (k: number) => {
+    const ring = footprints[k]!.outline;
+    return ring.map((a, i) => [a, ring[(i + 1) % ring.length]!] as [P2, P2]);
+  };
+  footprints.forEach((fp, k) => {
+    edges(k).forEach(([a, b], i) => {
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (len < 1e-6) return;
+      const ux = (b[0] - a[0]) / len;
+      const uy = (b[1] - a[1]) / len;
+      const t = (p: P2) => ((p[0] - a[0]) * ux + (p[1] - a[1]) * uy) / len;
+      const off = (p: P2) => Math.abs((p[0] - a[0]) * uy - (p[1] - a[1]) * ux);
+      // stretches of [0, 1] covered by another part's edge
+      const covered: [number, number][] = [];
+      footprints.forEach((_, m) => {
+        if (m === k) return;
+        for (const [c, d] of edges(m)) {
+          if (off(c) > TOL || off(d) > TOL) continue;
+          const lo = Math.max(0, Math.min(t(c), t(d)));
+          const hi = Math.min(1, Math.max(t(c), t(d)));
+          if ((hi - lo) * len > 0.01) covered.push([lo, hi]);
+        }
+      });
+      covered.sort((x, y) => x[0] - y[0]);
+      let from = 0;
+      const at = (u: number): P2 => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+      const party = fp.partyEdges.includes(i);
+      for (const [lo, hi] of [...covered, [1, 1] as [number, number]]) {
+        if ((lo - from) * len > 0.01) out.push({ from: at(from), to: at(lo), party });
+        from = Math.max(from, hi);
+      }
+    });
+  });
   return out;
 }
 
@@ -284,8 +335,6 @@ const lerp3 = (a: V3, b: V3, t: number): V3 => [
   a[2] + (b[2] - a[2]) * t,
 ];
 
-const TOL = 0.02; // metres
-
 /** The stretch of edge a0-a1 that edge b0-b1 also covers, in plan and in height, if any. */
 function overlap(a0: V3, a1: V3, b0: V3, b1: V3): [V3, V3] | null {
   const dx = a1[0] - a0[0];
@@ -321,6 +370,9 @@ function sharedLines(faces: Face3[]): { kind: RoofLineKind; seg: [V3, V3] }[] {
     for (let j = i + 1; j < faces.length; j++) {
       const A = faces[i]!;
       const B = faces[j]!;
+      // One plane split in two (coplanar faces) has no ridge between its halves.
+      const dot = A.normal[0] * B.normal[0] + A.normal[1] * B.normal[1] + A.normal[2] * B.normal[2];
+      if (dot > Math.cos(Math.PI / 180)) continue;
       for (let m = 0; m < A.ring.length; m++) {
         const a0 = A.ring[m]!;
         const a1 = A.ring[(m + 1) % A.ring.length]!;
@@ -438,6 +490,7 @@ export function roofPlanFor(
   const panels = layout.placements.map((p) => panelCorners(p).map(rot));
   const footprints = footprintsOf(spec).map((f) => ({ ...f, outline: f.outline.map(rot) }));
   const neighbours = attachedNeighbours(spec).map((r) => r.map(rot));
+  const walls = wallsOf(footprints);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -467,6 +520,7 @@ export function roofPlanFor(
 
   return {
     footprints,
+    walls,
     neighbours,
     faces,
     lines,

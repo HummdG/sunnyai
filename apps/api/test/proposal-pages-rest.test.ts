@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MCS_DISCLAIMER } from '../src/proposal/copy.js';
 import { themeFor } from '../src/proposal/layout.js';
+import { drawRoofPlan } from '../src/proposal/plan-drawing.js';
 import { drawPerformance, PERFORMANCE_HAS_RAIL } from '../src/proposal/pages/performance.js';
 import { cumulativeChart, drawSavings, SAVINGS_HAS_RAIL } from '../src/proposal/pages/savings.js';
 import { drawSystem, equipment, SYSTEM_HAS_RAIL } from '../src/proposal/pages/system.js';
@@ -189,6 +190,17 @@ describe('system page', () => {
     );
     expect(outOfBounds(await pdfItems(buf))).toEqual([]);
     expect(SYSTEM_HAS_RAIL).toBe(false);
+  });
+});
+
+describe('roof plan drawing', () => {
+  it('leaves a box too small for a plan at its frame and title', async () => {
+    const t = await text(
+      await render((pdf) => drawRoofPlan(pdf, plan()!, { x: 40, y: 80, w: 90, h: 40 }, THEME)),
+    );
+    expect(t).toContain('ROOF PLAN');
+    expect(t).not.toContain('EAVE');
+    expect(t).not.toContain('RAFTER');
   });
 });
 

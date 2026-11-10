@@ -57,6 +57,72 @@ function rotate(p: P, deg: number): P {
   return [p[0] * c - p[1] * s, p[0] * s + p[1] * c];
 }
 
+/** A spec built from the sample with these parts and no neighbours. */
+function specWith(
+  parts: { id: string; outer: P[]; kinds: string[]; type: string; eave: number }[],
+): unknown {
+  const base = SAMPLE as Record<string, unknown> & SampleSpec;
+  return {
+    ...base,
+    builtForm: 'detached',
+    parts: parts.map((p, i) => ({
+      ...base.parts[0],
+      id: p.id,
+      role: i === 0 ? 'main' : 'rear',
+      footprint: { outer: p.outer, holes: [] },
+      edgeKinds: p.kinds,
+      eaveHeight: p.eave,
+      roof: { type: p.type, pitchDeg: 35 },
+      chimneys: [],
+    })),
+    facade: { front: { partId: parts[0]!.id, edge: 0 } },
+    context: { ...base.context, neighbours: [] },
+  };
+}
+
+/** A main gabled block and a flat rear part sharing 4 m of its north wall (the fitter's cut). */
+const L_SPEC = specWith([
+  {
+    id: 'main',
+    outer: [
+      [0, 0],
+      [8, 0],
+      [8, 6],
+      [0, 6],
+    ],
+    kinds: ['eave', 'gable', 'eave', 'gable'],
+    type: 'gabled',
+    eave: 5,
+  },
+  {
+    id: 'rear-1',
+    outer: [
+      [0, 6],
+      [4, 6],
+      [4, 10],
+      [0, 10],
+    ],
+    kinds: ['eave', 'eave', 'eave', 'eave'],
+    type: 'flat',
+    eave: 3,
+  },
+]);
+
+const HIP_SPEC = specWith([
+  {
+    id: 'main',
+    outer: [
+      [0, 0],
+      [10, 0],
+      [10, 6],
+      [0, 6],
+    ],
+    kinds: ['eave', 'eave', 'eave', 'eave'],
+    type: 'hipped',
+    eave: 5,
+  },
+]);
+
 function plan(
   panelCount: number,
   extra: Partial<Parameters<typeof roofPlanFor>[1]> = {},
@@ -233,5 +299,56 @@ describe('roofPlanFor', () => {
     expect(Math.abs(a[1] - b[1])).toBeLessThan(0.01);
     const face = p!.faces.find((f) => f.id === 1)!;
     for (const q of face.outline) expect(q[1]).toBeGreaterThanOrEqual(a[1] - 0.01);
+  });
+  it('draws no wall along the cut between two fitted parts of one house', () => {
+    const p = roofPlanFor(L_SPEC, { panelCount: 4, reliable: true });
+    expect(p).not.toBeNull();
+    expect(p!.footprints).toHaveLength(2);
+    // The shared chord, (0,6)-(4,6) before the turn.
+    const chord = (
+      [
+        [0, 6],
+        [4, 6],
+      ] as P[]
+    ).map((q) => rotate(q, p!.rotationDeg));
+    const onChord = (q: P) => segDist(q, chord[0]!, chord[1]!) < 0.02;
+    for (const w of p!.walls) {
+      const mid: P = [(w.from[0] + w.to[0]) / 2, (w.from[1] + w.to[1]) / 2];
+      expect(onChord(w.from) && onChord(w.to) && onChord(mid)).toBe(false);
+    }
+    // The rest of the main block's north wall, (4,6)-(8,6), is still a wall.
+    const rest = (
+      [
+        [4, 6],
+        [8, 6],
+      ] as P[]
+    ).map((q) => rotate(q, p!.rotationDeg));
+    expect(
+      p!.walls.some(
+        (w) =>
+          segDist(w.from, rest[0]!, rest[1]!) < 0.02 && segDist(w.to, rest[0]!, rest[1]!) < 0.02,
+      ),
+    ).toBe(true);
+    // Outside wall length: the L's perimeter, 8 + 6 + 4 + 4 + 4 + 10 = 36 m.
+    const total = p!.walls.reduce(
+      (sum, w) => sum + Math.hypot(w.to[0] - w.from[0], w.to[1] - w.from[1]),
+      0,
+    );
+    expect(total).toBeCloseTo(36, 1);
+  });
+
+  it('marks the party walls of the sample as party walls', () => {
+    const p = plan(10);
+    expect(p.walls.filter((w) => w.party)).toHaveLength(2);
+    expect(p.walls.filter((w) => !w.party)).toHaveLength(2);
+  });
+
+  it('draws the hips and the one ridge of a hipped roof', () => {
+    const p = roofPlanFor(HIP_SPEC, { panelCount: 4, reliable: true });
+    expect(p).not.toBeNull();
+    expect(p!.faces).toHaveLength(4);
+    expect(p!.lines.filter((l) => l.kind === 'ridge')).toHaveLength(1);
+    expect(p!.lines.filter((l) => l.kind === 'hip')).toHaveLength(4);
+    expect(p!.lines.filter((l) => l.kind === 'valley')).toHaveLength(0);
   });
 });
