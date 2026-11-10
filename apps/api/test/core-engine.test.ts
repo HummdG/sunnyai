@@ -429,8 +429,10 @@ describe('customer support', () => {
     ).toBe(
       "I'm unable to help with this issue, please reach out on 0161 000 1111 (Mon-Fri 9-5) for further assistance.",
     );
+    // With no number to give, the only real route is a callback, so it offers one.
     const none = supportLine(demo());
-    expect(none).toContain('contact Sunny directly');
+    expect(none).toContain('I can have someone from Sunny call you back');
+    expect(none).not.toMatch(/contact .* directly/);
     expect(none).not.toMatch(/X{3,}/);
   });
 

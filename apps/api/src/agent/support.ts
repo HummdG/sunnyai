@@ -54,7 +54,9 @@ export function supportLine(tenant: Tenant): string {
   const contact = tenant.config.supportContact;
   const phone = contact?.phone?.trim();
   if (!phone) {
-    return `I'm unable to help with this issue, please contact ${tenant.config.companyName} directly for further assistance.`;
+    // No number to give: a callback is the only real way to reach the team,
+    // so the line offers one rather than pointing at contact details nobody set.
+    return `I'm unable to help with this issue here, but I can have someone from ${tenant.config.companyName} call you back.`;
   }
   const hours = contact?.hours ? ` (${contact.hours})` : '';
   return `I'm unable to help with this issue, please reach out on ${phone}${hours} for further assistance.`;
