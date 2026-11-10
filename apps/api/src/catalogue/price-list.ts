@@ -43,10 +43,24 @@ export const PRICE_ITEM_CATEGORIES = [
   'optional',
   /** Cable trenching, by ground type and distance band. */
   'trenching',
+  /** Heat pump units, by output (powerW). */
+  'heat_pump',
+  /** Heat pump installation extras (base install, cylinder, radiators...), by role. */
+  'heat_pump_install',
   /** Administration fee. */
   'admin',
   'other',
 ] as const;
+export const HEAT_PUMP_ROLES = [
+  'base_install',
+  'cylinder',
+  'radiator',
+  'powerflush',
+  'controls',
+  'electrical',
+] as const;
+export type HeatPumpRole = (typeof HEAT_PUMP_ROLES)[number];
+
 export type PriceItemCategory = (typeof PRICE_ITEM_CATEGORIES)[number];
 
 export const PRICE_UNITS = [
@@ -165,6 +179,8 @@ export const priceItemSchema = z.object({
   /** Rating facts as written (battery capacity, charger power), for matching. */
   capacityWh: z.number().int().positive().nullable().default(null),
   powerW: z.number().int().positive().nullable().default(null),
+  /** What a heat_pump_install item is for. Absent on other items. */
+  role: z.enum(HEAT_PUMP_ROLES).optional(),
   notes: z.string().max(500).nullable().default(null),
   /** 1-based CSV line(s) the item came from. */
   rows: z.array(z.number().int().positive()).default([]),
@@ -284,6 +300,7 @@ export const PRICE_LIST_COLUMNS = [
   'Additional unit discount',
   'Capacity (kWh)',
   'Power (kW)',
+  'Role',
   'Mandatory',
   'Price status',
   'Exclusive group',
@@ -744,6 +761,14 @@ export function importPriceList(
     const capacity = parseNumber(first.get('Capacity (kWh)'));
     const power = parseNumber(first.get('Power (kW)'));
     const mandatory = yesNo(first.get('Mandatory')) ?? category === 'admin';
+    const roleRaw = first
+      .get('Role')
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+    if (roleRaw !== '' && !(HEAT_PUMP_ROLES as readonly string[]).includes(roleRaw)) {
+      error(first, key, `"${first.get('Role')}" is not a role: ${HEAT_PUMP_ROLES.join(', ')}.`);
+      continue;
+    }
 
     const candidate = {
       key,
@@ -771,6 +796,7 @@ export function importPriceList(
       additionalUnitDiscountMinor: discount === null || Number.isNaN(discount) ? null : discount,
       capacityWh: capacity === null || Number.isNaN(capacity) ? null : Math.round(capacity * 1000),
       powerW: power === null || Number.isNaN(power) ? null : Math.round(power * 1000),
+      ...(roleRaw === '' ? {} : { role: roleRaw }),
       notes: first.get('Notes') || null,
       rows: group.map((r) => r.line),
     };

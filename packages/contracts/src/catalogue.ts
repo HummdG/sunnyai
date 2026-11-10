@@ -31,6 +31,7 @@ export const PRODUCT_CATEGORIES = [
   'battery',
   'ev_charger',
   'mounting',
+  'heat_pump',
   'other',
 ] as const;
 

@@ -33,6 +33,8 @@ const ORDER = [
   'admin',
   'optional',
   'trenching',
+  'heat_pump',
+  'heat_pump_install',
   'other',
 ];
 

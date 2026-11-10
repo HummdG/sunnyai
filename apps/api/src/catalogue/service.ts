@@ -517,6 +517,8 @@ const CATEGORY_LABEL: Record<Product['category'], string> = {
   battery: 'battery',
   ev_charger: 'EV charger',
   mounting: 'mounting',
+  // The product importer has no heat pump word yet, so it reads this back as other.
+  heat_pump: 'other',
   other: 'other',
 };
 
