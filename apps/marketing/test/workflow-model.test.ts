@@ -6,6 +6,7 @@ import {
   kindBadge,
   outcomeLabel,
   pagesSummary,
+  pathOf,
   removePattern,
   testUrl,
   withFlow,
@@ -68,6 +69,18 @@ describe('addPattern and removePattern', () => {
     expect(removePattern(rule(['/a', '/b'], ['/c']), 'include', '/a')).toEqual(
       rule(['/b'], ['/c']),
     );
+  });
+});
+
+describe('pathOf', () => {
+  it('reads a path or a full URL', () => {
+    expect(pathOf(' /offers/battery?u=1#top ')).toBe('/offers/battery');
+    expect(pathOf('https://x.co/offers/battery-deal?u=1')).toBe('/offers/battery-deal');
+    expect(pathOf('x.co/heat')).toBe('/heat');
+  });
+  it('is null when unreadable', () => {
+    expect(pathOf('')).toBeNull();
+    expect(pathOf('battery')).toBeNull();
   });
 });
 

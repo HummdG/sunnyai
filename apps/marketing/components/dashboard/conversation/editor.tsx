@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import {
   flowIssuesOf,
@@ -66,6 +66,40 @@ export interface EditorSource {
   start: string | null;
   /** The locked end box's label (`workflowEnd` in flow-layout). */
   end: string;
+  /** The editor's own words for what it edits; the conversation's when absent. */
+  words?: EditorWords;
+  /** Shown under the chat preview (a workflow's page check, say). */
+  previewExtra?: ReactNode;
+}
+
+/** What the editor calls the thing it edits, in its bar, its notes and its reset. */
+export interface EditorWords {
+  loading: string;
+  lead: string;
+  readOnlyLead: string;
+  save: string;
+  /** After a save. */
+  saved: string;
+  /** The reset button, and the name of its confirmation. */
+  reset: string;
+  /** What the reset confirmation says is replaced. */
+  resetWarning: string;
+  /** After a reset. */
+  resetDone: string;
+}
+
+/** The installer's conversation, in the words the editor has always used. */
+function conversationWords(assistant: string): EditorWords {
+  return {
+    loading: 'Loading your conversation…',
+    lead: `The questions ${assistant} asks before a quote, in your order and your words.`,
+    readOnlyLead: 'You can look through the conversation. Ask an admin to change it.',
+    save: 'Save conversation',
+    saved: `Saved. ${assistant} asks these questions from the next conversation.`,
+    reset: `Reset to ${possessive(assistant)} questions`,
+    resetWarning: `This replaces your questions with ${possessive(assistant)} own, in ${possessive(assistant)} order and wording. Your added questions and price links are removed.`,
+    resetDone: `Back to ${possessive(assistant)} questions.`,
+  };
 }
 
 /**
@@ -109,6 +143,7 @@ export function ConversationEditor({
   const start = source ? source.start : CONVERSATION_ENDS.start;
   const end = source ? source.end : CONVERSATION_ENDS.end;
   const ends: FixedEnds = useMemo(() => ({ start, end }), [start, end]);
+  const words = source?.words ?? conversationWords(assistant);
 
   useEffect(() => {
     if (!reveal) return;
@@ -169,7 +204,7 @@ export function ConversationEditor({
   });
 
   if (!view || !draft || !ctx) {
-    return error ? <ErrorNote error={error} /> : <SunnyLoading text="Loading your conversation…" />;
+    return error ? <ErrorNote error={error} /> : <SunnyLoading text={words.loading} />;
   }
 
   const flow = flowFrom(draft, ctx, view.flow);
@@ -206,9 +241,13 @@ export function ConversationEditor({
     setRemoving(id);
   }
 
-  /** Show what to fix: open the first flagged question and bring its message on screen. */
-  function showIssues(found: EditorIssue[]): void {
-    setError('Some questions need fixing first. Each one says what to change.');
+  /**
+   * Show what to fix: open the first flagged question and bring its message on
+   * screen. `more` (flags about the whole workflow) follows the message, which
+   * replaces any earlier one rather than adding to it.
+   */
+  function showIssues(found: EditorIssue[], more = ''): void {
+    setError(`Some questions need fixing first. Each one says what to change. ${more}`.trim());
     const first = found[0];
     if (!first) return;
     select(first.stepId);
@@ -228,7 +267,7 @@ export function ConversationEditor({
     setBusy(true);
     try {
       adopt(await (source ? source.save(flow) : saveConversation(tenantId, flow)));
-      setSaved(`Saved. ${assistant} asks these questions from the next conversation.`);
+      setSaved(words.saved);
     } catch (failure) {
       // A workflow's flags may also be about the whole workflow (its pages, a
       // missing address): those show as the error, not beside a question.
@@ -237,10 +276,8 @@ export function ConversationEditor({
       const found: EditorIssue[] = source ? stepIssues(all) : flowIssuesOf(failure);
       const whole = wholeIssues(all).join(' ');
       setIssues(found);
-      if (found.length > 0) {
-        showIssues(found);
-        if (whole) setError((current) => `${current ?? ''} ${whole}`.trim());
-      } else setError(whole || errorText(failure));
+      if (found.length > 0) showIssues(found, whole);
+      else setError(whole || errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -253,7 +290,7 @@ export function ConversationEditor({
     try {
       adopt(await (source?.reset ? source.reset() : resetConversation(tenantId)));
       select(null);
-      setSaved(`Back to ${possessive(assistant)} questions.`);
+      setSaved(words.resetDone);
     } catch (failure) {
       setError(errorText(failure));
     } finally {
@@ -277,11 +314,7 @@ export function ConversationEditor({
     <div className="flow-editor">
       <div className="flow-bar">
         <ViewSwitch mode={mode} onChange={setMode} />
-        <p className="muted small flow-bar-lead">
-          {readOnly
-            ? 'You can look through the conversation. Ask an admin to change it.'
-            : `The questions ${assistant} asks before a quote, in your order and your words.`}
-        </p>
+        <p className="muted small flow-bar-lead">{readOnly ? words.readOnlyLead : words.lead}</p>
         {readOnly ? null : (
           <div className="flow-bar-actions">
             {dirty ? <span className="muted small">Unsaved changes</span> : null}
@@ -292,26 +325,18 @@ export function ConversationEditor({
                 disabled={busy}
                 onClick={() => setConfirmReset(true)}
               >
-                Reset to {possessive(assistant)} questions
+                {words.reset}
               </button>
             ) : null}
             <button type="button" className="button" disabled={busy} onClick={() => void save()}>
-              {busy ? 'Saving…' : 'Save conversation'}
+              {busy ? 'Saving…' : words.save}
             </button>
           </div>
         )}
       </div>
       {confirmReset && canReset ? (
-        <div
-          className="flow-confirm"
-          role="alertdialog"
-          aria-label={`Reset to ${possessive(assistant)} questions?`}
-        >
-          <p>
-            This replaces your questions with {possessive(assistant)} own, in{' '}
-            {possessive(assistant)} order and wording. Your added questions and price links are
-            removed.
-          </p>
+        <div className="flow-confirm" role="alertdialog" aria-label={`${words.reset}?`}>
+          <p>{words.resetWarning}</p>
           <div className="actions">
             <button type="button" className="button danger" onClick={() => void reset()}>
               Reset
@@ -360,6 +385,7 @@ export function ConversationEditor({
               ends={ends}
               {...(source ? { preview: source.preview.bind(source) } : {})}
             />
+            {source?.previewExtra}
           </section>
         </aside>
       </div>

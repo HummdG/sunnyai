@@ -65,17 +65,23 @@ export function removePattern(
   return { ...rule, [list]: rule[list].filter((p) => p !== pattern) };
 }
 
-/** Whether the rule offers the workflow on a URL or path; null when it cannot be read. */
-export function testUrl(rule: PageRule, input: string): boolean | null {
+/** The path of a typed page address (a path or a full URL); null when it cannot be read. */
+export function pathOf(input: string): string | null {
   const text = input.trim();
   if (text === '') return null;
-  if (text.startsWith('/')) return pathMatches(rule, text.split(/[?#]/)[0]!);
+  if (text.startsWith('/')) return text.split(/[?#]/)[0]!;
   if (!SCHEME.test(text) && !text.includes('.')) return null;
   try {
-    return pathMatches(rule, new URL(SCHEME.test(text) ? text : `https://${text}`).pathname);
+    return new URL(SCHEME.test(text) ? text : `https://${text}`).pathname;
   } catch {
     return null;
   }
+}
+
+/** Whether the rule offers the workflow on a URL or path; null when it cannot be read. */
+export function testUrl(rule: PageRule, input: string): boolean | null {
+  const path = pathOf(input);
+  return path === null ? null : pathMatches(rule, path);
 }
 
 export function workflowFlow(w: Workflow): ConversationFlow {
