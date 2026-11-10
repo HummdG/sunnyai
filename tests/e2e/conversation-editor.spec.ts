@@ -167,6 +167,10 @@ test('an added question whose "Yes" adds the EV charger is saved and still there
   // The address is an ordinary question now: no fixed start box. The end stays drawn, locked.
   await expect(canvas(page)).not.toContainText('Address and roof check');
   await expect(canvas(page)).toContainText('Quote, then contact details');
+  // The locked end box cannot be picked or moved.
+  await expect(
+    canvas(page).getByRole('button', { name: 'Quote, then contact details' }),
+  ).toHaveCount(0);
   await expect(box(page, SHADING)).toContainText("Sunny's question");
 
   await card(page).getByRole('button', { name: '+ Add a question' }).click();
@@ -413,6 +417,9 @@ test('removing electricity use shows its warning first, and the preview never as
   await expect(preview(page).getByText('Then Sunny shows the quote')).toBeVisible();
   expect(asked).toContain(SHADING);
   expect(asked).not.toContain(USAGE);
+  // Sunny sets how sure it is of the roof itself: the preview never asks it.
+  expect(asked.filter((prompt) => /How confident/i.test(prompt))).toEqual([]);
+  await expect(preview(page)).not.toContainText('How confident');
 });
 
 test('a follow-up branches off its answer on the flow and sits indented in the list', async ({
