@@ -73,7 +73,16 @@ export function wrapLines(pdf: Pdf, text: string, width: number): string[] {
   return lines;
 }
 
+/**
+ * Whether the quote has terms to print. The orchestrator adds the Terms page
+ * only when this is true; `drawTerms` draws nothing for blank terms.
+ */
+export function hasTerms(doc: ProposalDoc): boolean {
+  return doc.snapshot.terms.trim() !== '';
+}
+
 export function drawTerms(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
+  if (!hasTerms(doc)) return;
   plainPage(pdf);
   const top0 =
     pageTitle(pdf, theme, `Terms and conditions · ${doc.reference}`, 'Terms and ', 'conditions') +

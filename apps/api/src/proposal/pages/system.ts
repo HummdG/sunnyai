@@ -41,33 +41,51 @@ interface Entry {
 
 /** Fees and works, not equipment: left off the equipment list. */
 const SERVICE =
-  /scaffold|install|admin|\bdno\b|labou?r|survey|delivery|commission|certific|notification|\bfee\b|waste|travel|building control|\bmcs\b|design|electrical works|\bvat\b/i;
+  /scaffold|admin|\bdno\b|labou?r|survey|delivery|commission|certific|notification|\bfee\b|waste|travel|building control|\bmcs\b|design|electrical works|\bvat\b/i;
+/** Installation is a service unless the line names the equipment installed. */
+const INSTALL = /install/i;
+const NAMES_EQUIPMENT =
+  /charg|batter|inverter|panel|module|optimi[sz]er|diverter|isolator|meter|monitor|mesh|heat pump|kit\b/i;
 const PANEL = /\bpanels?\b|\bmodules?\b|\d\s?W\b/;
 const INVERTER = /inverter/i;
 const BATTERY = /batter(y|ies)/i;
 
-function matches(item: QuoteLineItem, name: string | null, re: RegExp): boolean {
-  const l = item.label.toLowerCase();
-  return re.test(item.label) || (!!name && l.includes(name.toLowerCase()));
+function isService(label: string): boolean {
+  return SERVICE.test(label) || (INSTALL.test(label) && !NAMES_EQUIPMENT.test(label));
 }
+
+const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
 
 /** The equipment entries, from the option and its line items. */
 export function equipment(doc: ProposalDoc): Entry[] {
   const o = doc.option;
   const reasons = doc.quote.reasons ?? {};
   const items = [...o.lineItems];
-  const take = (name: string | null, re: RegExp): QuoteLineItem | null => {
-    const i = items.findIndex((it) => matches(it, name, re));
+  const takeWhere = (test: (item: QuoteLineItem) => boolean): QuoteLineItem | null => {
+    const i = items.findIndex(test);
     return i < 0 ? null : items.splice(i, 1)[0]!;
   };
+  /** The item named exactly like the option's component, then one containing the name. */
+  const byName = (name: string | null): QuoteLineItem | null => {
+    if (!name) return null;
+    const n = norm(name);
+    return takeWhere((it) => norm(it.label) === n) ?? takeWhere((it) => norm(it.label).includes(n));
+  };
+  const byLabel = (found: QuoteLineItem | null, re: RegExp) =>
+    found ?? takeWhere((it) => re.test(it.label));
   const warranty = (item: QuoteLineItem | null) =>
     item ? (doc.warranties?.[item.sku] ?? null) : null;
   const reason = (item: QuoteLineItem | null) => (item ? (reasons[item.sku] ?? null) : null);
 
   const out: Entry[] = [];
-  const inverterItem = take(o.inverterType, INVERTER);
-  const batteryItem = o.batteryType ? take(o.batteryType, BATTERY) : null;
-  const panelItem = take(o.panelType, PANEL);
+  // Names first, for all three, so a label regex never takes another
+  // component's line (a battery "inverter-ready" is not the inverter).
+  let inverterItem = o.inverterType ? byName(o.inverterType) : null;
+  let batteryItem = o.batteryType ? byName(o.batteryType) : null;
+  let panelItem = byName(o.panelType);
+  if (o.inverterType) inverterItem = byLabel(inverterItem, INVERTER);
+  if (o.batteryType) batteryItem = byLabel(batteryItem, BATTERY);
+  panelItem = byLabel(panelItem, PANEL);
 
   out.push({
     kind: 'Panels',
@@ -95,7 +113,7 @@ export function equipment(doc: ProposalDoc): Entry[] {
     });
   }
   for (const item of items) {
-    if (SERVICE.test(item.label)) continue;
+    if (isService(item.label)) continue;
     out.push({
       kind: /charg/i.test(item.label) ? 'Charger' : 'Also included',
       name: item.quantity > 1 ? `${item.quantity} × ${item.label}` : item.label,
@@ -252,12 +270,19 @@ export function drawSystem(
     });
     const rowH = (r: string[]) =>
       Math.max(...r.map((c, i) => measure(pdf, c, { ...cell, width: widths[i]! }))) + 10;
-    ensure(46 + rowH(rows[0]!));
+    ensure(56 + rowH(rows[0]!));
     y = subHead(pdf, theme, 'Other options we looked at', x, y + 24, w) + 7;
-    cols.forEach((c, i) => {
-      label(pdf, c.head, xs[i]!, y, { width: widths[i]!, color: theme.muted, align: c.align });
-    });
-    y += 11;
+    // A header may wrap in its narrow column: the rule goes under the tallest.
+    const headTop = y;
+    y = Math.max(
+      ...cols.map((c, i) =>
+        label(pdf, c.head, xs[i]!, headTop, {
+          width: widths[i]!,
+          color: theme.muted,
+          align: c.align,
+        }),
+      ),
+    );
     rule(pdf, y, theme.rule, 0.5, x, w);
     for (const r of rows) {
       const h = rowH(r);

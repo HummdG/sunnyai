@@ -8,7 +8,7 @@ import { MCS_DISCLAIMER } from '../src/proposal/copy.js';
 import { themeFor } from '../src/proposal/layout.js';
 import { drawPerformance, PERFORMANCE_HAS_RAIL } from '../src/proposal/pages/performance.js';
 import { cumulativeChart, drawSavings, SAVINGS_HAS_RAIL } from '../src/proposal/pages/savings.js';
-import { drawSystem, SYSTEM_HAS_RAIL } from '../src/proposal/pages/system.js';
+import { drawSystem, equipment, SYSTEM_HAS_RAIL } from '../src/proposal/pages/system.js';
 import { roofPlanFor } from '../src/proposal/roof-plan.js';
 import { docFor, option, outOfBounds, quote, render } from './proposal-fixtures.js';
 import { pdfItems, pdfText } from './pdf-text.js';
@@ -112,6 +112,53 @@ describe('system page', () => {
     expect(t).toContain('Premium');
     expect(t).toContain('15.4 kWh');
     expect(t).toContain('£17,890');
+  });
+
+  it('sets the comparison table with no two words overlapping', async () => {
+    const pages = await pdfItems(await system(docFor({ others })));
+    const page = pages.find((p) => p.some((i) => i.str === 'Other options we looked at'))!;
+    expect(page).toBeDefined();
+    const headY = page.find((i) => i.str === 'Other options we looked at')!.y;
+    const table = page.filter((i) => i.str.trim() !== '' && i.y < headY);
+    expect(table.map((i) => i.str).join(' ')).toContain('A YEAR');
+    const clash: string[] = [];
+    table.forEach((a, i) => {
+      for (const b of table.slice(i + 1)) {
+        const xs = a.x < b.x + b.width && b.x < a.x + a.width;
+        const ys = a.y < b.y + b.height && b.y < a.y + a.height;
+        if (xs && ys) clash.push(`"${a.str}" / "${b.str}"`);
+      }
+    });
+    expect(clash).toEqual([]);
+    // Every header line (6.8pt labels) sits clear above the first row's cells.
+    const heads = table.filter((i) => i.height < 7);
+    const cells = table.filter((i) => i.height >= 7);
+    const lowestHead = Math.min(...heads.map((i) => i.y));
+    const highestCell = Math.max(...cells.map((i) => i.y + i.height));
+    expect(lowestHead - highestCell).toBeGreaterThanOrEqual(3);
+  });
+
+  it('matches equipment to the option by name before guessing from the label', () => {
+    const d = docFor(
+      { warranties: { BAT: 10, INV: 5, EVI: 3 } },
+      quote(
+        {},
+        {
+          lineItems: [
+            { sku: 'BAT', label: 'Fox ESS EVO battery, inverter-ready', quantity: 1, totalGbp: 1 },
+            { sku: 'INV', label: 'Fox ESS H3 8 kW hybrid', quantity: 1, totalGbp: 1 },
+            { sku: 'EVI', label: 'EV charger installation', quantity: 1, totalGbp: 1 },
+            { sku: 'INST', label: 'Installation', quantity: 1, totalGbp: 1 },
+          ],
+        },
+      ),
+    );
+    const list = equipment(d);
+    const by = (kind: string) => list.find((e) => e.kind === kind);
+    expect(by('Inverter')?.warrantyYears).toBe(5);
+    expect(by('Battery')?.warrantyYears).toBe(10);
+    expect(by('Charger')).toMatchObject({ name: 'EV charger installation', warrantyYears: 3 });
+    expect(list.map((e) => e.name)).not.toContain('Installation');
   });
 
   it('leaves the comparison out when it is shown elsewhere', async () => {
@@ -219,6 +266,32 @@ describe('savings page', () => {
       'Your installer will confirm the price, and so the payback, after a survey.',
     );
     expect(t).not.toContain('£-');
+  });
+
+  const UNPRICED_SENTENCE =
+    'Your installer will confirm the price, and so the payback, after a survey.';
+
+  it('gives no 25-year figures when the quote is not priced, even with a price', async () => {
+    const t = await text(await savings(docFor({}, quote({ priced: false }))));
+    expect(t).toContain(UNPRICED_SENTENCE);
+    expect(t).not.toContain('Net savings over 25 years');
+    expect(t).not.toContain('Cumulative savings');
+  });
+
+  it('gives no 25-year figures while the installer still prices an item', async () => {
+    const t = await text(
+      await savings(docFor({}, quote({}, { installerPriced: ['Scaffolding'] }))),
+    );
+    expect(t).toContain(UNPRICED_SENTENCE);
+    expect(t).not.toContain('Net savings over 25 years');
+  });
+
+  it('says the net figure is after the price before VAT when VAT is added', async () => {
+    const vat = await text(await savings(docFor({}, quote({}, { priceIncVatGbp: 15932.4 }))));
+    expect(vat).toContain('after the system price before VAT');
+    const noVat = await text(await savings());
+    expect(noVat).toContain('after the system price');
+    expect(noVat).not.toContain('before VAT');
   });
 
   it('keeps everything inside the page', async () => {

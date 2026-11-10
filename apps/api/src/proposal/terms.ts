@@ -10,13 +10,17 @@
  *   line that starts like a new one (a capital, a digit or a quote) also
  *   starts a new paragraph, because Word pastes one line per paragraph with
  *   no blank lines between. Any other line carries on the paragraph above (a
- *   hard-wrapped plain-text paste).
+ *   hard-wrapped plain-text paste). A list item carries on only over a line
+ *   that starts in lower case or was indented in the paste: Word bullets often
+ *   have no full stop, so a capitalised line after one is read afresh (and
+ *   may be a heading).
  * - A heading is a line under 80 characters that is in capitals, or that has
  *   no terminal punctuation and is followed by more text (not by a line that
  *   starts in lower case, which would be the same sentence carrying on).
  *   A numbered line in capitals (`1. DEFINITIONS`) is a heading, number kept.
  * - Lines starting `1.`, `2)`, `1.2`, `a)`, `(a)`, `(iv)`, `-`, `•`, `◦` or `*`
- *   are items; the marker is kept.
+ *   are items; the marker is kept. A number with a dot needs a space after it,
+ *   so `3.5% interest` and `12.30pm` stay text.
  */
 
 export type TermsBlock =
@@ -25,7 +29,7 @@ export type TermsBlock =
   | { kind: 'item'; marker: string; text: string };
 
 const ITEM =
-  /^(\d+(?:\.\d+)+\.?|\d+[.)]|\(?[a-z]\)|\([ivx]+\)|[-*](?=\s)|[\u2022\u25e6\u2023\u25aa\u25cf\u25cb])\s*(.*)$/iu;
+  /^(\d+(?:\.\d+)+\.?(?=\s|$)|\d+\.(?=\s|$)|\d+\)|\(?[a-z]\)|\([ivx]+\)|[-*](?=\s)|[\u2022\u25e6\u2023\u25aa\u25cf\u25cb])\s*(.*)$/iu;
 const TERMINAL = /[.!?;:,]["'\u201d\u2019)\]]*$/u;
 const ENDS_SENTENCE = /[.!?;:]["'\u201d\u2019)\]]*$/u;
 const STARTS_SENTENCE = /^["'\u201c\u2018(]?[\p{Lu}\d]/u;
@@ -37,11 +41,10 @@ function isCaps(line: string): boolean {
 }
 
 export function parseTerms(text: string): TermsBlock[] {
-  const lines = text
-    .replace(/\r\n?/g, '\n')
-    .replace(/\f/g, '\n')
-    .split('\n')
-    .map((l) => l.replace(/[ \t]+/g, ' ').trim());
+  const raw = text.replace(/\r\n?/g, '\n').replace(/\f/g, '\n').split('\n');
+  const lines = raw.map((l) => l.replace(/[ \t]+/g, ' ').trim());
+  // Indented in the paste: the wrapped tail of the list item above it.
+  const indented = raw.map((l) => /^[ \t]/.test(l));
 
   const out: TermsBlock[] = [];
   let open: { kind: 'para' | 'item'; marker: string; parts: string[] } | null = null;
@@ -87,10 +90,17 @@ export function parseTerms(text: string): TermsBlock[] {
     }
     const current = open;
     const last = current?.parts.at(-1);
+    // Word ends a bullet without a full stop, so an item only carries on over
+    // a line that is plainly its wrapped tail (lower case or indented); any
+    // other line goes through the heading test below.
     const carriesOn =
-      current !== null &&
-      (last === undefined || !ENDS_SENTENCE.test(last) || !STARTS_SENTENCE.test(line));
-    if (carriesOn) {
+      current === null
+        ? false
+        : last === undefined ||
+          (current.kind === 'item'
+            ? STARTS_LOWER.test(line) || indented[i]!
+            : !ENDS_SENTENCE.test(last) || !STARTS_SENTENCE.test(line));
+    if (current !== null && carriesOn) {
       current.parts.push(line);
       return;
     }

@@ -11,7 +11,7 @@
 
 import { calc25YearSavings, DEFAULT_ASSUMPTIONS } from '@sunny/quote-engine';
 
-import { gbp, num } from '../copy.js';
+import { gbp, num, totalComplete } from '../copy.js';
 import type { ProposalDoc } from '../doc.js';
 import type { Rect, Theme } from '../layout.js';
 
@@ -131,8 +131,10 @@ export function drawSavings(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
     'payback',
   );
 
+  // Only a complete total gives 25-year figures. They use the price before
+  // VAT, as the original proposal did, and the label says so when VAT is added.
   const years =
-    o.priceGbp !== null
+    totalComplete(doc) && o.priceGbp !== null
       ? calc25YearSavings(
           o.annualGenerationKwh,
           o.selfConsumptionRate,
@@ -154,7 +156,14 @@ export function drawSavings(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
       [
         { key: 'Year-one saving', value: gbp(o.annualSavingsGbp), sub: 'on your bills' },
         { key: 'Bill savings over 25 years', value: gbp(lifetime) },
-        { key: 'Net savings over 25 years', value: gbp(net), sub: 'after the system price' },
+        {
+          key: 'Net savings over 25 years',
+          value: gbp(net),
+          sub:
+            o.priceIncVatGbp !== null
+              ? 'after the system price before VAT'
+              : 'after the system price',
+        },
         o.paybackYears !== null
           ? { key: 'Payback', value: `${num(o.paybackYears, 1)} years` }
           : { key: 'Payback', value: 'Not reached', sub: 'within 25 years' },

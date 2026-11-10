@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { themeFor } from '../src/proposal/layout.js';
-import { drawTerms, TERMS_HAS_RAIL } from '../src/proposal/pages/terms.js';
+import { drawTerms, hasTerms, TERMS_HAS_RAIL } from '../src/proposal/pages/terms.js';
 import { glyphSafe, parseTerms } from '../src/proposal/terms.js';
 import { docFor, outOfBounds, render, snapshot } from './proposal-fixtures.js';
 import { pdfItems, pdfText } from './pdf-text.js';
@@ -88,6 +88,54 @@ describe('parseTerms', () => {
     });
   });
 
+  it('ends an unpunctuated bullet list at the heading and paragraph after it', () => {
+    const paste = [
+      'What we supply',
+      '•\tSolar panels',
+      '•\tA hybrid inverter',
+      'Payment Terms',
+      'The deposit is due on order.',
+    ].join('\r\n');
+    const blocks = parseTerms(paste);
+    expect(blocks).toEqual([
+      { kind: 'heading', text: 'What we supply' },
+      { kind: 'item', marker: '•', text: 'Solar panels' },
+      { kind: 'item', marker: '•', text: 'A hybrid inverter' },
+      { kind: 'heading', text: 'Payment Terms' },
+      { kind: 'para', text: 'The deposit is due on order.' },
+    ]);
+    const joined = blocks
+      .map((b) => (b.kind === 'item' ? `${b.marker}${b.text}` : b.text))
+      .join('');
+    expect(words(joined)).toBe(words(paste));
+  });
+
+  it('carries a bullet on over a lower-case or indented line', () => {
+    expect(
+      parseTerms(
+        '• Panels fitted to the\nmain roof\n• The inverter in the\n   Garage or loft\nNext',
+      ),
+    ).toEqual([
+      { kind: 'item', marker: '•', text: 'Panels fitted to the main roof' },
+      { kind: 'item', marker: '•', text: 'The inverter in the Garage or loft' },
+      { kind: 'para', text: 'Next' },
+    ]);
+  });
+
+  it('does not read a decimal or a time at the start of a line as a list marker', () => {
+    expect(parseTerms('3.5% interest applies to late payments.')).toEqual([
+      { kind: 'para', text: '3.5% interest applies to late payments.' },
+    ]);
+    expect(parseTerms('12.30pm is the latest start time.')).toEqual([
+      { kind: 'para', text: '12.30pm is the latest start time.' },
+    ]);
+    expect(parseTerms('1.2 The Company shall supply.')[0]).toEqual({
+      kind: 'item',
+      marker: '1.2',
+      text: 'The Company shall supply.',
+    });
+  });
+
   it('does not take a long line without a full stop as a heading', () => {
     const long = 'x'.repeat(90);
     expect(parseTerms(`${long}\nMore text.`)[0]!.kind).toBe('para');
@@ -152,6 +200,14 @@ describe('terms page', () => {
     const t = (await pdfText(buf)).join(' ');
     expect(t).toContain('CLAUSE 1 ');
     expect(t).toContain(`CLAUSE ${n - 2}`);
+  });
+
+  it('draws nothing for blank terms, and says the section is skipped', async () => {
+    const blank = docFor({}, undefined, snapshot({ terms: ' \r\n\t ' }));
+    expect(hasTerms(blank)).toBe(false);
+    expect(hasTerms(docFor({}, undefined, snapshot({ terms: 'Pay on time.' })))).toBe(true);
+    const pages = await pdfItems(await render((pdf) => drawTerms(pdf, blank, THEME)));
+    expect(pages.flat().filter((i) => i.str.trim() !== '')).toEqual([]);
   });
 
   it('draws characters the fonts lack as a fallback, without throwing', async () => {
