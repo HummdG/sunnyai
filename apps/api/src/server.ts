@@ -17,6 +17,7 @@ import {
   waitlistRequestSchema,
   type WaitlistResponse,
   type AuditAction,
+  BUILTIN_WORKFLOW_IDS,
   type AuditEventsResponse,
   type AuditOutcome,
   type AuditReason,
@@ -63,7 +64,7 @@ import {
   type RateLimiter,
   type RateLimitRule,
 } from './ratelimit.js';
-import { explain, nextQuestion, reconcile, validateAnswer } from './questionnaire.js';
+import { explain } from './questionnaire.js';
 import { startRetention } from './retention.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
 import { newId, type DeletedConversation, type ModelCall, type Store } from './store.js';
@@ -95,7 +96,7 @@ import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
 import { flowFieldsFor } from './flow/answers.js';
 import { flowForTenant } from './flow/tenant.js';
-import { workflowsForTenant } from './workflows/tenant.js';
+import { resolvedFlowFor, workflowsForTenant } from './workflows/tenant.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
 import { sha256 } from './ingest/prepare.js';
@@ -921,7 +922,18 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // *given* what the visitor has already said -- not given itself.
     const before = (await store.getConversation(claims.tenantId, claims.sessionId))?.answers ?? {};
 
-    const verdict = validateAnswer(body.data.questionId, body.data.value, before);
+    // The tenant's own workflow, not Sunny's standard questions: the session's
+    // active workflow if it names one in the set, else the solar workflow.
+    const { set: workflowSet } = workflowsForTenant(tenant);
+    const workflowState = await store.getWorkflowState(claims.tenantId, claims.sessionId);
+    const activeId = workflowState.active?.workflowId;
+    const activeWorkflow =
+      (activeId ? workflowSet.workflows.find((w) => w.id === activeId) : undefined) ??
+      workflowSet.workflows.find((w) => w.id === BUILTIN_WORKFLOW_IDS.solar_quote) ??
+      workflowSet.workflows[0]!;
+    const flow = resolvedFlowFor(activeWorkflow);
+
+    const verdict = flow.validate(body.data.questionId, body.data.value, before);
     if (!verdict.ok) {
       // `bad_request` rather than a silent 200: a page that believes it recorded
       // an answer it did not will show the visitor a completed form and a gap the
@@ -931,7 +943,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       throw new ApiError('bad_request', explain(verdict));
     }
 
-    const reconciled = reconcile({ ...before, [verdict.questionId]: verdict.value });
+    const reconciled = flow.reconcile({ ...before, [verdict.questionId]: verdict.value });
     const conversation = await store.mergeAnswers(
       claims.tenantId,
       claims.sessionId,
@@ -949,7 +961,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const payload: QualificationAnswerResponse = {
       questionId: verdict.questionId,
       answers,
-      nextQuestionId: nextQuestion(answers),
+      nextQuestionId: flow.next(answers),
       // A correction is the one write that can take an answer away, so it is the
       // one that has anything to report here. Every other response carries [].
       removedAnswers: reconciled.dropped.map(({ questionId, value, ruledOutBy }) => ({

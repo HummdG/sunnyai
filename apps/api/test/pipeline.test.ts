@@ -1013,7 +1013,8 @@ describe('POST /v1/qualification/answer', () => {
     }>();
     expect(body.questionId).toBe('roof_direction');
     expect(body.answers['roof_direction']).toBe('south');
-    expect(body.nextQuestionId).toBe('address');
+    // The tenant has no workflow of its own, so the solar template's order applies.
+    expect(body.nextQuestionId).toBe('motivation');
   });
 
   it('does not write the answer into the transcript', async () => {
@@ -1043,8 +1044,8 @@ describe('POST /v1/qualification/answer', () => {
     const body = second.json<{ answers: Record<string, string>; nextQuestionId: string | null }>();
     expect(body.answers['address']).toBe('1 Test Street');
     expect(body.answers['roof_direction']).toBe('west');
-    // `address` is now answered, so the suggestion moves on rather than repeating.
-    expect(body.nextQuestionId).toBe('roof_confidence');
+    // The suggestion follows the solar template's order, which opens with motivation.
+    expect(body.nextQuestionId).toBe('motivation');
   });
 
   it('rejects a value that is not one of the options, naming them', async () => {
@@ -1078,6 +1079,7 @@ describe('POST /v1/qualification/answer', () => {
     // is a different question, and the earlier build asked every visitor the kWh
     // one.
     for (const [questionId, value] of [
+      ['motivation', 'reduce_bills'],
       ['address', '1 Test Street'],
       // Low: no mapped roof, so the three roof questions apply (SunScan's
       // fallback step); a trusted mapping would ask for confirmation instead.

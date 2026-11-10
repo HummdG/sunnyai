@@ -29,7 +29,7 @@ import { workflowContext } from './workflow-fixture.js';
 /**
  * Sunny's chat follows the installer's own conversation (Task 5): the tools,
  * the answer reading and the quote all run on the tenant's stored flow, read
- * afresh every turn. The host-page route keeps Sunny's standard questions.
+ * afresh every turn. The host-page route follows the same workflow.
  */
 
 const EV = 'EV-PROJECTEV-7KW-UNTETHERED';
@@ -440,7 +440,7 @@ function config(): ServerConfig {
 }
 
 describe('the host-page route', () => {
-  it('the host-page route still accepts every SunScan question for a tenant with a custom flow', async () => {
+  it('the host-page route follows the tenant workflow, custom questions included', async () => {
     const store = await tempStore();
     const app = buildServer({
       config: config(),
@@ -460,6 +460,13 @@ describe('the host-page route', () => {
         sessionId: string;
         sessionToken: string;
       }>();
+      const REMOVED = new Set([
+        'lifestyle',
+        'existing_system',
+        'motivation',
+        'budget_band',
+        'finance_interest',
+      ]);
       const answers: Array<[string, string]> = [
         ['address', ADDRESS],
         ['roof_confidence', 'high'],
@@ -483,16 +490,20 @@ describe('the host-page route', () => {
           headers: { authorization: `Bearer ${sessionToken}` },
           payload: { sessionId, questionId, value },
         });
-        expect(response.statusCode, `${questionId}: ${response.body}`).toBe(200);
+        // Questions the installer removed from their conversation are no longer
+        // part of it; the rest are accepted.
+        const inFlow = !REMOVED.has(questionId);
+        expect(response.statusCode, `${questionId}: ${response.body}`).toBe(inFlow ? 200 : 400);
       }
-      // The installer's own question is not part of the host page's contract.
+      // The installer's own question belongs to their workflow, so it is accepted.
       const custom = await app.inject({
         method: 'POST',
         url: '/v1/qualification/answer',
         headers: { authorization: `Bearer ${sessionToken}` },
         payload: { sessionId, questionId: 'c_evcharger1', value: 'yes' },
       });
-      expect(custom.statusCode).toBe(400);
+      expect(custom.statusCode, custom.body).toBe(200);
+      expect(custom.json<{ answers: Record<string, string> }>().answers.c_evcharger1).toBe('yes');
     } finally {
       await app.close();
     }
