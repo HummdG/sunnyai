@@ -113,14 +113,18 @@ export function roofPhrase(doc: ProposalDoc): string {
 const hasBattery = (doc: ProposalDoc) =>
   !!doc.option.batteryType && doc.option.batteryCapacityKwh > 0;
 
-/** The cover headline: a kicker and the plain-words line, light then bold. */
+/**
+ * The cover headline: a kicker and the plain-words line, light then bold
+ * (`Twelve panels,` / `one battery.`). Without a battery the light half is
+ * empty and the bold half is `Twelve panels.`.
+ */
 export function headline(doc: ProposalDoc): { kicker: string; light: string; bold: string } {
   const n = doc.option.panelCount;
   const panels = `${capitalise(numberWord(n))} ${n === 1 ? 'panel' : 'panels'}`;
   return {
     kicker: doc.chosen ? 'Your chosen system' : 'The system we recommend',
-    light: hasBattery(doc) ? `${panels}, one battery,` : `${panels},`,
-    bold: `${roofPhrase(doc)}.`,
+    light: hasBattery(doc) ? `${panels},` : '',
+    bold: hasBattery(doc) ? 'one battery.' : `${panels}.`,
   };
 }
 

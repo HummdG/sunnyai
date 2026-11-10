@@ -295,8 +295,9 @@ describe('cover page', () => {
   it('says the system we recommend, or your chosen system', async () => {
     const rec = await text(await cover(docFor()));
     expect(rec).toContain('The system we recommend');
-    expect(rec).toContain('Ten panels, one battery,');
-    expect(rec).toContain('your south-facing roof.');
+    expect(rec).toContain('Ten panels,');
+    expect(rec).toContain('one battery.');
+    expect(rec).not.toContain('your south-facing roof.');
     expect(rec).toContain('RECOMMENDED');
     const chosen = await text(await cover(docFor({ chosen: true })));
     expect(chosen).toContain('Your chosen system');

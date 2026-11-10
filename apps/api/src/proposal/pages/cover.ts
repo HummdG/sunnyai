@@ -45,8 +45,11 @@ export function drawCover(pdf: Pdf, doc: ProposalDoc, theme: Theme): void {
   );
   const h = headline(doc);
   y = para(pdf, h.kicker, x, y + 14, { font: 'sans-600', size: 10, color: theme.accent, width: w });
-  y = para(pdf, h.light, x, y + 4, { font: 'sans-300', size: 26, color: theme.ink, width: w });
-  y = para(pdf, h.bold, x, y - 2, { font: 'sans-800', size: 26, color: theme.ink, width: w });
+  if (h.light) {
+    y = para(pdf, h.light, x, y + 4, { font: 'sans-300', size: 26, color: theme.ink, width: w });
+    y -= 6;
+  }
+  y = para(pdf, h.bold, x, y + 4, { font: 'sans-800', size: 26, color: theme.ink, width: w });
 
   const paragraphs = letterParagraphs(doc);
   const sign = signOff(doc);
