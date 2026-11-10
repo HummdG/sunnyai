@@ -5,6 +5,7 @@
 Today Studio's "Conversation" tab edits one solar question list (`tenant.config.conversation`). The chat runs it as soon as anything sounds like buying interest, and its first question is the address (hard-wired in `flow/resolve.ts` FIXED_START, `journey/journey.ts:143`, and `prompt.ts` `quoteJourneyRules()`), so the chat feels like a sales form. Solar is the only product: heat pumps appear only as a lifestyle tag. The widget sends Sunny only the site's origin, never the page path.
 
 The owner wants:
+
 - **Workflows.** Guided tasks inside a normal chat. Sunny ships ready-made ones (Solar quote, Heat pump quote, Battery quote) that installers switch on and edit. Installers can also build their own, from blank or by copying one. A promo is its own workflow with its own shorter question list.
 - **Triggering.** A workflow starts when the visitor asks for it, or after a soft discovery step. Normal FAQ chat keeps working alongside. A mid-workflow question is answered, then Sunny gently re-asks the question it was on. "Not now" pauses the workflow and keeps its answers.
 - **Soft start.** Two or three gentle discovery questions come first ("what are you looking for", "what matters most"), then Sunny suggests the matching workflow. Those answers carry over and aren't asked again.
@@ -14,6 +15,7 @@ The owner wants:
 - **Build order.** (1) runtime, (2) builder UI, (3) heat pump, (4) battery.
 
 House rules apply:
+
 - No em dashes in user-facing text or Sunny's replies.
 - The server decides every step; the LLM only words it.
 - Existing tenant flows must keep working.
@@ -25,21 +27,44 @@ Per-phase implementation plans live in `docs/superpowers/plans/`.
 ## Phase 1: Workflow runtime, soft start, page rules
 
 ### 1a. Contracts
+
 **New `packages/contracts/src/workflow.ts`**
+
 ```ts
 type WorkflowKind = 'solar_quote' | 'heat_pump_quote' | 'battery_quote' | 'custom';
 type QuoteEngine = 'solar' | 'heat_pump' | 'battery';
 type WorkflowOutcome = { kind: 'quote'; engine: QuoteEngine } | { kind: 'lead' };
 type DiscoveryInterest = 'solar' | 'battery' | 'heating' | 'ev_charger' | 'not_sure';
-interface PageRule { include: string[]; exclude: string[] }      // include [] = all pages; path globs, no regex
-interface Workflow { id /* wf_* */; kind; name; enabled; description; triggers: string[];
-  interests: DiscoveryInterest[]; pages: PageRule; steps: FlowStep[]; outcome: WorkflowOutcome;
-  template: { id; version } | null; version: number; updatedAt: string }
-interface WorkflowSet { version; updatedAt; discovery: { enabled: boolean }; workflows: Workflow[] }
-export function pathMatches(rule: PageRule, path: string | null): boolean   // shared by API and Studio
+interface PageRule {
+  include: string[];
+  exclude: string[];
+} // include [] = all pages; path globs, no regex
+interface Workflow {
+  id /* wf_* */;
+  kind;
+  name;
+  enabled;
+  description;
+  triggers: string[];
+  interests: DiscoveryInterest[];
+  pages: PageRule;
+  steps: FlowStep[];
+  outcome: WorkflowOutcome;
+  template: { id; version } | null;
+  version: number;
+  updatedAt: string;
+}
+interface WorkflowSet {
+  version;
+  updatedAt;
+  discovery: { enabled: boolean };
+  workflows: Workflow[];
+}
+export function pathMatches(rule: PageRule, path: string | null): boolean; // shared by API and Studio
 ```
 
 The rest of the contract:
+
 - **Schema rules:**
   - A built-in kind must use its own engine outcome.
   - Each built-in kind appears at most once.
@@ -51,6 +76,7 @@ The rest of the contract:
 - **Lead contract:** gains optional `workflowId`.
 
 ### 1b. API core
+
 - **`flow/banks.ts` (new): `QuestionBank`.** It holds `{questions, fixedStart, followers, groups, defaultSteps}`. The banks:
   - `LEGACY_SOLAR`: today's behaviour, used by `resolveFlow(null)` for parity.
   - `SOLAR`: no fixed start. The follower `address -> [roof_confidence, roof_confirmed]` makes the roof checks follow the address wherever it sits.
@@ -58,6 +84,7 @@ The rest of the contract:
   - `HEAT_PUMP` and `BATTERY`: added in later phases.
 
   Shared presets (`address`, `property_type`, `ownership`, `household_size`, `motivation`) keep the same ids, so answers carry between workflows.
+
 - **`flow/resolve.ts`:** `resolveFlow(stored, bank = LEGACY_SOLAR)` uses `bank.*` in place of the module constants, emits followers after their anchor, and adds `optional`. It also gets `required(answers)`. `validate` accepts `skipped` for optional questions.
 - **`journey/journey.ts` `journeyStatus`:** drop the "address first" override, so the next question is the first askable one in resolved order. `canQuote` uses `required()`.
 - **`journey/service.ts`:** `JourneyDeps.flow` becomes a function returning the active workflow's resolved flow. `submitAnswers` and `createQuote` are otherwise unchanged.
@@ -72,6 +99,7 @@ The rest of the contract:
     - budget (optional), finance (optional)
 
     Also the heat pump and battery templates, which ship disabled until their phase lands.
+
   - `tenant.ts`: `workflowsForTenant(tenant, warn)` replaces `flowForTenant`.
     - **Lazy migration.** When `config.workflows` is absent, build the set from the templates. A tenant with a stored `config.conversation` keeps its exact order: the solar workflow's steps are `[address preset, ...conversation.steps]`.
     - **Bad data.** An unparseable set warns and falls back to the templates.
@@ -82,12 +110,12 @@ The rest of the contract:
   - `status.ts`: `workflowStatus` dispatches on outcome: solar to `journeyStatus`, lead to a generic resolved-flow view ending `ready_for_lead`. Heat pump and battery are added later. `toFlow(workflow)` lets `effectsFor`, `checkFlow`, `extract` and `flowFieldsFor` run unchanged.
   - `agent-tools.ts`: replaces `QUOTE_TOOLS`; `get_quote_options` is kept and dispatches on the engine.
 
-    | Tool | Behaviour |
-    |---|---|
-    | `start_workflow {workflowId}` | Refuses a workflow that is disabled or not on this page. Resumes a paused one. |
-    | `get_workflow_step` | Today's `get_quote_journey` view plus `workflow`, `optional` and quick replies. |
+    | Tool                                              | Behaviour                                                                                                                                   |
+    | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `start_workflow {workflowId}`                     | Refuses a workflow that is disabled or not on this page. Resumes a paused one.                                                              |
+    | `get_workflow_step`                               | Today's `get_quote_journey` view plus `workflow`, `optional` and quick replies.                                                             |
     | `save_workflow_answers {answers, visitorMessage}` | Today's `save_answers`. Starts SunScan on the server as soon as the address is accepted, so the roof measures while the questions continue. |
-    | `pause_workflow {reason}` | Moves the active workflow to paused. |
+    | `pause_workflow {reason}`                         | Moves the active workflow to paused.                                                                                                        |
 - **Session state.** `store.ts`: `Conversation.workflow?: WorkflowSession`.
   - Shape: `{active, paused[], completed[], discovery: {status, suggestedWorkflowId}, lastPath}`.
   - Store methods `getWorkflowState` / `saveWorkflowState` in the File, Firestore and memory stores, modelled on `saveWant`.
@@ -97,6 +125,7 @@ The rest of the contract:
 - **Bug fix.** `/v1/qualification/answer` (`server.ts:879`) uses the active workflow's flow instead of the global `validateAnswer`.
 
 ### 1c. Turn wiring, prompt, widget
+
 - **Page path.** `server.ts` chat route reads `body.page?.path`, normalises it (path only, at most 512 characters), saves it to `lastPath`, and passes `pagePath` to `runTurn`.
 - **Turn context.** `agent.ts`: `ctx` gains `workflows`, `session` and `pagePath`. `ctx.flow` is the active workflow's flow, or the solar workflow's when none is active.
 - **State block.** `prompt.ts`: a new server-authored `<workflow_state>` block in the message sandwich, with installer text escaped and never put in the system instructions. It lists:
@@ -116,6 +145,7 @@ The rest of the contract:
   - No em dashes.
 
   `fallbackLine()` changes to the neutral "one of our specialists".
+
 - **Backstops in `agent.ts` after the stream.**
   - If a workflow is active and no workflow tool emitted quick replies this turn, re-emit them for the current question. This keeps the buttons after an FAQ detour.
   - `noteForSilence` reads `ask` from the new tools.
@@ -123,16 +153,17 @@ The rest of the contract:
 - **Widget.** `packages/widget/src/chat.ts` `send()` adds `page: { path: location.pathname }` on every message, which covers single-page-app navigation. `#openSession` sends `path`. Both are optional, so older widgets and servers keep working.
 
 ## Phase 2: Builder UI
+
 - **API.** New `apps/api/src/routes/workflows.ts` under `/v1/portal/tenants/:id/workflows`:
 
-  | Method and path | Purpose |
-  |---|---|
-  | `GET` | List, with issues and the discovery toggle |
-  | `POST` `{from: template \| blank \| copy}` | Create |
-  | `GET`, `PUT`, `DELETE` `/:wid` | Read, save, delete. PUT has a per-workflow version check (409). Built-ins can be disabled but not deleted. |
-  | `POST /:wid/reset` | Restore from its template |
-  | `POST /:wid/preview` | Takes `{answers, path}` |
-  | `POST /:wid/suggest` | Effect suggestions |
+  | Method and path                            | Purpose                                                                                                    |
+  | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+  | `GET`                                      | List, with issues and the discovery toggle                                                                 |
+  | `POST` `{from: template \| blank \| copy}` | Create                                                                                                     |
+  | `GET`, `PUT`, `DELETE` `/:wid`             | Read, save, delete. PUT has a per-workflow version check (409). Built-ins can be disabled but not deleted. |
+  | `POST /:wid/reset`                         | Restore from its template                                                                                  |
+  | `POST /:wid/preview`                       | Takes `{answers, path}`                                                                                    |
+  | `POST /:wid/suggest`                       | Effect suggestions                                                                                         |
 
   It reuses `view()`, `presetViews` (now per bank), `priceItemViews`, `describeEffect` and `suggestEffects` from `routes/conversation.ts`. `flow/check.ts` gains `checkWorkflow`, which checks:
   - an engine outcome has that engine's required presets
@@ -140,6 +171,7 @@ The rest of the contract:
   - warns when two enabled workflows overlap on interest and pages
 
   The `/conversation` routes stay as a shim over the solar workflow, then are removed.
+
 - **Marketing.**
   - `app/dashboard/studio/page.tsx`: the tab becomes "Your workflows", with `?tab=conversation` kept as an alias.
   - New `components/dashboard/workflows/`:
@@ -153,6 +185,7 @@ The rest of the contract:
   - A discovery on/off toggle on the list page.
 
 ## Phase 3: Heat pump quote + PDF
+
 - **Engine.** New pure package `packages/heat-pump-engine`, with the same layout as `packages/quote-engine`:
   - Modules: `heat-loss`, `demand`, `sizing`, `running-cost`, `bus`, `nation`, `options`.
   - Dated data tables: fabric W/m² by age band, design temperatures, fuel prices, BUS rules.
@@ -172,6 +205,7 @@ The rest of the contract:
 - **Widget and template.** A heat pump quote card in the widget: kW, price before and after the grant, running cost vs today. Enable the heat pump template.
 
 ## Phase 4: Battery quote (for homes with solar)
+
 - **Engine.** `packages/quote-engine/src/battery/` (new). Reuse the existing battery tiers, retrofit prices and `batteryCapacityKwh` logic from `recommend/` and `pricing-source.ts`.
   - Inputs: existing PV size (kWp, or panel count, or unsure), annual usage, tariff (including time-of-use), EV, home in the daytime, goal (bill savings / backup / tariff shifting), inverter type (hybrid or not, for the AC-coupled extra).
   - Outputs: up to three capacities, priced with the installer's retrofit prices, plus yearly savings from extra self-consumption and tariff shifting.
@@ -180,6 +214,7 @@ The rest of the contract:
 ---
 
 ## Tests (Vitest; `npm test`, single file `npx vitest run <path>`)
+
 - **Contracts:** `workflow-contract.test.ts`: schema rules, `pathMatches` (globs, exclude, null path), worst-case size.
 - **Migration:** `workflow-migrate.test.ts`. A stored flow maps to the solar workflow in the same order. For about 30 answer maps, legacy `next` equals migrated `next`. A broken set falls back to the templates.
 - **Resolver:** `flow-resolve` (extend). `resolveFlow(null)` is unchanged; followers come after the address; optional questions are left out of `required`.

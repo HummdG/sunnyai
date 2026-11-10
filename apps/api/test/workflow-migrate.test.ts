@@ -18,7 +18,11 @@ const evQuestion: FlowStep = {
   mode: 'quote',
   answer: 'choice',
   choices: [
-    { value: 'yes', label: 'Yes please', effects: [{ kind: 'add', itemKey: 'EV-PROJECTEV-7KW-UNTETHERED' }] },
+    {
+      value: 'yes',
+      label: 'Yes please',
+      effects: [{ kind: 'add', itemKey: 'EV-PROJECTEV-7KW-UNTETHERED' }],
+    },
     { value: 'no', label: 'Not for now', effects: [] },
   ],
 };
@@ -146,10 +150,23 @@ describe('solarTemplate', () => {
     expect(w.updatedAt).toBe(NOW);
     expect(w.outcome).toEqual({ kind: 'quote', engine: 'solar' });
     expect(w.steps.map((s) => s.id)).toEqual([
-      'motivation', 'property_type', 'ownership', 'address', 'roof_size', 'roof_shading',
-      'usage_source', 'lifestyle', 'tariff_type', 'existing_system', 'budget_band', 'finance_interest',
+      'motivation',
+      'property_type',
+      'ownership',
+      'address',
+      'roof_size',
+      'roof_shading',
+      'usage_source',
+      'lifestyle',
+      'tariff_type',
+      'existing_system',
+      'budget_band',
+      'finance_interest',
     ]);
-    expect(w.steps.filter((s) => s.optional).map((s) => s.id)).toEqual(['budget_band', 'finance_interest']);
+    expect(w.steps.filter((s) => s.optional).map((s) => s.id)).toEqual([
+      'budget_band',
+      'finance_interest',
+    ]);
     expect(defaultWorkflowSet(NOW).discovery.enabled).toBe(true);
   });
 

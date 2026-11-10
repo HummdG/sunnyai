@@ -1063,7 +1063,10 @@ describe('question banks', () => {
   });
 
   it('lets an optional question be skipped and leaves it out of required', () => {
-    const r = resolveFlow(flowOf([step('budget_band', { optional: true }), step('ownership')]), SOLAR);
+    const r = resolveFlow(
+      flowOf([step('budget_band', { optional: true }), step('ownership')]),
+      SOLAR,
+    );
     expect(r.question('budget_band')!.optional).toBe(true);
     expect(r.question('ownership')!.optional).toBe(false);
     expect(r.outstanding({})).toContain('budget_band');
