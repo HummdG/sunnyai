@@ -43,7 +43,16 @@ describe('contact details in the instructions', () => {
   it('offers a callback when the installer has set no contact details', () => {
     const rules = contactRules(tenant()).join('\n');
     expect(rules).toContain('has not set a phone number or email');
+    expect(rules).toContain('Never tell a visitor to call or email the team');
     expect(rules).not.toContain('contact details:');
+  });
+
+  it('never promises contact that has not been arranged', () => {
+    for (const t of [tenant(), tenant({ phone: '01444708252' })]) {
+      expect(contactRules(t).join('\n')).toContain(
+        'Never say someone will be in touch, or that you have passed their request on, unless request_callback or create_lead has recorded',
+      );
+    }
   });
 
   it('never promises that a manufacturer will get in touch', () => {

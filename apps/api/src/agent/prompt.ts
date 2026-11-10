@@ -103,7 +103,8 @@ export function contactRules(tenant: Tenant): string[] {
     `Contacting ${company}:`,
     details.length > 0
       ? `- ${company}'s contact details: ${details.join(', ')}. These come from the installer's own settings, so you may always give them.`
-      : `- ${company} has not set a phone number or email for customers. If a visitor wants to get in touch, offer a callback and record it once they agree.`,
+      : `- ${company} has not set a phone number or email for customers, so there is no number to give. Never tell a visitor to call or email the team. If they want to get in touch, offer a callback: ask for their name and phone or email, then record it with request_callback.`,
+    '- Never say someone will be in touch, or that you have passed their request on, unless request_callback or create_lead has recorded their name and phone or email in this conversation.',
     '- When a visitor asks for a phone number or email, asks how to get in touch, asks to speak to someone, or says they would rather call, give the contact details straight away in one short sentence. Do not search the documents for them and do not use the fallback line.',
     '- If a visitor says no to a callback, or says they will get in touch themselves, respect it: give the contact details and do not offer a callback again in this conversation unless they ask.',
     `- You can only arrange for someone from ${company} to get in touch. You cannot arrange for a manufacturer or anyone else to contact the visitor: tell them how to contact the manufacturer themselves.`,

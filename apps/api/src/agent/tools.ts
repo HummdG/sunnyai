@@ -957,7 +957,7 @@ const DEFINITIONS: ToolDefinition[] = [
   {
     name: 'handoff_to_human',
     description:
-      'Hand the conversation to a person at the installer. Use when asked something you cannot answer, or when the visitor asks for a human.',
+      "Flag the conversation in the installer's inbox for a person to read. It does not contact the visitor: to have someone get in touch, ask for their name and phone or email and use request_callback.",
     parameters: {
       type: 'object',
       properties: { reason: { type: 'string' } },
@@ -967,10 +967,14 @@ const DEFINITIONS: ToolDefinition[] = [
     async run(args, ctx) {
       const reason = str(args, 'reason') ?? 'visitor requested';
       ctx.events.push({ kind: 'handoff_requested', detail: { reason } });
+      // A flag in the inbox reaches nobody by itself: the installer has no way
+      // to call a visitor whose details were never taken, so the model must
+      // not tell them someone will be in touch on the strength of this alone.
       return {
         ok: true,
-        data: { queued: true, reason },
-        summary: 'Flagged this conversation for a person to pick up.',
+        data: { flagged: true, contactsVisitor: false, reason },
+        summary:
+          'Flagged in the inbox only. Nobody will contact the visitor from this: do not say anyone will be in touch. Give the contact details, or offer a callback and take their name and phone or email.',
       };
     },
   },
