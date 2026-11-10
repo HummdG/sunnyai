@@ -4,7 +4,12 @@
  * for a home that already has solar.
  */
 
-import type { BatteryEstimate, BatteryTariff } from '@sunny/quote-engine';
+import {
+  ANNUAL_YIELD_KWH_PER_KWP,
+  TIME_OF_USE_RATES,
+  type BatteryEstimate,
+  type BatteryTariff,
+} from '@sunny/quote-engine';
 
 import type { QuotationSnapshot } from '../../proposal/snapshot.js';
 import type { QuoteLineItem, QuoteRecord } from '../quote.js';
@@ -59,6 +64,27 @@ export interface BatteryQuoteRecord {
   warranties?: Record<string, number>;
   /** The workflow this quote was made in, when it was. */
   workflowId?: string;
+  /**
+   * The date of the dated battery data the estimate used (`YYYY-MM-DD`): the
+   * solar yield and, on a time-of-use tariff, its rates. Set on every new
+   * quote; a row made before it existed has none (`batteryDataEffectiveFrom`).
+   */
+  dataEffectiveFrom?: string;
+}
+
+/** Whether the tariff is priced with a time-of-use pair (cheap and peak rates). */
+export function isTimeOfUse(tariff: BatteryTariff): tariff is 'economy7' | 'smart_tou' {
+  return tariff === 'economy7' || tariff === 'smart_tou';
+}
+
+/**
+ * The latest `effectiveFrom` of the battery data an estimate on this tariff
+ * uses: the solar yield and, on a time-of-use tariff, its rates.
+ */
+export function batteryDataEffectiveFrom(tariff: BatteryTariff): string {
+  const dates = [ANNUAL_YIELD_KWH_PER_KWP.effectiveFrom];
+  if (isTimeOfUse(tariff)) dates.push(TIME_OF_USE_RATES[tariff].effectiveFrom);
+  return dates.sort().at(-1)!;
 }
 
 /**

@@ -436,6 +436,8 @@ describe('the battery quote', () => {
     expect(quote?.workflowId).toBe('wf_battery');
     expect(quote?.postcode).toBe('SW1A 2AA');
     expect(quote?.tariff).toBe('smart_tou');
+    // The data date is stored with the quote, so its PDF never dates it by today's data.
+    expect(quote?.dataEffectiveFrom).toBe('2026-10-01');
     expect(quote!.estimate.pvKwp).toBe(4);
     expect('sizing' in quote!.estimate).toBe(false);
     expect(ctx.session.active).toBeNull();

@@ -29,7 +29,12 @@ import type { QuoteLineItem } from '../quote.js';
 import { quotationNow, warrantiesNow, type JourneyDeps } from '../service.js';
 
 import { batteryPricingFrom, type BatteryPricing, type RetrofitBattery } from './pricing.js';
-import { batteryPaybackYears, type BatteryOptionView, type BatteryQuoteRecord } from './record.js';
+import {
+  batteryDataEffectiveFrom,
+  batteryPaybackYears,
+  type BatteryOptionView,
+  type BatteryQuoteRecord,
+} from './record.js';
 import { batteryNotSuitable, batteryStatus } from './status.js';
 
 const TARIFFS: readonly BatteryTariff[] = [
@@ -346,6 +351,7 @@ export async function createBatteryQuote(
     disclaimer: BATTERY_DISCLAIMER,
     leadId: null,
     workflowId: workflow.id,
+    dataEffectiveFrom: batteryDataEffectiveFrom(read.input.tariff),
   };
   const quotation = await quotationNow(deps, tenantId);
   if (quotation) quote.quotation = quotation;

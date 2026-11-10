@@ -45,6 +45,30 @@ export function years(n: number): string {
   return `${num(n, 1)} ${n === 1 ? 'year' : 'years'}`;
 }
 
+/** Payback wording for an option the installer has still to price. */
+export const PAYBACK_PENDING = 'Once your installer has priced it';
+
+/**
+ * Whether the option has a whole price: the one condition the quotation's
+ * total, the options table and the payback all follow. (A quote with
+ * `priced` false has no option with a price, so this never disagrees with it.)
+ */
+export function optionPriced(
+  quote: Pick<BatteryQuoteRecord, 'priced'>,
+  o: Pick<BatteryOptionView, 'priceGbp' | 'installerPriced'>,
+): boolean {
+  return quote.priced && !o.installerPriced && o.priceGbp !== null;
+}
+
+/** The payback as printed: years, `Not estimated`, or `Once your installer has priced it`. */
+export function paybackWords(
+  quote: Pick<BatteryQuoteRecord, 'priced'>,
+  o: Pick<BatteryOptionView, 'priceGbp' | 'installerPriced' | 'paybackYears'>,
+): string {
+  if (!optionPriced(quote, o)) return PAYBACK_PENDING;
+  return o.paybackYears !== null ? years(o.paybackYears) : 'Not estimated';
+}
+
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** The letter: greeting, opening, the option in a sentence, the estimate line, closing. */

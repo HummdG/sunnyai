@@ -20,7 +20,7 @@ import {
 import type { Theme } from '../layout.js';
 import type { QuotationContent, QuotationMoney, QuotationRow } from '../pages/quotation.js';
 
-import { kwh, type BatteryProposalDoc } from './doc.js';
+import { kwh, optionPriced, type BatteryProposalDoc } from './doc.js';
 import { drawBatteryOptions } from './system.js';
 
 /** The estimate notice: as the solar one, without the roof. */
@@ -34,8 +34,8 @@ export const BATTERY_NOTICE =
  */
 export function batteryMoney(doc: BatteryProposalDoc): QuotationMoney | null {
   const o = doc.option;
-  if (!doc.quote.priced || o.installerPriced || o.priceGbp === null) return null;
-  const total = Math.round(o.priceGbp);
+  if (!optionPriced(doc.quote, o)) return null;
+  const total = Math.round(o.priceGbp!);
   // Lower case, as the solar VAT note: it also follows the deposit basis mid-sentence.
   const vatNote = o.priceLabel.charAt(0).toLowerCase() + o.priceLabel.slice(1);
   return {

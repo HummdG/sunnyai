@@ -115,12 +115,30 @@ describe('the battery estimate PDF', () => {
     expect(savings).not.toContain('Cheap rate');
     expect(savings).toContain('Total saving');
     expect(savings).toContain('20 years');
-    expect(savings).toContain('24.5p per kWh');
-    expect(savings).toContain('15p per kWh');
+    expect(savings).toContain('Electricity price, regional average 24.5p per kWh');
+    expect(savings).toContain('Export payment, regional average 15p per kWh');
     expect(savings).toContain(
       'On a single-rate tariff the battery saves by storing your own solar.',
     );
-    expect(savings).toContain('1 October 2026');
+    // Only the solar yield is dated: never "rates" as a whole, never time-of-use.
+    expect(savings).toContain('Solar yield as at 1 October 2026.');
+    expect(savings).not.toContain('Rates as at');
+    // The date sits right under the rates it dates, before the assumptions.
+    expect(savings.indexOf('Solar yield as at')).toBeLessThan(savings.indexOf('What we assumed'));
+    expect(savings.indexOf('Solar yield as at')).toBeGreaterThan(
+      savings.indexOf('regional average 15p'),
+    );
+    expect((await textOf(batQuote())).join(' ')).not.toContain('time-of-use');
+  });
+
+  it('dates the data by the date stored on the quote, not the render date', async () => {
+    const stored = (await textOf(batQuote({ dataEffectiveFrom: '2026-04-01' }))).join(' ');
+    expect(stored).toContain('Solar yield as at 1 April 2026.');
+    expect(stored).not.toContain('1 October 2026.');
+    // A row from before the date was stored: the current data date.
+    const { dataEffectiveFrom: _d, ...old } = batQuote();
+    void _d;
+    expect((await textOf(old)).join(' ')).toContain('Solar yield as at 1 October 2026.');
   });
 
   it('adds the cheap-rate row and the rates on a time-of-use tariff', async () => {
@@ -133,7 +151,7 @@ describe('the battery estimate PDF', () => {
     expect(savings).toContain('8p per kWh');
     expect(savings).toContain('28p per kWh');
     expect(savings).toContain('Smart time-of-use');
-    expect(savings).toContain('1 October 2026');
+    expect(savings).toContain('Solar yield and time-of-use rates as at 1 October 2026.');
   });
 
   it('carries the disclaimer above the quotation total, with no grant row', async () => {
@@ -156,6 +174,43 @@ describe('the battery estimate PDF', () => {
     // The line so far, once; never as a total.
     expect(quotation.split('£3,200').length - 1).toBe(1);
     expect(pages[0]).not.toContain('£3,200');
+  });
+
+  it('words an unpriced payback the same in the table and on Savings', async () => {
+    const q = batQuote({
+      priced: false,
+      options: batQuote().options.map((o) => ({
+        ...o,
+        priceGbp: null,
+        paybackYears: null,
+        installerPriced: true,
+      })),
+    });
+    const pages = await textOf(q);
+    const system = pages.find((p) => p.includes('Options compared'))!;
+    const savings = pages.find((p) => p.includes('Storing your own solar'))!;
+    expect(system.split('Once your installer has priced it').length - 1).toBe(2);
+    expect(system).not.toContain('Not estimated');
+    expect(savings).toContain('Payback Once your installer has priced it');
+  });
+
+  it('compares at most four options', async () => {
+    const sizes = [2.5, 5, 9.5, 13.5, 18];
+    const q = batQuote({
+      options: sizes.map((kwh, i) =>
+        batOption({
+          id: `o${i}`,
+          label: `Size ${i + 1}`,
+          isRecommended: i === 1,
+          capacityKwh: kwh,
+          batteryName: `Acme ${kwh} kWh`,
+        }),
+      ),
+      recommendedId: 'o1',
+    });
+    const system = (await textOf(q)).find((p) => p.includes('Options compared'))!;
+    expect(system).toContain('Size 4');
+    expect(system).not.toContain('Size 5');
   });
 
   it('follows the switches: savings or performance on shows Savings', async () => {

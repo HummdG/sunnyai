@@ -19,7 +19,7 @@ import {
   subHead,
 } from '../pages/parts.js';
 
-import { kwh, years, type BatteryProposalDoc } from './doc.js';
+import { kwh, optionPriced, paybackWords, type BatteryProposalDoc } from './doc.js';
 
 type Pdf = PDFKit.PDFDocument;
 
@@ -41,8 +41,12 @@ export function batteryRows(doc: BatteryProposalDoc): [string, string][] {
   ];
 }
 
+/** The most options the table shows, so it always fits on one page. */
+export const MAX_COMPARED = 4;
+
 /**
- * Every option, compared: size, price, saving a year and payback. Draws from
+ * Every option (the first four), compared: size, price, saving a year and
+ * payback. A price shows only when the quotation would print it. Draws from
  * `y` (the heading 24pt below it) in `x`..`x + w`; `ensure(h, y)` returns `y`
  * when `h` more points fit, else the top of a continuation page. Returns the
  * y below the table.
@@ -56,7 +60,7 @@ export function drawBatteryOptions(
 ): number {
   const { x, w } = box;
   let y = box.y;
-  const options = doc.quote.options;
+  const options = doc.quote.options.slice(0, MAX_COMPARED);
   if (options.length < 2) return y;
   const cols: { head: string; frac: number; align: 'left' | 'right' }[] = [
     { head: 'Option', frac: 1.8, align: 'left' },
@@ -74,13 +78,13 @@ export function drawBatteryOptions(
   const rows = options.map((o) => {
     // The labels already name the recommended option; only the visitor's choice is marked.
     const mark = o.id === doc.option.id && doc.chosen ? ' (your choice)' : '';
-    const priced = o.priceGbp !== null && !o.installerPriced;
+    const priced = optionPriced(doc.quote, o);
     return [
       `${o.label}${mark}`,
       kwh(o.capacityKwh),
       priced ? gbp(o.priceGbp!) : PRICED_BY_INSTALLER,
       gbp(o.annualSavingsGbp),
-      priced && o.paybackYears !== null ? years(o.paybackYears) : 'Not estimated',
+      paybackWords(doc.quote, o),
     ];
   });
   const rowH = (r: string[]) =>
@@ -123,7 +127,7 @@ export function drawBatterySystem(pdf: Pdf, doc: BatteryProposalDoc, theme: Them
   let y = pageTitle(pdf, theme, `Your battery · ${doc.reference}`, 'Your ', 'battery');
   y = subHead(pdf, theme, 'Your home and the battery', x, y + 16, w);
   y = keyValues(pdf, theme, batteryRows(doc), x, y, w, 180);
-  // One page: at most four options, so the table never needs a continuation page.
+  // One page: at most MAX_COMPARED options, so the table never needs a continuation page.
   y = drawBatteryOptions(pdf, doc, theme, { x, w, y }, (_h, at) => at);
   const about = subHead(pdf, theme, 'About this estimate', x, y + 24, w);
   const text = { font: 'sans-400', size: 8.6, color: theme.ink, width: w, lineGap: 2 };

@@ -370,6 +370,7 @@ export function batQuote(
     disclaimer: BATTERY_DISCLAIMER,
     leadId: null,
     quotation: snap,
+    dataEffectiveFrom: '2026-10-01',
     ...over,
   };
 }
