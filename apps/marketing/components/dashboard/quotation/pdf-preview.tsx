@@ -124,7 +124,7 @@ export function PdfPreview({
 
   const pages = shown ? pagesOf(shown.input, shown.pageCount) : [];
   const current = pages.find((p) => p.name === at) ?? pages[0];
-  const src = shown && current ? `${shown.url}#page=${current.page}` : null;
+  const src = shown && current ? `${shown.url}#page=${current.page}&view=FitH` : null;
 
   return (
     <section className="quote-preview" aria-label="Preview">

@@ -131,7 +131,10 @@ test('the settings redraw the preview, save, and are still there after a reload'
   await expect(chip(page, 'Terms')).toBeVisible();
   await chip(page, 'Quotation').click();
   await expect(chip(page, 'Quotation')).toHaveAttribute('aria-pressed', 'true');
-  await expect(preview(page).locator('iframe')).toHaveAttribute('src', /^blob:.*#page=\d+$/);
+  await expect(preview(page).locator('iframe')).toHaveAttribute(
+    'src',
+    /^blob:.*#page=\d+&view=FitH$/,
+  );
 
   await tab(page).getByRole('button', { name: 'Save quotation' }).click();
   await expect(tab(page).getByRole('status')).toContainText('Saved');
@@ -228,7 +231,7 @@ test('a viewer sees the settings and the preview, read-only', async ({ page }) =
   // The preview still works for them.
   await expect(chip(page, 'Terms')).toBeVisible();
   await chip(page, 'Cover').click();
-  await expect(preview(page).locator('iframe')).toHaveAttribute('src', /#page=1$/);
+  await expect(preview(page).locator('iframe')).toHaveAttribute('src', /#page=1&view=FitH$/);
 });
 
 test('the sample PDF downloads with the company in its name', async ({ page }) => {

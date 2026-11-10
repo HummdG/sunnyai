@@ -1919,6 +1919,11 @@
 
 /* ── Studio: "Your quotation" (the settings, and the real PDF beside them) ── */
 
+/* The quotation tab shows a real A4 page beside the settings: give it the
+   width of the screen rather than the usual reading measure. */
+.dash .content:has(.quote-tab) {
+  max-width: 1720px;
+}
 .dash .quote-tab {
   display: grid;
   gap: 12px;
@@ -1929,8 +1934,8 @@
 }
 .dash .quote-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 20px;
   align-items: start;
 }
 @media (max-width: 1099px) {
@@ -2244,8 +2249,10 @@
   background: #fff;
   border-radius: 6px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-  aspect-ratio: 1 / 1.414;
-  max-height: calc(100vh - 120px);
+  /* Full column width; the viewer fits the page to that width (FitH). */
+  width: 100%;
+  height: calc(100vh - 120px);
+  min-height: 520px;
   overflow: hidden;
   display: grid;
 }
