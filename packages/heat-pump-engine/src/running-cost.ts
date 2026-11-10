@@ -1,6 +1,6 @@
-import { ELECTRICITY_PRICE, FUEL_PRICES } from './data/fuel-prices';
-import { BOILER_EFFICIENCY } from './data/scop';
-import type { Fuel, HeatPumpEstimate } from './types';
+import { ELECTRICITY_PRICE, FUEL_PRICES } from './data/fuel-prices.js';
+import { BOILER_EFFICIENCY } from './data/scop.js';
+import type { Fuel, HeatPumpEstimate } from './types.js';
 
 export function boilerEfficiency(fuel: Fuel, scop: number): number {
   switch (fuel) {

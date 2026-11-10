@@ -1,4 +1,4 @@
-import { DEFAULT_DESIGN_TEMP_C, DESIGN_TEMP_BY_AREA } from './data/design-temps';
+import { DEFAULT_DESIGN_TEMP_C, DESIGN_TEMP_BY_AREA } from './data/design-temps.js';
 import {
   BASE_W_PER_M2,
   DEFAULT_FLOOR_AREA_M2,
@@ -8,9 +8,9 @@ import {
   LOFT_FACTOR,
   REFERENCE_DESIGN_TEMP_C,
   WALL_FACTOR,
-} from './data/fabric';
-import { postcodeArea } from './nation';
-import type { HeatPumpInput } from './types';
+} from './data/fabric.js';
+import { postcodeArea } from './nation.js';
+import type { HeatPumpInput } from './types.js';
 
 export function designTempC(postcode: string): number {
   const area = postcodeArea(postcode);

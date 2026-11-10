@@ -16,6 +16,7 @@
     "@google-cloud/firestore": "^9.3.1",
     "@google/genai": "^2.28.0",
     "@sunny/contracts": "*",
+    "@sunny/heat-pump-engine": "*",
     "@sunny/knowledge": "*",
     "@sunny/quote-engine": "*",
     "@sunny/solar-rules": "*",

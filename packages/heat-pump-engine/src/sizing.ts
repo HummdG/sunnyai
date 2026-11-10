@@ -1,5 +1,5 @@
-import { OLD_AGE_BANDS, SCOP_BY_EMITTER, SCOP_OLD_HOME_PENALTY } from './data/scop';
-import type { AgeBand, Emitters } from './types';
+import { OLD_AGE_BANDS, SCOP_BY_EMITTER, SCOP_OLD_HOME_PENALTY } from './data/scop.js';
+import type { AgeBand, Emitters } from './types.js';
 
 export const STANDARD_SIZES_KW: readonly number[] = [5, 6, 7, 8.5, 10, 12, 14, 16];
 export const SIZE_CAP_WARNING =

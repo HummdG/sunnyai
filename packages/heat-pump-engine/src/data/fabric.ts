@@ -1,5 +1,5 @@
 // Values to verify against current Ofgem and price-cap figures before launch.
-import type { AgeBand, Glazing, Loft, Walls } from '../types';
+import type { AgeBand, Glazing, Loft, Walls } from '../types.js';
 
 export const FABRIC_EFFECTIVE_FROM = '2026-10-01';
 export const FABRIC_SOURCE = 'Simplified UK dwelling heat loss rules of thumb (to verify)';

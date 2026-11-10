@@ -1,6 +1,6 @@
-import { BUS_AMOUNT_GBP, BUS_ELIGIBLE_FUELS, BUS_OWNERSHIP } from './data/bus-rules';
-import { nationOf } from './nation';
-import type { BusVerdict, HeatPumpInput } from './types';
+import { BUS_AMOUNT_GBP, BUS_ELIGIBLE_FUELS, BUS_OWNERSHIP } from './data/bus-rules.js';
+import { nationOf } from './nation.js';
+import type { BusVerdict, HeatPumpInput } from './types.js';
 
 export function busVerdict(input: HeatPumpInput): BusVerdict {
   const nation = nationOf(input.postcode);

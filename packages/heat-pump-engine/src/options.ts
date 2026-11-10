@@ -1,10 +1,10 @@
-import { busVerdict } from './bus';
-import { annualHotWaterKwh, annualSpaceHeatKwh } from './demand';
-import { peakHeatLossKw, resolveFloorArea } from './heat-loss';
-import { nationOf } from './nation';
-import { runningCost } from './running-cost';
-import { SIZE_CAP_WARNING, pickSize, scopOf } from './sizing';
-import type { HeatPumpEstimate, HeatPumpInput } from './types';
+import { busVerdict } from './bus.js';
+import { annualHotWaterKwh, annualSpaceHeatKwh } from './demand.js';
+import { peakHeatLossKw, resolveFloorArea } from './heat-loss.js';
+import { nationOf } from './nation.js';
+import { runningCost } from './running-cost.js';
+import { SIZE_CAP_WARNING, pickSize, scopOf } from './sizing.js';
+import type { HeatPumpEstimate, HeatPumpInput } from './types.js';
 
 export function estimate(input: HeatPumpInput): HeatPumpEstimate {
   const warnings: string[] = [];

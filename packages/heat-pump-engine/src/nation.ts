@@ -1,4 +1,4 @@
-import type { Nation } from './types';
+import type { Nation } from './types.js';
 
 const SCOTLAND = new Set([
   'AB',

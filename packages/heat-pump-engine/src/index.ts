@@ -1,8 +1,8 @@
-export * from './types';
-export { nationOf } from './nation';
-export { estimate } from './options';
-export { STANDARD_SIZES_KW } from './sizing';
-export { HEAT_PUMP_VAT, HEAT_PUMP_VAT_PERCENT } from './data/fuel-prices';
+export * from './types.js';
+export { nationOf } from './nation.js';
+export { estimate } from './options.js';
+export { STANDARD_SIZES_KW } from './sizing.js';
+export { HEAT_PUMP_VAT, HEAT_PUMP_VAT_PERCENT } from './data/fuel-prices.js';
 
 export const HEAT_PUMP_DISCLAIMER =
   'This is an indicative estimate. Your installer will confirm the heat loss with a room-by-room survey (MCS MIS 3005) before a final price.';

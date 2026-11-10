@@ -1,6 +1,6 @@
-import { DEGREE_HOURS, HOT_WATER_KWH_PER_PERSON, INDOOR_TEMP_C } from './data/fabric';
-import { designTempC } from './heat-loss';
-import type { HeatPumpInput } from './types';
+import { DEGREE_HOURS, HOT_WATER_KWH_PER_PERSON, INDOOR_TEMP_C } from './data/fabric.js';
+import { designTempC } from './heat-loss.js';
+import type { HeatPumpInput } from './types.js';
 
 export function annualSpaceHeatKwh(peakKw: number, postcode: string): number {
   return (peakKw * DEGREE_HOURS) / (INDOOR_TEMP_C - designTempC(postcode));

@@ -1,5 +1,5 @@
 // Values to verify against current Ofgem and price-cap figures before launch.
-import type { AgeBand, Emitters } from '../types';
+import type { AgeBand, Emitters } from '../types.js';
 
 export const SCOP_EFFECTIVE_FROM = '2026-10-01';
 export const SCOP_SOURCE = 'Typical seasonal performance by emitter type, simplified (to verify)';
