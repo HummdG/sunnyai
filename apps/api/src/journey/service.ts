@@ -15,7 +15,7 @@ import { getPublishedPriceList } from '../catalogue/price-list-service.js';
 import { effectsFor } from '../flow/effects.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { reasonsFor } from '../proposal/reasons.js';
-import { snapshotAssetIds, snapshotFor } from '../proposal/snapshot.js';
+import { snapshotAssetIds, snapshotFor, type QuotationSnapshot } from '../proposal/snapshot.js';
 import { warrantiesFor } from '../proposal/warranties.js';
 import type { Store } from '../store.js';
 import type { Tenant } from '../tenants.js';
@@ -30,7 +30,7 @@ import {
   type JourneyView,
 } from './journey.js';
 import { isSolarRecord, type HeatPumpQuoteRecord, type StoredQuote } from './heat-pump/record.js';
-import { buildQuote, type QuoteRecord } from './quote.js';
+import { buildQuote, type QuoteLineItem, type QuoteRecord } from './quote.js';
 import { mapRoof, type MappedRoof, type RoofAssessmentSummary } from './roof.js';
 
 /** What the roof assessment for a session looks like right now. */
@@ -203,24 +203,41 @@ export async function submitAnswers(
  * The catalogue's warranty years for the quote's items, fixed now. A catalogue
  * that cannot be read leaves the quote without warranties rather than failing it.
  */
-async function warrantiesNow(
+export async function warrantiesNow(
   store: Store,
   tenantId: string,
-  quote: QuoteRecord,
+  items: readonly QuoteLineItem[],
 ): Promise<Record<string, number>> {
   try {
     const [list, products] = await Promise.all([
       getPublishedPriceList(store, tenantId),
       store.listProducts(tenantId),
     ]);
-    return warrantiesFor(
-      quote.options.flatMap((o) => o.lineItems),
-      list,
-      products,
-    );
+    return warrantiesFor(items, list, products);
   } catch {
     return {};
   }
+}
+
+/**
+ * The installer's quotation settings in force now, for a new quote of any
+ * kind, with the brand assets its PDF prints pinned. Undefined without a tenant.
+ */
+export async function quotationNow(
+  deps: JourneyDeps,
+  tenantId: string,
+): Promise<QuotationSnapshot | undefined> {
+  const tenant = deps.tenant?.(tenantId);
+  if (!tenant) return undefined;
+  const quotation = snapshotFor(tenant, tenant.config.quotation, deps.log);
+  const ids = snapshotAssetIds(quotation);
+  if (ids.length > 0 && deps.pinBrandAssets) {
+    // A pin that fails must not cost the visitor their quote.
+    await deps.pinBrandAssets(tenantId, ids).catch((error: unknown) => {
+      deps.log?.warn({ err: error, tenantId }, 'could not pin brand assets for a new quote');
+    });
+  }
+  return quotation;
 }
 
 export type CreateQuoteResult =
@@ -255,23 +272,18 @@ export async function createQuote(
     ...custom,
   });
   // Fixed now: the settings in force at this moment, and why each item is here.
-  const tenant = deps.tenant?.(tenantId);
-  if (tenant) {
-    quote.quotation = snapshotFor(tenant, tenant.config.quotation, deps.log);
-    const ids = snapshotAssetIds(quote.quotation);
-    if (ids.length > 0 && deps.pinBrandAssets) {
-      // A pin that fails must not cost the visitor their quote.
-      await deps.pinBrandAssets(tenantId, ids).catch((error: unknown) => {
-        deps.log?.warn({ err: error, tenantId }, 'could not pin brand assets for a new quote');
-      });
-    }
-  }
+  const quotation = await quotationNow(deps, tenantId);
+  if (quotation) quote.quotation = quotation;
   const reasons: Record<string, string> = {};
   for (const option of quote.options) {
     Object.assign(reasons, reasonsFor(effects, flow, answers, option));
   }
   quote.reasons = reasons;
-  quote.warranties = await warrantiesNow(deps.store, tenantId, quote);
+  quote.warranties = await warrantiesNow(
+    deps.store,
+    tenantId,
+    quote.options.flatMap((o) => o.lineItems),
+  );
   await deps.store.saveQuote(quote);
   return { ok: true, quote };
 }

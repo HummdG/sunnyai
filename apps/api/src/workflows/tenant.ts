@@ -7,10 +7,18 @@
  * working. A stored set that no longer parses is never half-used: chat falls
  * back to the defaults and says so in the log, Studio is told it is
  * `unreadable`, and every write is refused rather than built on the defaults.
+ *
+ * A built-in workflow Sunny added after a set was made (the heat pump quote) is
+ * appended to any set read, switched off, so Studio can show it and the
+ * installer can turn it on. The set's version is left alone: nothing the
+ * installer saved has changed, and the appended workflow is written with the
+ * next save like any other.
  */
 
 import {
   ApiError,
+  BUILTIN_WORKFLOW_IDS,
+  WORKFLOW_LIMITS,
   conversationFlowSchema,
   workflowSetSchema,
   type ConversationFlow,
@@ -23,7 +31,7 @@ import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { flowForTenant } from '../flow/tenant.js';
 import type { Tenant } from '../tenants.js';
 
-import { defaultWorkflowSet } from './templates.js';
+import { defaultWorkflowSet, heatPumpTemplate } from './templates.js';
 
 export interface TenantWorkflows {
   set: WorkflowSet;
@@ -35,9 +43,30 @@ export interface TenantWorkflows {
 
 export const UNREADABLE_WORKFLOWS = 'Your saved workflows could not be read. Nothing was changed.';
 
+/**
+ * The set with any missing built-in workflow appended, disabled and stamped
+ * with the set's own time, so reading a set twice gives the same set. A set
+ * already at the workflow limit is left as it is.
+ */
+function withBuiltIns(set: WorkflowSet): WorkflowSet {
+  const missing = !set.workflows.some(
+    (w) => w.kind === 'heat_pump_quote' || w.id === BUILTIN_WORKFLOW_IDS.heat_pump_quote,
+  );
+  if (!missing || set.workflows.length >= WORKFLOW_LIMITS.workflows) return set;
+  return { ...set, workflows: [...set.workflows, heatPumpTemplate(set.updatedAt)] };
+}
+
 export function workflowsForTenant(
   tenant: Pick<Tenant, 'id' | 'config'> | null | undefined,
   warn: (message: string) => void = (message) => console.warn(message),
+): TenantWorkflows {
+  const read = readWorkflows(tenant, warn);
+  return { ...read, set: withBuiltIns(read.set) };
+}
+
+function readWorkflows(
+  tenant: Pick<Tenant, 'id' | 'config'> | null | undefined,
+  warn: (message: string) => void,
 ): TenantWorkflows {
   const set = defaultWorkflowSet(new Date().toISOString());
   const raw = tenant?.config.workflows;

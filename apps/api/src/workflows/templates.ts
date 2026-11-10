@@ -13,6 +13,7 @@ import {
 } from '@sunny/contracts';
 
 export const SOLAR_TEMPLATE_VERSION = 1;
+export const HEAT_PUMP_TEMPLATE_VERSION = 1;
 
 function preset(id: string, extra: { prompt?: string; optional?: boolean } = {}): FlowStep {
   return { kind: 'preset', id, ...extra };
@@ -49,6 +50,51 @@ export function solarTemplate(now: string): Workflow {
   };
 }
 
+/** Ships switched off: the installer turns it on once they price heat pumps. */
+export function heatPumpTemplate(now: string): Workflow {
+  return {
+    id: BUILTIN_WORKFLOW_IDS.heat_pump_quote,
+    kind: 'heat_pump_quote',
+    name: 'Heat pump quote',
+    enabled: false,
+    description:
+      "Works out an indicative heat pump estimate for the visitor's home, with the Boiler Upgrade Scheme grant.",
+    triggers: [
+      'heat pump quote',
+      'air source heat pump',
+      'how much is a heat pump',
+      'boiler replacement',
+    ],
+    interests: ['heating'],
+    pages: { include: [], exclude: [] },
+    steps: [
+      preset('motivation', {
+        prompt: 'First, what would you most like from a new heating system?',
+      }),
+      preset('property_type'),
+      preset('ownership'),
+      preset('address'),
+      preset('hp_age'),
+      preset('hp_floor_area', { optional: true }),
+      preset('hp_bedrooms'),
+      preset('hp_walls'),
+      preset('hp_loft'),
+      preset('hp_glazing'),
+      preset('hp_current_heating'),
+      preset('hp_emitters'),
+      preset('hp_hot_water'),
+      preset('hp_occupants', { optional: true }),
+      preset('hp_annual_spend', { optional: true }),
+      preset('hp_epc', { optional: true }),
+      preset('hp_outdoor_space'),
+    ],
+    outcome: { kind: 'quote', engine: 'heat_pump' },
+    template: { id: 'heat_pump_quote', version: HEAT_PUMP_TEMPLATE_VERSION },
+    version: 1,
+    updatedAt: now,
+  };
+}
+
 export function defaultWorkflowSet(now: string): WorkflowSet {
   return {
     version: 1,
@@ -60,7 +106,9 @@ export function defaultWorkflowSet(now: string): WorkflowSet {
 
 /** The template a built-in kind starts from, or null when Sunny has none yet. */
 export function templateFor(kind: Workflow['kind'], now: string): Workflow | null {
-  return kind === 'solar_quote' ? solarTemplate(now) : null;
+  if (kind === 'solar_quote') return solarTemplate(now);
+  if (kind === 'heat_pump_quote') return heatPumpTemplate(now);
+  return null;
 }
 
 /** A random custom step id, matching the contract's `c_` pattern. */

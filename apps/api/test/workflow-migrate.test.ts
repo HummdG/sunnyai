@@ -79,8 +79,8 @@ describe('workflowsForTenant', () => {
     const out = workflowsForTenant(null);
     expect(out.migrated).toBe(true);
     expect(out.set.discovery.enabled).toBe(true);
-    expect(out.set.workflows).toHaveLength(1);
-    expect(out.set.workflows[0]!.id).toBe('wf_solar');
+    expect(out.set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump']);
+    expect(out.set.workflows[1]!.enabled).toBe(false);
     const bare = workflowsForTenant(tenantWith({}));
     expect(bare.migrated).toBe(true);
     expect(bare.set.workflows[0]!.steps.map((s) => s.id)).toEqual(
@@ -98,11 +98,14 @@ describe('workflowsForTenant', () => {
     expect(out.set.workflows[0]!.id).toBe('wf_solar');
   });
 
-  it('returns a valid stored set as it is', () => {
+  it('returns a valid stored set as it is, with the missing heat pump workflow appended', () => {
     const stored = { ...defaultWorkflowSet(NOW), workflows: [leadWorkflow] };
     const out = workflowsForTenant(tenantWith({ workflows: stored }));
     expect(out.migrated).toBe(false);
-    expect(out.set.workflows.map((w) => w.id)).toEqual(['wf_callback']);
+    expect(out.set.version).toBe(stored.version);
+    expect(out.set.workflows.map((w) => w.id)).toEqual(['wf_callback', 'wf_heat_pump']);
+    expect(out.set.workflows[0]).toEqual(leadWorkflow);
+    expect(out.set.workflows[1]!.enabled).toBe(false);
   });
 
   it('migrates the stored conversation into the solar workflow', () => {

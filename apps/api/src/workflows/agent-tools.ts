@@ -73,6 +73,24 @@ function isSolarQuote(r: Running): boolean {
   );
 }
 
+/** A workflow that ends in a quote Sunny builds in chat (solar or heat pump). */
+function isQuote(r: Running): boolean {
+  return (
+    r.kind === 'workflow' &&
+    r.workflow.outcome.kind === 'quote' &&
+    (r.workflow.outcome.engine === 'solar' || r.workflow.outcome.engine === 'heat_pump')
+  );
+}
+
+/** A heat pump workflow: its address is not a roof to measure. */
+function isHeatPump(r: Running): boolean {
+  return (
+    r.kind === 'workflow' &&
+    r.workflow.outcome.kind === 'quote' &&
+    r.workflow.outcome.engine === 'heat_pump'
+  );
+}
+
 /** Discovery can be offered once, when the installer has it on. */
 function discoveryOpen(ctx: ToolContext): boolean {
   return ctx.workflows.discovery.enabled && ctx.session.discovery.status === 'none';
@@ -161,7 +179,7 @@ async function stepOf(ctx: ToolContext, deps: JourneyDeps, r: Running): Promise<
 /** Offer the step's answers as buttons and describe it for the model. */
 function present(ctx: ToolContext, r: Running, step: Step): Record<string, unknown> {
   const { view } = step;
-  const readyForQuote = isSolarQuote(r) && view.ready;
+  const readyForQuote = isQuote(r) && view.ready;
   const offered = readyForQuote ? null : view.options;
   offerReplies(ctx, view.nextQuestionId, offered, view.multi, {
     flow: r.flow,
@@ -194,7 +212,7 @@ function present(ctx: ToolContext, r: Running, step: Step): Record<string, unkno
 }
 
 function summaryOf(r: Running, view: WorkflowView): string {
-  if (view.ready && isSolarQuote(r)) return 'Everything needed for a quote is in.';
+  if (view.ready && isQuote(r)) return 'Everything needed for a quote is in.';
   if (view.stage === 'ready_for_lead' && !view.nextQuestionId) {
     return 'Everything this needs is in. Ask for their details to pass on.';
   }
@@ -264,14 +282,16 @@ function closeDiscovery(ctx: ToolContext, s: WorkflowSession): WorkflowSession {
 
 /**
  * Measure an address the journey just accepted, as start_sunscan_assessment
- * would. Null when no address was accepted or SunScan is off.
+ * would. Null when no address was accepted, SunScan is off, or the workflow is
+ * a heat pump quote (it has no roof to measure).
  */
 async function measureNewAddress(
   ctx: ToolContext,
+  r: Running,
   result: Awaited<ReturnType<typeof submitAnswers>>,
 ): Promise<Awaited<ReturnType<typeof startRoofAssessment>> | null> {
   const address = result.accepted.find((a) => a.questionId === 'address');
-  return address && ctx.sunscan
+  return address && ctx.sunscan && !isHeatPump(r)
     ? startRoofAssessment(ctx, result.answers['address'] ?? address.value)
     : null;
 }
@@ -296,7 +316,7 @@ async function captureOpeningAddress(
     proposals: [{ questionId: 'address', value: address }],
   });
   mirror(ctx, result.answers);
-  return measureNewAddress(ctx, result);
+  return measureNewAddress(ctx, r, result);
 }
 
 function parseProposals(args: Record<string, unknown>): Proposal[] {
@@ -472,7 +492,7 @@ export const WORKFLOW_TOOLS = [
       mirror(ctx, result.answers);
 
       // A new address is measured straight away.
-      const roofAssessment = await measureNewAddress(ctx, result);
+      const roofAssessment = await measureNewAddress(ctx, r, result);
 
       const step = await stepOf(ctx, deps, r);
       let suggestion: { workflowId: string; name: string } | null = null;

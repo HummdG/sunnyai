@@ -5,6 +5,7 @@
 
 import type { Workflow } from '@sunny/contracts';
 
+import { hpStatus } from '../journey/heat-pump/status.js';
 import { journeyStatus, type JourneyStage, type JourneyView } from '../journey/journey.js';
 import type { MappedRoof } from '../journey/roof.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
@@ -84,8 +85,12 @@ export function workflowStatus(
     };
   }
 
-  // A lead outcome. The heat pump and battery engines have no quote of their
-  // own yet (later phases), so until then they collect answers like a lead.
+  if (outcome.kind === 'quote' && outcome.engine === 'heat_pump') {
+    return hpStatus(workflow, answers, { quoted: opts.quoted === true });
+  }
+
+  // A lead outcome. The battery engine has no quote of its own yet (a later
+  // phase), so until then it collects answers like a lead.
   const missing = flow.required(answers);
   const left = unasked(flow, answers);
   const nextQuestionId = left[0] ?? null;
