@@ -43,6 +43,21 @@ describe('heatPumpPricingFrom', () => {
     expect(p.version).toBe('v7');
   });
 
+  it('takes the first priced item for a role, else the first item', () => {
+    const p = heatPumpPricingFrom(
+      list([
+        'heat_pump,HP-7,Acme 7 kW,flat,"£6,500",,7,,GBP',
+        'heat_pump_install,INS-BASE-Q,Base on survey,quote_only,,,,base_install,GBP',
+        'heat_pump_install,INS-BASE,Base install,flat,"£1,800",,,base_install,GBP',
+        'heat_pump_install,INS-BASE2,Second base,flat,£1,,,base_install,GBP',
+        'heat_pump_install,INS-CYL-Q,Cylinder on survey,quote_only,,,,cylinder,GBP',
+      ]),
+    )!;
+    expect(p.extras.baseInstall).toEqual({ sku: 'INS-BASE', label: 'Base install', unitGbp: 1800 });
+    // No priced cylinder at all: the first one, which has no price.
+    expect(p.extras.cylinder).toBeNull();
+  });
+
   it('is null without heat pump items', () => {
     expect(heatPumpPricingFrom(list(['pv,PV,PV,flat,£100,,,,GBP']))).toBeNull();
     expect(heatPumpPricingFrom(null)).toBeNull();

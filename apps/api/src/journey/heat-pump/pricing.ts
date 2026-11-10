@@ -86,11 +86,11 @@ export function heatPumpPricingFrom(list: PriceList | null): HeatPumpPricing | n
     controls: null,
     electrical: null,
   };
-  const seen = new Set<HeatPumpRole>();
+  // Per role, the first item the list prices; without one, the first item (no price).
   for (const item of list.items) {
-    if (item.category !== 'heat_pump_install' || !item.role || seen.has(item.role)) continue;
-    seen.add(item.role); // The first item per role wins, even if it cannot be priced.
-    extras[EXTRA_KEY[item.role]] = lineOf(item);
+    if (item.category !== 'heat_pump_install' || !item.role) continue;
+    const key = EXTRA_KEY[item.role];
+    if (extras[key] === null) extras[key] = lineOf(item);
   }
 
   return {

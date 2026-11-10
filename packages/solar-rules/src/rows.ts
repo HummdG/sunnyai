@@ -150,6 +150,10 @@ const CATEGORY_WORDS: Readonly<Record<string, ProductCategory>> = {
   mountings: 'mounting',
   rails: 'mounting',
   'mounting system': 'mounting',
+  heat_pump: 'heat_pump',
+  'heat pump': 'heat_pump',
+  'heat pumps': 'heat_pump',
+  'air source heat pump': 'heat_pump',
   other: 'other',
 };
 

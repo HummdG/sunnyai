@@ -15,6 +15,7 @@ import {
   looksLikeProductPage,
   markdownTables,
 } from '../src/catalogue/extract.js';
+import { importProducts, parseCsv } from '@sunny/solar-rules';
 import { CSV_TEMPLATE, exportCsv, productKey } from '../src/catalogue/service.js';
 import { scanWebsite, setSheetSource, sheetFileId, syncSheet } from '../src/catalogue/sources.js';
 import type { ServerConfig } from '../src/config.js';
@@ -658,6 +659,55 @@ describe('helpers', () => {
     expect(productKey({ manufacturer: 'GivEnergy', model: 'GIV-HY5.0' })).toBe(
       productKey({ manufacturer: 'givenergy', model: 'giv hy5 0' }),
     );
+  });
+
+  it('exports a heat pump as heat_pump, so a round trip keeps the category', () => {
+    const product = {
+      id: 'p1',
+      tenantId: 't1',
+      category: 'heat_pump' as const,
+      manufacturer: 'Vaillant',
+      model: 'aroTHERM plus 7',
+      powerW: 7000,
+      capacityWh: null,
+      priceMinor: null,
+      currency: null,
+      priceStatus: 'unknown' as const,
+      warrantyYears: null,
+      compatibility: {
+        vocV: null,
+        iscA: null,
+        maxDcPowerW: null,
+        maxStringVoltageV: null,
+        mpptCount: null,
+        phase: null,
+        hybrid: null,
+        batteryFamilies: null,
+        batteryFamily: null,
+        inverterModels: null,
+      },
+      sourceRef: null,
+      sourceVersion: null,
+      documentRefs: [],
+      imageUrl: null,
+      notes: null,
+      rowNumber: null,
+      createdAt: ISO,
+    };
+    const csv = exportCsv([product]);
+    expect(csv.split('\n')[1]!.startsWith('heat_pump,')).toBe(true);
+    const back = importProducts(parseCsv(csv).rows, {
+      tenantId: 't1',
+      now: ISO,
+      nextId: () => 'p2',
+    });
+    expect(back.products.map((p) => p.category)).toEqual(['heat_pump']);
+    // The words an installer types read as a heat pump too.
+    const typed = importProducts(
+      parseCsv('Category,Manufacturer,Model\nHeat pump,Vaillant,aroTHERM plus 5\n').rows,
+      { tenantId: 't1', now: ISO, nextId: () => 'p3' },
+    );
+    expect(typed.products.map((p) => p.category)).toEqual(['heat_pump']);
   });
 
   it('defuses spreadsheet formulas in the export', () => {
