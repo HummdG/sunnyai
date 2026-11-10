@@ -49,9 +49,11 @@ export function workflowStatus(
     const journey = journeyStatus(answers, roof, opts, flow);
     // The roof and postcode gates are the journey's. Once the quote could be
     // built, the optional questions left are still asked before it is.
-    const optionalLeft = journey.canQuote
-      ? unasked(flow, answers).filter((id) => flow.question(id)?.optional === true)
-      : [];
+    // Once a quote exists, what was left unasked is no longer asked.
+    const optionalLeft =
+      journey.canQuote && !opts.quoted
+        ? unasked(flow, answers).filter((id) => flow.question(id)?.optional === true)
+        : [];
     if (optionalLeft.length > 0) {
       const next = flow.question(optionalLeft[0]!)!;
       return {

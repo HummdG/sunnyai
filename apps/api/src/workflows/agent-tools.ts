@@ -253,6 +253,10 @@ function parseProposals(args: Record<string, unknown>): Proposal[] {
 const HOUSE =
   /\b(?:\d+[a-z]?,?\s+[A-Za-z]|[A-Z][a-z]+\s+(?:Cottage|House|Farm|Lodge|Barn|Manor|Hall|Court|Mill|Villa|Bungalow)\b)/;
 
+/** A street-type word, which a numbered address names before its postcode. */
+const STREET =
+  /\b(?:road|rd|street|st|lane|ln|drive|dr|avenue|ave|close|way|crescent|court|place|grove|gardens|terrace|hill|park|row|mews|walk)\b/i;
+
 const POSTCODE = /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i;
 
 /**
@@ -269,6 +273,9 @@ export function addressIn(message: string): string | null {
   const start = HOUSE.exec(upTo);
   if (!start) return null;
   const address = upTo.slice(start.index).trim();
+  // A bare number before a word is only a house number when a street follows
+  // ("164 Norwich Drive"), not a count ("I have 4 bedrooms").
+  if (/^\d/.test(address) && !STREET.test(address.slice(0, -postcode[0].length))) return null;
   return address.length > postcode[0].length + 3 ? address : null;
 }
 
@@ -385,8 +392,12 @@ export const WORKFLOW_TOOLS = [
           ? addressIn(message)
           : null;
       if (volunteered) proposals.push({ questionId: 'address', value: volunteered });
+      // The visitor's words answer the question this workflow just asked, which
+      // can be an optional one the quote journey alone would not name.
+      const asked = message ? (await stepOf(ctx, deps, r)).view.nextQuestionId : null;
       const result = await submitAnswers(deps, ctx.tenant.id, ctx.sessionId, {
         proposals,
+        ...(message ? { current: asked } : {}),
         ...(message ? { text: message.slice(0, 500) } : {}),
       });
       mirror(ctx, result.answers);

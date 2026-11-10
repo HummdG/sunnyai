@@ -153,16 +153,23 @@ export async function submitAnswers(
   deps: JourneyDeps,
   tenantId: string,
   sessionId: string,
-  input: { proposals?: readonly Proposal[]; text?: string },
+  input: {
+    proposals?: readonly Proposal[];
+    text?: string;
+    /**
+     * The question the visitor's words answer, when the caller knows better
+     * than the quote journey (a workflow asking an optional question).
+     */
+    current?: string | null;
+  },
 ): Promise<SubmitResult> {
   const flow = flowOf(deps, tenantId);
   const before = await loadJourney(deps, tenantId, sessionId);
-  const current = journeyStatus(
-    before.answers,
-    before.roof,
-    { roofPending: before.pending },
-    flow,
-  ).nextQuestionId;
+  const current =
+    input.current !== undefined
+      ? input.current
+      : journeyStatus(before.answers, before.roof, { roofPending: before.pending }, flow)
+          .nextQuestionId;
   const proposals: Proposal[] = [
     ...(input.proposals ?? []),
     ...(input.text ? extractAnswers(input.text, current, flow) : []),

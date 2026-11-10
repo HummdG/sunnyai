@@ -16,7 +16,8 @@ import { DEMO_TENANT, type Tenant } from '../src/tenants.js';
 import { EMPTY_SESSION, cloneSession } from '../src/workflows/session.js';
 import { resolvedFlowFor } from '../src/workflows/tenant.js';
 import { defaultWorkflowSet } from '../src/workflows/templates.js';
-import { WORKFLOW_TOOLS } from '../src/workflows/agent-tools.js';
+import { WORKFLOW_TOOLS, addressIn } from '../src/workflows/agent-tools.js';
+import { DemoProvider } from '../src/agent/demo-provider.js';
 import { runTurn } from '../src/agent/agent.js';
 import { flowAnswersFor } from '../src/flow/answers.js';
 
@@ -535,5 +536,75 @@ describe('the session across turns', () => {
     expect(results).toHaveLength(2);
     expect(results[1]?.['active']).toBe('wf_solar');
     expect(results[1]?.['nextQuestionId']).toBe('motivation');
+  });
+});
+
+describe('free text to an optional question', () => {
+  async function onBudget() {
+    const store = await tempStore();
+    const ctx = context(store);
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+    return { store, ctx };
+  }
+
+  it('reads "skip" as skipping it', async () => {
+    const { store, ctx } = await onBudget();
+    const result = await tool('save_workflow_answers', { visitorMessage: 'skip' }, ctx);
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers;
+    expect(answers?.['budget_band']).toBe('skipped');
+    expect(result.data['nextQuestionId']).toBe('finance_interest');
+  });
+
+  it('reads a real answer as the answer', async () => {
+    const { store, ctx } = await onBudget();
+    await tool('save_workflow_answers', { visitorMessage: 'between 6 and 10k' }, ctx);
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers;
+    expect(answers?.['budget_band']).toBe('6k_10k');
+  });
+
+  it('stops asking optional questions once a quote exists', async () => {
+    const { ctx } = await onBudget();
+    const quote = await tool('get_quote_options', {}, ctx);
+    expect(quote.ok).toBe(true);
+    const step = await tool('get_workflow_step', {}, ctx);
+    expect(step.data['stage']).toBe('quoted');
+    expect(step.data['readyForQuote']).toBe(true);
+  });
+
+  it('the demo assistant reaches a quote through the optional questions', async () => {
+    const store = await tempStore();
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+    for (const [n, message] of ['skip', 'no thanks'].entries()) {
+      const turn = runTurn({
+        tenant: DEMO_TENANT,
+        provider: new DemoProvider(),
+        store,
+        sessionId: SESSION,
+        conversationId: null,
+        history: [],
+        standingAnswers: (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {},
+        message,
+        clientMessageId: `c_${n}`,
+        sunscanConnected: false,
+        quote: { pricing: { forTenant: () => Promise.resolve(demoPricing()) } },
+      });
+      for await (const event of turn) void event;
+    }
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers;
+    expect(answers?.['budget_band']).toBe('skipped');
+    expect(answers?.['finance_interest']).toBe('no');
+    expect(await store.listQuotes(DEMO_TENANT.id, SESSION)).toHaveLength(1);
+  });
+});
+
+describe('addressIn', () => {
+  it('needs a street after a house number', () => {
+    expect(addressIn('I have 4 bedrooms, NR4 7TJ')).toBeNull();
+    expect(addressIn('My postcode is NR4 7TJ')).toBeNull();
+    expect(addressIn('quote for 164 Norwich Drive, Norwich NR4 7TJ')).toBe(
+      '164 Norwich Drive, Norwich NR4 7TJ',
+    );
+    expect(addressIn('Rose Cottage, Norwich NR4 7TJ')).toBe('Rose Cottage, Norwich NR4 7TJ');
   });
 });
