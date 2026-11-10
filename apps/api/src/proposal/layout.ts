@@ -13,6 +13,12 @@ import { fileURLToPath } from 'node:url';
 export const PAGE = { width: 595.28, height: 841.89, margin: 40 } as const;
 /** The dark rail's share of the page width on the cover and quotation pages. */
 export const RAIL_FRACTION = 0.3;
+/**
+ * The band page content may use (top-origin points): below the header (logo
+ * at y 12 to 34) and above the footer (rule at height - 44). Pages keep every
+ * line of text inside it, so stamping the header and footer never overlaps.
+ */
+export const CONTENT = { top: 60, bottom: PAGE.height - 56 } as const;
 
 const FONT_DIR = fileURLToPath(new URL('../../assets/fonts/', import.meta.url));
 
