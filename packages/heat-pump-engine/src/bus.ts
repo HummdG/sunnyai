@@ -1,0 +1,42 @@
+import { BUS_AMOUNT_GBP, BUS_ELIGIBLE_FUELS, BUS_OWNERSHIP } from './data/bus-rules';
+import { nationOf } from './nation';
+import type { BusVerdict, HeatPumpInput } from './types';
+
+export function busVerdict(input: HeatPumpInput): BusVerdict {
+  const nation = nationOf(input.postcode);
+  const reasons: string[] = [];
+  let eligible: boolean | 'unsure' = true;
+
+  if (nation === 'scotland') {
+    eligible = false;
+    reasons.push(
+      'The Boiler Upgrade Scheme covers England and Wales. Home Energy Scotland offers its own support.',
+    );
+  } else if (nation === 'northern_ireland') {
+    eligible = false;
+    reasons.push('The Boiler Upgrade Scheme covers England and Wales.');
+  } else if (nation === 'border' || nation === 'unknown') {
+    eligible = 'unsure';
+    reasons.push('We could not tell from the postcode whether this is in England or Wales.');
+  }
+
+  if (input.currentFuel === 'heat_pump') {
+    eligible = false;
+    reasons.push('Already has a heat pump.');
+  } else if (!(BUS_ELIGIBLE_FUELS as readonly string[]).includes(input.currentFuel)) {
+    eligible = false;
+  }
+
+  if (!(BUS_OWNERSHIP as readonly string[]).includes(input.ownership)) {
+    eligible = false;
+    reasons.push('The grant goes to the property owner.');
+  }
+
+  if (input.epcRecommendsInsulation === 'yes') {
+    reasons.push(
+      'The EPC recommends insulation. This no longer blocks the grant, but an installer will want to check it.',
+    );
+  }
+
+  return { eligible, amountGbp: BUS_AMOUNT_GBP, reasons };
+}
