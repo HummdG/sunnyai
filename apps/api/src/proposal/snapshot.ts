@@ -21,6 +21,30 @@ export interface QuotationSnapshot extends Omit<QuotationSettings, 'signer' | 'c
   /** Resolved: chosen colours, else the brand colour (or the theme's fallback when invalid). */
   colours: { rail: string; accent: string };
   website: string | null;
+  /**
+   * The logo the PDF prints, resolved when the quote was made: the settings'
+   * own PDF logo, else Your brand's wordmark or icon; null sets the company
+   * name. Absent on snapshots made before it existed (they resolve at render).
+   */
+  pdfLogoAssetId?: string | null;
+  /** The company's own contact, for the footer. Absent on older snapshots. */
+  contact?: { phone: string; email: string; website: string | null };
+}
+
+/** The PDF logo in force: the settings' own, else Your brand's wordmark or icon. */
+export function pdfLogoFor(tenant: Tenant, logoAssetId: string | null): string | null {
+  if (logoAssetId) return logoAssetId;
+  const branding = tenant.config.branding;
+  if (!branding || branding.mode !== 'logo' || !branding.icon) return null;
+  return branding.wordmark?.id ?? branding.icon.id;
+}
+
+/** The brand assets a snapshot prints, which must outlive any later logo change. */
+export function snapshotAssetIds(snap: QuotationSnapshot): string[] {
+  return [
+    ...(snap.pdfLogoAssetId ? [snap.pdfLogoAssetId] : []),
+    ...snap.accreditations.logoAssetIds,
+  ];
 }
 
 export function snapshotFor(
@@ -48,5 +72,11 @@ export function snapshotFor(
     colour: tenant.config.primaryColor,
     colours: { rail: colours.rail ?? brand, accent: colours.accent ?? brand },
     website: tenant.websiteUrl ?? null,
+    pdfLogoAssetId: pdfLogoFor(tenant, rest.logoAssetId),
+    contact: {
+      phone: contact?.phone ?? '',
+      email: contact?.email ?? '',
+      website: tenant.websiteUrl ?? null,
+    },
   };
 }

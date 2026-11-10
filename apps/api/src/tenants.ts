@@ -47,6 +47,12 @@ export interface Tenant {
     conversation?: ConversationFlow;
     /** The installer's quotation PDF settings. Server-only: `configFor` drops it. */
     quotation?: QuotationSettings;
+    /**
+     * Brand assets a stored quote's PDF prints (its logo and accreditation
+     * logos), kept through any later logo change so a re-download never loses
+     * them. Server-only: `configFor` drops it.
+     */
+    pinnedBrandAssetIds?: string[];
   };
   /**
    * The installer's registered website domains (Blueprint §4.6). When set, a

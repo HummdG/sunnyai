@@ -15,7 +15,7 @@ import { getPublishedPriceList } from '../catalogue/price-list-service.js';
 import { effectsFor } from '../flow/effects.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { reasonsFor } from '../proposal/reasons.js';
-import { snapshotFor } from '../proposal/snapshot.js';
+import { snapshotAssetIds, snapshotFor } from '../proposal/snapshot.js';
 import { warrantiesFor } from '../proposal/warranties.js';
 import type { Store } from '../store.js';
 import type { Tenant } from '../tenants.js';
@@ -57,6 +57,11 @@ export interface JourneyDeps {
   flow?: (tenantId: string) => ResolvedFlow;
   /** The tenant, for the quotation snapshot a new quote carries. */
   tenant?: (tenantId: string) => Tenant | null | undefined;
+  /**
+   * Keep the brand assets a new quote's PDF prints safe from pruning
+   * (branding/meta.ts `pinBrandAssets`). Absent: nothing is pinned.
+   */
+  pinBrandAssets?: (tenantId: string, ids: string[]) => Promise<void>;
 }
 
 function flowOf(deps: JourneyDeps, tenantId: string): ResolvedFlow {
@@ -241,7 +246,14 @@ export async function createQuote(
   });
   // Fixed now: the settings in force at this moment, and why each item is here.
   const tenant = deps.tenant?.(tenantId);
-  if (tenant) quote.quotation = snapshotFor(tenant, tenant.config.quotation);
+  if (tenant) {
+    quote.quotation = snapshotFor(tenant, tenant.config.quotation);
+    const ids = snapshotAssetIds(quote.quotation);
+    if (ids.length > 0 && deps.pinBrandAssets) {
+      // A pin that fails must not cost the visitor their quote.
+      await deps.pinBrandAssets(tenantId, ids).catch(() => undefined);
+    }
+  }
   const reasons: Record<string, string> = {};
   for (const option of quote.options) {
     Object.assign(reasons, reasonsFor(effects, flow, answers, option));

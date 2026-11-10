@@ -102,7 +102,12 @@ export async function renderProposal(doc: ProposalDoc): Promise<Buffer> {
     theme,
     mcsNumber: snap.accreditations.mcsNumber,
     accreditationLogos: doc.accreditationLogos,
-    contact: { phone: snap.signer.phone, email: snap.signer.email, website: snap.website },
+    // The company's contact; older snapshots without it fall back to the signer's.
+    contact: snap.contact ?? {
+      phone: snap.signer.phone,
+      email: snap.signer.email,
+      website: snap.website,
+    },
   };
   const range = pdf.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {

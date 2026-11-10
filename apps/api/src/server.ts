@@ -73,6 +73,7 @@ import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/port
 import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
 import { registerQuotationRoutes } from './routes/quotation.js';
 import { registerConversationRoutes } from './routes/conversation.js';
+import { pinBrandAssets } from './branding/meta.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
@@ -748,7 +749,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           origin,
           channel: 'chat',
           search: deps.passageSearch ?? knowledgePipeline.retrieve.passageSearch,
-          quote: { pricing: quotePricing },
+          quote: {
+            pricing: quotePricing,
+            pinBrandAssets: (tenantId, ids) => pinBrandAssets(tenants, tenantId, ids),
+          },
           signal: abort.signal,
         })) {
           if (abort.signal.aborted) break;

@@ -1,6 +1,6 @@
 /**
  * Everything a page of the quotation PDF needs, assembled once by the
- * orchestrator (`proposalInputFor`) from the stored quote, its snapshot of the
+ * orchestrator (`proposalDocFor` in index.ts) from the stored quote, its snapshot of the
  * installer's settings, the roof assessment and the brand store.
  *
  * Page convention: each `draw*` function draws onto the current page, which

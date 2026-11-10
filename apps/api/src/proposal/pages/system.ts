@@ -42,7 +42,7 @@ interface Entry {
 
 /** Fees and works, not equipment: left off the equipment list. */
 const SERVICE =
-  /scaffold|admin|\bdno\b|labou?r|survey|delivery|commission|certific|notification|\bfee\b|waste|travel|building control|\bmcs\b|design|electrical works|\bvat\b/i;
+  /scaffold|admin|\bdno\b|labou?r|survey|delivery|commission|certific|notification|\bfee\b|waste|travel|building control|\bmcs\b|design|electrical works|\bvat\b|tile charge/i;
 /** Installation is a service unless the line names the equipment installed. */
 const INSTALL = /install/i;
 const NAMES_EQUIPMENT =

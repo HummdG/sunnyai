@@ -14,7 +14,7 @@ import { PNG } from 'pngjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { issueDevToken } from '../src/auth/dev.js';
-import type { StoredBranding } from '../src/branding/meta.js';
+import { pinBrandAssets, type StoredBranding } from '../src/branding/meta.js';
 import { MemoryBrandAssetStore } from '../src/branding/store.js';
 import { HSENERGY_PRICE_LIST_CSV } from '../src/catalogue/examples/hsenergy.js';
 import { importPriceList, type PriceList } from '../src/catalogue/price-list.js';
@@ -29,7 +29,7 @@ import { mapRoof, type RoofAssessmentSummary } from '../src/journey/roof.js';
 import { createQuote, type JourneyDeps } from '../src/journey/service.js';
 import { proposalDocFor, proposalPdf, renderProposal } from '../src/proposal/index.js';
 import { proposalEmailConfigured, type ProposalEmail } from '../src/proposal/mailer.js';
-import { snapshotFor } from '../src/proposal/snapshot.js';
+import { snapshotAssetIds, snapshotFor } from '../src/proposal/snapshot.js';
 import { warrantiesFor } from '../src/proposal/warranties.js';
 import { loadPortalConfig } from '../src/routes/portal-config.js';
 import { buildServer } from '../src/server.js';
@@ -893,5 +893,189 @@ describe('proposal routes', () => {
     expect(
       proposalEmailConfigured({ SUNNY_POSTMARK_SERVER_TOKEN: 't', SUNNY_PROPOSAL_FROM: 'q@x.io' }),
     ).toBe(true);
+  });
+});
+
+describe('a quote keeps its logos', () => {
+  const I1 = '1111111111111111';
+  const W1 = 'aaaaaaaaaaaaaaaa';
+  const L1 = 'bbbbbbbbbbbbbbbb';
+  const A1 = 'cccccccccccccccc';
+  const X1 = 'dddddddddddddddd';
+  const L2 = 'eeeeeeeeeeeeeeee';
+
+  function colourPng(w: number, h: number, rgb: [number, number, number]): Buffer {
+    const p = new PNG({ width: w, height: h });
+    for (let i = 0; i < w * h; i++) {
+      p.data[i * 4] = rgb[0];
+      p.data[i * 4 + 1] = rgb[1];
+      p.data[i * 4 + 2] = rgb[2];
+      p.data[i * 4 + 3] = 255;
+    }
+    return PNG.sync.write(p);
+  }
+
+  it('re-downloads the same bytes after the logos change and an upload prunes old assets', async () => {
+    let clock = NOW;
+    const store = await pdfStore();
+    const tenants = await TenantRegistry.load(store, defaultTenants(false));
+    const brandAssets = new MemoryBrandAssetStore(() => clock);
+    const app = buildServer({
+      config: config(),
+      store,
+      tenants,
+      now: () => clock,
+      portal: { ...loadPortalConfig({}, 'test'), devAuth: true },
+      brandAssets,
+      proposalMailer: null,
+    });
+    await app.ready();
+    const owner = { authorization: `Bearer ${issueDevToken(SECRET, 'owner@keep.example', NOW)}` };
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/portal/tenants',
+      headers: owner,
+      payload: { companyName: 'Keep Solar' },
+    });
+    const tenantId = created.json<{ tenant: { id: string } }>().tenant.id;
+    for (const [id, rgb] of [
+      [I1, [10, 10, 10]],
+      [W1, [200, 60, 20]],
+      [L1, [20, 160, 60]],
+      [A1, [20, 60, 200]],
+      [X1, [90, 90, 90]],
+    ] as const) {
+      await brandAssets.put(tenantId, `${id}.png`, colourPng(120, 40, [...rgb]));
+    }
+    const branding = (wordmark: string) =>
+      ({
+        mode: 'logo',
+        icon: { id: I1 },
+        wordmark: { id: wordmark },
+        effects: [],
+        colors: null,
+      }) as unknown as StoredBranding;
+    await tenants.update(tenantId, (t) => ({
+      ...t,
+      config: {
+        ...t.config,
+        branding: branding(W1),
+        quotation: settings({
+          logoAssetId: L1,
+          accreditations: { mcsNumber: 'MCS 1', logoAssetIds: [A1] },
+        }),
+      },
+    }));
+
+    const deps: JourneyDeps = {
+      store,
+      pricing: { forTenant: () => Promise.resolve(demoPricing()) },
+      roof: () => Promise.resolve({ state: 'ready', summary: roofSummary() }),
+      now: () => NOW,
+      tenant: (id) => tenants.byId(id),
+      pinBrandAssets: (id, ids) => pinBrandAssets(tenants, id, ids),
+    };
+    const quoteFor = async (sessionId: string) => {
+      await store.mergeAnswers(tenantId, sessionId, {
+        ...answers(),
+        journey_assessment_id: 'ss_test1',
+      });
+      const made = await createQuote(deps, tenantId, sessionId);
+      if (!made.ok) throw new Error(`not ok: ${made.missing.join()}`);
+      return made.quote;
+    };
+    // Own PDF logo; then a quote on the default (Your brand's wordmark).
+    const own = await quoteFor('sess_own');
+    expect(own.quotation?.pdfLogoAssetId).toBe(L1);
+    await tenants.update(tenantId, (t) => ({
+      ...t,
+      config: { ...t.config, quotation: { ...t.config.quotation!, logoAssetId: null } },
+    }));
+    const brand = await quoteFor('sess_brand');
+    expect(brand.quotation?.pdfLogoAssetId).toBe(W1);
+    expect([...(tenants.byId(tenantId)!.config.pinnedBrandAssetIds ?? [])].sort()).toEqual(
+      [A1, L1, W1].sort(),
+    );
+
+    const render = (q: QuoteRecord) =>
+      proposalPdf({ store, brandAssets }, tenants.byId(tenantId)!, q, null, new Date(NOW));
+    const ownDoc = await proposalDocFor(
+      { store, brandAssets },
+      tenants.byId(tenantId)!,
+      own,
+      null,
+      new Date(NOW),
+    );
+    expect(ownDoc.logo?.equals((await brandAssets.get(tenantId, `${L1}.png`))!)).toBe(true);
+    const first = [await render(own), await render(brand)];
+
+    // Every logo changes; days later a new upload prunes what is not in use.
+    await brandAssets.put(tenantId, `${L2}.png`, colourPng(120, 40, [0, 0, 0]));
+    await tenants.update(tenantId, (t) => ({
+      ...t,
+      config: {
+        ...t.config,
+        branding: branding(L2),
+        quotation: settings({ logoAssetId: L2 }),
+      },
+    }));
+    clock = NOW + 3 * 24 * 60 * 60 * 1000;
+    const upload = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${tenantId}/brand/wordmark`,
+      headers: {
+        authorization: `Bearer ${issueDevToken(SECRET, 'owner@keep.example', clock)}`,
+      },
+      payload: { png: colourPng(300, 80, [30, 120, 200]).toString('base64') },
+    });
+    expect(upload.statusCode).toBe(200);
+    expect(await brandAssets.get(tenantId, `${X1}.png`)).toBeNull();
+    for (const id of [L1, W1, A1]) {
+      expect(await brandAssets.get(tenantId, `${id}.png`)).not.toBeNull();
+    }
+
+    const second = [await render(own), await render(brand)];
+    expect(second[0]!.equals(first[0]!)).toBe(true);
+    expect(second[1]!.equals(first[1]!)).toBe(true);
+
+    // The pins are server-only.
+    const publicId = tenants.byId(tenantId)!.publicId;
+    expect(tenants.configFor(publicId)).not.toHaveProperty('pinnedBrandAssetIds');
+    await app.close();
+  });
+
+  it('pins only what is new, and a quote without logos pins nothing', async () => {
+    const tenants = new TenantRegistry([tenantWith()]);
+    const id = DEMO_TENANT.id;
+    let writes = 0;
+    const counting = {
+      byId: (t: string) => tenants.byId(t),
+      update: (t: string, m: (c: Tenant) => Tenant) => {
+        writes++;
+        return tenants.update(t, m);
+      },
+    };
+    await pinBrandAssets(counting, id, [L1, A1]);
+    await pinBrandAssets(counting, id, [A1, L1]);
+    expect(writes).toBe(1);
+    await pinBrandAssets(counting, id, [L1, L2]);
+    expect(writes).toBe(2);
+    expect(tenants.byId(id)!.config.pinnedBrandAssetIds).toEqual([L1, A1, L2]);
+    expect(snapshotAssetIds(snapshotFor(tenantWith(), undefined))).toEqual([]);
+  });
+
+  it('prints the company contact in the footer, not a named signer', async () => {
+    const tenant = tenantWith(everything());
+    const quote = pdfQuote(tenant, { quotation: snapshotFor(tenant, everything()) });
+    const items = await pdfItems(
+      await proposalPdf({ store: await pdfStore() }, tenant, quote, null, new Date(NOW)),
+    );
+    const footer = items[1]!
+      .filter((i) => i.y < 40)
+      .map((i) => i.str)
+      .join(' ');
+    expect(footer).toContain('01632 960123');
+    expect(footer).toContain('hello@brightside.example');
+    expect(footer).not.toContain('07850 697435');
   });
 });

@@ -84,12 +84,19 @@ async function asset(
   }
 }
 
-/** The PDF logo: the snapshot's own, else Your brand's wordmark or icon. */
+/**
+ * The PDF logo: the one the snapshot fixed when the quote was made (null sets
+ * the company name). A snapshot made before that was fixed: its own PDF logo,
+ * else Your brand's wordmark or icon as they are now.
+ */
 async function logoFor(
   brandAssets: BrandAssetStore | null | undefined,
   tenant: Tenant,
   snap: QuotationSnapshot,
 ): Promise<Buffer | null> {
+  if (snap.pdfLogoAssetId !== undefined) {
+    return asset(brandAssets, tenant.id, snap.pdfLogoAssetId);
+  }
   if (snap.logoAssetId) return asset(brandAssets, tenant.id, snap.logoAssetId);
   const branding: StoredBranding | undefined = tenant.config.branding;
   if (!branding || branding.mode !== 'logo' || !branding.icon) return null;

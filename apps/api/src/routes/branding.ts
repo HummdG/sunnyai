@@ -180,7 +180,9 @@ export function registerBrandingRoutes(app: FastifyInstance, deps: BrandingRoute
         new TextEncoder().encode(JSON.stringify(meta)),
       );
       // Uploads tried and never saved are cleared once they are a day old.
-      const keep = brandingIds(tenant.config.branding, tenant.config.quotation).add(meta.id);
+      // Read fresh: a quote made on another instance may have just pinned an asset.
+      const current = (await deps.store.getTenant(tenant.id)) ?? tenant;
+      const keep = brandingIds(current.config).add(meta.id);
       await pruneQuietly(brandAssets, tenant.id, keep, deps.now(), request.log);
       return { asset: brandAssetView(tenant.id, meta) };
     },
