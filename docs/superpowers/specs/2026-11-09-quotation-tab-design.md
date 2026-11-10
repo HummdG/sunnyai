@@ -95,6 +95,20 @@ pitch, north marker). If the real outline is not available for that quote, the
 plan is left out: never a schematic pretending to be their roof (owner: real
 roof; my call on the fallback).
 
+Drawn as an architect's roof plan (owner, 2026-11-10, after seeing the first
+render): built on the house's own polygon (owner: "it should show the house
+polygon of the person's actual house"), i.e. the measured building footprint
+of every part in `spec.json` (`parts[].footprint`), drawn as the heavy wall
+line, with party walls marked and attached neighbours
+(`context.neighbours[]` with `attached: true`) in faint line so a semi or
+terrace reads as one; the roof sits on that footprint; rotated so the main
+panelled face's eave runs level, with the north
+arrow turned to match; the whole roof drawn (every face outline, ridge and
+hip lines in fine line), panels only on the quoted faces as fine-outlined
+cells with a light tint; dimensions along the real eave and rafter of the
+main face, text set level; no tinted box, a thin frame and a mono title block
+(`ROOF PLAN · SOUTH-FACING · 42° PITCH`, plus `SAMPLE` for the sample house).
+
 **The letter** is assembled from fixed sentences chosen by the visitor's
 answers and the quote (my call: never free-written by the model, so it can never
 state something untrue). It addresses the customer by first name when known,

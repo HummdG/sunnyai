@@ -24,7 +24,7 @@
   - Deposit label: `Deposit, payable once your survey has confirmed the final price`
 - Studio copy (verbatim): tab `Your quotation`; locked switch label `Always shown`; logo link `Use a different logo for the PDF`.
 - Limits: T&Cs up to 40,000 characters; letter lines, signer fields, balance-due text and MCS number up to 200 characters; up to 8 accreditation logos; deposit percent 1 to 100 (integer), fixed amount 1 to 1,000,000 (whole pounds); validity 1 to 365 days.
-- Roof plan: drawn only when the assessment is reliable and the layout places every quoted panel; draws every roof face holding panels; never a schematic. Preview/sample uses a bundled sample house marked `Sample`.
+- Roof plan: drawn only when the assessment is reliable and the layout places every quoted panel; draws the whole roof with panels on the quoted faces, as an architect's plan (Task 14); never a schematic. Preview/sample uses a bundled sample house marked `Sample`.
 - Tenant writes only through `tenants.update(id, mutate)` (never a whole-tenant save from a cached copy). New routes join `tests/security/tenant-isolation.test.ts`. Viewers read, admins and owners edit. Every plan.
 - Brand-asset pruning must keep the quotation logo and accreditation logo ids alive (`brandingIds` in `apps/api/src/branding/meta.ts`).
 - Fonts: Inter Tight (Light 300, Regular 400, SemiBold 600, ExtraBold 800) and IBM Plex Mono (Regular 400, Medium 500), OFL, in `apps/api/assets/fonts/` with their OFL licence files.
@@ -368,6 +368,41 @@
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the same. Expected: PASS.
 - [ ] **Step 5: Commit** `feat(quotation): installers choose the PDF colours`.
+
+### Task 14: The roof as an architect's plan (added 2026-11-10 at the owner's request; runs after Task 13, before Task 9)
+
+The first render looked unprofessional (one tilted face floating in a tinted box, heavy solid panels, a sideways label, page-aligned width/depth). Redraw per the spec's "Drawn as an architect's roof plan" paragraph.
+
+**Files:**
+
+- Modify: `apps/api/src/proposal/roof-plan.ts` (+ `apps/api/test/roof-plan.test.ts`), `apps/api/src/proposal/plan-drawing.ts` (+ its tests in the page test files), callers in `pages/cover.ts` and `pages/system.ts` only as needed
+
+**Interfaces:**
+
+- `RoofPlan` changes (all in metres, already rotated so the main face's eave is level, eave at the bottom of the drawing, y up):
+  ```ts
+  export interface RoofPlan {
+    footprints: { outline: [number, number][]; partyEdges: number[] }[]; // the house's own polygon: every spec part's footprint.outer (holes ignored), partyEdges = indices of edges whose edgeKinds is 'party'
+    neighbours: [number, number][][]; // attached neighbours only (context.neighbours[].attached), outer rings
+    faces: { id: number; outline: [number, number][]; pitchDeg: number; azimuthDeg: number; panelled: boolean }[]; // every roof face
+    lines: { kind: 'ridge' | 'hip' | 'valley'; from: [number, number]; to: [number, number] }[]; // shared edges between faces, classified
+    panels: [number, number][][];
+    bounds: { minX: number; minY: number; maxX: number; maxY: number };
+    rotationDeg: number; // applied rotation; the north arrow points at (rotate plan-north by this)
+    mainFace: { id: number; eaveM: number; rafterM: number; eave: [[number, number], [number, number]] }; // eave = lowest edge of the main face; rafter = slope length eave to ridge
+    mainFacing: string;
+    sample: boolean;
+  }
+  ```
+  `dimensions` (axis-aligned) is removed. Null rules unchanged. Main face = the face holding most panels.
+- Footprints and neighbours are in the same frame as the synthesised mesh (check synthesizeHouse's coordinate frame against `parts[].footprint` and transform if needed), rotated with everything else; bounds cover footprints and faces; attached neighbours are clipped to the drawing frame, never extend the bounds.
+- `drawRoofPlan(pdf, plan, box, theme)`: the house footprint as the heavy wall line (party edges drawn as a double/dashed line), attached neighbours in faint line, white ground, thin frame rule, mono title block `ROOF PLAN · <FACING> · <pitch>° PITCH` (`· SAMPLE` when sample; flat roofs `ROOF PLAN · FLAT ROOF`), north arrow rotated by `rotationDeg`, faces in fine ink line (panelled faces slightly heavier), ridge/hip/valley lines, panels as fine-outlined cells with a light accent tint, one dimension line along the main eave (`EAVE 7.4 M`) and one along the main face's slope direction (`RAFTER 5.1 M`, the true slope length, not the plan length), all text level. No rounded boxes, no filled background.
+
+- [ ] **Step 1: Write failing tests**: the sample house returns its footprint (4 corners, matching the spec's `parts[0].footprint.outer` after the same rotation, within 1 cm) with its two party edges, and its attached neighbour(s); every roof face lies within the footprint grown by the overhang (+5 cm); the sample house returns every face (both gable slopes) with `panelled` set only where panels are; a ridge line exists; after rotation the main eave is level (its two points share y within 1 cm) and lies at the bottom of the main face; `eaveM` and `rafterM` match the sample face's real edge lengths (within 5 cm); panels still inside their face after rotation; drawing text contains `ROOF PLAN`, `EAVE`, `RAFTER`, `SAMPLE` for the sample and no `OVERALL`; no rotated text (all pdfjs text items have a horizontal transform).
+- [ ] **Step 2: Run** `npx vitest run apps/api/test/roof-plan.test.ts apps/api/test/proposal-pages-core.test.ts apps/api/test/proposal-pages-rest.test.ts`. Expected: FAIL.
+- [ ] **Step 3: Implement**; render the cover and system page to PNG and check against the spec paragraph.
+- [ ] **Step 4: Run** the same. Expected: PASS.
+- [ ] **Step 5: Commit** `feat(proposal): the roof drawn as an architect's plan`.
 
 ### Task 9: Assemble the document
 
