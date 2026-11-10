@@ -1030,6 +1030,9 @@
 .dash .issue-list li.error {
   background: var(--danger-pale);
 }
+.dash .wf-card .issue-list li.warning {
+  background: var(--sunny-brand-orange-pale);
+}
 
 .dash .bulk-bar {
   position: sticky;
@@ -2263,4 +2266,151 @@
 }
 .dash .quote-sheet-wait {
   place-self: center;
+}
+
+/* ── Studio: "Your workflows" (the list, and one workflow with its questions) ── */
+
+.dash .wf-tab,
+.dash .wf-list-page,
+.dash .wf-detail {
+  display: grid;
+  gap: 12px;
+}
+.dash .wf-tab .error-note,
+.dash .wf-detail .error-note,
+.dash .wf-list-page .flow-bar-lead p {
+  margin: 0;
+}
+.dash .wf-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.dash .wf-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.dash .wf-card-head,
+.dash .wf-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.dash .wf-card-head h3 {
+  margin: 0;
+}
+.dash .wf-card-switch {
+  margin-left: auto;
+}
+.dash .wf-switch.toggle {
+  min-height: 0;
+  gap: 8px;
+}
+.dash .wf-detail-head h2 {
+  font-size: 1.15rem;
+  font-weight: 750;
+}
+.dash .wf-back {
+  justify-self: start;
+}
+.dash .wf-shown-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+.dash .wf-shown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+.dash .wf-shown dt {
+  color: var(--muted-text);
+}
+.dash .wf-shown dt::after {
+  content: ':';
+}
+.dash .wf-shown dd {
+  margin: 0;
+  font-weight: 600;
+}
+.dash .wf-conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.dash .wf-conflict .button {
+  padding: 5px 14px;
+  font-size: 0.85rem;
+}
+.dash .wf-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.dash .wf-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dash .wf-chips .chip {
+  white-space: normal;
+  word-break: break-all;
+}
+.dash .wf-chip-remove {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+.dash .wf-chip-add {
+  display: flex;
+  gap: 8px;
+}
+.dash .wf-chip-add input {
+  flex: 1;
+  min-width: 0;
+}
+.dash .wf-chip-add .button,
+.dash .wf-save .button {
+  padding: 6px 14px;
+  font-size: 0.88rem;
+}
+.dash .wf-check {
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.dash .wf-interests .hint {
+  display: block;
+  margin-bottom: 6px;
+}
+.dash .wf-save {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #f2ece2;
+}
+.dash .wf-save .actions {
+  align-items: center;
+}
+.dash .wf-saved {
+  color: var(--ok);
+}
+.dash .wf-page-preview {
+  padding-top: 8px;
+  border-top: 1px solid #f2ece2;
 }

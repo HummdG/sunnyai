@@ -18,6 +18,7 @@ import { ScriptedProvider } from './scripted-provider.js';
 import { TEST_ADMIN_TOKEN } from './catalogue-fixture.js';
 
 import type { FastifyInstance } from 'fastify';
+import { workflowContext } from './workflow-fixture.js';
 
 /**
  * Knowledge onboarding, ingestion and retrieval -- the plan's P6 gate.
@@ -346,6 +347,7 @@ describe('retrieval over an installer’s documents', () => {
       sunscanConnected: false,
       knowledge: await load(tenantId),
       flow: resolveFlow(null),
+      ...workflowContext(),
     };
   }
 

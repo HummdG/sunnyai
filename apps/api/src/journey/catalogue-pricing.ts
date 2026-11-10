@@ -212,7 +212,9 @@ export function pricingFromPriceList(list: PriceList): CataloguePricing | null {
   }));
 
   // Inverters: v1 prices them inside the PV base (flat £0); middle one is default.
-  const inverterItems = list.items.filter((i) => i.category === 'inverter');
+  const inverterItems = list.items.filter(
+    (i) => i.category === 'inverter' && i.role !== 'ac_coupling',
+  );
   const invTier = rankTiers(inverterItems, (i) => i.powerW ?? 0);
   const inverters: CatalogueInverter[] = [];
   inverterItems.forEach((item, i) => {

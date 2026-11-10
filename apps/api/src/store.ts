@@ -13,10 +13,11 @@ import type {
 } from '@sunny/contracts';
 
 import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
-import type { QuoteRecord } from './journey/quote.js';
+import type { StoredQuote } from './journey/quote-kinds.js';
 
 import type { CatalogueState } from './catalogue/types.js';
 import type { Tenant } from './tenants.js';
+import { EMPTY_SESSION, cloneSession, type WorkflowSession } from './workflows/session.js';
 
 /**
  * Persistence, behind an interface.
@@ -173,6 +174,12 @@ export interface Conversation {
    */
   want?: RecommendationWant;
   /**
+   * Which workflow this visitor is in, which are set aside, and which are done.
+   * Absent on conversations written before workflows existed, which read as an
+   * empty session.
+   */
+  workflow?: WorkflowSession;
+  /**
    * The channel the conversation came in on, for the unified inbox
    * (Blueprint §5). Absent means web chat, which is every conversation written
    * before the email channel existed. A stored value outside the type (the
@@ -307,6 +314,8 @@ export interface LeadRecord {
   flowAnswers?: LeadFlowAnswer[];
   /** The `ConversationFlow.version` the visitor was asked with; absent for Sunny's own questions. */
   flowVersion?: number;
+  /** The workflow running when the lead was filed; absent when none was. */
+  workflowId?: string;
 }
 
 /**
@@ -500,6 +509,13 @@ export interface Store {
     sessionId: string,
     want: RecommendationWant,
   ): Promise<RecommendationWant>;
+  /** Where this session is among the tenant's workflows. Empty when none yet. */
+  getWorkflowState(tenantId: string, sessionId: string): Promise<WorkflowSession>;
+  saveWorkflowState(
+    tenantId: string,
+    sessionId: string,
+    state: WorkflowSession,
+  ): Promise<WorkflowSession>;
   /**
    * This tenant's documents.
    *
@@ -623,10 +639,10 @@ export interface Store {
    * Quotes presented in the quote journey (journey/quote.ts). Tenant-scoped,
    * rewritten when a lead is attached; the latest write for an id is current.
    */
-  saveQuote(record: QuoteRecord): Promise<void>;
-  getQuote(tenantId: string, id: string): Promise<QuoteRecord | null>;
+  saveQuote(record: StoredQuote): Promise<void>;
+  getQuote(tenantId: string, id: string): Promise<StoredQuote | null>;
   /** One session's quotes, oldest first. */
-  listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]>;
+  listQuotes(tenantId: string, sessionId: string): Promise<StoredQuote[]>;
   /**
    * The portal's catalogue workspace (catalogue/types.ts): pending uploads,
    * drafts awaiting approval, version history, the Sheet source. Never read by
@@ -1155,6 +1171,42 @@ export class FileStore implements Store {
     return conversation.want ?? {};
   }
 
+  async getWorkflowState(tenantId: string, sessionId: string): Promise<WorkflowSession> {
+    const conversation = await this.getConversation(tenantId, sessionId);
+    return cloneSession(conversation?.workflow ?? EMPTY_SESSION);
+  }
+
+  async saveWorkflowState(
+    tenantId: string,
+    sessionId: string,
+    state: WorkflowSession,
+  ): Promise<WorkflowSession> {
+    await this.#ensure();
+    const existing = await this.getConversation(tenantId, sessionId);
+    const now = new Date().toISOString();
+    const conversation: Conversation = existing
+      ? { ...existing, workflow: cloneSession(state), updatedAt: now }
+      : {
+          id: newId('conv'),
+          tenantId,
+          sessionId,
+          turns: [],
+          workflow: cloneSession(state),
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    await mkdir(join(this.#dir, 'conversations'), { recursive: true });
+    await appendFile(
+      this.#conversationFile(tenantId),
+      `${JSON.stringify(conversation)}
+`,
+      'utf8',
+    );
+    this.#conversationCache.set(`${tenantId}:${sessionId}`, conversation);
+    return cloneSession(state);
+  }
+
   get #knowledgeDir(): string {
     return join(this.#dir, 'knowledge');
   }
@@ -1331,8 +1383,8 @@ export class FileStore implements Store {
     return join(this.#dir, 'quotes', `${encodeURIComponent(tenantId)}.jsonl`);
   }
 
-  async #readQuotes(tenantId: string): Promise<Map<string, QuoteRecord>> {
-    const latest = new Map<string, QuoteRecord>();
+  async #readQuotes(tenantId: string): Promise<Map<string, StoredQuote>> {
+    const latest = new Map<string, StoredQuote>();
     let text: string;
     try {
       text = await readFile(this.#quoteFile(tenantId), 'utf8');
@@ -1341,23 +1393,23 @@ export class FileStore implements Store {
     }
     for (const line of text.split('\n')) {
       if (!line.trim()) continue;
-      const row = JSON.parse(line) as QuoteRecord;
+      const row = JSON.parse(line) as StoredQuote;
       // Belt and braces: the file is already per tenant.
       if (row.tenantId === tenantId) latest.set(row.id, row);
     }
     return latest;
   }
 
-  async saveQuote(record: QuoteRecord): Promise<void> {
+  async saveQuote(record: StoredQuote): Promise<void> {
     await mkdir(join(this.#dir, 'quotes'), { recursive: true });
     await appendFile(this.#quoteFile(record.tenantId), `${JSON.stringify(record)}\n`, 'utf8');
   }
 
-  async getQuote(tenantId: string, id: string): Promise<QuoteRecord | null> {
+  async getQuote(tenantId: string, id: string): Promise<StoredQuote | null> {
     return (await this.#readQuotes(tenantId)).get(id) ?? null;
   }
 
-  async listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]> {
+  async listQuotes(tenantId: string, sessionId: string): Promise<StoredQuote[]> {
     return [...(await this.#readQuotes(tenantId)).values()]
       .filter((q) => q.sessionId === sessionId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));

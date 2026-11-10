@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ConversationFlow, FlowEffect, FlowStep } from '@sunny/contracts';
+import type { ConversationFlow, FlowEffect, FlowStep, Workflow } from '@sunny/contracts';
 
 import type { PriceItem, PriceList } from '../src/catalogue/price-list.js';
-import { PACKAGE_UNITS, checkFlow, isFixedQuantity } from '../src/flow/check.js';
+import { SOLAR } from '../src/flow/banks.js';
+import {
+  PACKAGE_UNITS,
+  checkFlow,
+  checkWorkflow,
+  checkWorkflowSet,
+  isFixedQuantity,
+} from '../src/flow/check.js';
+import { FIXED_START, PRESET_GROUPS, PRESET_WARNINGS } from '../src/flow/presets.js';
+import { QUESTIONS, optionLabel } from '../src/questionnaire.js';
+import { presetViews } from '../src/routes/flow-views.js';
+import { heatPumpTemplate, solarTemplate } from '../src/workflows/templates.js';
 
 function item(over: Partial<PriceItem> & Pick<PriceItem, 'key' | 'name' | 'pricing'>): PriceItem {
   return {
@@ -309,5 +320,105 @@ describe('checkFlow', () => {
     expect(checkFlow(flow, LIST)).toEqual([
       { stepId: 'c_bbbbbb', code: 'duplicate_id', message: 'Two questions share the same id.' },
     ]);
+  });
+});
+
+describe('presetViews', () => {
+  it('keeps the legacy output exactly', () => {
+    const expected = Object.entries(QUESTIONS).map(([id, q]) => ({
+      id,
+      prompt: q.prompt,
+      options: (q.options ?? []).map((value) => ({ value, label: optionLabel(value) })),
+      fixed: (FIXED_START as readonly string[]).includes(id),
+      warning: PRESET_WARNINGS[id] ?? null,
+      group: [...(PRESET_GROUPS[id] ?? [])],
+      appearsWhen: q.appearsWhen
+        ? { questionId: q.appearsWhen.questionId, anyOf: [...q.appearsWhen.anyOf] }
+        : null,
+    }));
+    expect(presetViews()).toEqual(expected);
+  });
+
+  it('SOLAR has nothing fixed and hides the address followers', () => {
+    const views = presetViews(SOLAR);
+    expect(views.some((v) => v.fixed)).toBe(false);
+    expect(views.some((v) => v.id === 'roof_confidence' || v.id === 'roof_confirmed')).toBe(false);
+    expect(views.find((v) => v.id === 'address')!.group).toEqual([
+      'roof_confidence',
+      'roof_confirmed',
+    ]);
+  });
+});
+
+describe('workflow checks', () => {
+  const NOW = '2026-11-10T00:00:00.000Z';
+  const solar = (over: Partial<Workflow> = {}): Workflow => ({ ...solarTemplate(NOW), ...over });
+  const set = (workflows: Workflow[]) => ({
+    version: 1,
+    updatedAt: NOW,
+    discovery: { enabled: true },
+    workflows,
+  });
+
+  it('asks a solar quote for the address', () => {
+    const w = solar({ steps: [{ kind: 'preset', id: 'motivation' }] });
+    expect(checkWorkflow(w, LIST).map((i) => i.code)).toEqual(['needs_address']);
+    expect(checkWorkflow(solar(), LIST)).toEqual([]);
+  });
+
+  it('refuses a preset question from another kind of workflow, follow-ups included', () => {
+    const hp = heatPumpTemplate(NOW);
+    const roof: Workflow = {
+      ...hp,
+      steps: [...hp.steps, { kind: 'preset', id: 'roof_direction' }],
+    };
+    expect(checkWorkflow(roof, LIST)).toEqual([
+      expect.objectContaining({
+        code: 'unknown_preset',
+        stepId: 'roof_direction',
+        message: 'This question does not belong to this kind of workflow.',
+      }),
+    ]);
+    const followUp = custom('c_follow1', []);
+    const nested: Workflow = solar({
+      steps: [
+        ...solar().steps,
+        { ...followUp, followUps: [{ when: ['yes'], step: { kind: 'preset', id: 'hp_age' } }] },
+      ],
+    });
+    expect(checkWorkflow(nested, LIST).map((i) => i.code)).toContain('unknown_preset');
+  });
+
+  it('finds no unknown preset in the solar or heat pump template', () => {
+    for (const w of [solarTemplate(NOW), heatPumpTemplate(NOW)]) {
+      expect(checkWorkflow(w, LIST).map((i) => i.code)).not.toContain('unknown_preset');
+    }
+  });
+
+  it('flags a page pattern that is not a path', () => {
+    const w = solar({ pages: { include: ['offers/x'], exclude: [] } });
+    const issues = checkWorkflow(w, LIST);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ code: 'bad_page_pattern', field: 'pages', workflowId: w.id });
+  });
+
+  it('flags a custom step id used in two workflows', () => {
+    const step = custom('c_abc123', []);
+    const a = solar({ steps: [{ kind: 'preset', id: 'address' }, step] });
+    const b = solar({ id: 'wf_other', kind: 'custom', steps: [step] });
+    const issues = checkWorkflowSet(set([a, b]), LIST).filter(
+      (i) => i.code === 'duplicate_step_id',
+    );
+    expect(issues).toEqual([
+      expect.objectContaining({ workflowId: 'wf_other', stepId: 'c_abc123' }),
+    ]);
+  });
+
+  it('warns when two all-pages workflows share an interest', () => {
+    const a = solar();
+    const b = solar({ id: 'wf_other', kind: 'custom', steps: [{ kind: 'preset', id: 'address' }] });
+    const issues = checkWorkflowSet(set([a, b]), LIST).filter((i) => i.code === 'interest_overlap');
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.warning).toBe(true);
   });
 });

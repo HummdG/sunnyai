@@ -23,6 +23,7 @@ import { buildServer } from '../src/server.js';
 import { issueSessionToken } from '../src/sessions.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry } from '../src/tenants.js';
+import { workflowContext } from './workflow-fixture.js';
 
 const NOW = 1_791_000_000_000;
 const SECRET = 'test-secret-sunscan';
@@ -283,6 +284,7 @@ describe('SunScan tools', () => {
       sunscan: service,
       knowledge: EMPTY_KNOWLEDGE,
       flow: resolveFlow(null),
+      ...workflowContext(),
     };
   }
 

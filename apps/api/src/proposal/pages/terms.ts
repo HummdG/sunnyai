@@ -7,7 +7,7 @@
  * line ever runs past its column.
  */
 
-import type { ProposalDoc } from '../doc.js';
+import type { ProposalBase } from '../doc.js';
 import { CONTENT, label, type Theme } from '../layout.js';
 import { glyphSafe, parseTerms } from '../terms.js';
 
@@ -88,7 +88,7 @@ export function wrapLines(pdf: Pdf, text: string, width: number): string[] {
  * Whether the quote has terms to print. The orchestrator adds the Terms page
  * only when this is true; `drawTerms` draws nothing for blank terms.
  */
-export function hasTerms(doc: ProposalDoc): boolean {
+export function hasTerms(doc: ProposalBase): boolean {
   return doc.snapshot.terms.trim() !== '';
 }
 
@@ -115,7 +115,7 @@ const twoColumns = (top: number): Frame[] => [
  * width column when they fit in it); after `start`, first one column there,
  * then two columns on each page that follows.
  */
-export function drawTerms(pdf: Pdf, doc: ProposalDoc, theme: Theme, start?: TermsStart): void {
+export function drawTerms(pdf: Pdf, doc: ProposalBase, theme: Theme, start?: TermsStart): void {
   if (!hasTerms(doc)) return;
   const blocks = parseTerms(doc.snapshot.terms);
   let frames: Frame[];

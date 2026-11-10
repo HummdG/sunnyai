@@ -17,6 +17,7 @@ import {
   waitlistRequestSchema,
   type WaitlistResponse,
   type AuditAction,
+  BUILTIN_WORKFLOW_IDS,
   type AuditEventsResponse,
   type AuditOutcome,
   type AuditReason,
@@ -63,7 +64,7 @@ import {
   type RateLimiter,
   type RateLimitRule,
 } from './ratelimit.js';
-import { explain, nextQuestion, reconcile, validateAnswer } from './questionnaire.js';
+import { explain } from './questionnaire.js';
 import { startRetention } from './retention.js';
 import { issueSessionToken, SESSION_TTL_MS, verifySessionToken } from './sessions.js';
 import { newId, type DeletedConversation, type ModelCall, type Store } from './store.js';
@@ -73,6 +74,7 @@ import { registerPortalRoutes, type KnowledgeSyncConnector } from './routes/port
 import { publicBrand, registerBrandingRoutes } from './routes/branding.js';
 import { registerQuotationRoutes } from './routes/quotation.js';
 import { registerConversationRoutes } from './routes/conversation.js';
+import { registerWorkflowRoutes } from './routes/workflows.js';
 import { pinBrandAssets } from './branding/meta.js';
 import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.js';
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
@@ -94,7 +96,7 @@ import {
 import { createFirebaseVerifier } from './auth/firebase.js';
 import { mailerFromEnv, type ProposalMailer } from './proposal/mailer.js';
 import { flowFieldsFor } from './flow/answers.js';
-import { flowForTenant } from './flow/tenant.js';
+import { resolvedFlowFor, sessionFlowForTenant, workflowsForTenant } from './workflows/tenant.js';
 import { catalogueBackedPricing } from './journey/catalogue-pricing.js';
 import type { PricingSource } from '@sunny/quote-engine';
 import { sha256 } from './ingest/prepare.js';
@@ -715,6 +717,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const sunscanConnected = sunscan !== null;
     const userText = body.data.text;
     const clientMessageId = body.data.clientMessageId;
+    // The host page, path only: which workflows apply depends on it.
+    const sentPath = normalisePagePath(body.data.page?.path);
     // The assistant's effectful tool calls are audited, the same as any other
     // privileged act: `create_lead` and `request_callback` file a record, and
     // "which conversation was the callback promised in" is a question the trail
@@ -732,6 +736,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         // be read produces the same `error` frame as any other turn failure
         // instead of a bare 500 the widget's transport has no case for.
         const knowledge = await loadKnowledgeIndex(tenantSnapshot.id);
+        // Read once here and handed down, so the turn does not read it again.
+        // Handed down as stored: the turn settles it, and saves what settling
+        // changed (a workflow the installer has since turned off is paused).
+        const { set: workflows } = workflowsForTenant(tenantSnapshot);
+        const session = await store.getWorkflowState(tenantSnapshot.id, sessionIdSnapshot);
+        // A message that names no page is on the page the session last named.
+        const pagePath = sentPath ?? session.lastPath;
         for await (const event of runTurn({
           tenant: tenantSnapshot,
           provider: chat,
@@ -748,6 +759,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           audit,
           origin,
           channel: 'chat',
+          workflows,
+          session,
+          pagePath,
           search: deps.passageSearch ?? knowledgePipeline.retrieve.passageSearch,
           quote: {
             pricing: quotePricing,
@@ -908,7 +922,21 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // *given* what the visitor has already said -- not given itself.
     const before = (await store.getConversation(claims.tenantId, claims.sessionId))?.answers ?? {};
 
-    const verdict = validateAnswer(body.data.questionId, body.data.value, before);
+    // The tenant's own workflow, not Sunny's standard questions: the session's
+    // active workflow if it names one in the set, else the solar workflow.
+    const { set: workflowSet } = workflowsForTenant(tenant);
+    const workflowState = await store.getWorkflowState(claims.tenantId, claims.sessionId);
+    const activeId = workflowState.active?.workflowId;
+    const activeWorkflow =
+      (activeId ? workflowSet.workflows.find((w) => w.id === activeId) : undefined) ??
+      workflowSet.workflows.find((w) => w.id === BUILTIN_WORKFLOW_IDS.solar_quote) ??
+      workflowSet.workflows[0];
+    if (!activeWorkflow) {
+      throw new ApiError('bad_request', 'This installer has no workflow to answer yet.');
+    }
+    const flow = resolvedFlowFor(activeWorkflow);
+
+    const verdict = flow.validate(body.data.questionId, body.data.value, before);
     if (!verdict.ok) {
       // `bad_request` rather than a silent 200: a page that believes it recorded
       // an answer it did not will show the visitor a completed form and a gap the
@@ -918,7 +946,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       throw new ApiError('bad_request', explain(verdict));
     }
 
-    const reconciled = reconcile({ ...before, [verdict.questionId]: verdict.value });
+    const reconciled = flow.reconcile({ ...before, [verdict.questionId]: verdict.value });
     const conversation = await store.mergeAnswers(
       claims.tenantId,
       claims.sessionId,
@@ -936,7 +964,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const payload: QualificationAnswerResponse = {
       questionId: verdict.questionId,
       answers,
-      nextQuestionId: nextQuestion(answers),
+      nextQuestionId: flow.next(answers),
       // A correction is the one write that can take an answer away, so it is the
       // one that has anything to report here. Every other response carries [].
       removedAnswers: reconciled.dropped.map(({ questionId, value, ruledOutBy }) => ({
@@ -988,6 +1016,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!tenant) throw new ApiError('not_found', 'Unknown tenant for this session.');
 
     const existing = await store.getConversation(claims.tenantId, claims.sessionId);
+    // The session's running workflow, once workflows are saved, for the answers' questions.
+    const activeWorkflowId =
+      tenant.config.workflows != null
+        ? (await store.getWorkflowState(claims.tenantId, claims.sessionId)).active?.workflowId
+        : undefined;
     const result = await store.saveLead({
       id: newId('lead'),
       // From the verified token, never from the request body: a caller who could
@@ -1011,7 +1044,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       createdAt: new Date(now()).toISOString(),
       clientLeadId: body.data.clientLeadId,
       // The installer's questions and what the visitor answered, as the chat tool records them.
-      ...flowFieldsFor(flowForTenant(tenant), existing?.answers ?? {}),
+      ...flowFieldsFor(sessionFlowForTenant(tenant, activeWorkflowId), existing?.answers ?? {}),
     });
 
     if (result.outcome === 'conflict') {
@@ -2149,7 +2182,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   // The installer's quote conversation in Studio (routes/conversation.ts).
-  registerConversationRoutes(app, {
+  const flowRouteDeps = {
     store,
     tenants,
     portal: deps.portal ?? loadPortalConfig(process.env, config.nodeEnv),
@@ -2157,7 +2190,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     getProvider,
     enforceRateLimit,
-  });
+  };
+  registerConversationRoutes(app, flowRouteDeps);
+  // Studio's workflow builder (routes/workflows.ts).
+  registerWorkflowRoutes(app, flowRouteDeps);
 
   // The Email Assistant add-on (routes/email.ts).
   emailHooks = registerEmailRoutes(app, {
@@ -2208,6 +2244,25 @@ function bearer(request: FastifyRequest): string | undefined {
   if (typeof header !== 'string') return undefined;
   const [scheme, token] = header.split(' ');
   return scheme?.toLowerCase() === 'bearer' ? token : undefined;
+}
+
+/** The longest page path kept, as the workflow page rules allow. */
+const PAGE_PATH_MAX = 512;
+
+/**
+ * The host page's path from a chat request, or null. Only the path is kept:
+ * a query string or a fragment is dropped, and anything that is not a path
+ * (a full URL, a protocol-relative `//host`, a control character, an
+ * over-long value) is refused rather than guessed at.
+ */
+export function normalisePagePath(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const path = raw.split(/[?#]/, 1)[0]!.trim();
+  if (!path.startsWith('/') || path.startsWith('//')) return null;
+  if (path.length > PAGE_PATH_MAX || /\s/.test(path)) return null;
+  // A control character never belongs in a path.
+  if ([...path].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f)) return null;
+  return path;
 }
 
 /**

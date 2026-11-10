@@ -9,12 +9,19 @@
  * the HTTP routes run (journey/service.ts).
  */
 
-import type { PricingSource } from '@sunny/quote-engine';
+import type { Workflow } from '@sunny/contracts';
+import { HEAT_PUMP_VAT_PERCENT } from '@sunny/heat-pump-engine';
+import { BATTERY_RETROFIT_VAT_PERCENT, type PricingSource } from '@sunny/quote-engine';
 
 import type { ToolContext, ToolResult } from '../agent/tools.js';
+import { SKIPPED, type ResolvedFlow } from '../flow/resolve.js';
 import { optionLabel } from '../questionnaire.js';
+import { DISCOVERY_ID, available, complete } from '../workflows/session.js';
 
+import { createBatteryQuote, publishedBatteryPricing } from './battery/service.js';
+import { BATTERY_NOT_SUITABLE, batteryNotSuitable } from './battery/status.js';
 import type { Proposal } from './extract.js';
+import { createHeatPumpQuote, publishedHeatPumpPricing } from './heat-pump/service.js';
 import { JOURNEY_KEYS } from './journey.js';
 import {
   createQuote,
@@ -33,7 +40,7 @@ export interface QuoteToolContext {
   log?: { warn: (object: object, message: string) => void };
 }
 
-function depsFor(ctx: ToolContext): JourneyDeps | null {
+export function depsFor(ctx: ToolContext): JourneyDeps | null {
   if (!ctx.quote) return null;
   return {
     store: ctx.store,
@@ -48,7 +55,68 @@ function depsFor(ctx: ToolContext): JourneyDeps | null {
   };
 }
 
-const NOT_ENABLED: ToolResult = {
+function isSolarQuote(w: Workflow): boolean {
+  return w.enabled && w.outcome.kind === 'quote' && w.outcome.engine === 'solar';
+}
+
+/** The quote engines Sunny can price in chat. */
+type PricedEngine = 'solar' | 'heat_pump' | 'battery';
+
+function pricedEngine(w: Workflow): PricedEngine | null {
+  return w.outcome.kind === 'quote' ? w.outcome.engine : null;
+}
+
+const NOT_OFFERED: Record<PricedEngine, string> = {
+  solar: 'Solar quotes are not offered here right now.',
+  heat_pump: 'Heat pump quotes are not offered here right now.',
+  battery: 'Battery quotes are not offered here right now.',
+};
+
+/**
+ * What a quote may be built for now: the running workflow, when it is an
+ * enabled quote Sunny can price (solar, heat pump or battery), or, with
+ * nothing running (or only discovery), a solar quote when one applies on this
+ * page. Else the refusal.
+ */
+function quoteTarget(
+  ctx: ToolContext,
+):
+  | { ok: true; engine: 'solar'; workflow: Workflow | null }
+  | { ok: true; engine: 'heat_pump' | 'battery'; workflow: Workflow }
+  | { ok: false; refusal: ToolResult } {
+  const activeId = ctx.session.active?.workflowId;
+  const running = activeId && activeId !== DISCOVERY_ID ? activeId : null;
+  const active = running ? ctx.workflows.workflows.find((w) => w.id === running) : undefined;
+  const engine = active ? pricedEngine(active) : null;
+  // A workflow that ends in a lead (or an engine with no quote yet) is not priced here.
+  if (active && !engine) {
+    return {
+      ok: false,
+      refusal: {
+        ok: false,
+        data: { outcome: 'lead', workflow: { id: active.id, name: active.name } },
+        summary: 'This one ends with the team getting in touch, not a quote.',
+      },
+    };
+  }
+  if (active && active.enabled && engine !== null && engine !== 'solar') {
+    return { ok: true, engine, workflow: active };
+  }
+  const allowed = running
+    ? active !== undefined && isSolarQuote(active)
+    : available(ctx.workflows, ctx.pagePath).some(isSolarQuote);
+  if (allowed) return { ok: true, engine: 'solar', workflow: active ?? null };
+  return {
+    ok: false,
+    refusal: {
+      ok: false,
+      data: { quotesOffered: false },
+      summary: NOT_OFFERED[engine ?? 'solar'],
+    },
+  };
+}
+
+export const NOT_ENABLED: ToolResult = {
   ok: false,
   data: { enabled: false },
   summary: 'Quotes are not available on this deployment.',
@@ -59,7 +127,7 @@ const NOT_ENABLED: ToolResult = {
  * end-of-turn write (agent.ts) neither re-adds an answer a correction removed
  * nor misses one the journey added.
  */
-function mirror(ctx: ToolContext, answers: Record<string, string>): void {
+export function mirror(ctx: ToolContext, answers: Record<string, string>): void {
   for (const key of Object.keys(ctx.answers)) {
     if (!(key in answers)) delete ctx.answers[key];
   }
@@ -83,7 +151,7 @@ export async function linkAssessmentFromTool(
  * Options as offered in chat. Reading a bill needs an upload the chat does not
  * have, so that route is not offered here (the visitor can type kWh instead).
  */
-function chatOptions(options: readonly string[] | null): readonly string[] | null {
+export function chatOptions(options: readonly string[] | null): readonly string[] | null {
   return options ? options.filter((o) => o !== 'bill_ocr') : null;
 }
 
@@ -92,39 +160,166 @@ function chatOptions(options: readonly string[] | null): readonly string[] | nul
  * question answered in their own words, which clears any buttons left from the last one). The last one a turn
  * emits is the question it ends on.
  */
-function offerReplies(
+export function offerReplies(
   ctx: ToolContext,
   questionId: string | null,
   options: readonly string[] | null,
   multi: boolean,
+  opts: { flow?: ResolvedFlow; optional?: boolean } = {},
 ): void {
   const offered = chatOptions(options) ?? [];
-  const label = labelOf(ctx, questionId);
-  ctx.events.push({
-    kind: 'quick_replies',
-    detail: {
-      questionId,
-      multi,
-      replies: offered.map((value) => ({ value, label: label(value) })),
-    },
-  });
+  const label = labelOf(opts.flow ?? ctx.flow, questionId);
+  const replies = offered.map((value) => ({ value, label: label(value) }));
+  // An optional question can be passed over with one tap.
+  if (opts.optional && questionId) replies.push({ value: SKIPPED, label: 'Skip' });
+  ctx.events.push({ kind: 'quick_replies', detail: { questionId, multi, replies } });
 }
 
 /** How an answer to a question reads to the visitor: the installer's label, else Sunny's. */
-function labelOf(ctx: ToolContext, questionId: string | null): (value: string) => string {
-  const question = questionId ? ctx.flow.question(questionId) : undefined;
+function labelOf(flow: ResolvedFlow, questionId: string | null): (value: string) => string {
+  const question = questionId ? flow.question(questionId) : undefined;
   return question ? (value) => question.label(value) : optionLabel;
 }
 
 /** Visitor-facing labels for the offered options, keyed by value. */
-function labelsFor(
+export function labelsFor(
   ctx: ToolContext,
   questionId: string | null,
   options: readonly string[] | null,
+  flow: ResolvedFlow = ctx.flow,
 ): Record<string, string> | null {
   const offered = chatOptions(options);
-  const label = labelOf(ctx, questionId);
+  const label = labelOf(flow, questionId);
   return offered ? Object.fromEntries(offered.map((o) => [o, label(o)])) : null;
+}
+
+function notReady(result: { missing: string[]; next: string | null }): ToolResult {
+  return {
+    ok: false,
+    data: { readyForQuote: false, outstanding: result.missing, nextQuestionId: result.next },
+    summary: 'A few more answers are needed first.',
+  };
+}
+
+/** The workflow that asked for a quote is finished: never re-quoted, never resumed. */
+async function completeQuoted(ctx: ToolContext, quoteId: string): Promise<void> {
+  if (ctx.session.active && ctx.session.active.workflowId !== DISCOVERY_ID) {
+    ctx.session = complete(ctx.session, new Date().toISOString(), { quoteId });
+    await ctx.store.saveWorkflowState(ctx.tenant.id, ctx.sessionId, ctx.session);
+  }
+}
+
+async function heatPumpOptions(
+  ctx: ToolContext,
+  deps: JourneyDeps,
+  workflow: Workflow,
+): Promise<ToolResult> {
+  const result = await createHeatPumpQuote(
+    { ...deps, heatPumpPricing: publishedHeatPumpPricing(deps.store) },
+    ctx.tenant.id,
+    ctx.sessionId,
+    workflow,
+  );
+  if (!result.ok) return notReady(result);
+  const quote = result.quote;
+  ctx.events.push({ kind: 'quote', detail: { quote: toQuoteCard(quote) } });
+  await completeQuoted(ctx, quote.id);
+  return {
+    ok: true,
+    data: {
+      quoteId: quote.id,
+      kind: 'heat_pump',
+      priced: quote.priced,
+      recommendedKw: quote.estimate.recommendedKw,
+      vatRatePercent: quote.pricing?.vatRatePercent ?? HEAT_PUMP_VAT_PERCENT,
+      grantEligible: quote.estimate.bus.eligible,
+      grantNotes: quote.estimate.bus.reasons,
+      options: quote.options.map((o) => ({
+        label: o.label,
+        recommended: o.isRecommended,
+        kW: o.outputKw,
+        price: o.priceGbp,
+        grant: o.grantGbp,
+        priceAfterGrant: o.priceAfterGrantGbp,
+        installerPriced: o.installerPriced,
+        warnings: o.warnings,
+        priceLabel: o.priceLabel,
+        yearlyRunningCostGbp: o.runningCostGbp,
+        yearlyCurrentCostGbp: o.currentCostGbp,
+        yearlySavingsGbp: o.annualSavingsGbp,
+      })),
+      assumptions: quote.estimate.assumptions,
+      disclaimer: quote.disclaimer,
+      warnings: quote.warnings,
+    },
+    summary:
+      `Presented ${quote.options.length} heat pump options. The figures are indicative and ` +
+      'subject to a survey, and the Boiler Upgrade Scheme grant is shown separately from the price.',
+  };
+}
+
+async function batteryOptions(
+  ctx: ToolContext,
+  deps: JourneyDeps,
+  workflow: Workflow,
+): Promise<ToolResult> {
+  // A home without solar is not quoted a retrofit: a solar quote is offered instead.
+  const answers = (await deps.store.getConversation(ctx.tenant.id, ctx.sessionId))?.answers ?? {};
+  if (batteryNotSuitable(answers)) {
+    const solar = available(ctx.workflows, ctx.pagePath).find(isSolarQuote);
+    return {
+      ok: false,
+      data: {
+        readyForQuote: false,
+        notSuitable: true,
+        reason: BATTERY_NOT_SUITABLE,
+        ...(solar ? { suggestWorkflowId: solar.id } : {}),
+      },
+      summary: BATTERY_NOT_SUITABLE,
+    };
+  }
+  const result = await createBatteryQuote(
+    { ...deps, batteryPricing: publishedBatteryPricing(deps.store) },
+    ctx.tenant.id,
+    ctx.sessionId,
+    workflow,
+  );
+  if (!result.ok) return notReady(result);
+  const quote = result.quote;
+  ctx.events.push({ kind: 'quote', detail: { quote: toQuoteCard(quote) } });
+  await completeQuoted(ctx, quote.id);
+  return {
+    ok: true,
+    data: {
+      quoteId: quote.id,
+      kind: 'battery',
+      priced: quote.priced,
+      recommendedKwh: quote.estimate.recommendedKwh,
+      solarSystemKwp: quote.estimate.pvKwp,
+      tariff: quote.tariff,
+      vatRatePercent: quote.pricing?.vatRatePercent ?? BATTERY_RETROFIT_VAT_PERCENT,
+      options: quote.options.map((o) => ({
+        label: o.label,
+        recommended: o.isRecommended,
+        kWh: o.capacityKwh,
+        battery: o.batteryName,
+        price: o.priceGbp,
+        installerPriced: o.installerPriced,
+        warnings: o.warnings,
+        priceLabel: o.priceLabel,
+        yearlySavingsGbp: o.annualSavingsGbp,
+        yearlySolarStorageSavingGbp: o.selfUseSavingGbp,
+        yearlyCheapRateSavingGbp: o.shiftSavingGbp,
+        paybackYears: o.paybackYears,
+      })),
+      assumptions: quote.estimate.assumptions,
+      disclaimer: quote.disclaimer,
+      warnings: quote.warnings,
+    },
+    summary:
+      `Presented ${quote.options.length} battery options. The figures are indicative and ` +
+      'subject to a survey of the existing solar system.',
+  };
 }
 
 export const QUOTE_TOOLS = [
@@ -237,25 +432,27 @@ export const QUOTE_TOOLS = [
   {
     name: 'get_quote_options' as const,
     description:
-      'Build the quote once get_quote_journey says readyForQuote: three system options with ' +
-      "the installer's prices, generation and savings. The widget shows them as cards, so " +
-      'summarise in a sentence or two, recommend the highlighted one, and say the figures are ' +
-      'indicative and subject to a survey. Never quote a figure that is not in this result.',
+      'Build the quote once get_workflow_step or save_workflow_answers says readyForQuote: ' +
+      "up to three options with the installer's prices and savings (solar panels, a heat " +
+      'pump with the Boiler Upgrade Scheme grant shown separately, or a battery for a home ' +
+      'that already has solar). The widget ' +
+      'shows them as cards, so summarise in a sentence or two, recommend the highlighted one, ' +
+      'and say the figures are indicative and subject to a survey. Never quote a figure that ' +
+      'is not in this result.',
     parameters: { type: 'object', properties: {}, required: [] },
     required: [],
     async run(_args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
       const deps = depsFor(ctx);
       if (!deps) return NOT_ENABLED;
+      const target = quoteTarget(ctx);
+      if (!target.ok) return target.refusal;
+      if (target.engine === 'heat_pump') return heatPumpOptions(ctx, deps, target.workflow);
+      if (target.engine === 'battery') return batteryOptions(ctx, deps, target.workflow);
       const result = await createQuote(deps, ctx.tenant.id, ctx.sessionId);
-      if (!result.ok) {
-        return {
-          ok: false,
-          data: { readyForQuote: false, outstanding: result.missing, nextQuestionId: result.next },
-          summary: 'A few more answers are needed first.',
-        };
-      }
+      if (!result.ok) return notReady(result);
       const quote = result.quote;
       ctx.events.push({ kind: 'quote', detail: { quote: toQuoteCard(quote) } });
+      await completeQuoted(ctx, quote.id);
       return {
         ok: true,
         data: {

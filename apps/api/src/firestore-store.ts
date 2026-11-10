@@ -20,8 +20,9 @@ import type {
 import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan-adapter';
 
 import type { CatalogueState } from './catalogue/types.js';
-import type { QuoteRecord } from './journey/quote.js';
+import type { StoredQuote } from './journey/quote-kinds.js';
 import type { Tenant } from './tenants.js';
+import { EMPTY_SESSION, cloneSession, type WorkflowSession } from './workflows/session.js';
 import type {
   AuditEvent,
   IngestionJob,
@@ -679,6 +680,40 @@ export class FirestoreStore implements Store {
     });
   }
 
+  async getWorkflowState(tenantId: string, sessionId: string): Promise<WorkflowSession> {
+    const conversation = await this.getConversation(tenantId, sessionId);
+    return cloneSession(conversation?.workflow ?? EMPTY_SESSION);
+  }
+
+  /** Replaces the session's workflow state, like `saveWant`. */
+  async saveWorkflowState(
+    tenantId: string,
+    sessionId: string,
+    state: WorkflowSession,
+  ): Promise<WorkflowSession> {
+    const conversationRef = this.#conversationRef(tenantId, sessionId);
+    return await this.#db.runTransaction<WorkflowSession>(async (transaction) => {
+      const snapshot = await transaction.get(conversationRef);
+      const existing = snapshot.exists
+        ? (snapshot.data() as unknown as Omit<Conversation, 'turns'>)
+        : null;
+      const now = new Date().toISOString();
+      const workflow = cloneSession(state);
+      const conversation = existing
+        ? { ...existing, workflow, updatedAt: now }
+        : {
+            id: newId('conv'),
+            tenantId,
+            sessionId,
+            workflow,
+            createdAt: now,
+            updatedAt: now,
+          };
+      transaction.set(conversationRef, conversation);
+      return workflow;
+    });
+  }
+
   /** This tenant's documents, in the order they were onboarded. */
   async listKnowledgeSources(tenantId: string): Promise<KnowledgeSourceRecord[]> {
     const snap = await this.#tenantDoc(tenantId).collection('knowledge').get();
@@ -821,25 +856,25 @@ export class FirestoreStore implements Store {
 
   // ── quotes (journey/quote.ts) ─────────────────────────────────────────────
 
-  async saveQuote(record: QuoteRecord): Promise<void> {
+  async saveQuote(record: StoredQuote): Promise<void> {
     await this.#tenantDoc(record.tenantId)
       .collection('quotes')
       .doc(docId('q', record.id))
       .set(JSON.parse(JSON.stringify(record)) as Record<string, unknown>);
   }
 
-  async getQuote(tenantId: string, id: string): Promise<QuoteRecord | null> {
+  async getQuote(tenantId: string, id: string): Promise<StoredQuote | null> {
     const snap = await this.#tenantDoc(tenantId).collection('quotes').doc(docId('q', id)).get();
-    return snap.exists ? (snap.data() as QuoteRecord) : null;
+    return snap.exists ? (snap.data() as StoredQuote) : null;
   }
 
-  async listQuotes(tenantId: string, sessionId: string): Promise<QuoteRecord[]> {
+  async listQuotes(tenantId: string, sessionId: string): Promise<StoredQuote[]> {
     const snap = await this.#tenantDoc(tenantId)
       .collection('quotes')
       .where('sessionId', '==', sessionId)
       .get();
     return snap.docs
-      .map((doc) => doc.data() as QuoteRecord)
+      .map((doc) => doc.data() as StoredQuote)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 

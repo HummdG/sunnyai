@@ -36,6 +36,7 @@ import { FileStore } from '../src/store.js';
 import { TenantRegistry, defaultTenants, type Tenant } from '../src/tenants.js';
 import { SITEVERIFY_URL, verifyTurnstile } from '../src/turnstile.js';
 import { ScriptedProvider } from './scripted-provider.js';
+import { workflowContext } from './workflow-fixture.js';
 
 /**
  * The headless core and its guardrails (Blueprint §1, §4, §5; the owner's
@@ -141,7 +142,7 @@ describe('the guardrail prompt', () => {
     const instruction = buildSystemInstruction(demo(), 'chat', 0);
     expect(instruction).toContain(fallbackLine());
     expect(fallbackLine()).toBe(
-      "I don't have that exact information on hand, but I can have one of our solar specialists reach out to you!",
+      "I don't have that exact information on hand, but I can have one of our specialists reach out to you!",
     );
     expect(instruction).toContain('customer assistant for Sunny');
     expect(instruction).toMatch(/Never invent a price, a tax credit/);
@@ -164,6 +165,7 @@ describe('the guardrail prompt', () => {
     expect(instruction).toMatch(/After the fallback line, ask whether they would like/);
     expect(instruction).toMatch(/name and the best phone number or email/);
     expect(instruction).toMatch(/wants a survey/);
+    expect(instruction).toMatch(/arrange a quote or a survey/);
   });
 
   it('escapes the visitor text so it cannot close its tag or open another', () => {
@@ -265,6 +267,7 @@ describe('per-channel tools and entitlements', () => {
       sunscanConnected: false,
       knowledge: { sourceCount: 0, chunks: [] },
       flow: resolveFlow(null),
+      ...workflowContext(),
     };
     const draft = { name: 'create_gmail_draft' as const, args: { subject: 's', body: 'b' } };
     const off = await executeTool(draft, ctx);

@@ -10,7 +10,13 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 
-import { ESTIMATE, layoutFlow, type FlowNode, type Measure } from './flow-layout.js';
+import {
+  ESTIMATE,
+  layoutFlow,
+  type FixedEnds,
+  type FlowNode,
+  type Measure,
+} from './flow-layout.js';
 import {
   draftPath,
   placeAt,
@@ -72,6 +78,7 @@ export function FlowCanvas({
   readOnly,
   selectedId,
   issues,
+  ends,
   onSelect,
   onDraft,
 }: {
@@ -80,6 +87,8 @@ export function FlowCanvas({
   readOnly: boolean;
   selectedId: string | null;
   issues: EditorIssue[];
+  /** The locked start (none when null) and end boxes. */
+  ends: FixedEnds;
   onSelect: (id: string) => void;
   onDraft: (change: (draft: Draft) => Draft) => void;
 }) {
@@ -106,8 +115,8 @@ export function FlowCanvas({
   }, []);
 
   const layout = useMemo(
-    () => layoutFlow(draft, ctx, heights, measure),
-    [draft, ctx, heights, measure],
+    () => layoutFlow(draft, ctx, heights, measure, ends),
+    [draft, ctx, heights, measure, ends],
   );
 
   // Boxes wrap their full question: once drawn, their real heights feed the layout.

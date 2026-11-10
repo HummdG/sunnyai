@@ -13,7 +13,7 @@
 
 import type { QuoteAnswers, QuoteUsage, TenantPricing } from '@sunny/quote-engine';
 
-import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
+import { resolveFlow, SKIPPED, type ResolvedFlow } from '../flow/resolve.js';
 import { QUESTIONS, reconcile } from '../questionnaire.js';
 
 import { confirmationPrompt, FACING_TO_DIRECTION, type MappedRoof } from './roof.js';
@@ -102,8 +102,10 @@ function questionnaireComplete(answers: Record<string, string>, flow: ResolvedFl
   const missing: string[] = [];
   let probe: Record<string, string> = { ...answers };
   // Walk the outstanding questions in order; everything outstanding is missing.
+  const legacy = flow.bank.id === 'legacy_solar';
   for (let i = 0; i < flow.questions.length; i++) {
-    const next = flow.next(probe);
+    // Optional questions never block a quote (legacy keeps its old behaviour).
+    const next = legacy ? flow.next(probe) : (flow.required(probe)[0] ?? null);
     if (next === null) break;
     missing.push(next);
     probe = { ...probe, [next]: '__probe__' };
@@ -123,16 +125,26 @@ export function journeyStatus(
 
   // With no assessment and none running, the mapping is absent: SunScan treats
   // that as low confidence and asks the visitor about the roof.
+  const legacy = flow.bank.id === 'legacy_solar';
   const effective =
     roof || roofPending || answers['roof_confidence']
-      ? answers
+      ? !legacy && roof && !answers['roof_confidence'] && answers['address']
+        ? { ...answers, roof_confidence: roof.confidence }
+        : answers
       : {
           ...answers,
           roof_confidence: answers['address'] ? 'low' : (answers['roof_confidence'] ?? ''),
         };
   const clean = Object.fromEntries(Object.entries(effective).filter(([, v]) => v !== ''));
 
-  const missing = questionnaireComplete(clean, flow);
+  let missing = questionnaireComplete(clean, flow);
+  if (!legacy) {
+    // Sunny sets the system-set answers itself, and an address's roof checks
+    // cannot be asked before there is an address.
+    const hidden = new Set<string>(flow.bank.systemSet);
+    if (!answers['address']) for (const id of flow.bank.followers['address'] ?? []) hidden.add(id);
+    missing = missing.filter((id) => !hidden.has(id));
+  }
   // While the roof is still being assessed, its confidence is not known yet:
   // skip the roof step for now and keep asking everything else.
   const askable = roofPending
@@ -140,9 +152,8 @@ export function journeyStatus(
     : missing;
   if (!postcode && answers['address']) missing.unshift('postcode');
 
-  const nextId = !answers['address']
-    ? 'address'
-    : (askable.find((id) => id !== 'postcode') ?? null);
+  const nextId =
+    legacy && !answers['address'] ? 'address' : (askable.find((id) => id !== 'postcode') ?? null);
   const question = nextId ? flow.question(nextId) : undefined;
   let prompt = question?.prompt ?? null;
   if (nextId === 'roof_confirmed' && roof) prompt = confirmationPrompt(roof);
@@ -212,6 +223,8 @@ export function quoteAnswers(
   const view = journeyStatus(answers, roof, {}, flow);
   if (!view.canQuote || !view.postcode) return null;
 
+  // An optional question the visitor skipped reads as unanswered.
+  answers = Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== SKIPPED));
   const usageSource = answers['usage_source'] ?? null;
   const usage: QuoteUsage = {
     // A bill upload is not something a chat can do; its kWh is typed instead.

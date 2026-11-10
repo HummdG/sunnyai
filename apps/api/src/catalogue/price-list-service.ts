@@ -242,6 +242,7 @@ function itemRows(item: PriceItem, currency: string): Row[] {
     'Additional unit discount': money(item.additionalUnitDiscountMinor),
     'Capacity (kWh)': item.capacityWh === null ? null : item.capacityWh / 1000,
     'Power (kW)': item.powerW === null ? null : item.powerW / 1000,
+    Role: item.role ?? null,
     Currency: currency,
     Notes: item.notes,
   };

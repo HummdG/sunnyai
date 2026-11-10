@@ -40,6 +40,7 @@ const OUT = path.join(ROOT, 'dist', 'api');
 const WORKSPACES = [
   'apps/api',
   'packages/contracts',
+  'packages/heat-pump-engine',
   'packages/knowledge',
   'packages/quote-engine',
   'packages/solar-rules',

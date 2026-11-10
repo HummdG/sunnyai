@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { suggestPriceChanges, type FlowEffect, type FlowStep } from '../../../lib/portal-api.js';
+import {
+  suggestPriceChanges,
+  type FlowEffect,
+  type FlowStep,
+  type PriceSuggestion,
+} from '../../../lib/portal-api.js';
 import {
   MAX_CHOICES,
   choicesOf,
@@ -46,7 +51,7 @@ export interface Suggestions {
   dismiss: (stepId: string, value: string) => void;
 }
 
-type Question = { prompt: string; choices: Array<{ value: string; label: string }> };
+export type Question = { prompt: string; choices: Array<{ value: string; label: string }> };
 
 const answerKey = (stepId: string, value: string) => `${stepId}\n${value}`;
 
@@ -103,6 +108,7 @@ export function useSuggestions({
   enabled,
   selectedId,
   onDraft,
+  suggest,
 }: {
   tenantId: string;
   draft: Draft | null;
@@ -111,6 +117,8 @@ export function useSuggestions({
   enabled: boolean;
   selectedId: string | null;
   onDraft: (change: (draft: Draft) => Draft) => void;
+  /** Where Sunny is asked (a workflow's own route); the conversation's when absent. */
+  suggest?: (question: Question) => Promise<PriceSuggestion>;
 }): Suggestions {
   const [checking, setChecking] = useState<Map<string, string>>(new Map());
   const [origins, setOrigins] = useState<Map<string, AnswerOrigin>>(new Map());
@@ -119,6 +127,14 @@ export function useSuggestions({
   // Read by answers that arrive later, so they see the draft as it is then.
   const latest = useRef({ draft, ctx, origins, onDraft });
   latest.current = { draft, ctx, origins, onDraft };
+  // The newest asker, read when a timer fires, so a new function each render asks nothing again.
+  const asker = useRef(suggest);
+  asker.current = suggest;
+  const ask = useCallback(
+    (question: Question) =>
+      asker.current ? asker.current(question) : suggestPriceChanges(tenantId, question),
+    [tenantId],
+  );
   /** Each added question's signature when last seen: a change from it asks again. */
   const seen = useRef<Map<string, string> | null>(null);
   /**
@@ -226,7 +242,7 @@ export function useSuggestions({
         setTimeout(() => {
           timers.current.delete(id);
           startChecking(id, signature);
-          suggestPriceChanges(tenantId, question)
+          ask(question)
             .then((result) => {
               const { draft: now, ctx: c } = latest.current;
               const current = now && c ? findStep(now, c, id) : undefined;
@@ -238,7 +254,7 @@ export function useSuggestions({
         }, SUGGEST_DEBOUNCE_MS),
       );
     }
-  }, [draft, ctx, enabled, tenantId, apply]);
+  }, [draft, ctx, enabled, ask, apply]);
 
   // Sunny's own questions: asked once a session, when first opened.
   useEffect(() => {
@@ -255,11 +271,11 @@ export function useSuggestions({
     const id = step.id;
     asked.current.add(id);
     startChecking(id, 'preset');
-    suggestPriceChanges(tenantId, question)
+    ask(question)
       .then((result) => setOffers((current) => new Map(current).set(id, result.effects)))
       .catch(() => failed.current.add(id))
       .finally(() => stopChecking(id, 'preset'));
-  }, [selectedId, draft, ctx, enabled, tenantId]);
+  }, [selectedId, draft, ctx, enabled, ask]);
 
   return {
     checking: (stepId) => checking.has(stepId),

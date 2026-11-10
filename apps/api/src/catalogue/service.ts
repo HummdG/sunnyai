@@ -517,6 +517,7 @@ const CATEGORY_LABEL: Record<Product['category'], string> = {
   battery: 'battery',
   ev_charger: 'EV charger',
   mounting: 'mounting',
+  heat_pump: 'heat_pump',
   other: 'other',
 };
 

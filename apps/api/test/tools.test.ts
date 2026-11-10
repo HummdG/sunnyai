@@ -19,6 +19,7 @@ import {
   csv,
   seedProducts,
 } from './catalogue-fixture.js';
+import { workflowContext } from './workflow-fixture.js';
 
 /**
  * The three tools that read the catalogue, called directly rather than through
@@ -59,6 +60,7 @@ function context(store: FileStore, events: ToolEvent[]): ToolContext {
     sunscanConnected: false,
     knowledge: EMPTY_KNOWLEDGE,
     flow: resolveFlow(null),
+    ...workflowContext(),
   };
 }
 

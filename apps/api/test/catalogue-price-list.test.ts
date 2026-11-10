@@ -243,6 +243,31 @@ describe('price list validation', () => {
   });
 });
 
+describe('heat pump price items', () => {
+  it('imports the heat_pump categories and a role column', () => {
+    const csv = [
+      'Category,Key,Name,Pricing,Amount,Unit,Power (kW),Role,Currency',
+      'heat_pump,HP-7,Acme 7 kW,flat,"£6,500",,7,,GBP',
+      'heat-pump install,INS-CYL,Cylinder,flat,£900,,,cylinder,GBP',
+      'heat_pump_install,INS-BAD,Bad,flat,£900,,,sparkles,GBP',
+    ].join('\n');
+    const { list, issues } = importPriceList(csv);
+    const hp = list!.items.find((i) => i.key === 'HP-7')!;
+    expect(hp.category).toBe('heat_pump');
+    expect(hp.powerW).toBe(7000);
+    expect('role' in hp).toBe(false);
+    expect(list!.items.find((i) => i.key === 'INS-CYL')).toMatchObject({
+      category: 'heat_pump_install',
+      role: 'cylinder',
+    });
+    expect(list!.items.some((i) => i.key === 'INS-BAD')).toBe(false);
+    expect(issues.some((i) => i.key === 'INS-BAD' && i.severity === 'error')).toBe(true);
+    // Round trip keeps the role.
+    const again = importPriceList(priceListToCsv(list!));
+    expect(again.list!.items.find((i) => i.key === 'INS-CYL')?.role).toBe('cylinder');
+  });
+});
+
 describe('price list routes', () => {
   it('previews, publishes, rolls back, and is isolated per installer', async () => {
     const { app, store } = await setup();

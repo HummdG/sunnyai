@@ -134,6 +134,9 @@ describe('lead follow-up email', () => {
     // The model saw the conversation and the lead, and was given no tools.
     expect(provider.lastRequest?.message).toContain('Visitor: We have a 3-bed semi');
     expect(provider.lastRequest?.tools).toEqual([]);
+    // The prompt suits any kind of quote, solar or heat pump.
+    expect(provider.lastRequest?.systemInstruction).toContain('a UK home energy installer');
+    expect(provider.lastRequest?.systemInstruction).not.toContain('solar installer');
     // The inbox can show it beside the web conversation.
     expect((await state.getThread(DEMO_TENANT.id, 'sess_web1'))?.draftText).toBe(draft.text);
   });

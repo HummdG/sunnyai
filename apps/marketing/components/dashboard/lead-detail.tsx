@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { api, tenantPath, type LeadRow } from '../../lib/portal-api.js';
+import { batteryPaybackText, batteryPriceText, batterySavingsText } from './battery-lead-text.js';
+import { heatPumpGrantText, heatPumpSavingsText, money } from './heat-pump-lead-text.js';
 import { SkeletonRows } from './kit.js';
 import { usePortal } from './portal.js';
 import { RoofViewer3D } from './roof-viewer.js';
@@ -35,17 +37,160 @@ interface QuoteOption {
   } | null;
 }
 
-interface Quote {
+interface QuoteBase {
   id: string;
   createdAt: string;
   priced: boolean;
   pricing: { label: string; priceStatus: 'verified' | 'indicative' } | null;
-  options: QuoteOption[];
   recommendedId: string | null;
   disclaimer: string;
   leadId: string | null;
   /** The package the visitor chose in the chat, when they chose one. */
   chosenOptionId?: string | null;
+}
+
+/** A solar quote; quotes from before quotes came in kinds have no `kind`. */
+interface SolarQuote extends QuoteBase {
+  kind?: 'solar';
+  options: QuoteOption[];
+}
+
+interface HeatPumpOption {
+  id: string;
+  label: string;
+  headline: string;
+  outputKw: number;
+  unitName: string;
+  priceGbp: number | null;
+  /** The Boiler Upgrade Scheme grant applied (0 when not eligible). */
+  grantGbp: number;
+  priceAfterGrantGbp: number | null;
+  annualSavingsGbp: number;
+  installerPriced: boolean;
+}
+
+interface HeatPumpQuote extends QuoteBase {
+  kind: 'heat_pump';
+  options: HeatPumpOption[];
+  /** The engine's estimate; only the grant verdict is read here. */
+  estimate?: { bus?: { eligible?: boolean | 'unsure' } };
+}
+
+interface BatteryOption {
+  id: string;
+  label: string;
+  headline: string;
+  capacityKwh: number;
+  priceGbp: number | null;
+  annualSavingsGbp: number;
+  /** The part of the saving from cheap-rate charging (0 off a time-of-use tariff). */
+  shiftSavingGbp?: number;
+  paybackYears?: number | null;
+  installerPriced?: boolean;
+  /** What the installer will need to check. */
+  warnings?: string[];
+}
+
+interface BatteryQuote extends QuoteBase {
+  kind: 'battery';
+  options: BatteryOption[];
+}
+
+type Quote = SolarQuote | HeatPumpQuote | BatteryQuote;
+
+/** The options to show as solar cards: none on a quote of another kind. */
+function solarOptionsOf(quote: Quote): QuoteOption[] {
+  return quote.kind === undefined || quote.kind === 'solar' ? quote.options : [];
+}
+
+/** A battery option on the lead page: its size, price, saving, payback and warnings. */
+function BatteryOptionCard({ quote, option }: { quote: BatteryQuote; option: BatteryOption }) {
+  const chosen = option.id === quote.chosenOptionId;
+  return (
+    <article
+      className={`quote-option${option.id === quote.recommendedId ? ' recommended' : ''}${chosen ? ' chosen' : ''}`}
+      aria-label={chosen ? `${option.label} (chosen by the customer)` : option.label}
+    >
+      <div className="chip-row">
+        {option.id === quote.recommendedId &&
+        option.label.trim().toLowerCase() === 'recommended' ? null : (
+          <Chip>{option.label}</Chip>
+        )}
+        {option.id === quote.recommendedId ? <Chip tone="ok">Recommended</Chip> : null}
+        {chosen ? <Chip tone="orange">Chosen by the customer</Chip> : null}
+      </div>
+      <h3>{option.headline}</h3>
+      <p className="quote-price">{batteryPriceText(option)}</p>
+      <p className="small muted">
+        {quote.pricing?.priceStatus === 'verified' ? 'From your price list' : 'Indicative'}, subject
+        to a survey
+      </p>
+      <dl>
+        <dt>Battery</dt>
+        <dd>{option.capacityKwh.toLocaleString('en-GB')} kWh</dd>
+        <dt>Savings</dt>
+        <dd>{batterySavingsText(option.annualSavingsGbp, option.shiftSavingGbp ?? 0)}</dd>
+        <dt>Payback</dt>
+        <dd>{batteryPaybackText({ ...option, paybackYears: option.paybackYears ?? null })}</dd>
+      </dl>
+      {option.warnings && option.warnings.length > 0 ? (
+        <ul className="small muted" aria-label="To check at the survey">
+          {option.warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      ) : null}
+    </article>
+  );
+}
+
+/** A heat pump option on the lead page: its output, price and grant. */
+function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: HeatPumpOption }) {
+  const chosen = option.id === quote.chosenOptionId;
+  return (
+    <article
+      className={`quote-option${option.id === quote.recommendedId ? ' recommended' : ''}${chosen ? ' chosen' : ''}`}
+      aria-label={chosen ? `${option.label} (chosen by the customer)` : option.label}
+    >
+      <div className="chip-row">
+        {option.id === quote.recommendedId &&
+        option.label.trim().toLowerCase() === 'recommended' ? null : (
+          <Chip>{option.label}</Chip>
+        )}
+        {option.id === quote.recommendedId ? <Chip tone="ok">Recommended</Chip> : null}
+        {chosen ? <Chip tone="orange">Chosen by the customer</Chip> : null}
+      </div>
+      <h3>{option.headline}</h3>
+      <p className="quote-price">
+        {option.priceGbp === null ? 'Priced at survey' : `About ${money(option.priceGbp)}`}
+      </p>
+      <p className="small muted">
+        {quote.pricing?.priceStatus === 'verified' ? 'From your price list' : 'Indicative'}, subject
+        to a survey
+      </p>
+      <dl>
+        <dt>Heat pump</dt>
+        <dd>
+          {option.outputKw.toLocaleString('en-GB')} kW · {option.unitName}
+        </dd>
+        <dt>Grant</dt>
+        <dd>{heatPumpGrantText(quote.estimate?.bus?.eligible, option.grantGbp)}</dd>
+        <dt>After grant</dt>
+        <dd>
+          {option.priceAfterGrantGbp === null
+            ? 'Priced at survey'
+            : `About ${money(option.priceAfterGrantGbp)}`}
+        </dd>
+        <dt>Savings</dt>
+        <dd>{heatPumpSavingsText(option.annualSavingsGbp)}</dd>
+      </dl>
+      {option.installerPriced ? (
+        <p className="small muted">
+          Part of this option is not on your price list yet, so it is priced at survey.
+        </p>
+      ) : null}
+    </article>
+  );
 }
 
 interface RoofPlane {
@@ -66,11 +211,6 @@ interface RoofSummary {
   reliable?: boolean;
   label?: string;
   roofPlanes?: RoofPlane[];
-}
-
-/** Money per guidelines H3: £6,500 (pence only under £100). */
-function money(gbp: number): string {
-  return gbp < 100 ? `£${gbp.toFixed(2)}` : `£${Math.round(gbp).toLocaleString('en-GB')}`;
 }
 
 function kwh(value: number): string {
@@ -203,7 +343,17 @@ export function LeadDetail({
                 : 'No price list was published, so Sunny showed sizes and savings without prices.'}
             </p>
             <div className="quote-options">
-              {quote.options.map((option) => (
+              {quote.kind === 'heat_pump'
+                ? quote.options.map((option) => (
+                    <HeatPumpOptionCard key={option.id} quote={quote} option={option} />
+                  ))
+                : null}
+              {quote.kind === 'battery'
+                ? quote.options.map((option) => (
+                    <BatteryOptionCard key={option.id} quote={quote} option={option} />
+                  ))
+                : null}
+              {solarOptionsOf(quote).map((option) => (
                 <article
                   key={option.id}
                   className={`quote-option${option.id === quote.recommendedId ? ' recommended' : ''}${option.id === quote.chosenOptionId ? ' chosen' : ''}`}
@@ -227,7 +377,7 @@ export function LeadDetail({
                   <h3>{option.headline}</h3>
                   <p className="quote-price">
                     {option.priceGbp === null
-                      ? 'Priced by your team'
+                      ? 'Priced at survey'
                       : `About ${money(option.priceGbp)}`}
                   </p>
                   <p className="small muted">
@@ -292,7 +442,7 @@ export function LeadDetail({
                   ) : null}
                   {option.installerPriced.length > 0 ? (
                     <p className="small muted">
-                      For your team to price: {option.installerPriced.join(', ')}
+                      Priced at survey: {option.installerPriced.join(', ')}
                     </p>
                   ) : null}
                 </article>

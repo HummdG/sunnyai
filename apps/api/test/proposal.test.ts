@@ -38,6 +38,7 @@ import { FileStore } from '../src/store.js';
 import { DEMO_TENANT, TenantRegistry, defaultTenants, type Tenant } from '../src/tenants.js';
 
 import { pdfItems, pdfText, type PdfTextItem } from './pdf-text.js';
+import { batQuote, hpQuote } from './proposal-fixtures.js';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..');
 const NOW = Date.parse('2026-10-12T12:00:00.000Z');
@@ -788,7 +789,7 @@ async function setup(mailer: { sent: ProposalEmail[] } | null) {
       SECRET,
     )}`,
   });
-  return { app, tenantId, quote, lead, owner, as, visitor };
+  return { app, store, tenantId, quote, lead, owner, as, visitor };
 }
 
 describe('proposal routes', () => {
@@ -907,6 +908,88 @@ describe('proposal routes', () => {
     expect(
       proposalEmailConfigured({ SUNNY_POSTMARK_SERVER_TOKEN: 't', SUNNY_PROPOSAL_FROM: 'q@x.io' }),
     ).toBe(true);
+  });
+});
+
+describe('proposal routes with a heat pump quote', () => {
+  async function withHeatPump(mailer: { sent: ProposalEmail[] } | null) {
+    const ctx = await setup(mailer);
+    const { store } = ctx;
+    const hpLead = { ...ctx.lead, id: 'lead_hp', sessionId: 'sess_hp' };
+    await store.saveLead(hpLead);
+    // The answer now says gas; the quote was made with oil, and the PDF follows the quote.
+    await store.mergeAnswers(ctx.tenantId, 'sess_hp', { hp_current_heating: 'gas' });
+    const hp = hpQuote({
+      tenantId: ctx.tenantId,
+      sessionId: 'sess_hp',
+      leadId: hpLead.id,
+      currentFuel: 'oil',
+    });
+    await store.saveQuote(hp);
+    return { ...ctx, hp, hpLead };
+  }
+
+  it("gives the installer their heat pump lead's estimate", async () => {
+    const { app, tenantId, hpLead, owner, as } = await withHeatPump(null);
+    const url = `/v1/portal/tenants/${tenantId}/leads/${hpLead.id}/quote/proposal.pdf`;
+    const res = await app.inject({ method: 'GET', url, headers: as(owner) });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="heat-pump-estimate-NR4-7TJ.pdf"',
+    );
+    const text = (await pdfText(res.rawPayload)).join('\n');
+    expect(text).toContain('Heat pump estimate');
+    expect(text).toContain('Oil boiler');
+  });
+
+  it('emails the heat pump estimate as a heat pump quote', async () => {
+    const mailer = { sent: [] as ProposalEmail[] };
+    const { app, hp, visitor } = await withHeatPump(mailer);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/quote/${hp.id}/proposal/email`,
+      headers: visitor('sess_hp'),
+      payload: { email: 'sam@example.com', consent: true },
+    });
+    expect(res.statusCode).toBe(200);
+    const email = mailer.sent[0]!;
+    expect(email.subject).toBe('Your heat pump quote from Brightside Solar');
+    expect(email.text).toContain('heat pump estimate');
+    expect(email.text).not.toContain(String.fromCodePoint(0x2013));
+    expect(email.text).not.toContain(String.fromCodePoint(0x2014));
+    expect(email.attachment.filename).toBe('heat-pump-estimate-NR4-7TJ.pdf');
+    expect(email.attachment.data.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+});
+
+describe('proposal routes with a battery quote', () => {
+  it('emails the battery estimate as a battery quote, and gives it to the installer', async () => {
+    const mailer = { sent: [] as ProposalEmail[] };
+    const ctx = await setup(mailer);
+    const { app, store, tenantId, owner, as, visitor } = ctx;
+    const batLead = { ...ctx.lead, id: 'lead_bat', sessionId: 'sess_bat' };
+    await store.saveLead(batLead);
+    const bat = batQuote({ tenantId, sessionId: 'sess_bat', leadId: batLead.id });
+    await store.saveQuote(bat);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/quote/${bat.id}/proposal/email`,
+      headers: visitor('sess_bat'),
+      payload: { email: 'sam@example.com', consent: true },
+    });
+    expect(res.statusCode).toBe(200);
+    const email = mailer.sent[0]!;
+    expect(email.subject).toBe('Your battery quote from Brightside Solar');
+    expect(email.text).toContain('battery estimate');
+    expect(email.text).not.toContain(String.fromCodePoint(0x2013));
+    expect(email.text).not.toContain(String.fromCodePoint(0x2014));
+    expect(email.attachment.filename).toBe('battery-estimate-NR4-7TJ.pdf');
+
+    const url = `/v1/portal/tenants/${tenantId}/leads/${batLead.id}/quote/proposal.pdf`;
+    const pdf = await app.inject({ method: 'GET', url, headers: as(owner) });
+    expect(pdf.statusCode).toBe(200);
+    expect((await pdfText(pdf.rawPayload)).join(' ')).toContain('Battery estimate');
   });
 });
 

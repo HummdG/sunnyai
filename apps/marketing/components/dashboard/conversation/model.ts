@@ -15,6 +15,7 @@ import type {
   FlowStep,
   PresetView,
   PriceItemView,
+  WorkflowIssue,
 } from '../../../lib/portal-api.js';
 import { possessive } from '../../../lib/assistant-name.js';
 
@@ -369,6 +370,30 @@ export type EditorIssue = Pick<FlowIssue, 'stepId' | 'choice' | 'message'> & {
   /** Found by the editor before saving, not by the server. */
   local?: true;
 };
+
+/**
+ * A workflow's issues that belong beside a question, in the editor's shape.
+ * The rest (pages, interests, a missing address) are the workflow's, not a
+ * question's: see `wholeIssues`.
+ */
+export function stepIssues(issues: WorkflowIssue[]): EditorIssue[] {
+  return issues.flatMap((i) =>
+    typeof i.stepId === 'string'
+      ? [
+          {
+            stepId: i.stepId,
+            message: i.message,
+            ...(i.choice === undefined ? {} : { choice: i.choice }),
+          },
+        ]
+      : [],
+  );
+}
+
+/** The messages of a workflow's issues that belong to no one question. */
+export function wholeIssues(issues: WorkflowIssue[]): string[] {
+  return issues.filter((i) => typeof i.stepId !== 'string').map((i) => i.message);
+}
 
 /**
  * Problems the editor can see before asking the server, beside their question.

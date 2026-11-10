@@ -2,6 +2,7 @@ import type { LeadFlowAnswer } from '@sunny/contracts';
 
 import { QUESTIONS, optionLabel } from '../questionnaire.js';
 
+import { SKIPPED } from './banks.js';
 import { SYSTEM_SET } from './presets.js';
 
 import type { ResolvedFlow } from './resolve.js';
@@ -31,6 +32,8 @@ export function flowAnswersFor(
   for (const question of flow.questions) {
     const value = answers[question.id];
     if (SYSTEM_SET.has(question.id) || value === undefined || value.trim() === '') continue;
+    // A question the visitor chose to skip is not an answer to pass on.
+    if (value === SKIPPED) continue;
     emitted.add(question.id);
     out.push({
       id: question.id,
@@ -41,7 +44,13 @@ export function flowAnswersFor(
     });
   }
   for (const [id, value] of Object.entries(answers)) {
-    if (emitted.has(id) || SYSTEM_SET.has(id) || BOOKKEEPING.test(id) || value.trim() === '')
+    if (
+      emitted.has(id) ||
+      SYSTEM_SET.has(id) ||
+      BOOKKEEPING.test(id) ||
+      value.trim() === '' ||
+      value === SKIPPED
+    )
       continue;
     const preset = QUESTIONS[id];
     if (!preset) {

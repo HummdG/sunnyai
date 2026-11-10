@@ -22,6 +22,7 @@ export const CATEGORIES = [
   'battery',
   'ev_charger',
   'mounting',
+  'heat_pump',
   'other',
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -121,6 +122,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   battery: 'Battery',
   ev_charger: 'EV charger',
   mounting: 'Mounting',
+  heat_pump: 'Heat pump',
   other: 'Other',
 };
 
@@ -588,5 +590,7 @@ export const PRICE_CATEGORY_LABEL: Record<string, string> = {
   admin: 'Fees',
   optional: 'Optional extras',
   trenching: 'Cable trenching',
+  heat_pump: 'Heat pumps',
+  heat_pump_install: 'Heat pump installation',
   other: 'Other',
 };

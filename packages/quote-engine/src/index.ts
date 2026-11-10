@@ -24,3 +24,4 @@ export * from './recommend/deriveGeometry.js';
 export * from './input.js';
 export * from './pricing-source.js';
 export * from './savings-timeline.js';
+export * from './battery/index.js';

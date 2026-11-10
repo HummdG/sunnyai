@@ -77,7 +77,7 @@ function offlineProvider() {
         type: 'text',
         text: ref
           ? `If your solar system appears offline in the monitoring app, this does not necessarily mean your solar panels or battery have stopped working. We can guide you through reconnecting it. [${ref}]`
-          : "I don't have that exact information on hand, but I can have one of our solar specialists reach out to you!",
+          : "I don't have that exact information on hand, but I can have one of our specialists reach out to you!",
       },
     ];
   });

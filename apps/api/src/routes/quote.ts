@@ -23,6 +23,10 @@ import { z } from 'zod';
 
 import { pinBrandAssets } from '../branding/meta.js';
 import { chosenPackage } from '../journey/choose.js';
+import { createBatteryQuote, publishedBatteryPricing } from '../journey/battery/service.js';
+import { BATTERY_NOT_SUITABLE, batteryNotSuitable } from '../journey/battery/status.js';
+import { hasProposal, isSolarRecord, type StoredQuote } from '../journey/quote-kinds.js';
+import { createHeatPumpQuote, publishedHeatPumpPricing } from '../journey/heat-pump/service.js';
 import type { QuoteRecord } from '../journey/quote.js';
 import {
   createQuote,
@@ -32,10 +36,10 @@ import {
   type JourneyDeps,
   type RoofLookupFn,
 } from '../journey/service.js';
-import { flowForTenant } from '../flow/tenant.js';
 import { verifySessionToken } from '../sessions.js';
 import type { Store } from '../store.js';
 import type { TenantRegistry } from '../tenants.js';
+import { sessionFlowForTenant, workflowsForTenant } from '../workflows/tenant.js';
 
 export { sunscanRoofLookup, type RoofLookup } from '../journey/service.js';
 
@@ -86,10 +90,17 @@ function badRequest(error: z.ZodError): ApiError {
 /** A quote as the visitor's page sees it: no tenant id. */
 export function publicQuote(
   record: QuoteRecord,
-): Omit<QuoteRecord, 'tenantId'> & { proposalAvailable: true } {
+): Omit<QuoteRecord, 'tenantId'> & { proposalAvailable: boolean };
+export function publicQuote(
+  record: StoredQuote,
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean };
+export function publicQuote(
+  record: StoredQuote,
+): Omit<StoredQuote, 'tenantId'> & { proposalAvailable: boolean } {
   const { tenantId: _tenantId, ...rest } = record;
-  // GET /v1/quote/:id/proposal.pdf renders it (routes/proposal.ts).
-  return { ...rest, proposalAvailable: true };
+  // GET /v1/quote/:id/proposal.pdf renders the kinds that have a PDF
+  // (routes/proposal.ts): a solar proposal or a heat pump estimate.
+  return { ...rest, proposalAvailable: hasProposal(record) };
 }
 
 export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps): void {
@@ -98,8 +109,9 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     pricing: deps.pricing,
     roof: deps.roof,
     now: deps.now,
-    // The widget's quote journey is Sunny's chat: it follows the installer's flow.
-    flow: (tenantId) => flowForTenant(deps.tenants.byId(tenantId)),
+    // The widget's quote journey is Sunny's chat: it follows the installer's
+    // solar workflow once workflows are saved, else the stored conversation.
+    flow: (tenantId) => sessionFlowForTenant(deps.tenants.byId(tenantId)),
     tenant: (tenantId) => deps.tenants.byId(tenantId),
     pinBrandAssets: (tenantId, ids) => pinBrandAssets(deps.tenants, tenantId, ids),
     log: app.log,
@@ -148,7 +160,41 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     const body = sessionOnlySchema.safeParse(request.body);
     if (!body.success) throw badRequest(body.error);
     const who = caller(request, body.data.sessionId);
-    const result = await createQuote(journey, who.tenantId, who.sessionId);
+    // The session's running workflow decides the engine: an enabled heat pump
+    // or battery workflow gets its own quote, anything else the solar quote it
+    // always had.
+    const active = (await deps.store.getWorkflowState(who.tenantId, who.sessionId)).active;
+    const workflow = active
+      ? workflowsForTenant(deps.tenants.byId(who.tenantId)).set.workflows.find(
+          (w) => w.id === active.workflowId,
+        )
+      : undefined;
+    const engine =
+      workflow?.enabled === true && workflow.outcome.kind === 'quote'
+        ? workflow.outcome.engine
+        : 'solar';
+    // A home without solar is not quoted a battery retrofit, and is told why.
+    if (engine === 'battery') {
+      const answers =
+        (await deps.store.getConversation(who.tenantId, who.sessionId))?.answers ?? {};
+      if (batteryNotSuitable(answers)) throw new ApiError('bad_request', BATTERY_NOT_SUITABLE);
+    }
+    const result =
+      engine === 'heat_pump'
+        ? await createHeatPumpQuote(
+            { ...journey, heatPumpPricing: publishedHeatPumpPricing(deps.store) },
+            who.tenantId,
+            who.sessionId,
+            workflow!,
+          )
+        : engine === 'battery'
+          ? await createBatteryQuote(
+              { ...journey, batteryPricing: publishedBatteryPricing(deps.store) },
+              who.tenantId,
+              who.sessionId,
+              workflow!,
+            )
+          : await createQuote(journey, who.tenantId, who.sessionId);
     if (!result.ok) {
       throw new ApiError('bad_request', 'Not every answer the quote needs is in yet.', {
         missing: result.missing.join(','),
@@ -159,7 +205,7 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     return publicQuote(result.quote);
   });
 
-  async function owned(tenantId: string, sessionId: string, id: string): Promise<QuoteRecord> {
+  async function owned(tenantId: string, sessionId: string, id: string): Promise<StoredQuote> {
     const record = await deps.store.getQuote(tenantId, id);
     if (!record || record.sessionId !== sessionId) {
       throw new ApiError('not_found', 'No such quote.');
@@ -184,6 +230,16 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
     const who = caller(request, body.data.sessionId);
     const { id } = request.params as { id: string };
     const quote = await owned(who.tenantId, who.sessionId, id);
+    if (!isSolarRecord(quote)) {
+      // Only a solar quote has a savings timeline to play: for any other kind
+      // the choice is saved and the option returned as is.
+      const options: readonly { id: string }[] = quote.options;
+      const option = options.find((o) => o.id === body.data.optionId);
+      if (!option) throw new ApiError('not_found', 'No such option on this quote.');
+      const chosenAt = new Date(deps.now()).toISOString();
+      await deps.store.saveQuote({ ...quote, chosenOptionId: option.id, chosenAt });
+      return { chosen: option };
+    }
     const option = quote.options.find((o) => o.id === body.data.optionId);
     if (!option) throw new ApiError('not_found', 'No such option on this quote.');
     const chosen: QuoteRecord = {
@@ -210,7 +266,7 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
       (l) => l.id === body.data.leadId && l.sessionId === who.sessionId,
     );
     if (!lead) throw new ApiError('not_found', 'No such lead for this session.');
-    const attached: QuoteRecord = { ...quote, leadId: lead.id };
+    const attached: StoredQuote = { ...quote, leadId: lead.id };
     await deps.store.saveQuote(attached);
     return publicQuote(attached);
   });

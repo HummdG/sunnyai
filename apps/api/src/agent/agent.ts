@@ -1,15 +1,34 @@
 import { EMPTY_KNOWLEDGE, type KnowledgeIndex } from '@sunny/knowledge';
-import type { QuoteCard } from '@sunny/contracts';
+import type { QuoteCard, WorkflowSet } from '@sunny/contracts';
 import type { AssessmentSummary, SunScanService, SunScanStatus } from '@sunny/sunscan-adapter';
+
+import { isDeepStrictEqual } from 'node:util';
 
 import { newId, type ConversationTurn, type ModelCall, type Store } from '../store.js';
 import type { Auditor } from '../audit.js';
 import { flowForTenant } from '../flow/tenant.js';
+import type { ResolvedFlow } from '../flow/resolve.js';
+import {
+  DISCOVERY_ID,
+  available,
+  cloneSession,
+  markResumeOffered,
+  settle,
+  type WorkflowSession,
+} from '../workflows/session.js';
+import { activeStep, offerCurrentStep } from '../workflows/agent-tools.js';
+import { resolvedFlowFor, workflowsForTenant } from '../workflows/tenant.js';
 import type { QuoteToolContext } from '../journey/agent-tools.js';
 import type { Tenant } from '../tenants.js';
 import type { ChatProvider } from './provider.js';
 import { CHANNEL_POLICIES, assertEntitled, finalizeOutput, type Channel } from './channels.js';
-import { buildSystemInstruction, sandwich, userQuery } from './prompt.js';
+import {
+  buildSystemInstruction,
+  likelyWorkflow,
+  sandwich,
+  userQuery,
+  workflowState,
+} from './prompt.js';
 import {
   PlaceholderGuard,
   classifyIntent,
@@ -87,8 +106,44 @@ export interface TurnInput {
   search?: PassageSearch;
   /** The quote journey's pricing; absent turns have no quote tools to run. */
   quote?: QuoteToolContext;
+  /** The tenant's workflows; absent means read from the tenant now. */
+  workflows?: WorkflowSet;
+  /**
+   * Where this visitor is among the workflows, as stored (unsettled: the turn
+   * settles it, and saves a pause that settling made). Absent means read it now.
+   */
+  session?: WorkflowSession;
+  /**
+   * The host page's path, already normalised. Absent means the page the
+   * session last named (`session.lastPath`); null means no page is known.
+   */
+  pagePath?: string | null;
   signal?: AbortSignal;
 }
+
+/**
+ * The flow the turn's tools run on: the running workflow's, else the solar
+ * workflow's (what a visitor answering without a workflow is asked), else the
+ * tenant's stored conversation.
+ */
+function turnFlow(input: TurnInput, set: WorkflowSet, session: WorkflowSession): ResolvedFlow {
+  const id = session.active?.workflowId;
+  const active = id && id !== DISCOVERY_ID ? set.workflows.find((w) => w.id === id) : undefined;
+  if (active) return resolvedFlowFor(active);
+  const solar = set.workflows.find(
+    (w) => w.outcome.kind === 'quote' && w.outcome.engine === 'solar',
+  );
+  return solar ? resolvedFlowFor(solar) : flowForTenant(input.tenant);
+}
+
+/** The tools whose result names the next question, for a turn the model ends in silence. */
+const ASKING_TOOLS = new Set([
+  'get_quote_journey',
+  'save_answers',
+  'start_workflow',
+  'get_workflow_step',
+  'save_workflow_answers',
+]);
 
 /** Said for a roof still being measured, when the model said nothing itself. */
 const MEASURING_LINE = 'I am measuring your roof now; it takes a moment.';
@@ -219,6 +274,15 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   );
 
   const events: ToolEvent[] = [];
+  const workflows = input.workflows ?? workflowsForTenant(input.tenant).set;
+  // The visitor's place among the workflows, as the last turn left it; a
+  // workflow the installer has since turned off is set aside.
+  const stored =
+    input.session ?? (await input.store.getWorkflowState(input.tenant.id, input.sessionId));
+  const session = settle(stored, workflows);
+  const pagePath = input.pagePath === undefined ? session.lastPath : input.pagePath;
+  // Only a channel that can run workflows is told about them.
+  const workflowsOn = allowedTools.has('start_workflow');
   const ctx: ToolContext = {
     tenant: input.tenant,
     sessionId: input.sessionId,
@@ -239,8 +303,34 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     ...(input.quote ? { quote: input.quote } : {}),
     // Read from the tenant every turn: a flow saved mid-conversation governs
     // the next turn, and the answers already given stay.
-    flow: flowForTenant(input.tenant),
+    flow: turnFlow(input, workflows, session),
+    workflows,
+    session,
+    pagePath,
+    visitorMessage: input.message,
   };
+
+  // What the server tells the model about the workflows this turn, between the
+  // evidence and the visitor's words. A paused workflow it lists as not yet
+  // offered is marked offered once the turn is done, so the offer is made once.
+  let state: string | undefined;
+  const resumeOffered: string[] = [];
+  if (workflowsOn) {
+    const open = available(workflows, pagePath);
+    const paused = ctx.session.paused.flatMap((p) => {
+      const workflow = open.find((w) => w.id === p.workflowId);
+      return workflow ? [{ workflow, resumeOffered: p.resumeOfferedAt !== null }] : [];
+    });
+    for (const p of paused) if (!p.resumeOffered) resumeOffered.push(p.workflow.id);
+    state = workflowState({
+      active: await activeStep(ctx),
+      paused,
+      available: open,
+      discovery: ctx.session.discovery,
+      discoveryEnabled: workflows.discovery.enabled,
+      likely: likelyWorkflow(open, input.message),
+    });
+  }
 
   let text = '';
   let usage: { inputTokens: number; outputTokens: number } | undefined;
@@ -249,14 +339,16 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   let measuring = false;
   const noteForSilence = (tool: string, data: unknown) => {
     const d = (data ?? {}) as Record<string, unknown>;
-    if ((tool === 'get_quote_journey' || tool === 'save_answers') && typeof d['ask'] === 'string') {
-      nextAsk = d['ask'];
-    }
+    if (ASKING_TOOLS.has(tool) && typeof d['ask'] === 'string') nextAsk = d['ask'];
     if (tool === 'start_sunscan_assessment') {
       measuring = d['status'] === 'queued' || d['status'] === 'running';
     }
   };
   const toolsUsed: string[] = [];
+  // Whether the visitor was given the current question's buttons, or the quote
+  // cards, this turn: either way there is nothing for the server to re-offer.
+  let repliesSent = false;
+  let quoteSent = false;
   // The channel's allowlist is the declared surface: a tool outside it is
   // neither offered to the model nor run if the model names it anyway.
   const declaredTools = allowedTools;
@@ -295,7 +387,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
         role: t.role,
         text: t.role === 'user' ? userQuery(t.text) : t.text,
       })),
-      message: sandwich(contextPassages, input.message),
+      message: sandwich(contextPassages, input.message, state),
       tools: declarationsFor(policy.tools),
       // The model sees the tool's data plus its one-line summary; the events
       // the summary produces are drained into the stream between chunks, so a
@@ -318,6 +410,8 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
           if (disclaimerSent) continue;
           disclaimerSent = true;
         }
+        if (event.type === 'quick_replies') repliesSent = true;
+        if (event.type === 'quote') quoteSent = true;
         yield event;
       }
       if (chunk.type === 'text') {
@@ -343,6 +437,33 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       }
     }
 
+    for (const event of drain(events, messageId)) {
+      if (event.type === 'disclaimer') {
+        if (disclaimerSent) continue;
+        disclaimerSent = true;
+      }
+      if (event.type === 'quick_replies') repliesSent = true;
+      if (event.type === 'quote') quoteSent = true;
+      yield event;
+    }
+  }
+
+  // A workflow is running but the model only talked (an FAQ answered
+  // mid-workflow): the server puts the current question's buttons back under
+  // the answer, as get_workflow_step would, so the visitor can carry on.
+  if (
+    workflowsOn &&
+    !repliesSent &&
+    !quoteSent &&
+    !input.signal?.aborted &&
+    (ctx.session.active !== null || ctx.session.discovery.status === 'asking')
+  ) {
+    try {
+      const step = await offerCurrentStep(ctx);
+      noteForSilence('get_workflow_step', step.data);
+    } catch (error) {
+      console.warn('[workflows] could not re-offer the current question', error);
+    }
     for (const event of drain(events, messageId)) {
       if (event.type === 'disclaimer') {
         if (disclaimerSent) continue;
@@ -457,6 +578,23 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     );
   }
 
+  // The visitor's place among the workflows, as this turn leaves it. The tools
+  // have already saved what they changed into `ctx.session`; this adds the page
+  // and the resume offers, and writes only when something differs.
+  if (workflowsOn) {
+    const at = new Date().toISOString();
+    let next = ctx.session;
+    for (const id of resumeOffered) {
+      if (next.paused.some((p) => p.workflowId === id && p.resumeOfferedAt === null)) {
+        next = markResumeOffered(next, id, at);
+      }
+    }
+    if (next.lastPath !== pagePath) next = { ...next, lastPath: pagePath };
+    if (!sameSession(next, stored)) {
+      await input.store.saveWorkflowState(input.tenant.id, input.sessionId, next);
+    }
+  }
+
   yield {
     type: 'message_finished',
     messageId,
@@ -464,6 +602,22 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     tools: toolsUsed,
     ...(usage ? { usage } : {}),
   };
+}
+
+/**
+ * Whether two sessions hold the same state, whatever order their keys are in.
+ * Both are copied first, so an optional field left undefined counts as absent.
+ */
+function sameSession(a: WorkflowSession, b: WorkflowSession): boolean {
+  const x = cloneSession(a);
+  const y = cloneSession(b);
+  return (
+    isDeepStrictEqual(x.active, y.active) &&
+    isDeepStrictEqual(x.paused, y.paused) &&
+    isDeepStrictEqual(x.completed, y.completed) &&
+    isDeepStrictEqual(x.discovery, y.discovery) &&
+    x.lastPath === y.lastPath
+  );
 }
 
 function drain(events: ToolEvent[], messageId: string): TurnEvent[] {

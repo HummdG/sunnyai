@@ -1,11 +1,24 @@
 import PDFDocument from 'pdfkit';
 
-import type { ProposalDoc } from './doc.js';
+import { batteryCover, isBatteryDoc, type BatteryProposalDoc } from './battery/doc.js';
+import { batteryQuotation } from './battery/quotation-lines.js';
+import { BATTERY_SAVINGS_HAS_RAIL, drawBatterySavings } from './battery/savings.js';
+import { BATTERY_SYSTEM_HAS_RAIL, drawBatterySystem } from './battery/system.js';
+import {
+  isHeatPumpDoc,
+  heatPumpCover,
+  type AnyProposalDoc,
+  type HeatPumpProposalDoc,
+} from './heat-pump/doc.js';
+import { drawGrant, HP_GRANT_HAS_RAIL } from './heat-pump/grant.js';
+import { heatPumpQuotation } from './heat-pump/quotation-lines.js';
+import { drawRunningCosts, HP_RUNNING_COSTS_HAS_RAIL } from './heat-pump/running-costs.js';
+import { drawHeatPumpSystem, HP_SYSTEM_HAS_RAIL } from './heat-pump/system.js';
 import { PAGE, footer, header, registerFonts, themeFor, type PageContext } from './layout.js';
-import { drawCover } from './pages/cover.js';
+import { drawCover, drawCoverWith } from './pages/cover.js';
 import { drawPerformance, PERFORMANCE_HAS_RAIL } from './pages/performance.js';
 import { MAIN_W, MAIN_X } from './pages/parts.js';
-import { drawQuotation, type QuotationEnd } from './pages/quotation.js';
+import { drawQuotation, drawQuotationWith, type QuotationEnd } from './pages/quotation.js';
 import { drawSavings, SAVINGS_HAS_RAIL } from './pages/savings.js';
 import { drawSystem, SYSTEM_HAS_RAIL } from './pages/system.js';
 import { drawTerms, hasTerms, TERMS_HAS_RAIL } from './pages/terms.js';
@@ -26,6 +39,12 @@ import { drawTerms, hasTerms, TERMS_HAS_RAIL } from './pages/terms.js';
  * (`NN / MM`) and, on pages without the dark rail, the header logo: the rail
  * already carries the installer's logo or name.
  *
+ * A heat pump quote has its own pages between the shared cover and quotation:
+ * Your heat pump (the `system` switch), Running costs (`performance`) and
+ * Boiler Upgrade Scheme (`savings`); its title is "Heat pump estimate for ...".
+ * A battery quote has Your battery (`system`) and Savings (`savings` or
+ * `performance`, either on); its title is "Battery estimate for ...".
+ *
  * Everything printed comes from `doc`, which comes from the stored quote, so a
  * re-download is the same document, byte for byte: the PDF's dates are the
  * quote's `createdAt`, never the render time.
@@ -42,22 +61,25 @@ export interface ProposalRoof {
 }
 
 /** Render the quotation PDF; resolves to the PDF bytes. */
-export async function renderProposal(doc: ProposalDoc): Promise<Buffer> {
+export async function renderProposal(doc: AnyProposalDoc): Promise<Buffer> {
   const snap = doc.snapshot;
   const theme = themeFor(snap.colour, {
     ...(snap.colours?.rail ? { rail: snap.colours.rail } : {}),
     ...(snap.colours?.accent ? { accent: snap.colours.accent } : {}),
   });
   const created = new Date(doc.quote.createdAt);
-  const forWhom =
-    doc.customer.name ?? doc.customer.address ?? `postcode ${doc.quote.basis.postcode}`;
+  const heatPump = isHeatPumpDoc(doc);
+  const battery = isBatteryDoc(doc);
+  const postcode = heatPump || battery ? doc.quote.postcode : doc.quote.basis.postcode;
+  const forWhom = doc.customer.name ?? doc.customer.address ?? `postcode ${postcode}`;
+  const kindWord = heatPump ? 'Heat pump' : battery ? 'Battery' : 'Solar';
 
   const pdf = new PDFDocument({
     size: 'A4',
     margin: PAGE.margin,
     bufferPages: true,
     info: {
-      Title: `Solar estimate for ${forWhom}`,
+      Title: `${kindWord} estimate for ${forWhom}`,
       Author: snap.companyName,
       Creator: 'Sunny',
       // The quote's date, so the same quote always renders the same bytes.
@@ -84,18 +106,26 @@ export async function renderProposal(doc: ProposalDoc): Promise<Buffer> {
     for (let i = first; i < pageCount(); i++) rail[i] = hasRail;
   };
 
-  section(true, () => drawCover(pdf, doc, theme));
-  if (on.system) section(SYSTEM_HAS_RAIL, () => drawSystem(pdf, doc, theme, { othersHere: true }));
-  if (on.performance) section(PERFORMANCE_HAS_RAIL, () => drawPerformance(pdf, doc, theme));
-  if (on.savings) section(SAVINGS_HAS_RAIL, () => drawSavings(pdf, doc, theme));
   let end: QuotationEnd = { y: 0, continued: false };
-  section(true, () => {
-    end = drawQuotation(pdf, doc, theme, {
-      mcsBlock: !on.performance,
-      termsFollow: termsOn,
-      othersHere: !on.system,
+  if (heatPump) {
+    drawHeatPumpPages(pdf, doc, theme, section, (e) => (end = e), termsOn);
+  } else if (battery) {
+    drawBatteryPages(pdf, doc, theme, section, (e) => (end = e), termsOn);
+  } else {
+    section(true, () => drawCover(pdf, doc, theme));
+    if (on.system) {
+      section(SYSTEM_HAS_RAIL, () => drawSystem(pdf, doc, theme, { othersHere: true }));
+    }
+    if (on.performance) section(PERFORMANCE_HAS_RAIL, () => drawPerformance(pdf, doc, theme));
+    if (on.savings) section(SAVINGS_HAS_RAIL, () => drawSavings(pdf, doc, theme));
+    section(true, () => {
+      end = drawQuotation(pdf, doc, theme, {
+        mcsBlock: !on.performance,
+        termsFollow: termsOn,
+        othersHere: !on.system,
+      });
     });
-  });
+  }
   if (termsOn && end.continued) {
     // The quotation ran onto a page of its own: the terms start beneath it
     // there, so that page is never left nearly empty.
@@ -129,4 +159,63 @@ export async function renderProposal(doc: ProposalDoc): Promise<Buffer> {
 
   pdf.end();
   return done;
+}
+
+/**
+ * The heat pump pages up to and including the quotation: the shared cover,
+ * Your heat pump, Running costs, Boiler Upgrade Scheme (each by its switch),
+ * then the shared quotation with the grant as its own deduction row.
+ */
+function drawHeatPumpPages(
+  pdf: PDFKit.PDFDocument,
+  doc: HeatPumpProposalDoc,
+  theme: ReturnType<typeof themeFor>,
+  section: (hasRail: boolean, draw: () => void) => void,
+  quotationEnd: (end: QuotationEnd) => void,
+  termsFollow: boolean,
+): void {
+  const on = doc.snapshot.sections;
+  section(true, () => drawCoverWith(pdf, doc, theme, heatPumpCover(doc)));
+  if (on.system) section(HP_SYSTEM_HAS_RAIL, () => drawHeatPumpSystem(pdf, doc, theme));
+  if (on.performance) section(HP_RUNNING_COSTS_HAS_RAIL, () => drawRunningCosts(pdf, doc, theme));
+  if (on.savings) section(HP_GRANT_HAS_RAIL, () => drawGrant(pdf, doc, theme));
+  section(true, () => {
+    quotationEnd(
+      drawQuotationWith(pdf, doc, theme, heatPumpQuotation(doc, theme), {
+        mcsBlock: false,
+        termsFollow,
+        othersHere: !on.system,
+      }),
+    );
+  });
+}
+
+/**
+ * The battery pages up to and including the quotation: the shared cover, Your
+ * battery (the `system` switch), Savings (`savings` or `performance`, either
+ * on), then the shared quotation, with no grant row.
+ */
+function drawBatteryPages(
+  pdf: PDFKit.PDFDocument,
+  doc: BatteryProposalDoc,
+  theme: ReturnType<typeof themeFor>,
+  section: (hasRail: boolean, draw: () => void) => void,
+  quotationEnd: (end: QuotationEnd) => void,
+  termsFollow: boolean,
+): void {
+  const on = doc.snapshot.sections;
+  section(true, () => drawCoverWith(pdf, doc, theme, batteryCover(doc)));
+  if (on.system) section(BATTERY_SYSTEM_HAS_RAIL, () => drawBatterySystem(pdf, doc, theme));
+  if (on.savings || on.performance) {
+    section(BATTERY_SAVINGS_HAS_RAIL, () => drawBatterySavings(pdf, doc, theme));
+  }
+  section(true, () => {
+    quotationEnd(
+      drawQuotationWith(pdf, doc, theme, batteryQuotation(doc, theme), {
+        mcsBlock: false,
+        termsFollow,
+        othersHere: !on.system,
+      }),
+    );
+  });
 }

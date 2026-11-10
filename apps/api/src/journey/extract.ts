@@ -20,7 +20,7 @@
  */
 
 import { carriesEffects } from '../flow/effects.js';
-import { resolveFlow, type ResolvedFlow, type ResolvedQuestion } from '../flow/resolve.js';
+import { resolveFlow, SKIPPED, type ResolvedFlow, type ResolvedQuestion } from '../flow/resolve.js';
 import { optionLabel, QUESTIONS } from '../questionnaire.js';
 
 export interface Proposal {
@@ -187,6 +187,11 @@ export function extractAnswers(
   if (current && asked && !QUESTIONS[current]) {
     if (asked.freeText) {
       if (message.trim()) add(current, message.trim());
+    } else if (asked.numeric) {
+      // A number asked for: the first figure in the reply ("about 90 square
+      // metres", "£1,200 a year"). Its range is the validator's to judge.
+      const n = /£?\s*(\d[\d,]*(?:\.\d+)?)/.exec(text)?.[1];
+      if (n) add(current, n.replace(/,/g, ''));
     } else {
       const value = choiceFor(text, asked);
       if (value) add(current, value);
@@ -368,8 +373,24 @@ export function extractAnswers(
   else if (has(text, /\bshaded by (a |the )?(building|house|neighbou?r)/))
     add('roof_shading', 'buildings');
 
+  // ── passing over an optional question ─────────────────────────────────────
+  // Last, so a clear answer to the question ("not sure" as an option, "no
+  // thanks" as a no, a figure) wins over reading the reply as a skip.
+  if (
+    current &&
+    asked?.optional &&
+    !out.some((p) => p.questionId === current) &&
+    has(text, SKIP_WORDS)
+  ) {
+    add(current, SKIPPED);
+  }
+
   return out;
 }
+
+/** How a visitor passes over a question they may skip. */
+const SKIP_WORDS =
+  /\b(skip|skip it|rather not say|prefer not to say|rather not|not sure|no thanks|pass)\b/;
 
 export interface AppliedAnswers {
   answers: Record<string, string>;

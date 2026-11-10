@@ -51,6 +51,8 @@ export const leadRequestSchema = z
     phone: contactSchema.optional(),
     postcode: z.string().trim().max(20).optional(),
     summary: z.string().trim().max(500).optional(),
+    /** The workflow that produced this lead, when one did. */
+    workflowId: z.string().max(40).optional(),
   })
   .refine((value) => Boolean(value.email ?? value.phone), {
     // A lead with no way to reach anyone is a row the installer cannot act on.

@@ -86,6 +86,142 @@ export interface Question {
   multi?: true;
 }
 
+/**
+ * Opening questions for the discovery bank (workflows). Kept apart from
+ * QUESTIONS so the SunScan parity of that record holds.
+ */
+export const DISCOVERY_QUESTIONS: Readonly<Record<string, Question>> = {
+  disc_interest: {
+    step: 'discovery',
+    prompt: 'What are you looking into today?',
+    options: ['solar', 'battery', 'heating', 'ev_charger', 'not_sure'],
+  },
+};
+
+/**
+ * The heat pump bank's own questions (workflows). Option values are the heat
+ * pump engine's enums, so an answer goes to the estimate as it is. Kept apart
+ * from QUESTIONS so the SunScan parity of that record holds.
+ */
+export const HEAT_PUMP_QUESTIONS: Readonly<Record<string, Question>> = {
+  hp_age: {
+    step: 'heat_pump',
+    prompt: 'Roughly when was the home built?',
+    options: [
+      'pre_1919',
+      '1919_1944',
+      '1945_1964',
+      '1965_1982',
+      '1983_1995',
+      '1996_2006',
+      '2007_on',
+      'unsure',
+    ],
+  },
+  hp_floor_area: {
+    step: 'heat_pump',
+    prompt: 'Do you know the floor area, in square metres? It is on your EPC. You can skip this.',
+    numeric: { min: 20, max: 1000, unit: 'square metres' },
+  },
+  // Only needed to estimate the floor area, so only asked when that was skipped.
+  hp_bedrooms: {
+    step: 'heat_pump',
+    prompt: 'How many bedrooms does it have? Answer 1 to 5, where 5 means five or more.',
+    appearsWhen: { questionId: 'hp_floor_area', anyOf: ['skipped'] },
+    numeric: { min: 1, max: 5, unit: 'bedrooms' },
+  },
+  hp_walls: {
+    step: 'heat_pump',
+    prompt: 'What are the outside walls like?',
+    options: [
+      'solid_uninsulated',
+      'solid_insulated',
+      'cavity_unfilled',
+      'cavity_filled',
+      'timber_or_modern',
+      'unsure',
+    ],
+  },
+  hp_loft: {
+    step: 'heat_pump',
+    prompt: 'How well insulated is the loft?',
+    options: ['none', 'some', 'good', 'unsure'],
+  },
+  hp_glazing: {
+    step: 'heat_pump',
+    prompt: 'What kind of windows does it have?',
+    options: ['single', 'double', 'triple', 'unsure'],
+  },
+  hp_current_heating: {
+    step: 'heat_pump',
+    prompt: 'How is the home heated today?',
+    options: ['gas', 'oil', 'lpg', 'electric_storage', 'electric_direct', 'heat_pump', 'other'],
+  },
+  hp_emitters: {
+    step: 'heat_pump',
+    prompt: 'What do you heat the rooms with now?',
+    options: ['radiators_standard', 'radiators_large', 'underfloor', 'unsure'],
+  },
+  hp_hot_water: {
+    step: 'heat_pump',
+    prompt: 'Do you have a hot water cylinder, or a combi boiler?',
+    options: ['cylinder', 'combi'],
+  },
+  hp_occupants: {
+    step: 'heat_pump',
+    prompt: 'How many people live there?',
+    numeric: { min: 1, max: 10, unit: 'people' },
+  },
+  hp_annual_spend: {
+    step: 'heat_pump',
+    prompt: 'Roughly what do you spend on heating a year, in pounds? You can skip this.',
+    numeric: { min: 50, max: 10_000, unit: 'pounds a year' },
+  },
+  hp_epc: {
+    step: 'heat_pump',
+    prompt: 'Does your EPC recommend loft or cavity wall insulation?',
+    options: ['yes', 'no', 'unsure'],
+  },
+  hp_outdoor_space: {
+    step: 'heat_pump',
+    prompt:
+      'Is there space outside for a unit about the size of a large suitcase on its side, near the house?',
+    options: ['yes', 'no', 'unsure'],
+  },
+};
+
+/**
+ * The battery bank's own questions (workflows): a battery for a home that
+ * already has solar. Option values are the battery engine's, so an answer goes
+ * to the estimate as it is. Kept apart from QUESTIONS so the SunScan parity of
+ * that record holds.
+ */
+export const BATTERY_QUESTIONS: Readonly<Record<string, Question>> = {
+  bat_pv_kwp: {
+    step: 'battery',
+    prompt:
+      'Do you know the size of your solar system in kWp? It is on your installation paperwork. You can skip this.',
+    numeric: { min: 0.5, max: 25, unit: 'kWp' },
+  },
+  // Only needed to estimate the system size, so only asked when that was skipped.
+  bat_panels: {
+    step: 'battery',
+    prompt: 'Roughly how many solar panels do you have?',
+    appearsWhen: { questionId: 'bat_pv_kwp', anyOf: ['skipped'] },
+    numeric: { min: 2, max: 60, unit: 'panels' },
+  },
+  bat_inverter: {
+    step: 'battery',
+    prompt: 'Is your solar inverter a hybrid one that can take a battery?',
+    options: ['hybrid', 'standard', 'unsure'],
+  },
+  bat_goal: {
+    step: 'battery',
+    prompt: 'What would you most like a battery to do?',
+    options: ['savings', 'backup', 'cheap_rate', 'unsure'],
+  },
+};
+
 export const QUESTIONS: Readonly<Record<string, Question>> = {
   address: { step: 'address', prompt: 'What is the address you would like assessed?' },
   // SunScan's roof confidence is how sure the *mapping* is, not the visitor:
@@ -204,6 +340,7 @@ export const QUESTIONS: Readonly<Record<string, Question>> = {
     prompt: 'What matters most to you about going solar?',
     options: [
       'reduce_bills',
+      'comfort',
       'price_protection',
       'cheap_tariffs',
       'earn_export',
@@ -427,6 +564,10 @@ export const OPTION_LABELS: Readonly<Record<string, string>> = {
   battery: 'A battery',
   solar_battery: 'Solar and a battery',
   reduce_bills: 'Lower bills',
+  comfort: 'Comfort and warmth',
+  heating: 'Heating (heat pumps)',
+  ev_charger: 'An EV charger',
+  not_sure: 'Not sure yet',
   price_protection: 'Protection from price rises',
   cheap_tariffs: 'Using cheap tariffs',
   earn_export: 'Earning from export',
@@ -438,6 +579,40 @@ export const OPTION_LABELS: Readonly<Record<string, string>> = {
   '6k_10k': '£6,000 to £10,000',
   '10k_15k': '£10,000 to £15,000',
   '15k_plus': '£15,000 or more',
+  // The heat pump questions (HEAT_PUMP_QUESTIONS).
+  pre_1919: 'Before 1919',
+  '1919_1944': '1919 to 1944',
+  '1945_1964': '1945 to 1964',
+  '1965_1982': '1965 to 1982',
+  '1983_1995': '1983 to 1995',
+  '1996_2006': '1996 to 2006',
+  '2007_on': '2007 or later',
+  solid_uninsulated: 'Solid walls, not insulated',
+  solid_insulated: 'Solid walls, insulated',
+  cavity_unfilled: 'Cavity walls, not filled',
+  cavity_filled: 'Cavity walls, filled',
+  timber_or_modern: 'Timber frame or a modern build',
+  some: 'Some insulation',
+  good: 'Well insulated',
+  single: 'Single glazing',
+  double: 'Double glazing',
+  triple: 'Triple glazing',
+  gas: 'Mains gas',
+  oil: 'Oil',
+  lpg: 'LPG',
+  electric_storage: 'Electric storage heaters',
+  electric_direct: 'Electric heaters',
+  heat_pump: 'A heat pump already',
+  radiators_standard: 'Radiators',
+  radiators_large: 'Large or upgraded radiators',
+  underfloor: 'Underfloor heating',
+  cylinder: 'A hot water cylinder',
+  combi: 'A combi boiler',
+  // The battery questions (BATTERY_QUESTIONS); `standard` and `unsure` are above.
+  hybrid: 'Hybrid',
+  savings: 'Store my solar to use later',
+  backup: 'Keep the lights on in a power cut',
+  cheap_rate: 'Charge on a cheap overnight rate',
 };
 
 /** The visitor-facing label for an option value (falls back to plain words). */

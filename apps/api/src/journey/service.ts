@@ -15,7 +15,7 @@ import { getPublishedPriceList } from '../catalogue/price-list-service.js';
 import { effectsFor } from '../flow/effects.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { reasonsFor } from '../proposal/reasons.js';
-import { snapshotAssetIds, snapshotFor } from '../proposal/snapshot.js';
+import { snapshotAssetIds, snapshotFor, type QuotationSnapshot } from '../proposal/snapshot.js';
 import { warrantiesFor } from '../proposal/warranties.js';
 import type { Store } from '../store.js';
 import type { Tenant } from '../tenants.js';
@@ -29,7 +29,10 @@ import {
   rejectRoof,
   type JourneyView,
 } from './journey.js';
-import { buildQuote, type QuoteRecord } from './quote.js';
+import type { BatteryQuoteRecord } from './battery/record.js';
+import { grantStatusOf, type HeatPumpQuoteRecord } from './heat-pump/record.js';
+import { hasProposal, isSolarRecord, type StoredQuote } from './quote-kinds.js';
+import { buildQuote, type QuoteLineItem, type QuoteRecord } from './quote.js';
 import { mapRoof, type MappedRoof, type RoofAssessmentSummary } from './roof.js';
 
 /** What the roof assessment for a session looks like right now. */
@@ -123,7 +126,7 @@ export async function journeyView(
   sessionId: string,
 ): Promise<JourneyView> {
   const { answers, roof, pending } = await loadJourney(deps, tenantId, sessionId);
-  const quoted = (await deps.store.listQuotes(tenantId, sessionId)).length > 0;
+  const quoted = (await deps.store.listQuotes(tenantId, sessionId)).some(isSolarRecord);
   return journeyStatus(answers, roof, { roofPending: pending, quoted }, flowOf(deps, tenantId));
 }
 
@@ -153,16 +156,23 @@ export async function submitAnswers(
   deps: JourneyDeps,
   tenantId: string,
   sessionId: string,
-  input: { proposals?: readonly Proposal[]; text?: string },
+  input: {
+    proposals?: readonly Proposal[];
+    text?: string;
+    /**
+     * The question the visitor's words answer, when the caller knows better
+     * than the quote journey (a workflow asking an optional question).
+     */
+    current?: string | null;
+  },
 ): Promise<SubmitResult> {
   const flow = flowOf(deps, tenantId);
   const before = await loadJourney(deps, tenantId, sessionId);
-  const current = journeyStatus(
-    before.answers,
-    before.roof,
-    { roofPending: before.pending },
-    flow,
-  ).nextQuestionId;
+  const current =
+    input.current !== undefined
+      ? input.current
+      : journeyStatus(before.answers, before.roof, { roofPending: before.pending }, flow)
+          .nextQuestionId;
   const proposals: Proposal[] = [
     ...(input.proposals ?? []),
     ...(input.text ? extractAnswers(input.text, current, flow) : []),
@@ -195,24 +205,41 @@ export async function submitAnswers(
  * The catalogue's warranty years for the quote's items, fixed now. A catalogue
  * that cannot be read leaves the quote without warranties rather than failing it.
  */
-async function warrantiesNow(
+export async function warrantiesNow(
   store: Store,
   tenantId: string,
-  quote: QuoteRecord,
+  items: readonly QuoteLineItem[],
 ): Promise<Record<string, number>> {
   try {
     const [list, products] = await Promise.all([
       getPublishedPriceList(store, tenantId),
       store.listProducts(tenantId),
     ]);
-    return warrantiesFor(
-      quote.options.flatMap((o) => o.lineItems),
-      list,
-      products,
-    );
+    return warrantiesFor(items, list, products);
   } catch {
     return {};
   }
+}
+
+/**
+ * The installer's quotation settings in force now, for a new quote of any
+ * kind, with the brand assets its PDF prints pinned. Undefined without a tenant.
+ */
+export async function quotationNow(
+  deps: JourneyDeps,
+  tenantId: string,
+): Promise<QuotationSnapshot | undefined> {
+  const tenant = deps.tenant?.(tenantId);
+  if (!tenant) return undefined;
+  const quotation = snapshotFor(tenant, tenant.config.quotation, deps.log);
+  const ids = snapshotAssetIds(quotation);
+  if (ids.length > 0 && deps.pinBrandAssets) {
+    // A pin that fails must not cost the visitor their quote.
+    await deps.pinBrandAssets(tenantId, ids).catch((error: unknown) => {
+      deps.log?.warn({ err: error, tenantId }, 'could not pin brand assets for a new quote');
+    });
+  }
+  return quotation;
 }
 
 export type CreateQuoteResult =
@@ -247,32 +274,29 @@ export async function createQuote(
     ...custom,
   });
   // Fixed now: the settings in force at this moment, and why each item is here.
-  const tenant = deps.tenant?.(tenantId);
-  if (tenant) {
-    quote.quotation = snapshotFor(tenant, tenant.config.quotation, deps.log);
-    const ids = snapshotAssetIds(quote.quotation);
-    if (ids.length > 0 && deps.pinBrandAssets) {
-      // A pin that fails must not cost the visitor their quote.
-      await deps.pinBrandAssets(tenantId, ids).catch((error: unknown) => {
-        deps.log?.warn({ err: error, tenantId }, 'could not pin brand assets for a new quote');
-      });
-    }
-  }
+  const quotation = await quotationNow(deps, tenantId);
+  if (quotation) quote.quotation = quotation;
   const reasons: Record<string, string> = {};
   for (const option of quote.options) {
     Object.assign(reasons, reasonsFor(effects, flow, answers, option));
   }
   quote.reasons = reasons;
-  quote.warranties = await warrantiesNow(deps.store, tenantId, quote);
+  quote.warranties = await warrantiesNow(
+    deps.store,
+    tenantId,
+    quote.options.flatMap((o) => o.lineItems),
+  );
   await deps.store.saveQuote(quote);
   return { ok: true, quote };
 }
 
 /** The quote as the widget's option cards. */
 export function toQuoteCard(
-  quote: QuoteRecord,
+  quote: StoredQuote,
   options: { emailAvailable?: boolean } = {},
 ): QuoteCard {
+  if (quote.kind === 'heat_pump') return heatPumpCard(quote, options);
+  if (quote.kind === 'battery') return batteryCard(quote, options);
   return {
     quoteId: quote.id,
     priced: quote.priced,
@@ -306,6 +330,65 @@ export function toQuoteCard(
             },
           }
         : {}),
+    })),
+  };
+}
+
+/** A heat pump quote as cards. Its PDF is the heat pump estimate (routes/proposal.ts). */
+function heatPumpCard(
+  quote: HeatPumpQuoteRecord,
+  options: { emailAvailable?: boolean },
+): QuoteCard {
+  return {
+    kind: 'heat_pump',
+    quoteId: quote.id,
+    priced: quote.priced,
+    disclaimer: quote.disclaimer,
+    // Every stored quote renders as a PDF, as a solar quote does.
+    proposalAvailable: true,
+    emailAvailable: options.emailAvailable ?? proposalEmailConfigured(),
+    options: quote.options.map((o) => ({
+      id: o.id,
+      label: o.label,
+      isRecommended: o.isRecommended,
+      headline: o.headline,
+      outputKw: o.outputKw,
+      priceGbp: o.priceGbp,
+      grantGbp: o.grantGbp,
+      grantStatus: grantStatusOf(quote.estimate.bus.eligible),
+      priceAfterGrantGbp: o.priceAfterGrantGbp,
+      priceLabel: o.priceLabel,
+      runningCostGbp: o.runningCostGbp,
+      currentCostGbp: o.currentCostGbp,
+      annualSavingsGbp: o.annualSavingsGbp,
+      ...(o.installerPriced ? { installerPriced: true } : {}),
+      ...(o.warnings.length > 0 ? { warnings: o.warnings.slice(0, 5) } : {}),
+    })),
+  };
+}
+
+/** A battery quote as cards. Its PDF is the battery estimate (routes/proposal.ts). */
+function batteryCard(quote: BatteryQuoteRecord, options: { emailAvailable?: boolean }): QuoteCard {
+  return {
+    kind: 'battery',
+    quoteId: quote.id,
+    priced: quote.priced,
+    disclaimer: quote.disclaimer,
+    proposalAvailable: hasProposal(quote),
+    emailAvailable: options.emailAvailable ?? proposalEmailConfigured(),
+    options: quote.options.map((o) => ({
+      id: o.id,
+      label: o.label,
+      isRecommended: o.isRecommended,
+      headline: o.headline,
+      capacityKwh: o.capacityKwh,
+      priceGbp: o.priceGbp,
+      priceLabel: o.priceLabel,
+      annualSavingsGbp: o.annualSavingsGbp,
+      shiftSavingGbp: o.shiftSavingGbp,
+      paybackYears: o.paybackYears,
+      ...(o.installerPriced ? { installerPriced: true } : {}),
+      ...(o.warnings.length > 0 ? { warnings: o.warnings.slice(0, 5) } : {}),
     })),
   };
 }

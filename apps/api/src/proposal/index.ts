@@ -2,13 +2,18 @@ import { toRoofAssessmentSummary, type SunScanService } from '@sunny/sunscan-ada
 
 import type { StoredBranding } from '../branding/meta.js';
 import type { BrandAssetStore } from '../branding/store.js';
+import type { BatteryQuoteRecord } from '../journey/battery/record.js';
+import type { HeatPumpQuoteRecord } from '../journey/heat-pump/record.js';
+import { isSolarRecord, type ProposalQuote } from '../journey/quote-kinds.js';
 import type { QuoteOptionView, QuoteRecord } from '../journey/quote.js';
 import type { RoofAssessmentSummary } from '../journey/roof.js';
 import type { LeadRecord, Store } from '../store.js';
 import type { Tenant } from '../tenants.js';
 
+import type { BatteryProposalDoc } from './battery/doc.js';
 import { referenceFor } from './copy.js';
 import type { ProposalDoc } from './doc.js';
+import { fuelOf, type AnyProposalDoc, type HeatPumpProposalDoc } from './heat-pump/doc.js';
 import { DEFAULT_BRAND } from './layout.js';
 import { renderProposal, type ProposalRoof } from './pdf.js';
 import { roofPlanFor, type RoofPlan } from './roof-plan.js';
@@ -16,6 +21,8 @@ import { snapshotFor, type QuotationSnapshot } from './snapshot.js';
 
 export { renderProposal, type ProposalRoof } from './pdf.js';
 export type { ProposalDoc } from './doc.js';
+export type { AnyProposalDoc, HeatPumpProposalDoc } from './heat-pump/doc.js';
+export type { BatteryProposalDoc } from './battery/doc.js';
 export { mailerFromEnv, type ProposalMailer } from './mailer.js';
 
 /** Where a proposal's parts come from besides the quote: the store, logos, the 3D roof. */
@@ -42,7 +49,11 @@ const FACING: Record<string, string> = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The visitor's chosen package when they picked one, otherwise the recommended option. */
-function optionOf(quote: QuoteRecord): { option: QuoteOptionView; chosen: boolean } {
+function optionOf<O extends { id: string; isRecommended: boolean }>(quote: {
+  options: O[];
+  chosenOptionId?: string | null;
+  recommendedId: string | null;
+}): { option: O; chosen: boolean } {
   const picked = quote.chosenOptionId
     ? quote.options.find((o) => o.id === quote.chosenOptionId)
     : undefined;
@@ -58,7 +69,7 @@ function optionOf(quote: QuoteRecord): { option: QuoteOptionView; chosen: boolea
  * The quote's snapshot, or the defaults for a quote made before snapshots. A
  * snapshot saved before PDF colours existed takes its own brand colour.
  */
-function snapshotOf(tenant: Tenant, quote: QuoteRecord): QuotationSnapshot {
+function snapshotOf(tenant: Tenant, quote: Pick<ProposalQuote, 'quotation'>): QuotationSnapshot {
   const snap = quote.quotation;
   if (!snap) return snapshotFor(tenant, undefined);
   if (snap.colours?.rail && snap.colours.accent) return snap;
@@ -181,7 +192,37 @@ export async function proposalDocFor(
   quote: QuoteRecord,
   lead: LeadRecord | null,
   now: Date,
-): Promise<ProposalDoc> {
+): Promise<ProposalDoc>;
+export async function proposalDocFor(
+  sources: ProposalSources,
+  tenant: Tenant,
+  quote: HeatPumpQuoteRecord,
+  lead: LeadRecord | null,
+  now: Date,
+): Promise<HeatPumpProposalDoc>;
+export async function proposalDocFor(
+  sources: ProposalSources,
+  tenant: Tenant,
+  quote: BatteryQuoteRecord,
+  lead: LeadRecord | null,
+  now: Date,
+): Promise<BatteryProposalDoc>;
+export async function proposalDocFor(
+  sources: ProposalSources,
+  tenant: Tenant,
+  quote: ProposalQuote,
+  lead: LeadRecord | null,
+  now: Date,
+): Promise<AnyProposalDoc>;
+export async function proposalDocFor(
+  sources: ProposalSources,
+  tenant: Tenant,
+  quote: ProposalQuote,
+  lead: LeadRecord | null,
+  now: Date,
+): Promise<AnyProposalDoc> {
+  if (quote.kind === 'heat_pump') return heatPumpDocFor(sources, tenant, quote, lead, now);
+  if (quote.kind === 'battery') return batteryDocFor(sources, tenant, quote, lead, now);
   const { store, brandAssets, sunscan } = sources;
   const snapshot = snapshotOf(tenant, quote);
   const { option, chosen } = optionOf(quote);
@@ -216,19 +257,113 @@ export async function proposalDocFor(
   };
 }
 
-/** Render a stored quote's PDF. */
+/**
+ * The heat pump document: the same shared parts (snapshot, customer, logos,
+ * dates) as a solar one, the option, and the visitor's current heating.
+ */
+async function heatPumpDocFor(
+  sources: ProposalSources,
+  tenant: Tenant,
+  quote: HeatPumpQuoteRecord,
+  lead: LeadRecord | null,
+  now: Date,
+): Promise<HeatPumpProposalDoc> {
+  const { store, brandAssets } = sources;
+  const snapshot = snapshotOf(tenant, quote);
+  const { option, chosen } = optionOf(quote);
+  const answers = (await store.getConversation(tenant.id, quote.sessionId))?.answers ?? {};
+  const address = answers['address'];
+  const accreditationLogos = (
+    await Promise.all(
+      snapshot.accreditations.logoAssetIds.map((id) => asset(brandAssets, tenant.id, id)),
+    )
+  ).filter((b): b is Buffer => b !== null);
+  const created = Date.parse(quote.createdAt);
+  return {
+    kind: 'heat_pump',
+    quote,
+    option,
+    chosen,
+    // Fixed on the quote; only an older row without it falls back to the answer.
+    currentFuel: quote.currentFuel ?? fuelOf(answers['hp_current_heating']),
+    snapshot,
+    customer: {
+      name: lead?.name ?? null,
+      address: typeof address === 'string' && address.trim() !== '' ? address.trim() : null,
+    },
+    logo: await logoFor(brandAssets, tenant, snapshot),
+    accreditationLogos,
+    ...(quote.warranties ? { warranties: quote.warranties } : {}),
+    generatedAt: now,
+    reference: referenceFor(quote),
+    validUntil: new Date((Number.isNaN(created) ? 0 : created) + snapshot.validityDays * DAY_MS),
+  };
+}
+
+/**
+ * The battery document: the same shared parts (snapshot, customer, logos,
+ * dates) as the others, and the option.
+ */
+async function batteryDocFor(
+  sources: ProposalSources,
+  tenant: Tenant,
+  quote: BatteryQuoteRecord,
+  lead: LeadRecord | null,
+  now: Date,
+): Promise<BatteryProposalDoc> {
+  const { store, brandAssets } = sources;
+  const snapshot = snapshotOf(tenant, quote);
+  const { option, chosen } = optionOf(quote);
+  const address = (await store.getConversation(tenant.id, quote.sessionId))?.answers?.['address'];
+  const accreditationLogos = (
+    await Promise.all(
+      snapshot.accreditations.logoAssetIds.map((id) => asset(brandAssets, tenant.id, id)),
+    )
+  ).filter((b): b is Buffer => b !== null);
+  const created = Date.parse(quote.createdAt);
+  return {
+    kind: 'battery',
+    quote,
+    option,
+    chosen,
+    snapshot,
+    customer: {
+      name: lead?.name ?? null,
+      address: typeof address === 'string' && address.trim() !== '' ? address.trim() : null,
+    },
+    logo: await logoFor(brandAssets, tenant, snapshot),
+    accreditationLogos,
+    ...(quote.warranties ? { warranties: quote.warranties } : {}),
+    generatedAt: now,
+    reference: referenceFor(quote),
+    validUntil: new Date((Number.isNaN(created) ? 0 : created) + snapshot.validityDays * DAY_MS),
+  };
+}
+
+/** Render a stored quote's PDF: a solar proposal, or a heat pump or battery estimate. */
 export async function proposalPdf(
   sources: ProposalSources,
   tenant: Tenant,
-  quote: QuoteRecord,
+  quote: ProposalQuote,
   lead: LeadRecord | null,
   now: Date,
 ): Promise<Buffer> {
   return renderProposal(await proposalDocFor(sources, tenant, quote, lead, now));
 }
 
-/** A filename for the download, from the installer and the quote. */
-export function proposalFilename(tenant: Tenant, quote: QuoteRecord): string {
+/**
+ * A filename for the download: a solar proposal is named for the installer
+ * and the quote; a heat pump or battery estimate for the postcode.
+ */
+export function proposalFilename(tenant: Tenant, quote: ProposalQuote): string {
+  if (!isSolarRecord(quote)) {
+    const stem = quote.kind === 'battery' ? 'battery-estimate' : 'heat-pump-estimate';
+    const postcode = quote.postcode
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    return postcode ? `${stem}-${postcode}.pdf` : `${stem}.pdf`;
+  }
   const company = tenant.config.companyName.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return `${company || 'solar'}-proposal-${quote.id.slice(-8)}.pdf`;
 }

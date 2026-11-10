@@ -8,6 +8,7 @@ import {
   type ConversationPreview,
 } from '../../../lib/portal-api.js';
 import { ErrorNote, errorText } from '../ui.js';
+import { FIXED_END, type FixedEnds } from './flow-layout.js';
 import { choicesOf, nameOf, pathTo, type Context } from './model.js';
 
 /**
@@ -26,6 +27,26 @@ const START: Record<string, string> = {
 };
 
 type Effects = ConversationPreview['effects'];
+
+/** Ask the API what a flow does with some answers. */
+export type PreviewFn = (
+  flow: ConversationFlow,
+  answers: Record<string, string>,
+) => Promise<ConversationPreview>;
+
+/**
+ * The asker to use: the given one (a workflow's own route), else the
+ * conversation's. Read through a ref, so a new function each render asks nothing again.
+ */
+function usePreview(tenantId: string, preview: PreviewFn | undefined): PreviewFn {
+  const ref = useRef(preview);
+  ref.current = preview;
+  return (flow, answers) =>
+    ref.current ? ref.current(flow, answers) : previewConversation(tenantId, flow, answers);
+}
+
+/** The answers already given when the preview starts: the fixed start's, or none. */
+const startOf = (ends: FixedEnds): Record<string, string> => (ends.start === null ? {} : START);
 
 /** Ask the API, dropping any answer that a newer request has overtaken. */
 function useLatest() {
@@ -64,13 +85,20 @@ export function ChatPreview({
   flow,
   ctx,
   selectedId,
+  ends,
+  preview,
 }: {
   tenantId: string;
   flow: ConversationFlow;
   ctx: Context;
   selectedId: string | null;
+  /** The locked start and end: with no start, nothing is answered before the first question. */
+  ends: FixedEnds;
+  /** Where the preview is asked (a workflow's own route); the conversation's when absent. */
+  preview?: PreviewFn;
 }) {
   const [playing, setPlaying] = useState(false);
+  const ask = usePreview(tenantId, preview);
   return (
     <div className="chat-preview">
       {playing ? (
@@ -78,6 +106,8 @@ export function ChatPreview({
           tenantId={tenantId}
           flow={flow}
           assistant={ctx.assistant}
+          ends={ends}
+          ask={ask}
           onStop={() => setPlaying(false)}
         />
       ) : (
@@ -87,6 +117,8 @@ export function ChatPreview({
           flow={flow}
           ctx={ctx}
           selectedId={selectedId}
+          ends={ends}
+          ask={ask}
         />
       )}
       <p className="preview-note small">
@@ -107,11 +139,15 @@ function Selected({
   flow,
   ctx,
   selectedId,
+  ends,
+  ask,
 }: {
   tenantId: string;
   flow: ConversationFlow;
   ctx: Context;
   selectedId: string | null;
+  ends: FixedEnds;
+  ask: PreviewFn;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [effects, setEffects] = useState<Effects | null>(null);
@@ -128,7 +164,7 @@ function Selected({
 
   useEffect(() => {
     if (!chain || picked === null) return;
-    const answers: Record<string, string> = { ...START };
+    const answers: Record<string, string> = { ...startOf(ends) };
     // A question that waits on an earlier answer (a group member) gets that answer.
     for (const link of chain) {
       const gate = ctx.presets.get(link.step.id)?.appearsWhen;
@@ -138,7 +174,7 @@ function Selected({
     const chosenId = chain[chain.length - 1]!.step.id;
     answers[chosenId] = picked;
     void latest(
-      () => previewConversation(tenantId, JSON.parse(flowJson) as ConversationFlow, answers),
+      () => ask(JSON.parse(flowJson) as ConversationFlow, answers),
       (result) => {
         // Only what this answer does: the answers that lead to the question
         // are given too, and their own effects are not this answer's.
@@ -147,7 +183,7 @@ function Selected({
       },
       (failure) => setError(errorText(failure)),
     );
-  }, [tenantId, flowJson, selectedId, picked]);
+  }, [tenantId, flowJson, selectedId, picked, ends.start]);
 
   if (!chain) {
     return (
@@ -207,14 +243,18 @@ function PlayThrough({
   tenantId,
   flow,
   assistant,
+  ends,
+  ask,
   onStop,
 }: {
   tenantId: string;
   flow: ConversationFlow;
   assistant: string;
+  ends: FixedEnds;
+  ask: PreviewFn;
   onStop: () => void;
 }) {
-  const [answers, setAnswers] = useState<Record<string, string>>(START);
+  const [answers, setAnswers] = useState<Record<string, string>>(() => startOf(ends));
   const [said, setSaid] = useState<Array<{ id: string; prompt: string; answer: string }>>([]);
   const [result, setResult] = useState<ConversationPreview | null>(null);
   const [typed, setTyped] = useState('');
@@ -228,8 +268,7 @@ function PlayThrough({
   useEffect(() => {
     void latest(
       () =>
-        previewConversation(
-          tenantId,
+        ask(
           JSON.parse(flowJson) as ConversationFlow,
           JSON.parse(answersJson) as Record<string, string>,
         ),
@@ -255,13 +294,15 @@ function PlayThrough({
   function restart(): void {
     setResult(null);
     setSaid([]);
-    setAnswers(START);
+    setAnswers(startOf(ends));
     setRound((n) => n + 1);
   }
 
   return (
     <div className="transcript">
-      <p className="muted small">The address and roof check are done.</p>
+      {ends.start === null ? null : (
+        <p className="muted small">The address and roof check are done.</p>
+      )}
       {said.map((line) => (
         <div key={line.id} className="transcript">
           <p className="bubble">{line.prompt}</p>
@@ -306,7 +347,9 @@ function PlayThrough({
         </>
       ) : (
         <p className="ok-note">
-          Then {assistant} shows the quote, and asks for consent and contact details.
+          {ends.end === FIXED_END
+            ? `Then ${assistant} shows the quote, and asks for consent and contact details.`
+            : `${ends.end}.`}
         </p>
       )}
       {result ? (

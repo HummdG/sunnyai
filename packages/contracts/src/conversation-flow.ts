@@ -35,6 +35,7 @@ export type FlowStep =
       labels?: Record<string, string>;
       effects?: Record<string, FlowEffect[]>;
       followUps?: FlowFollowUp[];
+      optional?: boolean;
     }
   | {
       kind: 'custom';
@@ -44,6 +45,7 @@ export type FlowStep =
       answer: 'choice' | 'text';
       choices: FlowChoice[];
       followUps?: FlowFollowUp[];
+      optional?: boolean;
     };
 
 /** `when` holds the parent answer values that open this follow-up. */
@@ -81,7 +83,7 @@ const flowFollowUpSchema: z.ZodType<FlowFollowUp> = z.lazy(() =>
 
 const followUps = z.array(flowFollowUpSchema).max(FLOW_LIMITS.choices).optional();
 
-const flowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
+export const flowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
   z.discriminatedUnion('kind', [
     z.object({
       kind: z.literal('preset'),
@@ -90,6 +92,7 @@ const flowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
       labels: z.record(z.string(), label).optional(),
       effects: z.record(z.string(), z.array(flowEffectSchema).max(FLOW_LIMITS.choices)).optional(),
       followUps,
+      optional: z.boolean().optional(),
     }),
     z
       .object({
@@ -100,6 +103,7 @@ const flowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
         answer: z.enum(['choice', 'text']),
         choices: z.array(flowChoiceSchema).max(FLOW_LIMITS.choices),
         followUps,
+        optional: z.boolean().optional(),
       })
       .refine((s) => !(s.mode === 'quote' && s.answer === 'text'), {
         message: 'A quote question needs choices, not free text',
@@ -115,20 +119,27 @@ function depth(step: FlowStep): number {
   return max;
 }
 
+/** Flags any step whose follow-ups nest deeper than the limit. */
+export function checkFlowDepth(
+  steps: FlowStep[],
+  ctx: z.RefinementCtx,
+  path: (string | number)[],
+): void {
+  steps.forEach((s, i) => {
+    if (depth(s) > FLOW_LIMITS.followUpDepth) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Follow-ups can nest at most ${FLOW_LIMITS.followUpDepth} deep`,
+        path: [...path, i],
+      });
+    }
+  });
+}
+
 export const conversationFlowSchema: z.ZodType<ConversationFlow> = z
   .object({
     version: z.number().int().nonnegative(),
     updatedAt: z.string().min(1),
     steps: z.array(flowStepSchema).max(FLOW_LIMITS.steps),
   })
-  .superRefine((flow, ctx) => {
-    flow.steps.forEach((s, i) => {
-      if (depth(s) > FLOW_LIMITS.followUpDepth) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Follow-ups can nest at most ${FLOW_LIMITS.followUpDepth} deep`,
-          path: ['steps', i],
-        });
-      }
-    });
-  });
+  .superRefine((flow, ctx) => checkFlowDepth(flow.steps, ctx, ['steps']));

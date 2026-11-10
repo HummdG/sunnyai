@@ -142,7 +142,7 @@ export function systemLine(doc: ProposalDoc): string {
 const TITLES = new Set(['mr', 'mrs', 'ms', 'miss', 'mx', 'dr', 'prof', 'sir', 'dame']);
 
 /** `Sam` for `Sam Patel`; `Dr Patel` for `Dr Sam Patel`; null with no name. */
-function salutationName(name: string | null): string | null {
+export function salutationName(name: string | null): string | null {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return null;
   const first = parts[0]!;
@@ -164,7 +164,7 @@ export function reasonSentences(doc: ProposalDoc): string[] {
 }
 
 /** The sign-off: signer name, role, and phone and email. */
-export function signOff(doc: ProposalDoc): string[] {
+export function signOff(doc: Pick<ProposalDoc, 'snapshot'>): string[] {
   const s = doc.snapshot.signer;
   return [s.name, s.role, [s.phone, s.email].filter(Boolean).join(' · ')]
     .map((l) => l.trim())
@@ -232,18 +232,24 @@ export function money(doc: ProposalDoc): {
         : vat === 0
           ? '0% VAT'
           : `including ${vat}% VAT`;
-  const rule = doc.snapshot.deposit;
+  return { total, totalLabel: ESTIMATE.totalLabel, vatNote, ...depositSplit(doc.snapshot, total) };
+}
+
+/**
+ * The snapshot's deposit rule applied to a total: the deposit and the
+ * balance, or both null when the installer takes no deposit. Never negative:
+ * a fixed deposit above the total becomes the total, and the balance is £0.
+ */
+export function depositSplit(
+  snapshot: Pick<ProposalDoc['snapshot'], 'deposit'>,
+  total: number,
+): { deposit: number | null; balance: number | null } {
+  const rule = snapshot.deposit;
   let deposit: number | null = null;
   if (rule.kind === 'percent') deposit = Math.round((total * rule.percent) / 100);
   else if (rule.kind === 'fixed') deposit = Math.round(rule.amountGbp);
   if (deposit !== null) deposit = Math.min(Math.max(deposit, 0), total);
-  return {
-    total,
-    totalLabel: ESTIMATE.totalLabel,
-    vatNote,
-    deposit,
-    balance: deposit === null ? null : total - deposit,
-  };
+  return { deposit, balance: deposit === null ? null : total - deposit };
 }
 
 /**
@@ -264,7 +270,7 @@ export function vatRow(doc: ProposalDoc): { label: string; amount: number } | nu
 }
 
 /** `25% of the estimated total`, `Fixed deposit`, or null with no deposit. */
-export function depositBasis(doc: ProposalDoc): string | null {
+export function depositBasis(doc: Pick<ProposalDoc, 'snapshot'>): string | null {
   const rule = doc.snapshot.deposit;
   if (rule.kind === 'percent') return `${rule.percent}% of the estimated total`;
   if (rule.kind === 'fixed') return 'Fixed deposit';
@@ -301,7 +307,7 @@ export function notes(doc: ProposalDoc): string[] {
 }
 
 /** `To go ahead, contact <name> on <phone> or <email>.` */
-export function goAhead(doc: ProposalDoc): string {
+export function goAhead(doc: Pick<ProposalDoc, 'snapshot'>): string {
   const s = doc.snapshot.signer;
   const ways = [s.phone, s.email].map((w) => w.trim()).filter(Boolean);
   const name = s.name.trim() || doc.snapshot.companyName;

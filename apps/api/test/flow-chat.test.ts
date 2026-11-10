@@ -16,6 +16,7 @@ import { flowForTenant } from '../src/flow/tenant.js';
 import { catalogueBackedPricing } from '../src/journey/catalogue-pricing.js';
 import { extractAnswers } from '../src/journey/extract.js';
 import { demoPricing } from '../src/journey/pricing.js';
+import type { QuoteRecord } from '../src/journey/quote.js';
 import { optionLabel } from '../src/questionnaire.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
@@ -24,11 +25,12 @@ import type { ServerConfig } from '../src/config.js';
 
 import { TEST_ADMIN_TOKEN } from './catalogue-fixture.js';
 import { ScriptedProvider } from './scripted-provider.js';
+import { workflowContext } from './workflow-fixture.js';
 
 /**
  * Sunny's chat follows the installer's own conversation (Task 5): the tools,
  * the answer reading and the quote all run on the tenant's stored flow, read
- * afresh every turn. The host-page route keeps Sunny's standard questions.
+ * afresh every turn. The host-page route follows the same workflow.
  */
 
 const EV = 'EV-PROJECTEV-7KW-UNTETHERED';
@@ -110,6 +112,7 @@ function context(
     sunscanConnected: false,
     knowledge: EMPTY_KNOWLEDGE,
     flow: flowForTenant(tenant),
+    ...workflowContext(),
     quote: { pricing },
   };
 }
@@ -322,7 +325,7 @@ describe("Sunny's chat on the installer's flow", () => {
     // The quote uses the flow in force when it is built: the tariff is now an estimate.
     const quoted = await tool('get_quote_options', {}, next);
     expect(quoted.ok).toBe(true);
-    const quotes = await store.listQuotes(DEMO_TENANT.id, SESSION);
+    const quotes = (await store.listQuotes(DEMO_TENANT.id, SESSION)) as QuoteRecord[];
     expect(quotes[0]!.estimatedFrom).toContain('tariff_type');
     expect(quotes[0]!.estimatedFrom).not.toContain('roof_shading');
   });
@@ -367,7 +370,7 @@ describe("Sunny's chat on the installer's flow", () => {
   it('a chat turn reads the flow from the tenant it is given', async () => {
     const store = await tempStore();
     const provider = new ScriptedProvider(() => [
-      { type: 'tool_started', call: { name: 'get_questionnaire', args: {} } },
+      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
       { type: 'text', text: 'Lovely.' },
     ]);
     const events: TurnEvent[] = [];
@@ -387,8 +390,12 @@ describe("Sunny's chat on the installer's flow", () => {
     const finished = events.find((e) => e.type === 'tool_finished');
     expect(finished).toBeDefined();
     const request = provider.lastRequest!;
-    const result = await request.execute({ name: 'get_questionnaire', args: {} });
-    expect(JSON.stringify(result)).toContain('c_evcharger1');
+    // The installer's own question is one this turn's workflow accepts.
+    const result = (await request.execute({
+      name: 'save_workflow_answers',
+      args: { answers: [{ questionId: 'c_evcharger1', value: 'yes' }] },
+    })) as { saved?: Array<{ questionId: string }> };
+    expect(result.saved?.map((a) => a.questionId)).toContain('c_evcharger1');
   });
 
   it('a stored flow that fails to parse falls back to Sunny’s own questions, with a warning', () => {
@@ -434,7 +441,7 @@ function config(): ServerConfig {
 }
 
 describe('the host-page route', () => {
-  it('the host-page route still accepts every SunScan question for a tenant with a custom flow', async () => {
+  it('the host-page route follows the tenant workflow, custom questions included', async () => {
     const store = await tempStore();
     const app = buildServer({
       config: config(),
@@ -454,6 +461,13 @@ describe('the host-page route', () => {
         sessionId: string;
         sessionToken: string;
       }>();
+      const REMOVED = new Set([
+        'lifestyle',
+        'existing_system',
+        'motivation',
+        'budget_band',
+        'finance_interest',
+      ]);
       const answers: Array<[string, string]> = [
         ['address', ADDRESS],
         ['roof_confidence', 'high'],
@@ -477,16 +491,65 @@ describe('the host-page route', () => {
           headers: { authorization: `Bearer ${sessionToken}` },
           payload: { sessionId, questionId, value },
         });
-        expect(response.statusCode, `${questionId}: ${response.body}`).toBe(200);
+        // Questions the installer removed from their conversation are no longer
+        // part of it; the rest are accepted.
+        const inFlow = !REMOVED.has(questionId);
+        expect(response.statusCode, `${questionId}: ${response.body}`).toBe(inFlow ? 200 : 400);
       }
-      // The installer's own question is not part of the host page's contract.
+      // The installer's own question belongs to their workflow, so it is accepted.
       const custom = await app.inject({
         method: 'POST',
         url: '/v1/qualification/answer',
         headers: { authorization: `Bearer ${sessionToken}` },
         payload: { sessionId, questionId: 'c_evcharger1', value: 'yes' },
       });
-      expect(custom.statusCode).toBe(400);
+      expect(custom.statusCode, custom.body).toBe(200);
+      expect(custom.json<{ answers: Record<string, string> }>().answers.c_evcharger1).toBe('yes');
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('a tenant with an empty workflow set', () => {
+  it('answers a host-page question with a bad_request, not a 500', async () => {
+    const store = await tempStore();
+    const tenant: Tenant = {
+      ...DEMO_TENANT,
+      config: {
+        ...DEMO_TENANT.config,
+        workflows: {
+          version: 1,
+          updatedAt: '2026-11-09T10:00:00Z',
+          discovery: { enabled: false },
+          workflows: [],
+        },
+      },
+    };
+    const app = buildServer({
+      config: config(),
+      store,
+      tenants: new TenantRegistry([tenant]),
+      now: () => 1_700_000_000_000,
+    });
+    await app.ready();
+    try {
+      const session = await app.inject({
+        method: 'POST',
+        url: '/v1/widget/session',
+        payload: { publicId: DEMO_TENANT.publicId, origin: ORIGIN },
+      });
+      const { sessionId, sessionToken } = session.json<{
+        sessionId: string;
+        sessionToken: string;
+      }>();
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/qualification/answer',
+        headers: { authorization: `Bearer ${sessionToken}` },
+        payload: { sessionId, questionId: 'roof_shading', value: 'none' },
+      });
+      expect(response.statusCode, response.body).toBe(400);
     } finally {
       await app.close();
     }

@@ -5,7 +5,12 @@ import { z } from 'zod';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import type { BrandAssetStore } from '../branding/store.js';
-import type { QuoteRecord } from '../journey/quote.js';
+import {
+  hasProposal,
+  quoteKind,
+  type ProposalQuote,
+  type StoredQuote,
+} from '../journey/quote-kinds.js';
 import {
   proposalFilename,
   proposalPdf,
@@ -18,7 +23,8 @@ import type { Tenant, TenantRegistry } from '../tenants.js';
 import type { PortalConfig } from './portal-config.js';
 
 /**
- * The customer quotation PDF (proposal/pdf.ts), three ways:
+ * The customer quotation PDF (proposal/pdf.ts): a solar proposal, or a heat
+ * pump estimate for a heat pump quote. Three ways:
  *
  *   GET  /v1/quote/:id/proposal.pdf          the visitor's own quote (widget session)
  *   POST /v1/quote/:id/proposal/email        email it to the visitor, with consent
@@ -72,6 +78,12 @@ function sendPdf(reply: FastifyReply, pdf: Buffer, filename: string): Buffer {
   return pdf;
 }
 
+/** The quote as one with a PDF (solar, heat pump or battery); a kind without one is a 404. */
+function withProposal(quote: StoredQuote): ProposalQuote {
+  if (!hasProposal(quote)) throw new ApiError('not_found', 'This quote has no PDF.');
+  return quote;
+}
+
 export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRouteDeps): void {
   const { store, tenants, now } = deps;
   const auth = createAuthenticator({
@@ -92,7 +104,7 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
   /** The visitor's quote: their session, their tenant, their quote. */
   async function visitorQuote(
     request: FastifyRequest,
-  ): Promise<{ tenant: Tenant; quote: QuoteRecord; sessionId: string }> {
+  ): Promise<{ tenant: Tenant; quote: ProposalQuote; sessionId: string }> {
     const claims = verifySessionToken(bearer(request), deps.sessionSecret, now());
     if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
     const tenant = tenants.byId(claims.tenantId);
@@ -101,10 +113,10 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     if (!tenant || !quote || quote.sessionId !== claims.sessionId) {
       throw new ApiError('not_found', 'No such quote.');
     }
-    return { tenant, quote, sessionId: claims.sessionId };
+    return { tenant, quote: withProposal(quote), sessionId: claims.sessionId };
   }
 
-  async function leadFor(tenant: Tenant, quote: QuoteRecord): Promise<LeadRecord | null> {
+  async function leadFor(tenant: Tenant, quote: StoredQuote): Promise<LeadRecord | null> {
     if (!quote.leadId) return null;
     return (await store.listAllLeads(tenant.id)).find((l) => l.id === quote.leadId) ?? null;
   }
@@ -155,16 +167,25 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
     );
     const company = tenant.config.companyName;
     const contact = tenant.config.supportContact;
+    const kind = quoteKind(quote);
+    const what = kind === 'heat_pump' ? 'heat pump' : kind;
     await deps.mailer.send({
       to: body.data.email,
       replyTo: contact?.email ?? null,
       fromName: `${company} via Sunny`,
-      subject: `Your solar quote from ${company}`,
+      subject: `Your ${what} quote from ${company}`,
       text: [
         'Hello,',
         '',
-        `Here is the solar proposal you asked for, from ${company}. It sets out the system we ` +
-          'recommend, the other options you were shown, and what each should generate and save.',
+        kind === 'solar'
+          ? `Here is the solar proposal you asked for, from ${company}. It sets out the system we ` +
+            'recommend, the other options you were shown, and what each should generate and save.'
+          : kind === 'heat_pump'
+            ? `Here is the heat pump estimate you asked for, from ${company}. It sets out the heat ` +
+              'pump we recommend, the options you were shown, the running costs and the Boiler ' +
+              'Upgrade Scheme grant.'
+            : `Here is the battery estimate you asked for, from ${company}. It sets out the ` +
+              'battery we recommend, the options you were shown, and what each could save.',
         '',
         'Every figure is indicative and non-binding until we have surveyed your property.',
         '',
@@ -195,8 +216,9 @@ export function registerProposalRoutes(app: FastifyInstance, deps: ProposalRoute
       const quotes = await store.listQuotes(tenant.id, lead.sessionId);
       const quote = quotes.filter((q) => q.leadId === lead.id).at(-1) ?? quotes.at(-1) ?? null;
       if (!quote) throw new ApiError('not_found', 'This lead has no quote.');
-      const pdf = await proposalPdf(sources, tenant, quote, lead, new Date(now()));
-      return sendPdf(reply, pdf, proposalFilename(tenant, quote));
+      const doc = withProposal(quote);
+      const pdf = await proposalPdf(sources, tenant, doc, lead, new Date(now()));
+      return sendPdf(reply, pdf, proposalFilename(tenant, doc));
     },
   );
 }

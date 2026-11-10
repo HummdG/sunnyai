@@ -460,11 +460,17 @@ export function styles(): string {
 .quote-stats li { display: flex; flex-direction: column; font-size: 11px; color: #5c5c5c; line-height: 1.25; }
 .quote-stats b { font-size: 14px; color: var(--sunny-ink); }
 .quote-note { margin: 4px 0 0; font-size: 11.5px; color: #8a3b00; }
+.quote-size { margin: 0; font-size: 12px; color: #3a3a3a; }
+.quote-headline { margin: 0; font-size: 12px; line-height: 1.35; color: #3a3a3a; }
+.quote-grant { margin: 2px 0 0; font-size: 12px; font-weight: 600; color: var(--sunny-ink); }
+.quote-lines { list-style: none; margin: 8px 0 2px; padding: 8px 0 0; width: 100%;
+  border-top: 1px dashed rgba(23,23,23,.18); display: flex; flex-direction: column; gap: 2px;
+  font-size: 12px; color: #3a3a3a; line-height: 1.3; }
 .quote-disclaimer { font-size: 11px; color: #5c5c5c; margin: 10px 4px 0; text-align: center; }
 .quote-choose { align-self: stretch; margin-top: auto; font: inherit; font-size: 13px; font-weight: 650;
   cursor: pointer; border-radius: 999px; padding: 7px 12px; min-height: 36px;
   border: 1px solid var(--sunny-accent-ink); background: #fff; color: var(--sunny-accent-ink); }
-.quote-stats + .quote-choose, .quote-note + .quote-choose { margin-top: 10px; }
+.quote-stats + .quote-choose, .quote-lines + .quote-choose, .quote-note + .quote-choose { margin-top: 10px; }
 .quote-option.recommended .quote-choose { background: var(--sunny-accent-ink); color: #fff; }
 .quote-choose:hover { filter: brightness(.96); }
 .quote-choose:focus-visible { outline: 3px solid var(--sunny-accent); outline-offset: 2px; }

@@ -2,6 +2,7 @@ import {
   widgetConfigSchema,
   type ConversationFlow,
   type QuotationSettings,
+  type WorkflowSet,
   type WidgetConfig,
 } from '@sunny/contracts';
 
@@ -45,6 +46,11 @@ export interface Tenant {
      * own questions. Server-only: `configFor` drops it on the way out.
      */
     conversation?: ConversationFlow;
+    /**
+     * The installer's workflows (Sunny Workflows). Absent means one is built
+     * from the templates and `conversation`. Server-only: `configFor` drops it.
+     */
+    workflows?: WorkflowSet;
     /** The installer's quotation PDF settings. Server-only: `configFor` drops it. */
     quotation?: QuotationSettings;
     /**
