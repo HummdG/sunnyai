@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { FileStore, knowledgeFingerprint } from '../src/store.js';
 import type { Store, Conversation, KnowledgeSourceRecord, LeadRecord } from '../src/store.js';
 import { DEMO_TENANT, type Tenant } from '../src/tenants.js';
+import { EMPTY_SESSION } from '../src/workflows/session.js';
 import { productSchema } from '@sunny/contracts';
 import type { AuditEvent, IngestionJob, Product } from '@sunny/contracts';
 
@@ -341,6 +342,22 @@ export function storeContract(
       expect(await store.getWant(t, 's1')).toEqual({ currency: 'GBP' });
     });
 
+    it('round-trips the workflow session, and reports none as empty', async () => {
+      const { store, tenant } = await harness();
+      const t = tenant('wfstate');
+      expect(await store.getWorkflowState(t, 's1')).toEqual(EMPTY_SESSION);
+      const state = {
+        ...EMPTY_SESSION,
+        active: { workflowId: 'wf_a', startedAt: '2026-11-10T10:00:00.000Z' },
+        paused: [
+          { workflowId: 'wf_b', pausedAt: '2026-11-10T10:01:00.000Z', resumeOfferedAt: null },
+        ],
+        lastPath: null,
+      };
+      expect(await store.saveWorkflowState(t, 's1', state)).toEqual(state);
+      expect(await store.getWorkflowState(t, 's1')).toEqual(state);
+    });
+
     it('files a lead once, and tells a retry apart from a reused key', async () => {
       const { store, tenant } = await harness();
       const t = tenant('leads');
@@ -604,6 +621,10 @@ export function storeContract(
       await store.appendTurn(a, 's1', { role: 'user', text: 'secret', at: at(0) });
       await store.saveLead(lead(a, { sessionId: 's1' }));
       await store.saveWant(a, 's1', { maxBudgetMajor: 5000 });
+      await store.saveWorkflowState(a, 's1', {
+        ...EMPTY_SESSION,
+        active: { workflowId: 'wf_a', startedAt: at(0) },
+      });
       await store.saveProducts(a, [product(a, 'p1')], 'replace');
       await store.putKnowledgeSource(source(a, 'k1'));
       await store.saveIngestionJob(job(a, 'job_1'));
@@ -615,6 +636,7 @@ export function storeContract(
       expect(await store.listConversations(b)).toEqual([]);
       expect(await store.listAllLeads(b)).toEqual([]);
       expect(await store.getWant(b, 's1')).toEqual({});
+      expect(await store.getWorkflowState(b, 's1')).toEqual(EMPTY_SESSION);
       expect(await store.listProducts(b)).toEqual([]);
       expect(await store.listKnowledgeSources(b)).toEqual([]);
       expect(await store.getKnowledgeSource(b, 'k1')).toBeNull();

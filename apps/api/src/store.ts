@@ -17,6 +17,7 @@ import type { QuoteRecord } from './journey/quote.js';
 
 import type { CatalogueState } from './catalogue/types.js';
 import type { Tenant } from './tenants.js';
+import { EMPTY_SESSION, cloneSession, type WorkflowSession } from './workflows/session.js';
 
 /**
  * Persistence, behind an interface.
@@ -172,6 +173,12 @@ export interface Conversation {
    * instead of against the model's recollection of the conversation.
    */
   want?: RecommendationWant;
+  /**
+   * Which workflow this visitor is in, which are set aside, and which are done.
+   * Absent on conversations written before workflows existed, which read as an
+   * empty session.
+   */
+  workflow?: WorkflowSession;
   /**
    * The channel the conversation came in on, for the unified inbox
    * (Blueprint §5). Absent means web chat, which is every conversation written
@@ -500,6 +507,13 @@ export interface Store {
     sessionId: string,
     want: RecommendationWant,
   ): Promise<RecommendationWant>;
+  /** Where this session is among the tenant's workflows. Empty when none yet. */
+  getWorkflowState(tenantId: string, sessionId: string): Promise<WorkflowSession>;
+  saveWorkflowState(
+    tenantId: string,
+    sessionId: string,
+    state: WorkflowSession,
+  ): Promise<WorkflowSession>;
   /**
    * This tenant's documents.
    *
@@ -1153,6 +1167,42 @@ export class FileStore implements Store {
     await appendFile(this.#conversationFile(tenantId), `${JSON.stringify(conversation)}\n`, 'utf8');
     this.#conversationCache.set(`${tenantId}:${sessionId}`, conversation);
     return conversation.want ?? {};
+  }
+
+  async getWorkflowState(tenantId: string, sessionId: string): Promise<WorkflowSession> {
+    const conversation = await this.getConversation(tenantId, sessionId);
+    return cloneSession(conversation?.workflow ?? EMPTY_SESSION);
+  }
+
+  async saveWorkflowState(
+    tenantId: string,
+    sessionId: string,
+    state: WorkflowSession,
+  ): Promise<WorkflowSession> {
+    await this.#ensure();
+    const existing = await this.getConversation(tenantId, sessionId);
+    const now = new Date().toISOString();
+    const conversation: Conversation = existing
+      ? { ...existing, workflow: cloneSession(state), updatedAt: now }
+      : {
+          id: newId('conv'),
+          tenantId,
+          sessionId,
+          turns: [],
+          workflow: cloneSession(state),
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    await mkdir(join(this.#dir, 'conversations'), { recursive: true });
+    await appendFile(
+      this.#conversationFile(tenantId),
+      `${JSON.stringify(conversation)}
+`,
+      'utf8',
+    );
+    this.#conversationCache.set(`${tenantId}:${sessionId}`, conversation);
+    return cloneSession(state);
   }
 
   get #knowledgeDir(): string {

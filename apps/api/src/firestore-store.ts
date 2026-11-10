@@ -22,6 +22,7 @@ import type { AssessmentRecord as SunScanAssessmentRecord } from '@sunny/sunscan
 import type { CatalogueState } from './catalogue/types.js';
 import type { QuoteRecord } from './journey/quote.js';
 import type { Tenant } from './tenants.js';
+import { EMPTY_SESSION, cloneSession, type WorkflowSession } from './workflows/session.js';
 import type {
   AuditEvent,
   IngestionJob,
@@ -676,6 +677,40 @@ export class FirestoreStore implements Store {
           };
       transaction.set(conversationRef, conversation);
       return conversation.want ?? {};
+    });
+  }
+
+  async getWorkflowState(tenantId: string, sessionId: string): Promise<WorkflowSession> {
+    const conversation = await this.getConversation(tenantId, sessionId);
+    return cloneSession(conversation?.workflow ?? EMPTY_SESSION);
+  }
+
+  /** Replaces the session's workflow state, like `saveWant`. */
+  async saveWorkflowState(
+    tenantId: string,
+    sessionId: string,
+    state: WorkflowSession,
+  ): Promise<WorkflowSession> {
+    const conversationRef = this.#conversationRef(tenantId, sessionId);
+    return await this.#db.runTransaction<WorkflowSession>(async (transaction) => {
+      const snapshot = await transaction.get(conversationRef);
+      const existing = snapshot.exists
+        ? (snapshot.data() as unknown as Omit<Conversation, 'turns'>)
+        : null;
+      const now = new Date().toISOString();
+      const workflow = cloneSession(state);
+      const conversation = existing
+        ? { ...existing, workflow, updatedAt: now }
+        : {
+            id: newId('conv'),
+            tenantId,
+            sessionId,
+            workflow,
+            createdAt: now,
+            updatedAt: now,
+          };
+      transaction.set(conversationRef, conversation);
+      return workflow;
     });
   }
 
