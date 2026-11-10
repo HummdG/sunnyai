@@ -33,13 +33,7 @@ export interface HeatPumpInput {
 }
 
 export type Nation =
-  | 'england'
-  | 'wales'
-  | 'scotland'
-  | 'northern_ireland'
-  | 'crown_dependency'
-  | 'border'
-  | 'unknown';
+  'england' | 'wales' | 'scotland' | 'northern_ireland' | 'crown_dependency' | 'border' | 'unknown';
 
 export interface BusVerdict {
   eligible: boolean | 'unsure';

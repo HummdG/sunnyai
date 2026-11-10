@@ -285,7 +285,15 @@ describe('exports', () => {
     };
     for (const v of Object.values(engine)) if (typeof v !== 'function') walk(v);
     for (const ageBand of ['pre_1919', '2007_on'] as const)
-      for (const postcode of ['EH1 1AA', 'TD15 1AA', 'BT1 1AA', 'NR4 7TJ', 'garbage', 'SY1 1AA', 'IM1 1AA'])
+      for (const postcode of [
+        'EH1 1AA',
+        'TD15 1AA',
+        'BT1 1AA',
+        'NR4 7TJ',
+        'garbage',
+        'SY1 1AA',
+        'IM1 1AA',
+      ])
         for (const ownership of ['own', 'rent'])
           for (const currentFuel of ['gas', 'heat_pump', 'electric_direct', 'other'] as const)
             for (const floorAreaM2 of [null, 90, 900])
