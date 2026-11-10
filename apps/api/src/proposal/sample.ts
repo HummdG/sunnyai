@@ -57,6 +57,21 @@ export interface SampleInputs {
   products: readonly Product[];
 }
 
+/**
+ * The quote is for the sample house, so its recommended option must fit the
+ * roof: when it does not, the largest option that does is recommended instead
+ * (the smallest, if none fits, in which case the PDF carries no plan).
+ */
+export function fitToHouse(quote: QuoteRecord, maxPanels: number): void {
+  const recommended = quote.options.find((o) => o.id === quote.recommendedId);
+  if (recommended && recommended.panelCount <= maxPanels) return;
+  const byPanels = [...quote.options].sort((a, b) => b.panelCount - a.panelCount);
+  const pick = byPanels.find((o) => o.panelCount <= maxPanels) ?? byPanels[byPanels.length - 1];
+  if (!pick) return;
+  quote.recommendedId = pick.id;
+  quote.options = quote.options.map((o) => ({ ...o, isRecommended: o.id === pick.id }));
+}
+
 /** The sample quote and its PDF. The same inputs always give the same bytes. */
 export async function samplePdf(inputs: SampleInputs): Promise<Buffer> {
   const { file, spec } = sample();
@@ -70,6 +85,7 @@ export async function samplePdf(inputs: SampleInputs): Promise<Buffer> {
     roof: null,
     pricing: inputs.pricing ?? demoPricing(),
   });
+  fitToHouse(quote, file.roof.maxPanels);
   quote.quotation = snapshotFor(tenant, settings);
   quote.warranties = warrantiesFor(
     quote.options.flatMap((o) => o.lineItems),
@@ -84,8 +100,12 @@ export async function samplePdf(inputs: SampleInputs): Promise<Buffer> {
   }
   quote.reasons = reasons;
   const doc = await proposalDocFor(sources, tenant, quote, null, new Date(file.createdAt));
-  const panels = Math.min(doc.option.panelCount, file.roof.maxPanels);
-  const roofPlan = roofPlanFor(spec, { panelCount: panels, reliable: true, sample: true });
+  // Every quoted panel must be on the drawing: a plan that cannot place them is dropped.
+  const roofPlan = roofPlanFor(spec, {
+    panelCount: doc.option.panelCount,
+    reliable: true,
+    sample: true,
+  });
   const face = roofPlan?.faces.find((f) => f.id === roofPlan.mainFace.id) ?? null;
   return renderProposal({
     ...doc,

@@ -15,6 +15,12 @@ import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry, defaultTenants } from '../src/tenants.js';
 
+import { HSENERGY_PRICE_LIST_CSV } from '../src/catalogue/examples/hsenergy.js';
+import { importPriceList } from '../src/catalogue/price-list.js';
+import { emptyCatalogueState } from '../src/catalogue/types.js';
+import type { QuoteRecord } from '../src/journey/quote.js';
+import { fitToHouse } from '../src/proposal/sample.js';
+
 import { pdfText } from './pdf-text.js';
 
 const T0 = Date.parse('2026-11-08T12:00:00.000Z');
@@ -74,7 +80,7 @@ async function setup() {
     brandAssets: new MemoryBrandAssetStore(() => clock),
   });
   await app.ready();
-  return { app, tenants };
+  return { app, tenants, store };
 }
 
 const as = (email: string) => ({ authorization: `Bearer ${issueDevToken(SECRET, email, clock)}` });
@@ -378,6 +384,58 @@ The deposit is due on order.`,
       accreditations: { mcsNumber: '', logoAssetIds: ['fedcba9876543210', '../x'] },
     });
     expect(res.statusCode).toBe(200);
+  });
+
+  it('does not draw another installer image in this installer preview', async () => {
+    const { app } = await setup();
+    const a = await signUp(app, OWNER);
+    const other = 'owner@elsewhere.test';
+    const b = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/portal/tenants',
+        headers: as(other),
+        payload: { companyName: 'Elsewhere Solar' },
+      })
+    ).json<{ tenant: { id: string } }>().tenant.id;
+    const up = await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${b}/brand/pdf-logo`,
+      headers: as(other),
+      payload: { png: discPng(100).toString('base64') },
+    });
+    const foreign = up.json<{ asset: { id: string } }>().asset.id;
+    const plain = await preview(app, a, body());
+    const withForeign = await preview(app, a, { ...body(), logoAssetId: foreign });
+    expect(withForeign.statusCode).toBe(200);
+    expect(withForeign.rawPayload.equals(plain.rawPayload)).toBe(true);
+  });
+
+  it('draws the plan for a published list, and the quote fits the sample house', async () => {
+    const { app, store } = await setup();
+    const id = await signUp(app, OWNER);
+    const { list } = importPriceList(HSENERGY_PRICE_LIST_CSV);
+    await store.putCatalogueState({
+      ...emptyCatalogueState(id, new Date(T0).toISOString()),
+      priceList: { published: list, version: 1, pending: null, history: [] },
+    });
+    const res = await preview(app, id, body());
+    expect(res.statusCode).toBe(200);
+    expect(await text(res)).toContain('ROOF PLAN');
+  });
+
+  it('recommends the largest option that fits the house when the recommended one does not', () => {
+    const opt = (id: string, panelCount: number) => ({ id, panelCount, isRecommended: false });
+    const quote = {
+      recommendedId: 'big',
+      options: [opt('small', 8), opt('mid', 12), opt('big', 16)],
+    } as unknown as QuoteRecord;
+    fitToHouse(quote, 12);
+    expect(quote.recommendedId).toBe('mid');
+    expect(quote.options.filter((o) => o.isRecommended).map((o) => o.id)).toEqual(['mid']);
+    const fits = { recommendedId: 'small', options: [opt('small', 8)] } as unknown as QuoteRecord;
+    fitToHouse(fits, 12);
+    expect(fits.recommendedId).toBe('small');
   });
 
   it('limits previews to 30 a minute per tenant', async () => {
