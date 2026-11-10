@@ -5,8 +5,9 @@ import type { HeatPumpOptionCard } from '@sunny/contracts';
  * the card from exactly these (through `el`'s textContent), and the tests read
  * them without a browser.
  *
- * An installer-priced option shows its price label and never a figure: no
- * price, and no grant deducted from a price that does not exist.
+ * An installer-priced option shows its price label and never a price: an
+ * eligible grant is said to come off the price, never deducted from a price
+ * that does not exist.
  */
 export interface HeatPumpCardText {
   /** The option carries a price (not one the installer sets at the survey). */
@@ -29,12 +30,15 @@ export const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 export function heatPumpCardText(o: HeatPumpOptionCard): HeatPumpCardText {
   const price = o.installerPriced === true ? null : o.priceGbp;
   const priced = price !== null;
+  const eligible = o.grantStatus === 'eligible' && o.grantGbp > 0;
   const grant =
     o.grantStatus === 'unsure'
       ? 'The Boiler Upgrade Scheme may apply'
-      : o.grantStatus === 'eligible' && o.grantGbp > 0 && priced && o.priceAfterGrantGbp !== null
+      : eligible && priced && o.priceAfterGrantGbp !== null
         ? `After the ${gbp(o.grantGbp)} grant: ${gbp(o.priceAfterGrantGbp)}`
-        : null;
+        : eligible && !priced
+          ? `${gbp(o.grantGbp)} Boiler Upgrade Scheme grant comes off the price`
+          : null;
   const savings = Math.round(o.annualSavingsGbp);
   return {
     priced,

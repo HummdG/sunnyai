@@ -288,6 +288,21 @@ describe('email follow-up facts', () => {
     expect(facts).toContain('Quote for NR4 7TJ:');
   });
 
+  it('carries the grant status: may apply when unsure, none when not eligible', () => {
+    const unsure = heatPump();
+    unsure.estimate = { ...unsure.estimate, bus: { ...unsure.estimate.bus, eligible: 'unsure' } };
+    unsure.options = unsure.options.map((o) => ({ ...o, grantGbp: 0, priceAfterGrantGbp: 12500 }));
+    expect(quoteFacts(unsure)).toContain(
+      '7 kW heat pump, £12,500 (Indicative price, 0% VAT), Boiler Upgrade Scheme grant may apply',
+    );
+    const none = heatPump();
+    none.estimate = { ...none.estimate, bus: { ...none.estimate.bus, eligible: false } };
+    none.options = none.options.map((o) => ({ ...o, grantGbp: 0, priceAfterGrantGbp: 12500 }));
+    expect(quoteFacts(none)).toContain(
+      '7 kW heat pump, £12,500 (Indicative price, 0% VAT), no Boiler Upgrade Scheme grant',
+    );
+  });
+
   it('describes a solar quote as before', () => {
     expect(quoteFacts(legacySolar())).toBe(
       [

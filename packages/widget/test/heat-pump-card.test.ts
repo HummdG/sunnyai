@@ -102,6 +102,8 @@ describe('heatPumpCardText', () => {
         priceAfterGrantGbp: null,
         installerPriced: true,
         priceLabel: 'Priced by your installer',
+        grantStatus: 'none',
+        grantGbp: 0,
       }),
     );
     expect(text.priced).toBe(false);
@@ -109,6 +111,26 @@ describe('heatPumpCardText', () => {
     expect(text.figureLabel).toBe('Free survey, no obligation');
     expect(text.grant).toBeNull();
     expect(JSON.stringify([text.figure, text.figureLabel, text.grant])).not.toMatch(/£/);
+  });
+
+  it('says the grant comes off the price for an installer-priced eligible option', () => {
+    const text = heatPumpCardText(
+      option({
+        priceGbp: null,
+        priceAfterGrantGbp: null,
+        installerPriced: true,
+        priceLabel: 'Priced by your installer',
+      }),
+    );
+    expect(text.figure).toBe('Priced by your installer');
+    expect(text.grant).toBe('£7,500 Boiler Upgrade Scheme grant comes off the price');
+  });
+
+  it('deducts only the grant applied, never more than the price', () => {
+    const text = heatPumpCardText(
+      option({ priceGbp: 6_500, grantGbp: 6_500, priceAfterGrantGbp: 0 }),
+    );
+    expect(text.grant).toBe('After the £6,500 grant: £0');
   });
 
   it("keeps the grant's 'may apply' line for an installer-priced option", () => {

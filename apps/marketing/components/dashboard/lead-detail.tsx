@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { api, tenantPath, type LeadRow } from '../../lib/portal-api.js';
+import { heatPumpGrantText, heatPumpSavingsText, money } from './heat-pump-lead-text.js';
 import { SkeletonRows } from './kit.js';
 import { usePortal } from './portal.js';
 import { RoofViewer3D } from './roof-viewer.js';
@@ -60,7 +61,7 @@ interface HeatPumpOption {
   outputKw: number;
   unitName: string;
   priceGbp: number | null;
-  /** The Boiler Upgrade Scheme grant (0 when not eligible). */
+  /** The Boiler Upgrade Scheme grant applied (0 when not eligible). */
   grantGbp: number;
   priceAfterGrantGbp: number | null;
   annualSavingsGbp: number;
@@ -70,6 +71,8 @@ interface HeatPumpOption {
 interface HeatPumpQuote extends QuoteBase {
   kind: 'heat_pump';
   options: HeatPumpOption[];
+  /** The engine's estimate; only the grant verdict is read here. */
+  estimate?: { bus?: { eligible?: boolean | 'unsure' } };
 }
 
 type Quote = SolarQuote | HeatPumpQuote;
@@ -104,11 +107,7 @@ function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: H
           {option.outputKw.toLocaleString('en-GB')} kW · {option.unitName}
         </dd>
         <dt>Grant</dt>
-        <dd>
-          {option.grantGbp > 0
-            ? `Boiler Upgrade Scheme ${money(option.grantGbp)}`
-            : 'No Boiler Upgrade Scheme grant'}
-        </dd>
+        <dd>{heatPumpGrantText(quote.estimate?.bus?.eligible, option.grantGbp)}</dd>
         <dt>After grant</dt>
         <dd>
           {option.priceAfterGrantGbp === null
@@ -116,7 +115,7 @@ function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: H
             : `About ${money(option.priceAfterGrantGbp)}`}
         </dd>
         <dt>Savings</dt>
-        <dd>About {money(option.annualSavingsGbp)} a year</dd>
+        <dd>{heatPumpSavingsText(option.annualSavingsGbp)}</dd>
       </dl>
       {option.installerPriced ? (
         <p className="small muted">
@@ -145,11 +144,6 @@ interface RoofSummary {
   reliable?: boolean;
   label?: string;
   roofPlanes?: RoofPlane[];
-}
-
-/** Money per guidelines H3: £6,500 (pence only under £100). */
-function money(gbp: number): string {
-  return gbp < 100 ? `£${gbp.toFixed(2)}` : `£${Math.round(gbp).toLocaleString('en-GB')}`;
 }
 
 function kwh(value: number): string {

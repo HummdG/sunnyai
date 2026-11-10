@@ -1,6 +1,7 @@
 import { isEntitled } from '../../agent/channels.js';
 import type { ChatProvider } from '../../agent/provider.js';
 import {
+  grantStatusOf,
   isSolarRecord,
   type HeatPumpQuoteRecord,
   type StoredQuote,
@@ -86,14 +87,20 @@ export function quoteFacts(quote: StoredQuote | null): string | null {
 
 function heatPumpFacts(quote: HeatPumpQuoteRecord): string {
   const chosen = quote.chosenOptionId ?? null;
+  const status = grantStatusOf(quote.estimate.bus.eligible);
   const lines = quote.options.map((o) => {
     const price = o.priceGbp !== null ? `${gbp(o.priceGbp)} (${o.priceLabel})` : 'priced at survey';
-    const grant = gbp(o.grantGbp);
+    const grant =
+      status === 'unsure'
+        ? 'Boiler Upgrade Scheme grant may apply'
+        : status === 'eligible' && o.grantGbp > 0
+          ? `Boiler Upgrade Scheme grant ${gbp(o.grantGbp)}`
+          : 'no Boiler Upgrade Scheme grant';
     const tags = [
       o.id === chosen ? 'the one they chose' : null,
       o.isRecommended ? 'recommended' : null,
     ].filter(Boolean);
-    const facts = `${o.outputKw} kW heat pump, ${price}, Boiler Upgrade Scheme grant ${grant}`;
+    const facts = `${o.outputKw} kW heat pump, ${price}, ${grant}`;
     return `- ${o.label}: ${facts}${tags.length ? ` [${tags.join(', ')}]` : ''}`;
   });
   return [`Quote for ${quote.postcode}:`, ...lines, quote.disclaimer].join('\n');
@@ -101,7 +108,7 @@ function heatPumpFacts(quote: HeatPumpQuoteRecord): string {
 
 function instruction(tenant: Tenant): string {
   return [
-    `You write a short follow-up email from ${tenant.config.companyName}, a UK solar installer, to a person who has just chatted with the website assistant and asked to be contacted.`,
+    `You write a short follow-up email from ${tenant.config.companyName}, a UK home energy installer, to a person who has just chatted with the website assistant and asked to be contacted.`,
     'Write only the body of the email in plain text: no subject line, no greeting line, no sign-off (the system adds those).',
     'In 2 to 4 short paragraphs: thank them, recap what they told us about their home and what they want, mention the quote options only if facts are given below, and propose the next step (a free survey or a call back at a time that suits them).',
     'Use only facts from the conversation and the quote facts. Never invent prices, savings, dates or promises. Figures are indicative and confirmed at survey.',
