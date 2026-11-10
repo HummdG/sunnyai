@@ -149,4 +149,51 @@ describe('header and footer', () => {
     const buf = await render((doc) => footer(doc, ctx(), 2, 6));
     expect((await pdfText(buf)).join('')).not.toContain('—');
   });
+  it('stamps buffered pages with their own numbers and adds none', async () => {
+    const buf = await render((doc) => {
+      doc.text('one');
+      doc.addPage().text('two');
+      doc.addPage().text('three');
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(range.start + i);
+        header(doc, ctx());
+        footer(doc, ctx(), i + 1, range.count);
+      }
+    });
+    const pages = await pdfText(buf);
+    expect(pages).toHaveLength(3);
+    expect(pages[0]).toContain('01 / 03');
+    expect(pages[1]).toContain('02 / 03');
+    expect(pages[2]).toContain('03 / 03');
+  });
+
+  it('starts the footer at the page margin without a rail', async () => {
+    const buf = await render((doc) =>
+      footer(doc, ctx({ companyName: 'Zed' }), 1, 1, { hasRail: false }),
+    );
+    expect((await pdfText(buf))[0]).toContain('Zed');
+  });
+
+  it('embeds each logo once however many pages are stamped', async () => {
+    const logo = png(200, 40);
+    const acc = png(60, 60);
+    const images = (buf: Buffer) =>
+      (buf.toString('latin1').match(/\/Subtype \/Image/g) ?? []).length;
+    const stamp = (pages: number) =>
+      render((doc) => {
+        for (let i = 1; i < pages; i++) doc.addPage();
+        const range = doc.bufferedPageRange();
+        for (let i = 0; i < range.count; i++) {
+          doc.switchToPage(range.start + i);
+          const c = ctx({ logo, accreditationLogos: [acc] });
+          header(doc, c);
+          footer(doc, c, i + 1, range.count);
+        }
+      });
+    const one = images(await stamp(1));
+    const many = images(await stamp(12));
+    expect(one).toBeGreaterThan(0);
+    expect(many).toBe(one);
+  });
 });

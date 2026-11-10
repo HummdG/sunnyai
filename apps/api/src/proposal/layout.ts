@@ -45,9 +45,28 @@ export interface Rect {
 type Doc = PDFKit.PDFDocument;
 type Rgb = [number, number, number];
 
-/** pdfkit decodes an image (to get its size) with `openImage`, which its typings omit. */
-const openImage = (doc: Doc, buf: Buffer) =>
-  (doc as unknown as { openImage(b: Buffer): { width: number; height: number } }).openImage(buf);
+interface OpenedImage {
+  width: number;
+  height: number;
+}
+
+/**
+ * pdfkit caches opened images by file path only, never by Buffer, so passing a
+ * Buffer to `doc.image` embeds a fresh XObject on every call. We open each
+ * Buffer once per document and pass the opened image to `doc.image`, which
+ * embeds it once and reuses it on every page the header and footer stamp.
+ */
+const opened = new WeakMap<object, WeakMap<Buffer, OpenedImage>>();
+function openImage(doc: Doc, buf: Buffer): OpenedImage {
+  let perDoc = opened.get(doc);
+  if (!perDoc) opened.set(doc, (perDoc = new WeakMap()));
+  let image = perDoc.get(buf);
+  if (!image) {
+    image = (doc as unknown as { openImage(b: Buffer): OpenedImage }).openImage(buf);
+    perDoc.set(buf, image);
+  }
+  return image;
+}
 
 // ---- Theme ---------------------------------------------------------------
 
@@ -168,7 +187,7 @@ export function drawLogo(
   const saveX = doc.x;
   const saveY = doc.y;
   let drawn: Rect;
-  let image: { width: number; height: number } | null = null;
+  let image: OpenedImage | null = null;
   if (png) {
     try {
       image = openImage(doc, png);
@@ -191,7 +210,7 @@ export function drawLogo(
         .fill('#ffffff')
         .restore();
     }
-    doc.image(png, drawn.x, drawn.y, { width: w, height: h });
+    doc.image(image as never, drawn.x, drawn.y, { width: w, height: h });
   } else {
     doc.font('sans-800');
     let size = Math.min(box.h * 0.7, 20);
@@ -241,11 +260,18 @@ export function header(doc: Doc, ctx: PageContext): void {
   });
 }
 
-const FOOT_LEFT = PAGE.width * 0.34;
+const RAIL_FOOT_LEFT = PAGE.width * 0.34;
 const DOT = '  ·  ';
 
 /** Company, MCS number, accreditations, contact, `NN / MM`, and the Sunny credit. */
-export function footer(doc: Doc, ctx: PageContext, page: number, of: number): void {
+export function footer(
+  doc: Doc,
+  ctx: PageContext,
+  page: number,
+  of: number,
+  opts: { hasRail?: boolean } = {},
+): void {
+  const FOOT_LEFT = opts.hasRail === false ? PAGE.margin : RAIL_FOOT_LEFT;
   inMargins(doc, () => {
     const right = PAGE.width - PAGE.margin;
     const line1 = PAGE.height - 38;
@@ -271,7 +297,7 @@ export function footer(doc: Doc, ctx: PageContext, page: number, of: number): vo
     doc.text(left, FOOT_LEFT, line1, { width: leftMax, lineBreak: false, ellipsis: true });
     let cursor = FOOT_LEFT + Math.min(doc.widthOfString(left), leftMax) + 8;
     for (const logo of ctx.accreditationLogos.slice(0, 8)) {
-      let image: { width: number; height: number };
+      let image: OpenedImage;
       try {
         image = openImage(doc, logo);
       } catch {
@@ -282,7 +308,7 @@ export function footer(doc: Doc, ctx: PageContext, page: number, of: number): vo
       const w = image.width * scale;
       const h = image.height * scale;
       if (cursor + w > right - pageW - 12) break;
-      doc.image(logo, cursor, line1 - 3 + (14 - h) / 2, { width: w, height: h });
+      doc.image(image as never, cursor, line1 - 3 + (14 - h) / 2, { width: w, height: h });
       cursor += w + 5;
     }
 
