@@ -208,6 +208,24 @@ describe('copy', () => {
     ]);
   });
 
+  it('says "You chose" for a chosen package we did not recommend', () => {
+    const q = quote({}, { isRecommended: false });
+    const chose = letterParagraphs(docFor({ chosen: true }, q)).join(' ');
+    expect(chose).toContain(
+      'You chose 10 panels on your south-facing roof with a 10.2 kWh battery.',
+    );
+    expect(chose).not.toContain("We'd recommend");
+    const flat = letterParagraphs(
+      docFor(
+        { chosen: true, roofFacts: { ...docFor().roofFacts!, bestFacing: 'Flat roof' } },
+        quote({}, { isRecommended: false, batteryType: null, batteryCapacityKwh: 0 }),
+      ),
+    ).join(' ');
+    expect(flat).toContain('You chose 10 panels on your flat roof.');
+    const chosenRecommended = letterParagraphs(docFor({ chosen: true })).join(' ');
+    expect(chosenRecommended).toContain("We'd recommend 10 panels on your south-facing roof");
+  });
+
   it('describes a flat roof without "flat-facing"', () => {
     const all = letterParagraphs(
       docFor({ roofFacts: { ...docFor().roofFacts!, bestFacing: 'Flat roof' } }),
@@ -396,9 +414,27 @@ describe('quotation page', () => {
       ),
     );
     expect(t).toContain('Fixed deposit');
+    expect(t).toMatch(
+      /payable once your survey has confirmed the final price Fixed deposit, 0% VAT £13,277/,
+    );
     expect(t).not.toContain('£20,000');
     expect(t).toContain('£0');
     expect(t).not.toMatch(/-£|£-/);
+  });
+
+  it('adds a VAT row when VAT is added on top, from the stored figures', async () => {
+    const vatQuote = quote(
+      { pricing: { ...quote().pricing!, vatRatePercent: 20 } },
+      { priceIncVatGbp: 15932 },
+    );
+    const t = await text(await quotation(docFor({}, vatQuote)));
+    expect(t).toContain('VAT at 20% £2,655');
+    expect(t).toContain('£15,932');
+    const included = quote({ pricing: { ...quote().pricing!, vatRatePercent: 20 } });
+    expect(await text(await quotation(docFor({}, included)))).not.toContain('VAT at');
+    const unknown = quote({ pricing: { ...quote().pricing!, vatRatePercent: null } });
+    expect(await text(await quotation(docFor({}, unknown)))).not.toContain('VAT at');
+    expect(await text(await quotation(docFor()))).not.toContain('VAT at');
   });
 
   it('has no deposit block without a deposit rule', async () => {

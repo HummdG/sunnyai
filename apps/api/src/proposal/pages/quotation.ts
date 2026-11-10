@@ -17,6 +17,7 @@ import {
   money,
   notes,
   num,
+  vatRow,
 } from '../copy.js';
 import type { ProposalDoc } from '../doc.js';
 import { CONTENT, label, type Theme } from '../layout.js';
@@ -153,6 +154,23 @@ export function drawQuotation(
     y += h;
     rule(pdf, y, theme.rule);
   });
+
+  // ---- VAT added on top of the ex-VAT item prices
+  const vat = vatRow(doc);
+  if (vat) {
+    ensure(24);
+    const top = y + 4.5;
+    para(pdf, vat.label, itemX, top, { font: 'sans-400', size: 9, color: ink, width: itemW });
+    para(pdf, gbp(vat.amount), x + w - priceW, top, {
+      font: 'sans-600',
+      size: 9,
+      color: ink,
+      width: priceW,
+      align: 'right',
+    });
+    y += measure(pdf, vat.label, { font: 'sans-400', size: 9, color: ink, width: itemW }) + 9;
+    rule(pdf, y, theme.rule);
+  }
 
   // ---- total
   ensure(48);

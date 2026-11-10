@@ -178,7 +178,9 @@ export function letterParagraphs(doc: ProposalDoc): string[] {
     ? ` with a ${num(doc.option.batteryCapacityKwh, 1)} kWh battery`
     : '';
   const n = doc.option.panelCount;
-  const system = `We'd recommend ${n} ${n === 1 ? 'panel' : 'panels'} on ${roofPhrase(doc)}${battery}.`;
+  // A package the visitor chose over our recommendation is theirs, not ours.
+  const lead = doc.chosen && !doc.option.isRecommended ? 'You chose' : "We'd recommend";
+  const system = `${lead} ${n} ${n === 1 ? 'panel' : 'panels'} on ${roofPhrase(doc)}${battery}.`;
   const opening = doc.snapshot.letter.opening.trim();
   const closing = doc.snapshot.letter.closing.trim();
   return [
@@ -237,6 +239,23 @@ export function money(doc: ProposalDoc): {
     vatNote,
     deposit,
     balance: deposit === null ? null : total - deposit,
+  };
+}
+
+/**
+ * The VAT added on top of ex-VAT item prices, so the items add up to the
+ * total: `priceIncVatGbp - priceGbp`, both from the stored quote. Null when
+ * the total is incomplete, prices already include VAT, or VAT is unknown.
+ */
+export function vatRow(doc: ProposalDoc): { label: string; amount: number } | null {
+  const o = doc.option;
+  const rate = doc.quote.pricing?.vatRatePercent ?? null;
+  if (!totalComplete(doc) || o.priceIncVatGbp === null || o.priceGbp === null || rate === null) {
+    return null;
+  }
+  return {
+    label: `VAT at ${rate}%`,
+    amount: Math.round(o.priceIncVatGbp) - Math.round(o.priceGbp),
   };
 }
 
