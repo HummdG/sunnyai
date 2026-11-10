@@ -2144,6 +2144,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     sessionSecret: config.sessionSecret,
     now,
     brandAssets,
+    enforceRateLimit,
   });
 
   // The installer's quote conversation in Studio (routes/conversation.ts).

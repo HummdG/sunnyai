@@ -1082,6 +1082,33 @@ const ROUTES: RouteSpec[] = [
       },
     }),
   },
+  {
+    method: 'POST',
+    pattern: '/v1/portal/tenants/:tenantId/quotation/preview',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/quotation/preview`,
+    kind: 'installer',
+    minRole: 'viewer',
+    payload: () => ({
+      settings: {
+        logoAssetId: null,
+        signer: null,
+        accreditations: { mcsNumber: '', logoAssetIds: [] },
+        sections: { system: true, performance: true, savings: true, terms: false },
+        deposit: { kind: 'none' },
+        balanceDue: 'within 7 days of completion',
+        validityDays: 30,
+        letter: { opening: '', closing: '' },
+        terms: '',
+      },
+    }),
+  },
+  {
+    method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/quotation/sample.pdf',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/quotation/sample.pdf`,
+    kind: 'installer',
+    minRole: 'viewer',
+  },
   // ─── quote conversation editor (routes/conversation.ts) ────────────────────
   {
     method: 'GET',

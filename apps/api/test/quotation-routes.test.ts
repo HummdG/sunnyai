@@ -15,6 +15,8 @@ import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry, defaultTenants } from '../src/tenants.js';
 
+import { pdfText } from './pdf-text.js';
+
 const T0 = Date.parse('2026-11-08T12:00:00.000Z');
 const DAY = 24 * 60 * 60 * 1000;
 const SECRET = 'test-secret-not-used-in-production';
@@ -37,7 +39,7 @@ function makeConfig(): ServerConfig {
     sandboxTenant: false,
     leadRetentionDays: 730,
     rateLimit: {
-      enabled: false,
+      enabled: true,
       trustProxyHops: 0,
       rules: {
         session: { limit: 1000, windowMs: 60_000 },
@@ -291,4 +293,106 @@ describe('quotation settings routes', () => {
     expect(tenant.config.quotation?.validityDays).toBe(45);
     expect(tenants.configFor(tenant.publicId)).not.toHaveProperty('quotation');
   });
+});
+
+describe('quotation preview and sample PDF', () => {
+  const preview = (app: FastifyInstance, id: string, settings: object, email = OWNER) =>
+    app.inject({
+      method: 'POST',
+      url: `${url(id)}/preview`,
+      headers: as(email),
+      payload: { settings },
+    });
+  const text = async (res: { rawPayload: Buffer }) => (await pdfText(res.rawPayload)).join(' ');
+  const terms = (heading: string) => ({
+    ...body(),
+    sections: { system: true, performance: true, savings: true, terms: true },
+    terms: `${heading}
+The deposit is due on order.`,
+  });
+
+  it('renders an unsaved draft from the sample quote, marked Sample', async () => {
+    const { app } = await setup();
+    const id = await signUp(app, OWNER);
+    const res = await preview(app, id, terms('UNSAVED DRAFT HEADING'));
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('application/pdf');
+    expect(res.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
+    const all = await text(res);
+    expect(all).toContain('UNSAVED DRAFT HEADING');
+    expect(all).toContain('20 Forthlin Road');
+    expect(all).toContain('Sample');
+    expect(all).toContain('Estimated total');
+    expect(all).not.toContain('—');
+    // Nothing was saved by previewing.
+    const read = await app.inject({ method: 'GET', url: url(id), headers: as(OWNER) });
+    expect(read.json<View>().saved).toBe(false);
+  });
+
+  it('downloads the sample with the saved settings and a named file', async () => {
+    const { app } = await setup();
+    const id = await signUp(app, OWNER);
+    await put(app, id, terms('SAVED HEADING'));
+    const res = await app.inject({
+      method: 'GET',
+      url: `${url(id)}/sample.pdf`,
+      headers: as(OWNER),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('application/pdf');
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="Brightside-Solar-sample-quotation.pdf"',
+    );
+    const all = await text(res);
+    expect(all).toContain('SAVED HEADING');
+    expect(all).toContain('Sample');
+  });
+
+  it('lets a viewer preview, and rejects invalid settings with 400', async () => {
+    const { app } = await setup();
+    const id = await signUp(app, OWNER);
+    const viewer = 'viewer@brightside.test';
+    await app.inject({
+      method: 'POST',
+      url: `/v1/portal/tenants/${id}/members`,
+      headers: as(OWNER),
+      payload: { email: viewer, role: 'viewer' },
+    });
+    expect((await preview(app, id, body(), viewer)).statusCode).toBe(200);
+    expect((await preview(app, id, { ...body(), validityDays: 0 })).statusCode).toBe(400);
+    const none = await app.inject({
+      method: 'POST',
+      url: `${url(id)}/preview`,
+      headers: as(OWNER),
+      payload: {},
+    });
+    expect(none.statusCode).toBe(400);
+  });
+
+  it('renders without an image the tenant does not hold, rather than failing', async () => {
+    const { app } = await setup();
+    const id = await signUp(app, OWNER);
+    const res = await preview(app, id, {
+      ...body(),
+      logoAssetId: '0123456789abcdef',
+      accreditations: { mcsNumber: '', logoAssetIds: ['fedcba9876543210', '../x'] },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('limits previews to 30 a minute per tenant', async () => {
+    const { app } = await setup();
+    const id = await signUp(app, OWNER);
+    for (let i = 0; i < 30; i++) {
+      const ok = await app.inject({
+        method: 'GET',
+        url: `${url(id)}/sample.pdf`,
+        headers: as(OWNER),
+      });
+      expect(ok.statusCode).toBe(200);
+    }
+    const over = await preview(app, id, body());
+    expect(over.statusCode).toBe(429);
+    expect(over.headers['retry-after']).toBeDefined();
+  }, 120_000);
 });

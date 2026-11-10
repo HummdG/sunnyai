@@ -11,13 +11,17 @@ import {
   quotationSettingsSchema,
   type QuotationSettings,
 } from '@sunny/contracts';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { getPublishedPriceList } from '../catalogue/price-list-service.js';
+import { pricingFromPriceList } from '../journey/catalogue-pricing.js';
+import { samplePdf } from '../proposal/sample.js';
+import type { RateLimitRule } from '../ratelimit.js';
 
 import { createAuthenticator, requireMembership } from '../auth/index.js';
 import { loadBrandAsset } from '../branding/meta.js';
 import type { BrandAssetStore } from '../branding/store.js';
 import type { MemberRole, Store } from '../store.js';
-import type { TenantRegistry } from '../tenants.js';
+import type { Tenant, TenantRegistry } from '../tenants.js';
 import { DEFAULT_BRAND, readableAccent, readableRail } from '../proposal/layout.js';
 import { brandAssetView, type BrandAssetView } from './branding.js';
 import type { PortalConfig } from './portal-config.js';
@@ -29,7 +33,17 @@ export interface QuotationRouteDeps {
   sessionSecret: string;
   now: () => number;
   brandAssets: BrandAssetStore;
+  enforceRateLimit: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    scope: string,
+    subject: string,
+    rule: RateLimitRule,
+  ) => void;
 }
+
+/** Rendering a PDF is real work: 30 previews a minute per installer. */
+const PREVIEW_RULE: RateLimitRule = { limit: 30, windowMs: 60_000 };
 
 export interface QuotationView {
   settings: QuotationSettings;
@@ -144,5 +158,77 @@ export function registerQuotationRoutes(app: FastifyInstance, deps: QuotationRou
     });
     if (!saved) throw new ApiError('not_found', 'No such installer.');
     return view(tenant.id, written.settings);
+  });
+
+  /**
+   * The sample quotation as a PDF: the sample house priced from the installer's
+   * published list (demo prices when there is none). An image the installer
+   * does not hold (an unsaved draft naming a deleted upload) is left out
+   * rather than refused.
+   */
+  async function sample(
+    tenant: Tenant,
+    settings: QuotationSettings | null,
+    reply: FastifyReply,
+  ): Promise<Buffer> {
+    let shown = settings ?? undefined;
+    if (shown) {
+      const held = async (id: string) => (await assetView(tenant.id, id)) !== null;
+      const accreditations = [];
+      for (const id of shown.accreditations.logoAssetIds) {
+        if (await held(id)) accreditations.push(id);
+      }
+      shown = {
+        ...shown,
+        logoAssetId:
+          shown.logoAssetId && (await held(shown.logoAssetId)) ? shown.logoAssetId : null,
+        accreditations: { ...shown.accreditations, logoAssetIds: accreditations },
+      };
+    }
+    const [priceList, products] = await Promise.all([
+      getPublishedPriceList(store, tenant.id),
+      store.listProducts(tenant.id).catch(() => []),
+    ]);
+    const pricing = priceList ? (pricingFromPriceList(priceList)?.pricing ?? null) : null;
+    const pdf = await samplePdf({
+      sources: { store, brandAssets, sunscan: null },
+      tenant,
+      settings: shown,
+      pricing,
+      priceList,
+      products,
+    });
+    reply.header('cache-control', 'no-store');
+    return pdf;
+  }
+
+  app.post('/v1/portal/tenants/:tenantId/quotation/preview', async (request, reply) => {
+    const tenant = await member(request, 'viewer');
+    deps.enforceRateLimit(request, reply, 'quotation-preview', tenant.id, PREVIEW_RULE);
+    const raw = (request.body as { settings?: unknown } | null)?.settings;
+    const candidate = raw && typeof raw === 'object' ? { ...raw, version: 0, updatedAt: '' } : raw;
+    const parsed = quotationSettingsSchema.safeParse(candidate);
+    if (!parsed.success) {
+      throw new ApiError(
+        'bad_request',
+        'Those quotation settings are not valid. Check each field.',
+      );
+    }
+    const pdf = await sample(tenant, parsed.data, reply);
+    return reply.type('application/pdf').send(pdf);
+  });
+
+  app.get('/v1/portal/tenants/:tenantId/quotation/sample.pdf', async (request, reply) => {
+    const tenant = await member(request, 'viewer');
+    deps.enforceRateLimit(request, reply, 'quotation-preview', tenant.id, PREVIEW_RULE);
+    const pdf = await sample(tenant, stored(tenant.config), reply);
+    const company = tenant.config.companyName.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return reply
+      .type('application/pdf')
+      .header(
+        'content-disposition',
+        `attachment; filename="${company || 'solar'}-sample-quotation.pdf"`,
+      )
+      .send(pdf);
   });
 }
