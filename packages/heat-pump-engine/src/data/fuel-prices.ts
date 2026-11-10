@@ -26,3 +26,11 @@ export const FUEL_PRICES = {
   electric_direct: entry(26.0),
   other: entry(7.0, 'Assumed average for other fuels (to verify)'),
 };
+
+/** VAT on a heat pump installation in Great Britain. Never taken from a price list. */
+export const HEAT_PUMP_VAT_PERCENT = 0;
+export const HEAT_PUMP_VAT = {
+  percent: HEAT_PUMP_VAT_PERCENT,
+  source: 'UK zero rate for energy-saving materials, to 31 March 2027 (to verify)',
+  effectiveFrom: '2026-10-01',
+};

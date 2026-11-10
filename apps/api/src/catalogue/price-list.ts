@@ -596,6 +596,9 @@ export function importPriceList(
       );
       continue;
     }
+    if (category === 'heat_pump_install' && first.get('Role').trim() === '') {
+      warn(first, key, 'This heat pump installation item has no Role, so Sunny will not use it.');
+    }
     const name = first.get('Name');
     if (name === '') {
       error(first, key, 'The item has no Name.');

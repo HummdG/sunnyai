@@ -6,6 +6,8 @@
  * unit the list prices as quote-only has no price rather than an invented one.
  */
 
+import { HEAT_PUMP_VAT_PERCENT } from '@sunny/heat-pump-engine';
+
 import {
   priceFor,
   type HeatPumpRole,
@@ -94,8 +96,8 @@ export function heatPumpPricingFrom(list: PriceList | null): HeatPumpPricing | n
   return {
     units: units.sort((a, b) => a.outputKw - b.outputKw),
     extras,
-    // Heat pumps in Great Britain are 0% VAT (the engine's dated rule).
-    vatRatePercent: list.vatRatePercent ?? 0,
+    // A dated rule in the engine, never the list's VAT row (that is the solar rate).
+    vatRatePercent: HEAT_PUMP_VAT_PERCENT,
     currency: 'GBP',
     label: 'Heat pump quote',
     version: list.sourceVersion ?? 'unversioned',
