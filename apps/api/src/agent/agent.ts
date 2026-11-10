@@ -6,12 +6,7 @@ import { newId, type ConversationTurn, type ModelCall, type Store } from '../sto
 import type { Auditor } from '../audit.js';
 import { flowForTenant } from '../flow/tenant.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
-import {
-  DISCOVERY_ID,
-  EMPTY_SESSION,
-  cloneSession,
-  type WorkflowSession,
-} from '../workflows/session.js';
+import { DISCOVERY_ID, settle, type WorkflowSession } from '../workflows/session.js';
 import { resolvedFlowFor, workflowsForTenant } from '../workflows/tenant.js';
 import type { QuoteToolContext } from '../journey/agent-tools.js';
 import type { Tenant } from '../tenants.js';
@@ -258,7 +253,12 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
 
   const events: ToolEvent[] = [];
   const workflows = input.workflows ?? workflowsForTenant(input.tenant).set;
-  const session = input.session ?? cloneSession(EMPTY_SESSION);
+  // The visitor's place among the workflows, as the last turn left it; a
+  // workflow the installer has since turned off is set aside.
+  const session = settle(
+    input.session ?? (await input.store.getWorkflowState(input.tenant.id, input.sessionId)),
+    workflows,
+  );
   const ctx: ToolContext = {
     tenant: input.tenant,
     sessionId: input.sessionId,

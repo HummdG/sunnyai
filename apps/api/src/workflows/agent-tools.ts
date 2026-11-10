@@ -34,7 +34,7 @@ import {
   suggest,
   type WorkflowSession,
 } from './session.js';
-import { workflowStatus, type WorkflowView } from './status.js';
+import { unasked, workflowStatus, type WorkflowView } from './status.js';
 import { resolvedFlowFor } from './tenant.js';
 
 const DISCOVERY_NAME = 'Finding the right help';
@@ -128,10 +128,11 @@ async function stepOf(ctx: ToolContext, deps: JourneyDeps, r: Running): Promise<
       roof,
     };
   }
-  // Discovery: its own short bank, finished once nothing required is left.
+  // Discovery: its own short bank, finished once nothing is left to ask.
   const missing = r.flow.required(answers);
-  const ready = missing.length === 0;
-  const nextQuestionId = ready ? null : r.flow.next(answers);
+  const left = unasked(r.flow, answers);
+  const ready = missing.length === 0 && left.length === 0;
+  const nextQuestionId = left[0] ?? null;
   const next = nextQuestionId ? r.flow.question(nextQuestionId) : undefined;
   return {
     view: {
@@ -248,20 +249,27 @@ function parseProposals(args: Record<string, unknown>): Proposal[] {
     .map((a) => ({ questionId: a.questionId, value: a.value }));
 }
 
+/** A house number ("164", "12a") or a house name ("Rose Cottage") opening an address. */
+const HOUSE =
+  /\b(?:\d+[a-z]?,?\s+[A-Za-z]|[A-Z][a-z]+\s+(?:Cottage|House|Farm|Lodge|Barn|Manor|Hall|Court|Mill|Villa|Bungalow)\b)/;
+
 const POSTCODE = /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i;
 
 /**
- * A UK address in the visitor's own words: from the house number (or the start
- * of the message) up to and including the postcode. Null without a postcode.
+ * A UK address in the visitor's own words: from the house number or name up
+ * to and including the postcode. Null without a postcode, or without a house.
  */
 export function addressIn(message: string): string | null {
   const text = message.replace(/\s+/g, ' ').trim().slice(0, 300);
   const postcode = POSTCODE.exec(text);
   if (!postcode) return null;
   const upTo = text.slice(0, postcode.index + postcode[0].length);
-  const numbered = /\b\d+[a-z]?,?\s+[a-z][^]*$/i.exec(upTo);
-  const address = (numbered ? numbered[0] : upTo).replace(/^[\s,.:;-]+/, '').trim();
-  return address.length >= 5 ? address : null;
+  // A house number, or a house name, must come before the postcode: a bare
+  // postcode ("my postcode is NR4 7TJ") is not an address to measure.
+  const start = HOUSE.exec(upTo);
+  if (!start) return null;
+  const address = upTo.slice(start.index).trim();
+  return address.length > postcode[0].length + 3 ? address : null;
 }
 
 export const WORKFLOW_TOOLS = [

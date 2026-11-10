@@ -51,7 +51,12 @@ export class DemoProvider implements ChatProvider {
     // The core engine hands the model the guardrail sandwich; the visitor's own
     // words are the escaped text inside <user_query>.
     const message = visitorText(request.message);
-    const journey = yield* call('start_workflow', { workflowId: 'wf_solar' });
+    // Carry on with whatever is running; start the solar quote only when nothing is.
+    const step = yield* call('get_workflow_step', {});
+    const journey =
+      step && step['active'] == null
+        ? yield* call('start_workflow', { workflowId: 'wf_solar' })
+        : step;
     if (!journey) {
       yield text("I'm running in demo mode, which only covers the roof check and quote.");
       return;
@@ -79,7 +84,7 @@ export class DemoProvider implements ChatProvider {
         );
         return;
       }
-      const next = yield* call('start_workflow', { workflowId: 'wf_solar' });
+      const next = yield* call('get_workflow_step', {});
       yield text(`Lovely, I've measured your roof in 3D. ${ask(next)}`);
       return;
     }

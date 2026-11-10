@@ -24,7 +24,7 @@ import { CitationLedger, lexicalSearch, type PassageSearch } from './retrieval.j
 import { ESTIMATE_DISCLAIMER, estimateSavings } from './savings.js';
 import { QUOTE_TOOLS, type QuoteToolContext } from '../journey/agent-tools.js';
 import { WORKFLOW_TOOLS } from '../workflows/agent-tools.js';
-import { DISCOVERY_ID, type WorkflowSession } from '../workflows/session.js';
+import { DISCOVERY_ID, complete, type WorkflowSession } from '../workflows/session.js';
 import { startRoofAssessment, sunscanResult } from './roof-assessment.js';
 
 export { startRoofAssessment };
@@ -145,6 +145,15 @@ interface ToolDefinition {
 function workflowStamp(ctx: ToolContext): { workflowId?: string } {
   const id = ctx.session.active?.workflowId;
   return id && id !== DISCOVERY_ID ? { workflowId: id } : {};
+}
+
+/** A workflow whose outcome is a lead is finished by filing one. */
+async function completeLeadWorkflow(ctx: ToolContext, leadId: string): Promise<void> {
+  const id = ctx.session.active?.workflowId;
+  const workflow = id ? ctx.workflows.workflows.find((w) => w.id === id) : undefined;
+  if (workflow?.outcome.kind !== 'lead') return;
+  ctx.session = complete(ctx.session, new Date().toISOString(), { leadId });
+  await ctx.store.saveWorkflowState(ctx.tenant.id, ctx.sessionId, ctx.session);
 }
 
 function str(args: Record<string, unknown>, key: string): string | null {
@@ -887,6 +896,7 @@ const DEFINITIONS: ToolDefinition[] = [
         ...workflowStamp(ctx),
       };
       await ctx.store.saveLead(lead);
+      await completeLeadWorkflow(ctx, lead.id);
       ctx.events.push({ kind: 'lead_saved', detail: { leadId: lead.id } });
       return {
         ok: true,
@@ -933,6 +943,7 @@ const DEFINITIONS: ToolDefinition[] = [
         ...workflowStamp(ctx),
       };
       await ctx.store.saveLead(lead);
+      await completeLeadWorkflow(ctx, lead.id);
       ctx.events.push({ kind: 'lead_saved', detail: { leadId: lead.id, callback: true } });
       return { ok: true, data: { leadId: lead.id }, summary: 'Asked the installer to call them.' };
     },

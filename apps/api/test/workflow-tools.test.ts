@@ -17,6 +17,10 @@ import { EMPTY_SESSION, cloneSession } from '../src/workflows/session.js';
 import { resolvedFlowFor } from '../src/workflows/tenant.js';
 import { defaultWorkflowSet } from '../src/workflows/templates.js';
 import { WORKFLOW_TOOLS } from '../src/workflows/agent-tools.js';
+import { runTurn } from '../src/agent/agent.js';
+import { flowAnswersFor } from '../src/flow/answers.js';
+
+import { ScriptedProvider } from './scripted-provider.js';
 
 /**
  * The workflow tools, driven through `executeTool` with a context built as the
@@ -353,5 +357,183 @@ describe('the chat surface', () => {
 
   it('writes no em or en dash in what the tools say', () => {
     for (const t of WORKFLOW_TOOLS) expect(t.description).not.toMatch(/[–—]/);
+  });
+});
+
+/** Every answer the solar quote requires, given through the store. */
+const SOLAR_REQUIRED = {
+  motivation: 'reduce_bills',
+  property_type: 'detached',
+  ownership: 'own',
+  address: '164 Norwich Drive, Norwich NR4 7TJ',
+  roof_size: 'medium',
+  roof_direction: 'south',
+  roof_shading: 'none',
+  usage_source: 'household',
+  household_size: '3',
+  lifestyle: 'evening_use',
+  tariff_type: 'standard',
+  existing_system: 'none',
+};
+
+const CALLBACK: Workflow = {
+  ...PROMO,
+  id: 'wf_callback',
+  name: 'Call back',
+  pages: { include: [], exclude: [] },
+  steps: [
+    {
+      kind: 'custom',
+      id: 'c_calltime1',
+      prompt: 'Is there a best time to call?',
+      mode: 'lead',
+      answer: 'choice',
+      choices: [
+        { value: 'morning', label: 'Mornings', effects: [] },
+        { value: 'evening', label: 'Evenings', effects: [] },
+      ],
+      optional: true,
+    },
+  ],
+};
+
+describe('optional questions are asked, with Skip', () => {
+  it('solar asks budget_band, then finance_interest, before the quote is ready', async () => {
+    const store = await tempStore();
+    const ctx = context(store);
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
+
+    const budget = await tool('get_workflow_step', {}, ctx);
+    expect(budget.data['nextQuestionId']).toBe('budget_band');
+    expect(budget.data['optional']).toBe(true);
+    expect(budget.data['readyForQuote']).toBe(false);
+    expect(lastReplies(ctx.events)!.replies.at(-1)).toEqual({ value: 'skipped', label: 'Skip' });
+
+    const finance = await tool(
+      'save_workflow_answers',
+      { answers: [{ questionId: 'budget_band', value: 'skipped' }] },
+      ctx,
+    );
+    expect(finance.data['nextQuestionId']).toBe('finance_interest');
+    expect(finance.data['readyForQuote']).toBe(false);
+    expect(lastReplies(ctx.events)!.replies.at(-1)).toEqual({ value: 'skipped', label: 'Skip' });
+
+    const done = await tool(
+      'save_workflow_answers',
+      { answers: [{ questionId: 'finance_interest', value: 'no' }] },
+      ctx,
+    );
+    expect(done.data['nextQuestionId']).toBeNull();
+    expect(done.data['readyForQuote']).toBe(true);
+  });
+
+  it('a lead workflow is not ready until its optional question is answered or skipped', async () => {
+    const ctx = context(await tempStore(), setWith(CALLBACK));
+    const started = await tool('start_workflow', { workflowId: 'wf_callback' }, ctx);
+    expect(started.data['readyForLead']).toBe(false);
+    const skipped = await tool(
+      'save_workflow_answers',
+      { answers: [{ questionId: 'c_calltime1', value: 'skipped' }] },
+      ctx,
+    );
+    expect(skipped.data['readyForLead']).toBe(true);
+  });
+
+  it('a skipped question is left out of the lead', () => {
+    const flow = resolvedFlowFor(setWith().workflows[0]!);
+    const listed = flowAnswersFor(flow, {
+      motivation: 'reduce_bills',
+      budget_band: 'skipped',
+      c_unknown1: 'skipped',
+    });
+    expect(listed.map((a) => a.id)).toEqual(['motivation']);
+  });
+});
+
+describe('a bare postcode', () => {
+  it('is not stored as an address, and no roof is measured', async () => {
+    const store = await tempStore();
+    const ctx = context(store);
+    const sunscan = stubSunScan();
+    ctx.sunscan = sunscan.service;
+    ctx.sunscanConnected = true;
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await tool('save_workflow_answers', { visitorMessage: 'My postcode is NR4 7TJ' }, ctx);
+    const conversation = await store.getConversation(DEMO_TENANT.id, SESSION);
+    expect(conversation?.answers?.['address']).toBeUndefined();
+    expect(sunscan.started).not.toHaveBeenCalled();
+  });
+});
+
+describe('a lead finishes a lead workflow', () => {
+  it('completes the running lead workflow with the lead it filed', async () => {
+    const store = await tempStore();
+    const ctx = context(store, setWith(PROMO), '/battery-deal');
+    await tool('start_workflow', { workflowId: 'wf_battery_deal' }, ctx);
+    await tool('create_lead', { consent: true, email: 'a@example.com' }, ctx);
+    const [lead] = await store.listLeads(DEMO_TENANT.id);
+    const stored = await store.getWorkflowState(DEMO_TENANT.id, SESSION);
+    expect(stored.active).toBeNull();
+    expect(stored.completed).toEqual([
+      { workflowId: 'wf_battery_deal', at: expect.any(String) as string, leadId: lead!.id },
+    ]);
+    expect(lead?.workflowId).toBe('wf_battery_deal');
+  });
+
+  it('leaves a quote workflow running when a lead is filed', async () => {
+    const store = await tempStore();
+    const ctx = context(store);
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await tool('request_callback', { consent: true, phone: '01234 567890' }, ctx);
+    const stored = await store.getWorkflowState(DEMO_TENANT.id, SESSION);
+    expect(stored.active?.workflowId).toBe('wf_solar');
+    expect(stored.completed).toEqual([]);
+  });
+});
+
+describe('the session across turns', () => {
+  it('a later turn finds the workflow an earlier turn started', async () => {
+    const store = await tempStore();
+    let turn = 0;
+    const results: Array<Record<string, unknown>> = [];
+    const provider = new ScriptedProvider((request) => {
+      turn += 1;
+      const original = request.execute;
+      request.execute = async (call) => {
+        const result = (await original(call)) as Record<string, unknown>;
+        results.push(result);
+        return result;
+      };
+      return turn === 1
+        ? [
+            {
+              type: 'tool_started',
+              call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } },
+            },
+            { type: 'text', text: 'Let us start.' },
+          ]
+        : [
+            { type: 'tool_started', call: { name: 'get_workflow_step', args: {} } },
+            { type: 'text', text: 'Carrying on.' },
+          ];
+    });
+    for (const [n, message] of ['I want a solar quote', 'go on'].entries()) {
+      const turnEvents = runTurn({
+        tenant: DEMO_TENANT,
+        provider,
+        store,
+        sessionId: SESSION,
+        conversationId: null,
+        history: [],
+        message,
+        clientMessageId: `c_${n}`,
+        sunscanConnected: false,
+      });
+      for await (const event of turnEvents) void event;
+    }
+    expect(results).toHaveLength(2);
+    expect(results[1]?.['active']).toBe('wf_solar');
+    expect(results[1]?.['nextQuestionId']).toBe('motivation');
   });
 });
