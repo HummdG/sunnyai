@@ -4,8 +4,16 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import { previewWorkflow, type PageRule, type Workflow } from '../../../lib/portal-api.js';
 import { errorText } from '../ui.js';
-import { Chips } from './chips.js';
-import { addPattern, MAX_PATTERNS, pagesSummary, pathOf, removePattern, testUrl } from './model.js';
+import { Chips, useChipDraft } from './chips.js';
+import {
+  addPattern,
+  MAX_PATTERNS,
+  pagesSummary,
+  pathOf,
+  pendingPages,
+  removePattern,
+  testUrl,
+} from './model.js';
 import { SaveRow, type PartState } from './workflow-settings.js';
 
 type Mode = 'all' | 'only';
@@ -31,9 +39,12 @@ export function PageRules({
   readOnly: boolean;
   state: PartState;
   onChange: (rule: PageRule) => void;
-  onSave: () => void;
+  /** Save these pages: the rule, with any path still typed added. */
+  onSave: (rule: PageRule) => void;
 }) {
   const id = useId();
+  const includeDraft = useChipDraft();
+  const excludeDraft = useChipDraft();
   // "Only these pages" with nothing listed yet is still a choice the installer made.
   const [mode, setMode] = useState<Mode>(rule.include.length > 0 ? 'only' : 'all');
   const [test, setTest] = useState('');
@@ -56,6 +67,28 @@ export function PageRules({
   }
 
   const placeholder = '/offers/battery*';
+  // The "only" field is hidden on All pages, so what it held is not added then.
+  const typed = {
+    include: shownMode === 'only' ? includeDraft.text : '',
+    exclude: excludeDraft.text,
+  };
+  const anyTyped = typed.include.trim() !== '' || typed.exclude.trim() !== '';
+
+  // Paths left in their fields are added as Add would, or stop the save with their reason.
+  function save(): void {
+    if (!anyTyped) return onSave(rule);
+    const result = pendingPages(rule, typed);
+    if (result.error !== null) {
+      (result.error.list === 'include' ? includeDraft : excludeDraft).setProblem(
+        result.error.message,
+      );
+      return;
+    }
+    includeDraft.setText('');
+    excludeDraft.setText('');
+    onChange(result.rule);
+    onSave(result.rule);
+  }
   return (
     <section className="quote-card" aria-labelledby={id}>
       <h3 id={id}>Pages</h3>
@@ -94,6 +127,7 @@ export function PageRules({
           empty="No pages yet: until you add one, it shows on every page."
           placeholder={placeholder}
           maxLength={512}
+          draft={includeDraft}
           onAdd={(raw) => add('include', raw)}
           onRemove={(item) => onChange(removePattern(rule, 'include', item))}
         />
@@ -106,6 +140,7 @@ export function PageRules({
         empty="None."
         placeholder="/careers*"
         maxLength={512}
+        draft={excludeDraft}
         onAdd={(raw) => add('exclude', raw)}
         onRemove={(item) => onChange(removePattern(rule, 'exclude', item))}
       />
@@ -121,7 +156,11 @@ export function PageRules({
           {test.trim() === '' ? 'Type an address or a path.' : verdict(testUrl(rule, test), 'here')}
         </span>
       </label>
-      <SaveRow label="Save pages" state={state} onSave={onSave} />
+      <SaveRow
+        label="Save pages"
+        state={{ ...state, dirty: state.dirty || anyTyped }}
+        onSave={save}
+      />
     </section>
   );
 }

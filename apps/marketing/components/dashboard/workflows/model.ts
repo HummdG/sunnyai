@@ -57,6 +57,44 @@ export function addPattern(
   return { rule: { ...rule, [list]: [...rule[list], p] }, error: null };
 }
 
+/**
+ * The rule with whatever is still typed in each list's field added, as the
+ * Add button would add it: blank fields are left alone, and the first list
+ * whose text is refused says why (nothing is added then).
+ */
+export function pendingPages(
+  rule: PageRule,
+  typed: { include: string; exclude: string },
+): { rule: PageRule; error: { list: 'include' | 'exclude'; message: string } | null } {
+  let next = rule;
+  for (const list of ['include', 'exclude'] as const) {
+    if (typed[list].trim() === '') continue;
+    const result = addPattern(next, list, typed[list]);
+    if (result.error !== null) return { rule, error: { list, message: result.error } };
+    next = result.rule;
+  }
+  return { rule: next, error: null };
+}
+
+/** WORKFLOW_LIMITS in @sunny/contracts: how many triggers, and how long each. */
+export const TRIGGER_LIMITS = { count: 8, chars: 80 } as const;
+
+/** The triggers with one more, tidied: a repeat (any case) is already there. */
+export function addTrigger(
+  triggers: string[],
+  raw: string,
+): { triggers: string[]; error: string | null } {
+  const text = raw.trim().replace(/\s+/g, ' ');
+  if (text === '') return { triggers, error: 'Type something a visitor might say.' };
+  if (triggers.some((t) => t.toLowerCase() === text.toLowerCase())) {
+    return { triggers, error: null };
+  }
+  if (triggers.length >= TRIGGER_LIMITS.count) {
+    return { triggers, error: `You can list up to ${TRIGGER_LIMITS.count}.` };
+  }
+  return { triggers: [...triggers, text], error: null };
+}
+
 export function removePattern(
   rule: PageRule,
   list: 'include' | 'exclude',

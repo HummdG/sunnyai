@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { draftFrom, flowFrom, type Context } from '../components/dashboard/conversation/model.js';
 import {
   addPattern,
+  addTrigger,
   kindBadge,
   outcomeLabel,
   pagesSummary,
   pathOf,
+  pendingPages,
   removePattern,
   testUrl,
   withFlow,
@@ -157,5 +159,37 @@ describe('draft round trip with workflow presets (no fixed entries)', () => {
     expect(draft.steps.map((s) => s.id)).toEqual(['address', 'storeys']);
     expect(flowFrom(draft, ctx, flow).steps.map((s) => s.id)).toEqual(['address', 'storeys']);
     expect(draftFrom(null, presets).steps.map((s) => s.id)).toEqual(['address', 'storeys']);
+  });
+});
+
+describe('text left in a chip field when Save is clicked', () => {
+  it('adds a trigger through the same checks as the Add button', () => {
+    expect(addTrigger(['solar'], '  battery   quote ')).toEqual({
+      triggers: ['solar', 'battery quote'],
+      error: null,
+    });
+    expect(addTrigger(['Solar'], 'solar')).toEqual({ triggers: ['Solar'], error: null });
+    expect(addTrigger([], '   ').error).toBe('Type something a visitor might say.');
+    const full = Array.from({ length: 8 }, (_, i) => `t${i}`);
+    expect(addTrigger(full, 'one more').error).toBe('You can list up to 8.');
+  });
+
+  it('adds what is typed in either page list, or says which one is wrong', () => {
+    expect(pendingPages(rule(['/a']), { include: 'b*', exclude: '' })).toEqual({
+      rule: rule(['/a', '/b*']),
+      error: null,
+    });
+    expect(pendingPages(rule(), { include: '', exclude: ' /careers* ' })).toEqual({
+      rule: rule([], ['/careers*']),
+      error: null,
+    });
+    expect(pendingPages(rule(), { include: '/ok', exclude: '/no spaces' })).toEqual({
+      rule: rule(),
+      error: { list: 'exclude', message: 'A page path cannot contain spaces.' },
+    });
+    expect(pendingPages(rule(['/x']), { include: '  ', exclude: '' })).toEqual({
+      rule: rule(['/x']),
+      error: null,
+    });
   });
 });

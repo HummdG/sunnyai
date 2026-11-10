@@ -463,6 +463,11 @@ export interface WorkflowSetView {
   set: WorkflowSet;
   /** The set was made from the installer's earlier settings and is not yet saved. */
   migrated: boolean;
+  /**
+   * The saved set could not be read: `set` is Sunny's defaults, and every
+   * change is refused until it is put right.
+   */
+  unreadable?: boolean;
   presets: PresetView[];
   priceItems: PriceItemView[];
   issues: WorkflowIssue[];

@@ -44,6 +44,8 @@ import {
 } from './workflow-settings.js';
 
 const STALE = 'Someone else changed this workflow. Reload to see their changes.';
+const UNREADABLE =
+  "Your saved workflows could not be read, so they cannot be changed here. Your assistant uses Sunny's own workflows until they are put right. Contact Sunny support and we will fix it.";
 
 const isConflict = (failure: unknown) => failure instanceof ApiFailure && failure.status === 409;
 
@@ -156,6 +158,15 @@ export function WorkflowsTab({
     return error ? <ErrorNote error={error} /> : <SunnyLoading text="Loading your workflows…" />;
   }
 
+  if (view.unreadable) {
+    // Nothing to edit: a change would be refused, and the defaults shown are not theirs.
+    return (
+      <div className="wf-tab">
+        <ErrorNote error={UNREADABLE} />
+      </div>
+    );
+  }
+
   return (
     <div className="wf-tab">
       {conflict ? <Conflict onReload={loadList} /> : null}
@@ -257,6 +268,11 @@ function WorkflowDetail({
   useEffect(() => {
     if (leaving) keepEditing.current?.focus();
   }, [leaving]);
+
+  // Saved (or put back) while "Leave without saving?" was open: it no longer applies.
+  useEffect(() => {
+    if (!dirty) setLeaving(false);
+  }, [dirty]);
 
   function adopt(w: Workflow): void {
     currentRef.current = w;
@@ -430,10 +446,10 @@ function WorkflowDetail({
             setSettings((d) => (d ? change(d) : d));
             setSettingsPart((p) => ({ ...p, saved: null }));
           }}
-          onSave={() =>
+          onSave={(draft) =>
             void savePart(
               setSettingsPart,
-              { ...settings, name: settings.name.trim(), description: settings.description.trim() },
+              { ...draft, name: draft.name.trim(), description: draft.description.trim() },
               (w) => setSettings(settingsOf(w)),
             )
           }
@@ -446,7 +462,7 @@ function WorkflowDetail({
             setPages(rule);
             setPagesPart((p) => ({ ...p, saved: null }));
           }}
-          onSave={() => void savePart(setPagesPart, { pages }, (w) => setPages(w.pages))}
+          onSave={(rule) => void savePart(setPagesPart, { pages: rule }, (w) => setPages(w.pages))}
         />
       </div>
       <ConversationEditor

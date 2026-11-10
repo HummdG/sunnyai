@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { Workflow, WorkflowSetView } from '../../../lib/portal-api.js';
+import type { Workflow, WorkflowIssue, WorkflowSetView } from '../../../lib/portal-api.js';
 import { Toggle } from '../kit.js';
 import { Chip } from '../ui.js';
 import { kindBadge, outcomeLabel, pagesSummary } from './model.js';
@@ -51,7 +51,7 @@ function WorkflowCard({
   onDelete,
 }: {
   workflow: Workflow;
-  issues: string[];
+  issues: WorkflowIssue[];
   canEdit: boolean;
   busy: boolean;
   onToggle: (enabled: boolean) => void;
@@ -70,6 +70,10 @@ function WorkflowCard({
   }, [confirming]);
   const badge = kindBadge(workflow);
   const builtIn = badge === 'Built in';
+  // What stops a save first, then what is only worth knowing.
+  const sorted = [...issues].sort(
+    (a, b) => Number(Boolean(a.warning)) - Number(Boolean(b.warning)),
+  );
   return (
     <li className="quote-card wf-card">
       <div className="wf-card-head">
@@ -93,11 +97,14 @@ function WorkflowCard({
           <dd>{pagesSummary(workflow.pages)}</dd>
         </div>
       </dl>
-      {issues.length > 0 ? (
+      {sorted.length > 0 ? (
         <ul className="issue-list">
-          {issues.map((message, i) => (
-            <li key={i} className="small">
-              {message}
+          {sorted.map((issue, i) => (
+            <li key={i} className={`small ${issue.warning ? 'warning' : 'error'}`}>
+              <Chip tone={issue.warning ? 'orange' : 'danger'}>
+                {issue.warning ? 'Warning' : 'Needs fixing'}
+              </Chip>
+              <span>{issue.message}</span>
             </li>
           ))}
         </ul>
@@ -259,7 +266,7 @@ export function WorkflowList({
             <WorkflowCard
               key={w.id}
               workflow={w}
-              issues={view.issues.filter((i) => i.workflowId === w.id).map((i) => i.message)}
+              issues={view.issues.filter((i) => i.workflowId === w.id)}
               canEdit={canEdit}
               busy={busy}
               onToggle={(enabled) => onToggle(w, enabled)}

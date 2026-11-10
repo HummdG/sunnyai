@@ -3,11 +3,11 @@
 import { useId, type ReactNode } from 'react';
 
 import type { Workflow, WorkflowOutcome } from '../../../lib/portal-api.js';
-import { Chips } from './chips.js';
-import { outcomeLabel } from './model.js';
+import { Chips, useChipDraft } from './chips.js';
+import { addTrigger, outcomeLabel, TRIGGER_LIMITS } from './model.js';
 
 /** WORKFLOW_LIMITS in @sunny/contracts, kept here so zod stays out of the page. */
-const LIMITS = { name: 60, description: 300, triggers: 8, trigger: 80 } as const;
+const LIMITS = { name: 60, description: 300 } as const;
 
 type Interest = Workflow['interests'][number];
 
@@ -127,9 +127,11 @@ export function WorkflowSettings({
   assistant: string;
   state: PartState;
   onChange: (change: (current: SettingsDraft) => SettingsDraft) => void;
-  onSave: () => void;
+  /** Save these settings: the draft, with any trigger still typed added. */
+  onSave: (draft: SettingsDraft) => void;
 }) {
   const id = useId();
+  const triggerDraft = useChipDraft();
   const set = <K extends keyof SettingsDraft>(key: K, value: SettingsDraft[K]) =>
     onChange((d) => ({ ...d, [key]: value }));
   const outcomes = [LEAD, SOLAR];
@@ -159,6 +161,19 @@ export function WorkflowSettings({
   }
 
   const problem = settingsProblem(draft);
+  const typed = triggerDraft.text.trim() !== '';
+
+  // A trigger left in its field is added as Add would, or stops the save with its reason.
+  function save(): void {
+    if (!typed) return onSave(draft);
+    const added = addTrigger(draft.triggers, triggerDraft.text);
+    triggerDraft.setProblem(added.error);
+    if (added.error !== null) return;
+    triggerDraft.setText('');
+    const next = { ...draft, triggers: added.triggers };
+    onChange(() => next);
+    onSave(next);
+  }
 
   return (
     <section className="quote-card" aria-labelledby={id}>
@@ -191,16 +206,12 @@ export function WorkflowSettings({
         items={draft.triggers}
         readOnly={false}
         empty="None yet."
-        maxLength={LIMITS.trigger}
+        maxLength={TRIGGER_LIMITS.chars}
+        draft={triggerDraft}
         onAdd={(raw) => {
-          const text = raw.trim().replace(/\s+/g, ' ');
-          if (text === '') return 'Type something a visitor might say.';
-          if (draft.triggers.some((t) => t.toLowerCase() === text.toLowerCase())) return null;
-          if (draft.triggers.length >= LIMITS.triggers) {
-            return `You can list up to ${LIMITS.triggers}.`;
-          }
-          set('triggers', [...draft.triggers, text]);
-          return null;
+          const added = addTrigger(draft.triggers, raw);
+          if (added.error === null) set('triggers', added.triggers);
+          return added.error;
         }}
         onRemove={(item) =>
           set(
@@ -260,7 +271,12 @@ export function WorkflowSettings({
           </select>
         </label>
       )}
-      <SaveRow label="Save settings" state={state} blocked={problem} onSave={onSave} />
+      <SaveRow
+        label="Save settings"
+        state={{ ...state, dirty: state.dirty || typed }}
+        blocked={problem}
+        onSave={save}
+      />
     </section>
   );
 }

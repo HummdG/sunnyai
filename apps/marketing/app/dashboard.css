@@ -1030,6 +1030,9 @@
 .dash .issue-list li.error {
   background: var(--danger-pale);
 }
+.dash .wf-card .issue-list li.warning {
+  background: var(--sunny-brand-orange-pale);
+}
 
 .dash .bulk-bar {
   position: sticky;
