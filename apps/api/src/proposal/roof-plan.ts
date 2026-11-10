@@ -193,7 +193,7 @@ export function roofPlanFor(
 
   const layout = layoutPanels(mesh, {
     count,
-    ...(opts.planeIds && opts.planeIds.length > 0 ? { planeIds: opts.planeIds } : {}),
+    ...(opts.planeIds ? { planeIds: opts.planeIds } : {}),
   });
   if (layout.unplaced > 0 || layout.placements.length !== count) return null;
 

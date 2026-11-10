@@ -121,6 +121,10 @@ describe('roofPlanFor', () => {
     }
   });
 
+  it('is null for an empty face list, as the widget places nothing then', () => {
+    expect(roofPlanFor(SAMPLE, { panelCount: 4, planeIds: [], reliable: true })).toBeNull();
+  });
+
   it('honours the quote plane ids', () => {
     // Asking only for the north slope (id 1) still places them there, so its face is drawn.
     const p = roofPlanFor(SAMPLE, { panelCount: 2, planeIds: [1], reliable: true });
