@@ -453,7 +453,8 @@ export interface WorkflowIssue {
     | 'needs_address'
     | 'bad_page_pattern'
     | 'duplicate_step_id'
-    | 'interest_overlap';
+    | 'interest_overlap'
+    | 'unknown_preset';
   message: string;
   /** Worth knowing, but it does not stop a save. */
   warning?: boolean;

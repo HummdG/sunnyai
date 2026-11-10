@@ -120,7 +120,7 @@ function HeatPumpOptionCard({ quote, option }: { quote: HeatPumpQuote; option: H
       </dl>
       {option.installerPriced ? (
         <p className="small muted">
-          Part of this option is not on your price list yet, so it is priced at survey
+          Part of this option is not on your price list yet, so it is priced at survey.
         </p>
       ) : null}
     </article>
@@ -376,7 +376,7 @@ export function LeadDetail({
                   ) : null}
                   {option.installerPriced.length > 0 ? (
                     <p className="small muted">
-                      For your team to price: {option.installerPriced.join(', ')}
+                      Priced at survey: {option.installerPriced.join(', ')}
                     </p>
                   ) : null}
                 </article>

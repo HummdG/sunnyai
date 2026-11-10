@@ -243,6 +243,9 @@ function WorkflowDetail({
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [questionsDirty, setQuestionsDirty] = useState(false);
+  // The presets from the latest save: a settings save that changes the outcome
+  // changes them, and the editor takes them without reloading its draft.
+  const [presets, setPresets] = useState<PresetView[] | null>(null);
   const [leaving, setLeaving] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const keepEditing = useRef<HTMLButtonElement>(null);
@@ -345,6 +348,7 @@ function WorkflowDetail({
     const found = set.set.workflows.find((w) => w.id === workflowId);
     if (!found) throw new Error('This workflow is no longer here. Go back to all workflows.');
     adopt(found);
+    setPresets(presetsOf(set, found));
     return found;
   }
 
@@ -422,6 +426,7 @@ function WorkflowDetail({
       return { next: result.next, effects: result.effects, issues: [] };
     },
     suggest: (question) => suggestWorkflowPriceChanges(tenantId, workflowId, question),
+    ...(presets ? { presets } : {}),
     start: null,
     // As saved: the questions end the way the saved workflow does.
     end: workflowEnd(current.outcome.kind, assistant),

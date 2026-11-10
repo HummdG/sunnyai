@@ -14,7 +14,7 @@ import {
 import { FIXED_START, PRESET_GROUPS, PRESET_WARNINGS } from '../src/flow/presets.js';
 import { QUESTIONS, optionLabel } from '../src/questionnaire.js';
 import { presetViews } from '../src/routes/flow-views.js';
-import { solarTemplate } from '../src/workflows/templates.js';
+import { heatPumpTemplate, solarTemplate } from '../src/workflows/templates.js';
 
 function item(over: Partial<PriceItem> & Pick<PriceItem, 'key' | 'name' | 'pricing'>): PriceItem {
   return {
@@ -364,6 +364,35 @@ describe('workflow checks', () => {
     const w = solar({ steps: [{ kind: 'preset', id: 'motivation' }] });
     expect(checkWorkflow(w, LIST).map((i) => i.code)).toEqual(['needs_address']);
     expect(checkWorkflow(solar(), LIST)).toEqual([]);
+  });
+
+  it('refuses a preset question from another kind of workflow, follow-ups included', () => {
+    const hp = heatPumpTemplate(NOW);
+    const roof: Workflow = {
+      ...hp,
+      steps: [...hp.steps, { kind: 'preset', id: 'roof_direction' }],
+    };
+    expect(checkWorkflow(roof, LIST)).toEqual([
+      expect.objectContaining({
+        code: 'unknown_preset',
+        stepId: 'roof_direction',
+        message: 'This question does not belong to this kind of workflow.',
+      }),
+    ]);
+    const followUp = custom('c_follow1', []);
+    const nested: Workflow = solar({
+      steps: [
+        ...solar().steps,
+        { ...followUp, followUps: [{ when: ['yes'], step: { kind: 'preset', id: 'hp_age' } }] },
+      ],
+    });
+    expect(checkWorkflow(nested, LIST).map((i) => i.code)).toContain('unknown_preset');
+  });
+
+  it('finds no unknown preset in the solar or heat pump template', () => {
+    for (const w of [solarTemplate(NOW), heatPumpTemplate(NOW)]) {
+      expect(checkWorkflow(w, LIST).map((i) => i.code)).not.toContain('unknown_preset');
+    }
   });
 
   it('flags a page pattern that is not a path', () => {

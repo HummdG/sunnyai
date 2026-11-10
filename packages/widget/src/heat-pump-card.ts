@@ -23,28 +23,32 @@ export interface HeatPumpCardText {
   notes: string[];
 }
 
-const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
+/** Whole pounds, as the cards show them: `£12,400`. */
+export const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 
 export function heatPumpCardText(o: HeatPumpOptionCard): HeatPumpCardText {
-  const priced = o.priceGbp !== null && o.installerPriced !== true;
+  const price = o.installerPriced === true ? null : o.priceGbp;
+  const priced = price !== null;
   const grant =
     o.grantStatus === 'unsure'
       ? 'The Boiler Upgrade Scheme may apply'
       : o.grantStatus === 'eligible' && o.grantGbp > 0 && priced && o.priceAfterGrantGbp !== null
         ? `After the ${gbp(o.grantGbp)} grant: ${gbp(o.priceAfterGrantGbp)}`
         : null;
-  const savings = o.annualSavingsGbp;
+  const savings = Math.round(o.annualSavingsGbp);
   return {
     priced,
     size: `${o.outputKw.toLocaleString('en-GB')} kW heat pump`,
-    figure: priced ? gbp(o.priceGbp!) : o.priceLabel || 'Priced by your installer',
+    figure: priced ? gbp(price) : o.priceLabel || 'Priced by your installer',
     figureLabel: priced ? o.priceLabel : 'Free survey, no obligation',
     grant,
     stats: [
       `Running cost about ${gbp(o.runningCostGbp)} a year`,
       savings > 0
         ? `About ${gbp(savings)} a year less than now`
-        : `About ${gbp(Math.abs(savings))} a year more than now, but low carbon`,
+        : savings < 0
+          ? `About ${gbp(-savings)} a year more than now, but low carbon`
+          : 'About the same running cost as now',
     ],
     notes: [...(o.warnings ?? [])],
   };

@@ -6,6 +6,7 @@ import { resolveFlow } from '../src/flow/resolve.js';
 import { flowForTenant } from '../src/flow/tenant.js';
 import { DEMO_TENANT, TenantRegistry, type Tenant } from '../src/tenants.js';
 import { defaultWorkflowSet, solarTemplate } from '../src/workflows/templates.js';
+import { checkWorkflow } from '../src/flow/check.js';
 import { resolvedFlowFor, workflowsForTenant } from '../src/workflows/tenant.js';
 import { workflowStatus } from '../src/workflows/status.js';
 
@@ -116,6 +117,15 @@ describe('workflowsForTenant', () => {
     expect(solar.version).toBe(3);
     expect(solar.steps[0]).toEqual({ kind: 'preset', id: 'address' });
     expect(solar.steps.slice(1)).toEqual(FLOW.steps);
+  });
+
+  it('gives a migrated legacy flow no unknown preset', () => {
+    for (const config of [{ conversation: FLOW }, {}]) {
+      const { set } = workflowsForTenant(tenantWith(config));
+      for (const w of set.workflows) {
+        expect(checkWorkflow(w, null).map((i) => i.code)).not.toContain('unknown_preset');
+      }
+    }
   });
 
   it('asks the same next question as the old flow, for every answer map', () => {

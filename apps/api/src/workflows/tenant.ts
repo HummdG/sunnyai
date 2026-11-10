@@ -109,14 +109,18 @@ export function toFlow(workflow: Workflow): ConversationFlow {
  * other workflow draws on the bank for its outcome.
  */
 export function resolvedFlowFor(workflow: Workflow): ResolvedFlow {
-  const flow = toFlow(workflow);
+  return resolveFlow(toFlow(workflow), runBankFor(workflow));
+}
+
+/** The bank a workflow runs on: LEGACY_SOLAR for an address-first solar workflow, else its outcome's. */
+export function runBankFor(workflow: Pick<Workflow, 'outcome' | 'steps'>): QuestionBank {
   const { outcome } = workflow;
   if (outcome.kind === 'quote' && outcome.engine === 'solar') {
     const first = workflow.steps[0];
     const legacy = first?.kind === 'preset' && first.id === 'address';
-    return resolveFlow(flow, legacy ? LEGACY_SOLAR : bankFor('solar'));
+    return legacy ? LEGACY_SOLAR : bankFor('solar');
   }
-  return resolveFlow(flow, bankForWorkflow(workflow));
+  return bankForWorkflow(workflow);
 }
 
 /** The question bank a workflow's outcome draws on: Studio's presets for it. */

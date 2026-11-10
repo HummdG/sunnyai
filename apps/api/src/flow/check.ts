@@ -18,7 +18,7 @@ import type {
 import type { PriceItem, PriceList } from '../catalogue/price-list.js';
 import { EXTRA_CATEGORIES } from '../journey/catalogue-pricing.js';
 import { QUESTIONS } from '../questionnaire.js';
-import { toFlow } from '../workflows/tenant.js';
+import { runBankFor, toFlow } from '../workflows/tenant.js';
 
 export interface FlowIssue {
   stepId: string;
@@ -190,7 +190,8 @@ export type WorkflowIssueCode =
   | 'needs_address'
   | 'bad_page_pattern'
   | 'duplicate_step_id'
-  | 'interest_overlap';
+  | 'interest_overlap'
+  | 'unknown_preset';
 
 export interface WorkflowIssue {
   workflowId: string;
@@ -219,6 +220,21 @@ export function checkWorkflow(w: Workflow, list: PriceList | null): WorkflowIssu
     ...i,
     workflowId: w.id,
   }));
+
+  // A preset question from another kind of workflow (a roof question in a heat
+  // pump quote, say) has nothing to ask it in this one's bank.
+  const bank = runBankFor(w);
+  for (const s of allSteps(w.steps)) {
+    if (s.kind === 'preset' && !Object.hasOwn(bank.questions, s.id)) {
+      issues.push({
+        workflowId: w.id,
+        stepId: s.id,
+        field: 'steps',
+        code: 'unknown_preset',
+        message: 'This question does not belong to this kind of workflow.',
+      });
+    }
+  }
 
   // Both quotes start from the home: SunScan's roof, or the grant's postcode.
   const engine = w.outcome.kind === 'quote' ? w.outcome.engine : null;

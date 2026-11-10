@@ -30,7 +30,7 @@ import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el } from './dom.js';
-import { heatPumpCardText } from './heat-pump-card.js';
+import { gbp, heatPumpCardText } from './heat-pump-card.js';
 import { optionArt } from './quote-art.js';
 import { renderRich } from './rich.js';
 import type * as LogoModule from './logo.js';
@@ -947,7 +947,6 @@ export class SunnyWidget {
       this.#showHeatPumpQuote(quote);
       return;
     }
-    const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
     // Smallest to largest, with the recommended one in the middle: the eye
     // lands there first, and the other two read as "less" and "more".
     const bySize = [...quote.options].sort(
@@ -1176,7 +1175,6 @@ export class SunnyWidget {
       return;
     }
     const chosen = body;
-    const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
     const t = chosen.timeline;
     this.#animator.dispatch({ type: 'celebrate' }, performance.now());
     const roof = this.#lastRoof;
@@ -1211,7 +1209,7 @@ export class SunnyWidget {
           if (!r.ok) throw new Error(String(r.status));
           const link = el('a', {
             href: URL.createObjectURL(await r.blob()),
-            download: quote.kind === 'heat_pump' ? 'heat-pump-quote.pdf' : 'solar-quote.pdf',
+            download: quote.kind === 'heat_pump' ? 'heat-pump-estimate.pdf' : 'solar-quote.pdf',
           });
           link.click();
           setTimeout(() => URL.revokeObjectURL(link.href), 10_000);

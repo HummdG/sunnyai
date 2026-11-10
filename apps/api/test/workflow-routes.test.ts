@@ -287,6 +287,19 @@ describe('PUT /workflows/:id', () => {
     expect(issues.map((i) => i.code)).toContain('needs_address');
   });
 
+  it('refuses a heat pump quote with a solar question in it', async () => {
+    const { app, tenantId } = await setup();
+    const view = await getSet(app, tenantId);
+    const hp = view.set.workflows.find((w) => w.id === 'wf_heat_pump')!;
+    const response = await putWorkflow(app, tenantId, {
+      ...hp,
+      steps: [...hp.steps, { kind: 'preset', id: 'roof_direction' }],
+    });
+    expect(response.statusCode).toBe(400);
+    const issues = response.json<{ issues: Array<{ code: string }> }>().issues;
+    expect(issues.map((i) => i.code)).toContain('unknown_preset');
+  });
+
   it('refuses a heat pump quote without the address question', async () => {
     const { app, tenantId } = await setup();
     const view = await getSet(app, tenantId);

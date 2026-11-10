@@ -67,6 +67,20 @@ describe('heatPumpCardText', () => {
     ]);
   });
 
+  it('says the running cost is about the same when the difference rounds to £0', () => {
+    for (const annualSavingsGbp of [0, 0.4, -0.4]) {
+      expect(heatPumpCardText(option({ annualSavingsGbp })).stats[1]).toBe(
+        'About the same running cost as now',
+      );
+    }
+  });
+
+  it('says a heat pump £1 a year dearer to run costs more, but is low carbon', () => {
+    expect(heatPumpCardText(option({ annualSavingsGbp: -0.6 })).stats[1]).toBe(
+      'About £1 a year more than now, but low carbon',
+    );
+  });
+
   it('says the grant may apply when the postcode cannot tell, with no deduction', () => {
     const text = heatPumpCardText(
       option({ grantStatus: 'unsure', grantGbp: 0, priceAfterGrantGbp: 12_400 }),

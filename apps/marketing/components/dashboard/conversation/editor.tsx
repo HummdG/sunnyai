@@ -62,6 +62,12 @@ export interface EditorSource {
   reset?(): Promise<EditorView>;
   preview(flow: ConversationFlow, answers: Record<string, string>): Promise<ConversationPreview>;
   suggest(question: Question): Promise<PriceSuggestion>;
+  /**
+   * The questions to offer, when they change after loading (a workflow whose
+   * outcome was changed and saved); the loaded view's when absent. The draft is
+   * kept as it is.
+   */
+  presets?: PresetView[];
   /** The locked start box's label, or null for none (a workflow asks the address itself). */
   start: string | null;
   /** The locked end box's label (`workflowEnd` in flow-layout). */
@@ -181,16 +187,17 @@ export function ConversationEditor({
       .catch((failure: unknown) => setError(errorText(failure)));
   }, [tenantId]);
 
+  const presetsOverride = source?.presets;
   const ctx: Context | null = useMemo(
     () =>
       view
         ? {
-            presets: new Map(view.presets.map((p) => [p.id, p])),
+            presets: new Map((presetsOverride ?? view.presets).map((p) => [p.id, p])),
             items: view.priceItems,
             assistant,
           }
         : null,
-    [view, assistant],
+    [view, presetsOverride, assistant],
   );
 
   function edit(fn: (current: Draft) => Draft): void {
