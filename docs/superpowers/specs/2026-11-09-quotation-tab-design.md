@@ -136,6 +136,13 @@ Settings:
 - **Terms and conditions**: a large paste box; headings and paragraphs are
   kept (blank lines separate paragraphs; a short line in capitals or ending
   without a full stop is a heading; numbered lines stay numbered).
+- **Colours** (owner, added 2026-11-10): two colours, "Side panel" (the dark
+  rail) and "Highlight" (the plan's panels, item reasons, the headline
+  kicker), each "Use my brand colour" by default (today's derivation from
+  Your brand). Any chosen colour is adjusted automatically so text stays
+  readable (rail deepened until white text is at least 7:1; highlight
+  deepened until it is at least 4.5:1 on white), and the tab says when it
+  was adjusted. Colours are snapshotted with the other settings.
 
 Viewers see the tab read-only. Admins and owners edit. Every plan.
 

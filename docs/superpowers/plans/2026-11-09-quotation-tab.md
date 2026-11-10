@@ -350,6 +350,25 @@
 - [ ] **Step 4: Run** the same. Expected: PASS.
 - [ ] **Step 5: Commit** `feat(proposal): system, performance, savings and terms pages`.
 
+### Task 13: PDF colours (added 2026-11-10 at the owner's request; runs after Task 8, before Task 9)
+
+**Files:**
+
+- Modify: `packages/contracts/src/quotation.ts` (+ its test), `apps/api/src/proposal/snapshot.ts` (+ snapshot test), `apps/api/src/proposal/layout.ts` (`themeFor`) (+ layout test)
+
+**Interfaces:**
+
+- `QuotationSettings.colours: { rail: string | null; accent: string | null }` (`#rrggbb`, lower-cased on parse; null = use Your brand colour). Default `{ rail: null, accent: null }`. Stored settings saved before this field existed must still parse (default it).
+- `QuotationSnapshot` carries the resolved `colours: { rail: string; accent: string }` (brand colour where null, falling back as today when the brand colour is invalid).
+- `themeFor(brandHex: string, opts?: { rail?: string; accent?: string }): Theme`: rail from `opts.rail` else brand, darkened keeping hue until white text >= 7:1; accent from `opts.accent` else brand, darkened until >= 4.5:1 on white. Export `readableRail(hex)` and `readableAccent(hex)` returning `{ hex: string; adjusted: boolean }` for Studio's "adjusted" note (Task 11 calls them through the GET/PUT response: add `colourNotes: { rail: { hex, adjusted }, accent: { hex, adjusted } }` to the quotation GET shape in `apps/api/src/routes/quotation.ts`).
+- Task 9 builds the theme from `snapshot.colours`. Task 11 adds a "Colours" card (two colour inputs, each with `Use my brand colour`, and the note `Adjusted so text stays readable.` when adjusted) to the tab and its e2e test.
+
+- [ ] **Step 1: Write failing tests**: defaults null; refuses `red` and `#12345`; lower-cases `#FF7900`; old stored settings without `colours` parse; snapshot resolves null to the brand colour; `themeFor('#0f2a3d', { rail: '#ffe066' })` rail gives white text >= 7:1 and `adjusted: true` for that rail; an explicit accent is used (darkened only if needed); GET returns `colourNotes`.
+- [ ] **Step 2: Run** the three test files and `apps/api/test/quotation-routes.test.ts`. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** the same. Expected: PASS.
+- [ ] **Step 5: Commit** `feat(quotation): installers choose the PDF colours`.
+
 ### Task 9: Assemble the document
 
 **Files:**
