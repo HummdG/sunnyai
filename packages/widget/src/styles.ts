@@ -461,6 +461,7 @@ export function styles(): string {
 .quote-stats b { font-size: 14px; color: var(--sunny-ink); }
 .quote-note { margin: 4px 0 0; font-size: 11.5px; color: #8a3b00; }
 .quote-size { margin: 0; font-size: 12px; color: #3a3a3a; }
+.quote-headline { margin: 0; font-size: 12px; line-height: 1.35; color: #3a3a3a; }
 .quote-grant { margin: 2px 0 0; font-size: 12px; font-weight: 600; color: var(--sunny-ink); }
 .quote-lines { list-style: none; margin: 8px 0 2px; padding: 8px 0 0; width: 100%;
   border-top: 1px dashed rgba(23,23,23,.18); display: flex; flex-direction: column; gap: 2px;

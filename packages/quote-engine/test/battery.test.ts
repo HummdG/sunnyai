@@ -77,12 +77,106 @@ describe('batteryEstimate', () => {
     const e = batteryEstimate(base({ tariff: 'smart_tou' }));
     const s = e.sizing(5);
     const gen = 3800;
-    const direct = calcSelfConsumption(gen, 3200, false).selfConsumptionKwh;
-    const extra = Math.max(0, calcSelfConsumption(gen, 3200, true, 5).selfConsumptionKwh - direct);
+    const use = 3200;
+    const direct = calcSelfConsumption(gen, use, false).selfConsumptionKwh;
+    const extra = Math.max(0, calcSelfConsumption(gen, use, true, 5).selfConsumptionKwh - direct);
     const spare = Math.max(0, 5 * 365 * 0.9 - extra);
-    const shift = Math.min(spare, 3200 * 0.6);
+    const shift = Math.min(spare, Math.max(0, Math.min(use * 0.75, use - direct) - extra));
     expect(s.shiftKwh).toBe(Math.round(shift));
     expect(s.shiftSavingGbp).toBe(Math.round((shift * (e.peakPence! - e.offPeakPence!)) / 100));
+  });
+
+  it('golden: 4 kWp, 3000 kWh, smart_tou, 10 kWh', () => {
+    const e = batteryEstimate(base({ tariff: 'smart_tou', usage: usage(3000) }));
+    const { segExportPencePerKwh: exp } = getTariffForPostcode('NR4 7TJ');
+    const gen = 3800;
+    const use = 3000;
+    const [peak, cheap] = [28, 8];
+    const direct = calcSelfConsumption(gen, use, false).selfConsumptionKwh;
+    const extra = Math.max(0, calcSelfConsumption(gen, use, true, 10).selfConsumptionKwh - direct);
+    const spare = Math.max(0, 10 * 365 * 0.9 - extra);
+    const shift = Math.min(spare, Math.max(0, Math.min(use * 0.75, use - direct) - extra));
+    const selfUse = Math.round((extra * (peak - exp)) / 100);
+    const shiftGbp = Math.round((shift * (peak - cheap)) / 100);
+    const s = e.sizing(10);
+    expect(s.extraSelfUseKwh).toBe(Math.round(extra));
+    expect(s.shiftKwh).toBe(Math.round(shift));
+    expect(s.selfUseSavingGbp).toBe(selfUse);
+    expect(s.shiftSavingGbp).toBe(shiftGbp);
+    expect(s.annualSavingGbp).toBe(selfUse + shiftGbp);
+    // Never more energy than the home uses.
+    expect(direct + extra + shift).toBeLessThanOrEqual(use + 1e-9);
+    expect(s.shiftKwh).toBeGreaterThan(0);
+  });
+
+  it('never counts more energy than the home uses, across tariffs, sizes and usage', () => {
+    const tariffs: BatteryTariff[] = [
+      'standard',
+      'economy7',
+      'smart_tou',
+      'import_export',
+      'already_exports',
+      'unknown',
+    ];
+    for (const tariff of tariffs)
+      for (const goal of ['savings', 'cheap_rate'] as BatteryGoal[])
+        for (const pvKwp of [1, 4, 8, 16, 25])
+          for (const kwh of [500, 1500, 3000, 6000, 12000, 30000])
+            for (const cap of [2.5, 5, 10, 13.5, 20, 40]) {
+              const e = batteryEstimate(base({ tariff, goal, pvKwp, usage: usage(kwh) }));
+              const gen = e.annualGenerationKwh;
+              const use = e.annualUseKwh;
+              const direct = calcSelfConsumption(gen, use, false).selfConsumptionKwh;
+              const extra = Math.max(
+                0,
+                calcSelfConsumption(gen, use, true, cap).selfConsumptionKwh - direct,
+              );
+              const s = e.sizing(cap);
+              // The rounded figures and the exact ones both stay within the home's use.
+              expect(
+                direct + extra + s.shiftKwh,
+                `${tariff} ${pvKwp} ${kwh} ${cap}`,
+              ).toBeLessThanOrEqual(use + 1);
+              expect(Math.round(direct) + s.extraSelfUseKwh + s.shiftKwh).toBeLessThanOrEqual(
+                use + 2,
+              );
+            }
+  });
+
+  it('values self-use at the peak rate on a time-of-use tariff', () => {
+    const { importPencePerKwh: imp, segExportPencePerKwh: exp } = getTariffForPostcode('NR4 7TJ');
+    for (const [tariff, peak] of [
+      ['economy7', 30],
+      ['smart_tou', 28],
+    ] as const) {
+      const s = batteryEstimate(base({ tariff })).sizing(5);
+      expect(s.selfUseSavingGbp).toBe(Math.round((s.extraSelfUseKwh * (peak - exp)) / 100));
+    }
+    const std = batteryEstimate(base()).sizing(5);
+    expect(std.selfUseSavingGbp).toBe(Math.round((std.extraSelfUseKwh * (imp - exp)) / 100));
+  });
+
+  it('gives the single-rate assumption for every tariff without time-of-use rates', () => {
+    const line = 'On a single-rate tariff the battery saves by storing your own solar.';
+    for (const tariff of ['standard', 'unknown', 'import_export', 'already_exports'] as const)
+      expect(batteryEstimate(base({ tariff })).assumptions, tariff).toContain(line);
+    for (const tariff of ['economy7', 'smart_tou'] as const)
+      expect(batteryEstimate(base({ tariff })).assumptions, tariff).not.toContain(line);
+  });
+
+  it('says cheap-rate charging needs a time-of-use tariff when the tariff has none', () => {
+    const line =
+      'Charging on a cheap overnight rate needs a time-of-use tariff. These savings assume your current tariff.';
+    for (const tariff of ['standard', 'unknown', 'import_export', 'already_exports'] as const)
+      expect(batteryEstimate(base({ tariff, goal: 'cheap_rate' })).assumptions, tariff).toContain(
+        line,
+      );
+    for (const tariff of ['economy7', 'smart_tou'] as const)
+      expect(
+        batteryEstimate(base({ tariff, goal: 'cheap_rate' })).assumptions,
+        tariff,
+      ).not.toContain(line);
+    expect(batteryEstimate(base({ goal: 'savings' })).assumptions).not.toContain(line);
   });
 
   it('PV size fallbacks', () => {
@@ -161,8 +255,8 @@ describe('batteryEstimate', () => {
   it('has no dashes in exported strings', () => {
     const e = batteryEstimate(base({ goal: 'backup', pvKwp: null }));
     const strings = [BATTERY_DISCLAIMER, ...e.warnings, ...e.assumptions];
-    for (const t of ['standard', 'economy7', 'smart_tou', 'unknown'] as const)
-      strings.push(...batteryEstimate(base({ tariff: t })).assumptions);
+    for (const t of ['standard', 'economy7', 'smart_tou', 'unknown', 'import_export'] as const)
+      strings.push(...batteryEstimate(base({ tariff: t, goal: 'cheap_rate' })).assumptions);
     for (const s of strings) expect(s).not.toMatch(/[–—]/);
     expect(BATTERY_RETROFIT_VAT_PERCENT).toBeGreaterThanOrEqual(0);
   });

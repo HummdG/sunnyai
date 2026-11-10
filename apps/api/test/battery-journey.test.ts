@@ -9,13 +9,21 @@ import type { QuoteCard, Workflow, WorkflowSet } from '@sunny/contracts';
 import { EMPTY_KNOWLEDGE } from '@sunny/knowledge';
 import type { AssessmentRecord, SunScanService } from '@sunny/sunscan-adapter';
 
+import { workflowState } from '../src/agent/prompt.js';
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
 import { importPriceList } from '../src/catalogue/price-list.js';
 import { emptyCatalogueState } from '../src/catalogue/types.js';
 import { BATTERY, bankFor } from '../src/flow/banks.js';
 import { checkWorkflow } from '../src/flow/check.js';
+import { SKIPPED } from '../src/flow/resolve.js';
 import type { BatteryQuoteRecord } from '../src/journey/battery/record.js';
-import { batteryInputFrom, onePerCapacity } from '../src/journey/battery/service.js';
+import {
+  AC_COUPLING_WARNING,
+  batteryHeadline,
+  batteryInputFrom,
+  onePerCapacity,
+} from '../src/journey/battery/service.js';
+import { batteryStatus } from '../src/journey/battery/status.js';
 import { extractAnswers } from '../src/journey/extract.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import { BATTERY_QUESTIONS, OPTION_LABELS } from '../src/questionnaire.js';
@@ -124,8 +132,12 @@ const BATTERY_ROWS = [
 const AC_ROW = 'inverter,AC-1,AC coupled inverter,flat,£700,,,,ac_coupling,,,,,GBP';
 
 /** Start the battery workflow with every answer stored, and ask for the quote. */
-async function quoteWith(store: FileStore, answers: Record<string, string>) {
-  const ctx = context(store);
+async function quoteWith(
+  store: FileStore,
+  answers: Record<string, string>,
+  workflows: WorkflowSet = setWithBattery(),
+) {
+  const ctx = context(store, workflows);
   await tool('start_workflow', { workflowId: 'wf_battery' }, ctx);
   await store.mergeAnswers(DEMO_TENANT.id, SESSION, answers);
   const result = await tool('get_quote_options', {}, ctx);
@@ -422,6 +434,60 @@ describe('a home without solar', () => {
   });
 });
 
+describe('a home with a battery but no solar', () => {
+  const BATTERY_ONLY = { ...BAT_ANSWERS, existing_system: 'battery' };
+
+  it('is not suitable, exactly as a home with nothing', async () => {
+    const store = await tempStore();
+    const ctx = context(store);
+    await tool('start_workflow', { workflowId: 'wf_battery' }, ctx);
+    const saved = await tool(
+      'save_workflow_answers',
+      {
+        answers: [
+          { questionId: 'motivation', value: 'reduce_bills' },
+          { questionId: 'existing_system', value: 'battery' },
+        ],
+      },
+      ctx,
+    );
+    expect(saved.data['stage']).toBe('not_suitable');
+    expect(saved.data['ask']).toBe(NOT_SUITABLE);
+    expect(saved.data['suggestWorkflowId']).toBe('wf_solar');
+    expect(batteryStatus(batteryOn(), BATTERY_ONLY).stage).toBe('not_suitable');
+    expect(batteryInputFrom(BATTERY_ONLY)).toBeNull();
+  });
+
+  it('is refused a quote by the agent tool', async () => {
+    const store = await tempStore();
+    await publish(store, BATTERY_ROWS);
+    const { result, quote } = await quoteWith(store, BATTERY_ONLY);
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe(NOT_SUITABLE);
+    expect(quote).toBeUndefined();
+  });
+
+  it('is refused by POST /v1/quote/options', async () => {
+    const res = await postOptions(true, BATTERY_ONLY);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ message?: string }>().message ?? res.body).toContain(NOT_SUITABLE);
+  });
+
+  it('puts the not suitable line in the prompt', () => {
+    const workflow = batteryOn();
+    const state = workflowState({
+      active: { workflow, step: batteryStatus(workflow, BATTERY_ONLY) },
+      paused: [],
+      available: [workflow],
+      discovery: cloneSession(EMPTY_SESSION).discovery,
+      discoveryEnabled: false,
+      likely: null,
+    });
+    expect(state).toContain(`notSuitable: ${NOT_SUITABLE}`);
+    expect(state).not.toContain('readyForQuote');
+  });
+});
+
 describe('the battery quote', () => {
   it('is built when ready, shown as a battery card, and completes the workflow', async () => {
     const store = await tempStore();
@@ -521,6 +587,29 @@ describe('the battery quote', () => {
       expect(o.priceGbp).toBeNull();
       expect(o.priceLabel).toBe('Priced by your installer');
     }
+  });
+
+  it('offers a 20 kWh fallback size for a large home', async () => {
+    // About 9,000 kWh on a time-of-use tariff: about 15 kWh recommended.
+    const { quote } = await quoteWith(await tempStore(), { ...BAT_ANSWERS, annual_kwh: '9000' });
+    expect(quote!.estimate.recommendedKwh).toBe(15);
+    expect(quote!.options.map((o) => [o.id, o.capacityKwh])).toEqual([
+      ['recommended', 20],
+      ['smaller', 13.5],
+    ]);
+  });
+
+  it('calls an undersized fallback size typical, not one the installer lists', () => {
+    const fallback = { name: '13.5 kWh battery', capacityKwh: 13.5, units: 0 };
+    expect(batteryHeadline('recommended', fallback, 16, true)).toBe(
+      'A typical battery size; the home could use about 16 kWh.',
+    );
+    expect(batteryHeadline('recommended', fallback, 16, false)).toBe(
+      'The largest battery your installer lists; the home could use about 16 kWh.',
+    );
+    expect(batteryHeadline('recommended', fallback, 12, true)).toBe(
+      'A 13.5 kWh battery, sized to your solar and your use.',
+    );
   });
 
   it('reaches more storage with expansion units when no larger battery is listed', async () => {
@@ -632,15 +721,76 @@ describe('the battery quote', () => {
     );
   });
 
-  it('assumes solar, and warns, for a home with a battery but no solar named', async () => {
-    const { quote } = await quoteWith(await tempStore(), {
+  it('assumes solar only when the answer is unsure or not given', async () => {
+    const line = 'Assumed the home already has solar panels.';
+    const existingBattery =
+      'You already have a battery. Your installer can advise on adding more storage.';
+    const cases: Array<[string, boolean]> = [
+      ['solar', false],
+      ['solar_battery', false],
+      ['unsure', true],
+      [SKIPPED, true],
+    ];
+    for (const [existing, assumed] of cases) {
+      const { quote } = await quoteWith(await tempStore(), {
+        ...BAT_ANSWERS,
+        existing_system: existing,
+      });
+      expect(quote!.estimate.assumptions.includes(line), existing).toBe(assumed);
+      expect(quote!.warnings.includes(existingBattery), existing).toBe(
+        existing === 'solar_battery',
+      );
+    }
+    // A workflow without the question: unanswered, so assumed.
+    const set = setWithBattery();
+    const wf = set.workflows[2]!;
+    wf.steps = wf.steps.filter((st) => !('id' in st) || st.id !== 'existing_system');
+    const answers = { ...BAT_ANSWERS };
+    delete answers['existing_system'];
+    const { quote } = await quoteWith(await tempStore(), answers, set);
+    expect(quote!.estimate.assumptions).toContain(line);
+  });
+
+  it('checks AC coupling for any inverter answer but hybrid, even unanswered or removed', async () => {
+    const needsCheck = (o: { warnings: string[] }) => o.warnings.includes(AC_COUPLING_WARNING);
+    for (const inverter of ['standard', 'unsure', SKIPPED]) {
+      const { quote } = await quoteWith(await tempStore(), {
+        ...BAT_ANSWERS,
+        bat_inverter: inverter,
+      });
+      expect(quote!.options.every(needsCheck), inverter).toBe(true);
+    }
+    const hybrid = await quoteWith(await tempStore(), BAT_ANSWERS);
+    expect(hybrid.quote!.options.some(needsCheck)).toBe(false);
+
+    // The installer removed the question: nothing says the inverter is hybrid.
+    const set = setWithBattery();
+    const wf = set.workflows[2]!;
+    wf.steps = wf.steps.filter((st) => !('id' in st) || st.id !== 'bat_inverter');
+    const answers = { ...BAT_ANSWERS };
+    delete answers['bat_inverter'];
+    const unlisted = await quoteWith(await tempStore(), answers, set);
+    expect(unlisted.result.ok).toBe(true);
+    expect(unlisted.quote!.options.every(needsCheck)).toBe(true);
+    const store = await tempStore();
+    await publish(store, [...BATTERY_ROWS, AC_ROW]);
+    const listed = await quoteWith(store, answers, structuredClone(set));
+    for (const o of listed.quote!.options) {
+      expect(o.lineItems.map((l) => l.sku)).toContain('AC-1');
+    }
+  });
+
+  it('says cheap-rate charging needs a time-of-use tariff on a standard tariff', async () => {
+    const line =
+      'Charging on a cheap overnight rate needs a time-of-use tariff. These savings assume your current tariff.';
+    const std = await quoteWith(await tempStore(), {
       ...BAT_ANSWERS,
-      existing_system: 'battery',
+      tariff_type: 'standard',
+      bat_goal: 'cheap_rate',
     });
-    expect(quote!.estimate.assumptions).toContain('Assumed the home already has solar panels.');
-    expect(quote!.warnings).toContain(
-      'You already have a battery. Your installer can advise on adding more storage.',
-    );
+    expect(std.quote!.estimate.assumptions).toContain(line);
+    const tou = await quoteWith(await tempStore(), { ...BAT_ANSWERS, bat_goal: 'cheap_rate' });
+    expect(tou.quote!.estimate.assumptions).not.toContain(line);
   });
 
   it('is refused until every answer is in', async () => {

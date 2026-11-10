@@ -2,7 +2,7 @@ import type { BatteryQuoteCard, QuoteCard } from '@sunny/contracts';
 import { quoteCardSchema } from '@sunny/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { batteryCardText } from '../src/battery-card.js';
+import { batteryCardOrder, batteryCardText } from '../src/battery-card.js';
 
 /**
  * The battery quote card's words, read as values: the DOM is built from
@@ -47,6 +47,7 @@ describe('batteryCardText', () => {
     const [text] = quote.options.map(batteryCardText);
     expect(text).toEqual({
       priced: true,
+      headline: 'A 5 kWh battery, sized to your solar and your use.',
       size: '5 kWh battery',
       figure: '£3,200',
       figureLabel: 'Indicative price',
@@ -103,6 +104,24 @@ describe('batteryCardText', () => {
   it("lists the option's warnings as notes", () => {
     const warnings = ['Your inverter may need replacing'];
     expect(batteryCardText(option({ warnings })).notes).toEqual(warnings);
+  });
+
+  it('orders the options smallest to largest, as solar does', () => {
+    const rec = option({ id: 'recommended', capacityKwh: 9.5 });
+    const more = option({ id: 'more_storage', isRecommended: false, capacityKwh: 13.5 });
+    const smaller = option({ id: 'smaller', isRecommended: false, capacityKwh: 5 });
+    expect(batteryCardOrder([rec, more, smaller]).map((o) => o.id)).toEqual([
+      'smaller',
+      'recommended',
+      'more_storage',
+    ]);
+    const most = option({ id: 'most_storage', isRecommended: false, capacityKwh: 18 });
+    expect(batteryCardOrder([rec, more, most]).map((o) => o.capacityKwh)).toEqual([9.5, 13.5, 18]);
+  });
+
+  it("carries the option's headline", () => {
+    const headline = 'The largest battery your installer lists; the home could use about 6 kWh.';
+    expect(batteryCardText(option({ headline })).headline).toBe(headline);
   });
 
   it('uses no dashes', () => {

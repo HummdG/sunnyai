@@ -31,7 +31,7 @@ import { cardsElement, optionsPanel, type OptionsPanelView } from './cards.js';
 import { ChatClient, PAGE_ACTIONS } from './chat.js';
 import { legibleInk } from './contrast.js';
 import { el } from './dom.js';
-import { batteryCardText } from './battery-card.js';
+import { batteryCardOrder, batteryCardText } from './battery-card.js';
 import { gbp, heatPumpCardText } from './heat-pump-card.js';
 import { optionArt } from './quote-art.js';
 import { renderRich } from './rich.js';
@@ -1068,16 +1068,16 @@ export class SunnyWidget {
    * home has its panels already. The words come from `batteryCardText`.
    */
   #showBatteryQuote(quote: BatteryQuoteCard): void {
-    // As solar: the recommended option in the middle.
-    const best = quote.options.find((o) => o.isRecommended);
-    const rest = quote.options.filter((o) => o !== best);
-    const ordered = best ? [...rest.slice(0, 1), best, ...rest.slice(1)] : [...quote.options];
+    // As solar: smallest to largest, the recommended one brought into view.
+    const ordered = batteryCardOrder(quote.options);
+    const best = ordered.find((o) => o.isRecommended);
 
     const cards = ordered.map((o) => {
       const text = batteryCardText(o);
       return el('li', { class: `quote-option${o.isRecommended ? ' recommended' : ''}` }, [
         ...(o.isRecommended ? [el('span', { class: 'quote-badge', text: 'Best for you' })] : []),
         el('strong', { class: 'quote-name', text: o.label }),
+        ...(text.headline ? [el('p', { class: 'quote-headline', text: text.headline })] : []),
         el('p', { class: 'quote-size', text: text.size }),
         el('p', { class: `quote-hero${text.priced ? '' : ' unpriced'}` }, [
           el('span', { class: 'quote-figure', text: text.figure }),

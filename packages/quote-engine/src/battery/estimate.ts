@@ -47,6 +47,8 @@ export const BATTERY_RETROFIT_VAT_PERCENT: number = RETROFIT_VAT.value;
 
 const PANEL_KWP = 0.43;
 const EVENING_SHARE = 0.6;
+/** The most of a home's use a battery can move onto the cheap rate. */
+const SHIFTABLE_SHARE = 0.75;
 const ASSUMED_KWP = 4.0;
 const LOAD_GROWTH_TAGS = ['ev_now', 'ev_planned', 'heatpump_now', 'heatpump_planned'];
 
@@ -87,8 +89,13 @@ export function batteryEstimate(input: BatteryInput): BatteryEstimate {
       'Backup power needs a compatible inverter and a changeover switch. Your installer will confirm.',
     );
   }
-  if (input.tariff === 'standard' || input.tariff === 'unknown') {
+  if (!tou) {
     assumptions.push('On a single-rate tariff the battery saves by storing your own solar.');
+    if (input.goal === 'cheap_rate') {
+      assumptions.push(
+        'Charging on a cheap overnight rate needs a time-of-use tariff. These savings assume your current tariff.',
+      );
+    }
   }
 
   const direct = calcSelfConsumption(gen, use, false).selfConsumptionKwh;
@@ -103,12 +110,18 @@ export function batteryEstimate(input: BatteryInput): BatteryEstimate {
   function sizing(capacityKwh: number): BatterySizing {
     const cap = safe(capacityKwh);
     const extra = Math.max(0, calcSelfConsumption(gen, use, true, cap).selfConsumptionKwh - direct);
-    const selfUseGbp = (extra * (importPence - exportPence)) / 100;
+    // Solar stored for the evening displaces what the home would buy then:
+    // the peak rate on a time-of-use tariff, the single rate otherwise.
+    const displacedPence = tou ? tou.peakPence : importPence;
+    const selfUseGbp = (extra * (displacedPence - exportPence)) / 100;
     let shiftKwh = 0;
     let shiftGbp = 0;
     if (tou) {
+      // Only energy the home still buys can move to the cheap rate: never what
+      // the panels cover directly or what the battery already stores from them.
       const spare = Math.max(0, cap * 365 * 0.9 - extra);
-      shiftKwh = Math.min(spare, use * EVENING_SHARE);
+      const stillBought = Math.min(use * SHIFTABLE_SHARE, use - direct);
+      shiftKwh = Math.min(spare, Math.max(0, stillBought - extra));
       shiftGbp = (shiftKwh * (tou.peakPence - tou.offPeakPence)) / 100;
     }
     const selfUseSavingGbp = Math.round(safe(selfUseGbp));

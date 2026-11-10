@@ -14,9 +14,13 @@ import { addressQuoteStatus } from '../heat-pump/status.js';
 export const BATTERY_NOT_SUITABLE =
   'A battery quote is for homes that already have solar panels. I can work out a solar and battery quote instead.';
 
-/** Whether the answers rule a battery retrofit out: the home has no solar. */
+/**
+ * Whether the answers rule a battery retrofit out: the home has no solar,
+ * whether it has nothing or a battery alone.
+ */
 export function batteryNotSuitable(answers: Record<string, string>): boolean {
-  return answers['existing_system'] === 'none';
+  const existing = answers['existing_system'];
+  return existing === 'none' || existing === 'battery';
 }
 
 export function batteryStatus(

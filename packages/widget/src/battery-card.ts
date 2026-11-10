@@ -14,6 +14,8 @@ import { gbp } from './heat-pump-card.js';
 export interface BatteryCardText {
   /** The option carries a price (not one the installer sets at the survey). */
   priced: boolean;
+  /** The quote's short line about the option, under its title. */
+  headline: string;
   /** `5 kWh battery`. */
   size: string;
   /** The price, or the option's price label when the installer prices it. */
@@ -23,6 +25,11 @@ export interface BatteryCardText {
   stats: string[];
   /** What the installer will need to check. */
   notes: string[];
+}
+
+/** The options smallest to largest, as the solar cards are. */
+export function batteryCardOrder<T extends { capacityKwh: number }>(options: readonly T[]): T[] {
+  return [...options].sort((a, b) => a.capacityKwh - b.capacityKwh);
 }
 
 export function batteryCardText(o: BatteryOptionCard): BatteryCardText {
@@ -40,6 +47,7 @@ export function batteryCardText(o: BatteryOptionCard): BatteryCardText {
   const years = priced ? o.paybackYears : null;
   return {
     priced,
+    headline: o.headline,
     size: `${o.capacityKwh.toLocaleString('en-GB')} kWh battery`,
     figure: priced ? gbp(price) : o.priceLabel || 'Priced by your installer',
     figureLabel: priced ? o.priceLabel : 'Free survey, no obligation',

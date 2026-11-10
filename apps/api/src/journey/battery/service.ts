@@ -48,7 +48,7 @@ const TARIFFS: readonly BatteryTariff[] = [
 const GOALS: readonly BatteryGoal[] = ['savings', 'backup', 'cheap_rate', 'unsure'];
 
 /** Battery sizes offered when the installer's list prices none: unpriced. */
-const FALLBACK_KWH: readonly number[] = [5, 10, 13.5];
+const FALLBACK_KWH: readonly number[] = [5, 10, 13.5, 20];
 
 export const EXISTING_BATTERY_WARNING =
   'You already have a battery. Your installer can advise on adding more storage.';
@@ -76,7 +76,8 @@ function readAnswers(
   if (!postcode || batteryNotSuitable(answers)) return null;
   const assumptions: string[] = [];
   const existing = answers['existing_system'];
-  // A battery alone ('battery') is not solar either: the quote assumes the panels.
+  // 'none' and 'battery' are not suitable (above): what is left is 'unsure' or
+  // no answer, and the quote assumes the panels.
   if (existing !== 'solar' && existing !== 'solar_battery') {
     assumptions.push(SOLAR_ASSUMPTION);
   }
@@ -148,15 +149,46 @@ function sizeOf(battery: RetrofitBattery, units = 0): Size {
 }
 
 /** The batteries on the list, or the fallback sizes (unpriced) without one. */
-function batteriesFor(pricing: BatteryPricing | null): RetrofitBattery[] {
-  if (pricing && pricing.batteries.length > 0) return pricing.batteries;
-  return FALLBACK_KWH.map((kwh) => ({
+function batteriesFor(pricing: BatteryPricing | null): {
+  batteries: RetrofitBattery[];
+  fallback: boolean;
+} {
+  if (pricing && pricing.batteries.length > 0) {
+    return { batteries: pricing.batteries, fallback: false };
+  }
+  const batteries = FALLBACK_KWH.map((kwh) => ({
     sku: '',
     name: `${kwh} kWh battery`,
     capacityKwh: kwh,
     priceGbp: null,
     expansion: null,
   }));
+  return { batteries, fallback: true };
+}
+
+/**
+ * The line under an option's title. A recommended size below what the home
+ * could use is the largest the installer lists, or, with the fallback sizes
+ * (no list), a typical size: never a claim about a list there is none of.
+ */
+export function batteryHeadline(
+  id: string,
+  size: { name: string; capacityKwh: number; units: number },
+  recommendedKwh: number,
+  fallback: boolean,
+): string {
+  const kwh = `${size.capacityKwh} kWh`;
+  if (size.units > 0) {
+    return `A ${size.name} with ${size.units} expansion unit${size.units === 1 ? '' : 's'}, ${kwh} in all.`;
+  }
+  if (id === 'recommended' && size.capacityKwh < recommendedKwh) {
+    return fallback
+      ? `A typical battery size; the home could use about ${recommendedKwh} kWh.`
+      : `The largest battery your installer lists; the home could use about ${recommendedKwh} kWh.`;
+  }
+  if (id === 'recommended') return `A ${kwh} battery, sized to your solar and your use.`;
+  if (id === 'smaller') return `A smaller ${kwh} battery.`;
+  return `A ${kwh} battery, for more storage.`;
 }
 
 /**
@@ -227,7 +259,8 @@ function optionsFor(
   needsAcCoupling: boolean,
   warnings: string[],
 ): BatteryOptionView[] {
-  const sizes = sizesFor(batteriesFor(pricing), est.recommendedKwh);
+  const { batteries, fallback } = batteriesFor(pricing);
+  const sizes = sizesFor(batteries, est.recommendedKwh);
   return sizes.map(({ id, label, size }): BatteryOptionView => {
     const { battery, units } = size;
     const lines: Line[] = [];
@@ -261,17 +294,12 @@ function optionsFor(
       ? null
       : Math.round(lines.reduce((sum, l) => sum + l.unitGbp * l.quantity, 0));
     const sizing = est.sizing(size.capacityKwh);
-    const kwh = `${size.capacityKwh} kWh`;
-    const headline =
-      units > 0
-        ? `A ${battery.name} with ${units} expansion unit${units === 1 ? '' : 's'}, ${kwh} in all.`
-        : id === 'recommended' && size.capacityKwh < est.recommendedKwh
-          ? `The largest battery your installer lists; the home could use about ${est.recommendedKwh} kWh.`
-          : id === 'recommended'
-            ? `A ${kwh} battery, sized to your solar and your use.`
-            : id === 'smaller'
-              ? `A smaller ${kwh} battery.`
-              : `A ${kwh} battery, for more storage.`;
+    const headline = batteryHeadline(
+      id,
+      { name: battery.name, capacityKwh: size.capacityKwh, units },
+      est.recommendedKwh,
+      fallback,
+    );
     return {
       id,
       label,
@@ -318,11 +346,10 @@ export async function createBatteryQuote(
   const { sizing: _sizing, ...est } = full;
   const warnings = [...est.warnings];
   const existing = answers['existing_system'];
-  if (existing === 'battery' || existing === 'solar_battery') {
-    warnings.push(EXISTING_BATTERY_WARNING);
-  }
-  const inverter = answers['bat_inverter'];
-  const needsAcCoupling = inverter === 'standard' || inverter === 'unsure';
+  if (existing === 'solar_battery') warnings.push(EXISTING_BATTERY_WARNING);
+  // Only a hybrid inverter takes a battery as it is. Any other answer, none, or
+  // a question the installer removed, leaves the AC coupling to be checked.
+  const needsAcCoupling = answers['bat_inverter'] !== 'hybrid';
 
   const pricing = await deps.batteryPricing(tenantId);
   const options = optionsFor(full, pricing, needsAcCoupling, warnings);
