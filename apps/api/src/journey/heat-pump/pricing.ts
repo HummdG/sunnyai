@@ -89,7 +89,8 @@ export function heatPumpPricingFrom(list: PriceList | null): HeatPumpPricing | n
   // Per role, the first item the list prices; without one, the first item (no price).
   for (const item of list.items) {
     if (item.category !== 'heat_pump_install' || !item.role) continue;
-    const key = EXTRA_KEY[item.role];
+    const key = EXTRA_KEY[item.role as HeatPumpRole];
+    if (!key) continue;
     if (extras[key] === null) extras[key] = lineOf(item);
   }
 
