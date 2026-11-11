@@ -146,11 +146,11 @@ describe('start_workflow', () => {
     const ctx = context(store);
     const result = await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     expect(result.ok).toBe(true);
-    expect(result.data['nextQuestionId']).toBe('motivation');
+    expect(result.data['nextQuestionId']).toBe('ownership');
     expect(result.data['workflow']).toEqual({ id: 'wf_solar', name: 'Solar quote' });
     expect(result.data['pausedOther']).toBeNull();
     expect(result.data['resumed']).toBe(false);
-    expect(lastReplies(ctx.events)?.questionId).toBe('motivation');
+    expect(lastReplies(ctx.events)?.questionId).toBe('ownership');
     expect(lastReplies(ctx.events)!.replies.length).toBeGreaterThan(1);
     const stored = await store.getWorkflowState(DEMO_TENANT.id, SESSION);
     expect(stored.active?.workflowId).toBe('wf_solar');
@@ -251,7 +251,7 @@ describe('save_workflow_answers', () => {
     expect(ctx.answers['address']).toContain('164 Norwich Drive');
     expect(sunscan.started).toHaveBeenCalledTimes(1);
     expect(result.data['roofAssessment']).toBeDefined();
-    expect(result.data['nextQuestionId']).toBe('motivation');
+    expect(result.data['nextQuestionId']).toBe('ownership');
   });
 
   it('goes from discovery to a suggestion, and the suggestion skips what was answered', async () => {
@@ -268,12 +268,13 @@ describe('save_workflow_answers', () => {
       { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
       ctx,
     );
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { ownership: 'own' });
     expect(done.data['suggest']).toEqual({ workflowId: 'wf_solar', name: 'Solar quote' });
     expect(ctx.session.discovery).toEqual({ status: 'done', suggestedWorkflowId: 'wf_solar' });
     expect(ctx.session.active).toBeNull();
 
     const started = await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
-    expect(started.data['nextQuestionId']).toBe('property_type');
+    expect(started.data['nextQuestionId']).toBe('address');
   });
 
   it('closes discovery rather than parking it when a workflow starts part way', async () => {
@@ -308,7 +309,7 @@ describe('pause_workflow', () => {
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     await tool(
       'save_workflow_answers',
-      { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
+      { answers: [{ questionId: 'ownership', value: 'own' }] },
       ctx,
     );
     const result = await tool('pause_workflow', { reason: 'not now' }, ctx);
@@ -320,7 +321,7 @@ describe('pause_workflow', () => {
     expect(stored.active).toBeNull();
     expect(stored.paused[0]?.workflowId).toBe('wf_solar');
     const conversation = await store.getConversation(DEMO_TENANT.id, SESSION);
-    expect(conversation?.answers?.['motivation']).toBe('reduce_bills');
+    expect(conversation?.answers?.['ownership']).toBe('own');
   });
 });
 
@@ -472,10 +473,20 @@ const CALLBACK: Workflow = {
   ],
 };
 
+/** The default set, its solar workflow asking budget and finance as optional questions. */
+function setWithOptionals(): WorkflowSet {
+  const set = setWith();
+  set.workflows[0]!.steps.push(
+    { kind: 'preset', id: 'budget_band', optional: true },
+    { kind: 'preset', id: 'finance_interest', optional: true },
+  );
+  return set;
+}
+
 describe('optional questions are asked, with Skip', () => {
   it('solar asks budget_band, then finance_interest, before the quote is ready', async () => {
     const store = await tempStore();
-    const ctx = context(store);
+    const ctx = context(store, setWithOptionals());
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
 
@@ -609,14 +620,14 @@ describe('the session across turns', () => {
     }
     expect(results).toHaveLength(2);
     expect(results[1]?.['active']).toBe('wf_solar');
-    expect(results[1]?.['nextQuestionId']).toBe('motivation');
+    expect(results[1]?.['nextQuestionId']).toBe('ownership');
   });
 });
 
 describe('free text to an optional question', () => {
   async function onBudget() {
     const store = await tempStore();
-    const ctx = context(store);
+    const ctx = context(store, setWithOptionals());
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
     return { store, ctx };
@@ -655,7 +666,10 @@ describe('free text to an optional question', () => {
     await store.mergeAnswers(DEMO_TENANT.id, SESSION, SOLAR_REQUIRED);
     for (const [n, message] of ['skip', 'no thanks'].entries()) {
       const turn = runTurn({
-        tenant: DEMO_TENANT,
+        tenant: {
+          ...DEMO_TENANT,
+          config: { ...DEMO_TENANT.config, workflows: setWithOptionals() },
+        },
         provider: new DemoProvider(),
         store,
         sessionId: SESSION,

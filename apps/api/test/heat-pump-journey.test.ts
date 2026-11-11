@@ -26,7 +26,12 @@ import { issueSessionToken } from '../src/sessions.js';
 import { FileStore } from '../src/store.js';
 import { DEMO_TENANT, TenantRegistry, type Tenant } from '../src/tenants.js';
 import { EMPTY_SESSION, cloneSession } from '../src/workflows/session.js';
-import { defaultWorkflowSet, heatPumpTemplate, templateFor } from '../src/workflows/templates.js';
+import {
+  V1_STEPS,
+  defaultWorkflowSet,
+  heatPumpTemplate,
+  templateFor,
+} from '../src/workflows/templates.js';
 import { resolvedFlowFor, workflowsForTenant } from '../src/workflows/tenant.js';
 
 import { pdfText } from './pdf-text.js';
@@ -65,6 +70,13 @@ function heatPumpOn(): Workflow {
 function setWithHeatPump(): WorkflowSet {
   const set = defaultWorkflowSet(NOW);
   set.workflows.push(heatPumpOn());
+  return set;
+}
+
+/** The heat pump workflow as version 1 shipped it: every question, floor area included. */
+function setWithFullHeatPump(): WorkflowSet {
+  const set = setWithHeatPump();
+  set.workflows[1]!.steps = structuredClone([...V1_STEPS.heat_pump_quote!]);
   return set;
 }
 
@@ -148,7 +160,7 @@ describe('the heat pump template', () => {
     expect(t.name).toBe('Heat pump quote');
     expect(t.enabled).toBe(false);
     expect(t.outcome).toEqual({ kind: 'quote', engine: 'heat_pump' });
-    expect(t.template).toEqual({ id: 'heat_pump_quote', version: 1 });
+    expect(t.template).toEqual({ id: 'heat_pump_quote', version: 2 });
     expect(t.interests).toEqual(['heating']);
     expect(t.pages).toEqual({ include: [], exclude: [] });
     expect(templateFor('heat_pump_quote', NOW)?.id).toBe('wf_heat_pump');
@@ -171,7 +183,7 @@ describe('the heat pump template', () => {
     expect(set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump', 'wf_battery']);
     expect(set.workflows[0]).toEqual(stored.workflows[0]);
     expect(set.workflows[1]!.enabled).toBe(false);
-    expect(set.workflows[1]!.template).toEqual({ id: 'heat_pump_quote', version: 1 });
+    expect(set.workflows[1]!.template).toEqual({ id: 'heat_pump_quote', version: 2 });
   });
 
   it('keeps a stored heat pump workflow as the installer left it', () => {
@@ -188,44 +200,37 @@ describe('the heat pump template', () => {
     expect(bankFor('heat_pump')).toBe(HEAT_PUMP);
     const flow = resolvedFlowFor(heatPumpOn());
     expect(flow.bank).toBe(HEAT_PUMP);
-    expect(flow.question('motivation')!.prompt).toBe(
-      'First, what would you most like from a new heating system?',
-    );
+    expect(flow.question('hp_walls')!.prompt).toBe('What are the outside walls like?');
   });
 });
 
 describe('the heat pump questions', () => {
-  it('are asked in order, motivation first', async () => {
+  it('are asked in order, the property first', async () => {
     const store = await tempStore();
     const ctx = context(store);
     const first = await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
     expect(first.ok).toBe(true);
-    expect(first.data['nextQuestionId']).toBe('motivation');
+    expect(first.data['nextQuestionId']).toBe('property_type');
 
     const order = [
-      'motivation',
       'property_type',
       'ownership',
       'address',
       'hp_age',
-      'hp_floor_area',
+      'hp_bedrooms',
       'hp_walls',
       'hp_loft',
-      'hp_glazing',
       'hp_current_heating',
       'hp_emitters',
       'hp_hot_water',
-      'hp_occupants',
-      'hp_annual_spend',
-      'hp_epc',
-      'hp_outdoor_space',
     ];
+    const values: Record<string, string> = { ...HP_ANSWERS, hp_bedrooms: '3' };
     let next = first.data['nextQuestionId'];
     for (const id of order) {
       expect(next).toBe(id);
       const saved = await tool(
         'save_workflow_answers',
-        { answers: [{ questionId: id, value: HP_ANSWERS[id] }] },
+        { answers: [{ questionId: id, value: values[id] }] },
         ctx,
       );
       expect(saved.ok).toBe(true);
@@ -240,7 +245,7 @@ describe('the heat pump questions', () => {
 
   it('asks for bedrooms only when the floor area is skipped', async () => {
     const store = await tempStore();
-    const ctx = context(store);
+    const ctx = context(store, setWithFullHeatPump());
     await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
     const before = ['motivation', 'property_type', 'ownership', 'address', 'hp_age'];
     await store.mergeAnswers(
@@ -712,7 +717,7 @@ describe('installer pricing, warnings and the grant', () => {
   });
 
   it('reads a number from the visitor words for a numeric question', async () => {
-    const flow = resolvedFlowFor(heatPumpOn());
+    const flow = resolvedFlowFor(setWithFullHeatPump().workflows[1]!);
     expect(extractAnswers('about 90 square metres', 'hp_floor_area', flow)).toContainEqual({
       questionId: 'hp_floor_area',
       value: '90',
@@ -727,7 +732,7 @@ describe('installer pricing, warnings and the grant', () => {
     });
 
     const store = await tempStore();
-    const ctx = context(store);
+    const ctx = context(store, setWithFullHeatPump());
     await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
     await store.mergeAnswers(DEMO_TENANT.id, SESSION, {
       motivation: 'reduce_bills',

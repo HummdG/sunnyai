@@ -197,7 +197,7 @@ describe('the vertical slice', () => {
       .filter((e) => e['type'] === 'text_delta')
       .map((e) => e['text'])
       .join('');
-    expect(said).toBe('First, what would you most like solar to do for you?');
+    expect(said).toBe('Do you own the property?');
     expect(events.find((e) => e['type'] === 'message_finished')?.['text']).toBe(said);
   });
 
@@ -334,14 +334,14 @@ describe('the vertical slice', () => {
         type: 'tool_started',
         call: {
           name: 'save_workflow_answers',
-          args: { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
+          args: { answers: [{ questionId: 'ownership', value: 'own' }] },
         },
       },
       {
         type: 'tool_started',
         call: {
           name: 'save_workflow_answers',
-          args: { answers: [{ questionId: 'motivation', value: 'not-a-real-option' }] },
+          args: { answers: [{ questionId: 'ownership', value: 'not-a-real-option' }] },
         },
       },
       { type: 'text', text: 'Here is the pricing section.' },
@@ -378,7 +378,7 @@ describe('the vertical slice', () => {
     const assistant = (
       conversation.json().turns as Array<{ role: string; answers?: Record<string, string> }>
     ).find((t) => t.role === 'assistant');
-    expect(assistant?.answers).toEqual({ motivation: 'reduce_bills' });
+    expect(assistant?.answers).toEqual({ ownership: 'own' });
   });
 
   it('refuses a tool the deployment did not offer', async () => {
@@ -1014,7 +1014,7 @@ describe('POST /v1/qualification/answer', () => {
     expect(body.questionId).toBe('roof_direction');
     expect(body.answers['roof_direction']).toBe('south');
     // The tenant has no workflow of its own, so the solar template's order applies.
-    expect(body.nextQuestionId).toBe('motivation');
+    expect(body.nextQuestionId).toBe('ownership');
   });
 
   it('does not write the answer into the transcript', async () => {
@@ -1044,8 +1044,8 @@ describe('POST /v1/qualification/answer', () => {
     const body = second.json<{ answers: Record<string, string>; nextQuestionId: string | null }>();
     expect(body.answers['address']).toBe('1 Test Street');
     expect(body.answers['roof_direction']).toBe('west');
-    // The suggestion follows the solar template's order, which opens with motivation.
-    expect(body.nextQuestionId).toBe('motivation');
+    // The suggestion follows the solar template's order, which opens with ownership.
+    expect(body.nextQuestionId).toBe('ownership');
   });
 
   it('rejects a value that is not one of the options, naming them', async () => {
@@ -1297,7 +1297,7 @@ describe('qualification answers reach the conversation', () => {
         type: 'tool_started',
         call: {
           name: 'save_workflow_answers',
-          args: { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
+          args: { answers: [{ questionId: 'ownership', value: 'own' }] },
         },
       },
       {
@@ -1315,7 +1315,7 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'property_type', value: 'detached' },
+      payload: { sessionId, questionId: 'roof_shading', value: 'none' },
     });
 
     await app.inject({
@@ -1327,7 +1327,7 @@ describe('qualification answers reach the conversation', () => {
 
     // Both, not one: the context saw the route's answer as well as the turn's.
     const [lead] = await store.listLeads('t_demo0001');
-    expect(lead?.flowAnswers?.map((a) => a.id).sort()).toEqual(['motivation', 'property_type']);
+    expect(lead?.flowAnswers?.map((a) => a.id).sort()).toEqual(['ownership', 'roof_shading']);
   });
 
   it('keeps both answers after the turn, and records only the turn on the turn', async () => {
@@ -1338,7 +1338,7 @@ describe('qualification answers reach the conversation', () => {
         call: {
           id: 'call_1',
           name: 'save_workflow_answers',
-          args: { answers: [{ questionId: 'motivation', value: 'reduce_bills' }] },
+          args: { answers: [{ questionId: 'ownership', value: 'own' }] },
         },
       },
       { type: 'text', text: 'Noted.' },
@@ -1351,7 +1351,7 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'property_type', value: 'detached' },
+      payload: { sessionId, questionId: 'roof_shading', value: 'none' },
     });
     await app.inject({
       method: 'POST',
@@ -1371,9 +1371,9 @@ describe('qualification answers reach the conversation', () => {
     const assistant = turns.find((t) => t.role === 'assistant');
 
     // The per-turn map is the audit trail: it says what *this* turn changed.
-    expect(assistant?.answers).toEqual({ motivation: 'reduce_bills' });
+    expect(assistant?.answers).toEqual({ ownership: 'own' });
     const stored = await store.getConversation('t_demo0001', sessionId);
-    expect(stored?.answers).toEqual({ property_type: 'detached', motivation: 'reduce_bills' });
+    expect(stored?.answers).toEqual({ roof_shading: 'none', ownership: 'own' });
   });
 
   it('records several answers from one turn, so the assistant need not ask twice', async () => {

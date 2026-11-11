@@ -5,7 +5,12 @@ import type { ConversationFlow, FlowStep, Workflow } from '@sunny/contracts';
 import { resolveFlow } from '../src/flow/resolve.js';
 import { flowForTenant } from '../src/flow/tenant.js';
 import { DEMO_TENANT, TenantRegistry, type Tenant } from '../src/tenants.js';
-import { defaultWorkflowSet, solarTemplate } from '../src/workflows/templates.js';
+import {
+  V1_STEPS,
+  defaultWorkflowSet,
+  heatPumpTemplate,
+  solarTemplate,
+} from '../src/workflows/templates.js';
 import { checkWorkflow } from '../src/flow/check.js';
 import { resolvedFlowFor, workflowsForTenant } from '../src/workflows/tenant.js';
 import { workflowStatus } from '../src/workflows/status.js';
@@ -171,26 +176,81 @@ describe('solarTemplate', () => {
     expect(w.updatedAt).toBe(NOW);
     expect(w.outcome).toEqual({ kind: 'quote', engine: 'solar' });
     expect(w.steps.map((s) => s.id)).toEqual([
-      'motivation',
-      'property_type',
       'ownership',
       'address',
       'roof_size',
       'roof_shading',
       'usage_source',
       'lifestyle',
-      'tariff_type',
       'existing_system',
-      'budget_band',
-      'finance_interest',
     ]);
-    expect(w.steps.filter((s) => s.optional).map((s) => s.id)).toEqual([
-      'budget_band',
-      'finance_interest',
-    ]);
+    expect(w.template).toEqual({ id: 'solar_quote', version: 2 });
     expect(defaultWorkflowSet(NOW).discovery.enabled).toBe(true);
   });
 
+  it('does not open with the address, so it runs on the solar bank', () => {
+    expect(resolvedFlowFor(solarTemplate(NOW)).bank.id).toBe('solar');
+  });
+});
+
+describe('an untouched version 1 built-in', () => {
+  function storedWith(steps: FlowStep[], kind: 'solar' | 'heat_pump'): Tenant {
+    const set = defaultWorkflowSet(NOW);
+    const hp = heatPumpTemplate(NOW);
+    const solar = set.workflows[0]!;
+    if (kind === 'solar') {
+      solar.steps = steps;
+      solar.template = { id: 'solar_quote', version: 1 };
+      solar.version = 4;
+    } else {
+      hp.steps = steps;
+      hp.template = { id: 'heat_pump_quote', version: 1 };
+      hp.enabled = true;
+    }
+    set.workflows.push(hp);
+    return { ...DEMO_TENANT, config: { ...DEMO_TENANT.config, workflows: set } };
+  }
+
+  it('moves to the shorter solar questions, keeping the version counting on', () => {
+    const tenant = storedWith(structuredClone([...V1_STEPS.solar_quote!]), 'solar');
+    const solar = workflowsForTenant(tenant).set.workflows[0]!;
+    expect(solar.steps).toEqual(solarTemplate(NOW).steps);
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 2 });
+    expect(solar.version).toBe(5);
+  });
+
+  it('moves to the shorter heat pump questions and stays switched on', () => {
+    const tenant = storedWith(structuredClone([...V1_STEPS.heat_pump_quote!]), 'heat_pump');
+    const hp = workflowsForTenant(tenant).set.workflows.find((w) => w.id === 'wf_heat_pump')!;
+    expect(hp.steps).toEqual(heatPumpTemplate(NOW).steps);
+    expect(hp.enabled).toBe(true);
+    expect(hp.template?.version).toBe(2);
+  });
+
+  it('is left alone once the installer has edited a question', () => {
+    const steps = structuredClone([...V1_STEPS.solar_quote!]);
+    steps[1] = { kind: 'preset', id: 'property_type', prompt: 'What sort of home is it?' };
+    const tenant = storedWith(steps, 'solar');
+    const solar = workflowsForTenant(tenant).set.workflows[0]!;
+    expect(solar.steps).toEqual(steps);
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 1 });
+  });
+
+  it('moves whatever order the stored keys come back in', () => {
+    const reordered = V1_STEPS.solar_quote!.map((step) =>
+      Object.fromEntries(Object.entries(step).reverse()),
+    ) as FlowStep[];
+    const solar = workflowsForTenant(storedWith(reordered, 'solar')).set.workflows[0]!;
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 2 });
+  });
+
+  it('reads the same twice', () => {
+    const tenant = storedWith(structuredClone([...V1_STEPS.solar_quote!]), 'solar');
+    expect(workflowsForTenant(tenant).set).toEqual(workflowsForTenant(tenant).set);
+  });
+});
+
+describe('solarTemplate wording', () => {
   it('contains no em or en dashes', () => {
     expect(JSON.stringify(solarTemplate(NOW))).not.toMatch(/[—–]/);
   });

@@ -15,6 +15,8 @@
  * next save like any other.
  */
 
+import { isDeepStrictEqual } from 'node:util';
+
 import {
   ApiError,
   WORKFLOW_LIMITS,
@@ -30,7 +32,7 @@ import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { flowForTenant } from '../flow/tenant.js';
 import type { Tenant } from '../tenants.js';
 
-import { APPENDED_BUILT_INS, defaultWorkflowSet } from './templates.js';
+import { APPENDED_BUILT_INS, V1_STEPS, defaultWorkflowSet, templateFor } from './templates.js';
 
 export interface TenantWorkflows {
   set: WorkflowSet;
@@ -48,13 +50,34 @@ export const UNREADABLE_WORKFLOWS = 'Your saved workflows could not be read. Not
  * Nothing is appended beyond the workflow limit.
  */
 function withBuiltIns(set: WorkflowSet): WorkflowSet {
-  const workflows = [...set.workflows];
+  let upgraded = false;
+  const workflows = set.workflows.map((w) => {
+    const next = upgradeUntouched(w, set.updatedAt);
+    if (next !== w) upgraded = true;
+    return next;
+  });
   for (const builtIn of APPENDED_BUILT_INS) {
     if (workflows.length >= WORKFLOW_LIMITS.workflows) break;
     if (workflows.some((w) => w.kind === builtIn.kind || w.id === builtIn.id)) continue;
     workflows.push(builtIn.template(set.updatedAt));
   }
-  return workflows.length === set.workflows.length ? set : { ...set, workflows };
+  return !upgraded && workflows.length === set.workflows.length ? set : { ...set, workflows };
+}
+
+/**
+ * A built-in workflow still asking exactly its version 1 questions moves to the
+ * current template's questions: the installer never edited them, so the
+ * shorter default is theirs too. Anything they changed (a question, a prompt,
+ * an effect) keeps their copy as it is. On, pages, name and triggers stay.
+ */
+function upgradeUntouched(w: Workflow, now: string): Workflow {
+  if (w.kind === 'custom' || w.template?.id !== w.kind || w.template.version !== 1) return w;
+  const v1 = V1_STEPS[w.kind];
+  const current = templateFor(w.kind, now);
+  if (!v1 || !current || current.template!.version === 1) return w;
+  // Key order is not compared: a stored map can come back in any order.
+  if (!isDeepStrictEqual(w.steps, v1)) return w;
+  return { ...w, steps: current.steps, template: current.template, version: w.version + 1 };
 }
 
 export function workflowsForTenant(

@@ -596,7 +596,7 @@ describe('POST /workflows/:id/preview', () => {
     expect(on.statusCode).toBe(200);
     const body = on.json<{ next: { id: string } | null; appearsOnPage: boolean | null }>();
     expect(body.appearsOnPage).toBe(true);
-    expect(body.next?.id).toBe('motivation');
+    expect(body.next?.id).toBe('ownership');
     expect((await preview('/about')).json<{ appearsOnPage: boolean }>().appearsOnPage).toBe(false);
     expect((await preview()).json<{ appearsOnPage: null }>().appearsOnPage).toBeNull();
   });
@@ -775,7 +775,7 @@ describe('POST /workflows/:id/reset', () => {
     expect(reset.name).toBe('Heat pump quote');
     expect(reset.enabled).toBe(true);
     expect(reset.steps).toEqual(hp.steps);
-    expect(reset.template).toEqual({ id: 'heat_pump_quote', version: 1 });
+    expect(reset.template).toEqual({ id: 'heat_pump_quote', version: 2 });
   });
 
   it('resets the battery workflow to its template', async () => {

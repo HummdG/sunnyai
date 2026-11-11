@@ -12,13 +12,88 @@ import {
   type WorkflowSet,
 } from '@sunny/contracts';
 
-export const SOLAR_TEMPLATE_VERSION = 1;
-export const HEAT_PUMP_TEMPLATE_VERSION = 1;
+export const SOLAR_TEMPLATE_VERSION = 2;
+export const HEAT_PUMP_TEMPLATE_VERSION = 2;
 export const BATTERY_TEMPLATE_VERSION = 1;
 
 function preset(id: string, extra: { prompt?: string; optional?: boolean } = {}): FlowStep {
   return { kind: 'preset', id, ...extra };
 }
+
+/**
+ * The default solar questions. Version 1 also asked motivation, property type,
+ * tariff, budget and finance: none of them moves the quote enough to be worth
+ * a visitor's time, and the installer can add any of them back.
+ */
+const SOLAR_STEPS: readonly FlowStep[] = [
+  preset('ownership'),
+  preset('address'),
+  preset('roof_size'),
+  preset('roof_shading'),
+  preset('usage_source'),
+  preset('lifestyle'),
+  preset('existing_system'),
+];
+
+/**
+ * The default heat pump questions. Version 1 also asked motivation, floor area
+ * (the bedrooms stand in), glazing, occupants, yearly spend, EPC and outdoor
+ * space: each is either defaulted well by the estimate or only a note the
+ * installer checks at the survey anyway.
+ */
+const HEAT_PUMP_STEPS: readonly FlowStep[] = [
+  preset('property_type'),
+  preset('ownership'),
+  preset('address'),
+  preset('hp_age'),
+  preset('hp_bedrooms'),
+  preset('hp_walls'),
+  preset('hp_loft'),
+  preset('hp_current_heating'),
+  preset('hp_emitters'),
+  preset('hp_hot_water'),
+];
+
+/**
+ * The steps each built-in shipped with at version 1, exactly as stored. A
+ * workflow still holding these was never edited, so it moves to the current
+ * template when read (workflows/tenant.ts); an edited one is left alone.
+ */
+export const V1_STEPS: Readonly<Partial<Record<Workflow['kind'], readonly FlowStep[]>>> = {
+  solar_quote: [
+    preset('motivation', { prompt: 'First, what would you most like solar to do for you?' }),
+    preset('property_type'),
+    preset('ownership'),
+    preset('address'),
+    preset('roof_size'),
+    preset('roof_shading'),
+    preset('usage_source'),
+    preset('lifestyle'),
+    preset('tariff_type'),
+    preset('existing_system'),
+    preset('budget_band', { optional: true }),
+    preset('finance_interest', { optional: true }),
+  ],
+  heat_pump_quote: [
+    preset('motivation', { prompt: 'First, what would you most like from a new heating system?' }),
+    preset('property_type'),
+    preset('ownership'),
+    preset('address'),
+    preset('hp_age'),
+    preset('hp_floor_area', { optional: true }),
+    preset('hp_bedrooms'),
+    preset('hp_walls'),
+    preset('hp_loft'),
+    preset('hp_glazing'),
+    preset('hp_current_heating'),
+    preset('hp_emitters'),
+    preset('hp_hot_water'),
+    preset('hp_occupants', { optional: true }),
+    preset('hp_annual_spend', { optional: true }),
+    preset('hp_epc', { optional: true }),
+    preset('hp_outdoor_space'),
+  ],
+};
 
 export function solarTemplate(now: string): Workflow {
   return {
@@ -30,20 +105,9 @@ export function solarTemplate(now: string): Workflow {
     triggers: ['solar quote', 'how much would solar cost', 'solar panels price', 'get a quote'],
     interests: ['solar'],
     pages: { include: [], exclude: [] },
-    steps: [
-      preset('motivation', { prompt: 'First, what would you most like solar to do for you?' }),
-      preset('property_type'),
-      preset('ownership'),
-      preset('address'),
-      preset('roof_size'),
-      preset('roof_shading'),
-      preset('usage_source'),
-      preset('lifestyle'),
-      preset('tariff_type'),
-      preset('existing_system'),
-      preset('budget_band', { optional: true }),
-      preset('finance_interest', { optional: true }),
-    ],
+    // Only what changes the quote or qualifies the lead. Not address first: an
+    // address-first solar workflow runs SunScan's fixed legacy order.
+    steps: SOLAR_STEPS.map((s) => ({ ...s })),
     outcome: { kind: 'quote', engine: 'solar' },
     template: { id: 'solar_quote', version: SOLAR_TEMPLATE_VERSION },
     version: 1,
@@ -68,27 +132,7 @@ export function heatPumpTemplate(now: string): Workflow {
     ],
     interests: ['heating'],
     pages: { include: [], exclude: [] },
-    steps: [
-      preset('motivation', {
-        prompt: 'First, what would you most like from a new heating system?',
-      }),
-      preset('property_type'),
-      preset('ownership'),
-      preset('address'),
-      preset('hp_age'),
-      preset('hp_floor_area', { optional: true }),
-      preset('hp_bedrooms'),
-      preset('hp_walls'),
-      preset('hp_loft'),
-      preset('hp_glazing'),
-      preset('hp_current_heating'),
-      preset('hp_emitters'),
-      preset('hp_hot_water'),
-      preset('hp_occupants', { optional: true }),
-      preset('hp_annual_spend', { optional: true }),
-      preset('hp_epc', { optional: true }),
-      preset('hp_outdoor_space'),
-    ],
+    steps: HEAT_PUMP_STEPS.map((s) => ({ ...s })),
     outcome: { kind: 'quote', engine: 'heat_pump' },
     template: { id: 'heat_pump_quote', version: HEAT_PUMP_TEMPLATE_VERSION },
     version: 1,

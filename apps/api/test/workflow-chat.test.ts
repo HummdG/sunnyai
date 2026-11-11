@@ -161,28 +161,28 @@ describe('workflows in a chat turn', () => {
       ],
       { message: 'I want a solar quote' },
     );
-    expect(replies(events).at(-1)?.questionId).toBe('motivation');
+    expect(replies(events).at(-1)?.questionId).toBe('ownership');
   });
 
   it('re-offers the current question after an FAQ answered without a tool', async () => {
     const store = await tempStore();
     await withSession(store, solarActive);
-    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { motivation: 'reduce_bills' });
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { ownership: 'own' });
     const { events, message } = await turn(
       store,
-      [{ type: 'text', text: 'Panels last about 25 years. Now, what type of home is it?' }],
+      [{ type: 'text', text: 'Panels last about 25 years. Now, what is the address?' }],
       { message: 'how long do panels last?' },
     );
     const offered = replies(events);
     expect(offered).toHaveLength(1);
-    expect(offered[0]?.questionId).toBe('property_type');
+    expect(offered[0]?.questionId).toBe('address');
     // The replies arrive before the turn finishes.
     const finished = events.findIndex((e) => e.type === 'message_finished');
     expect(events.indexOf(offered[0]!)).toBeLessThan(finished);
     // And the state block named it.
     const block = stateBlock(message);
     expect(block).toContain('<workflow_state>');
-    expect(block).toContain('property_type');
+    expect(block).toContain('address');
   });
 
   it('places the state block between the evidence and the visitor', async () => {
@@ -198,14 +198,14 @@ describe('workflows in a chat turn', () => {
     await withSession(store, solarActive);
     await store.mergeAnswers(DEMO_TENANT.id, SESSION, { motivation: 'reduce_bills' });
     const set = setWith();
-    set.workflows[0]!.steps = set.workflows[0]!.steps.filter((s) => s.id !== 'property_type');
+    set.workflows[0]!.steps = set.workflows[0]!.steps.filter((s) => s.id !== 'ownership');
     const { events, message } = await turn(store, [{ type: 'text', text: 'Sure.' }], {
       tenant: tenantWith(set),
     });
     const block = stateBlock(message);
-    expect(block).toContain('ownership');
-    expect(block).not.toContain('property_type');
-    expect(replies(events).at(-1)?.questionId).toBe('ownership');
+    expect(block).toContain('address');
+    expect(block).not.toContain('ownership');
+    expect(replies(events).at(-1)?.questionId).toBe('address');
   });
 
   it('offers to resume a paused workflow once', async () => {
