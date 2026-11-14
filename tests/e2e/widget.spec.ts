@@ -634,6 +634,29 @@ test('shows nothing when there is no picture of the roof', async ({ page }) => {
   await expect(panel.locator('figure.roof-pic')).toHaveCount(0);
 });
 
+test('puts the starter questions away once the visitor has said something', async ({ page }) => {
+  await page.route('**/v1/chat/stream', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: streamOf(
+        { type: 'message_started' },
+        { type: 'text_delta', text: 'Is the home yours, or do you rent?' },
+        { type: 'message_finished' },
+        { type: 'done', messageId: 'done' },
+      ),
+    }),
+  );
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  await expect(panel.locator('.suggestions')).toBeVisible();
+  await panel.locator('.composer-input').fill('3A Downs Walk');
+  await panel.locator('.composer-input').press('Enter');
+  await expect(panel).toContainText('Is the home yours');
+  // A question without buttons of its own does not bring the starters back.
+  await expect(panel.locator('.suggestions')).toBeHidden();
+});
+
 test('takes the whole screen on a phone, and the × gives the page back', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const launcher = page.locator(HOST).locator(LAUNCHER);

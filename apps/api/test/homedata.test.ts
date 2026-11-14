@@ -9,6 +9,7 @@ import { EMPTY_KNOWLEDGE } from '@sunny/knowledge';
 import type { GoogleSolarBuildingInsights } from '@sunny/quote-engine';
 
 import { runTurn, type TurnEvent } from '../src/agent/agent.js';
+import { CHANNEL_POLICIES } from '../src/agent/channels.js';
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
 import {
   ageBandOf,
@@ -542,6 +543,29 @@ describe("a solar workflow with Google's roof", () => {
     expect(stored.warnings.join(' ')).not.toMatch(/does not ask/);
     // No panel positions in this model, so no photo to offer.
     expect(ctx.events.some((e) => e.kind === 'roof_image')).toBe(false);
+  });
+
+  it('keeps a street and postcode given before the quote started', async () => {
+    // Seen live: "3A Downs Walk", then "BN10 7SN", then the quote began and
+    // asked for the address again.
+    const store = await tempStore();
+    const ctx = context(
+      store,
+      { epc: null, solar: fakeSolar(insights()) },
+      defaultWorkflowSet(NOW),
+    );
+    ctx.earlierVisitorMessages = ['3A Downs Walk'];
+    ctx.visitorMessage = 'BN10 7SN';
+    const started = await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['address']).toBe('3A Downs Walk, BN10 7SN');
+    expect(answers['journey_home_solar']).toBeDefined();
+    expect(started.data['nextQuestionId']).not.toBe('address');
+  });
+
+  it('chat offers the model no roof-measuring tools: the workflow measures', () => {
+    expect(CHANNEL_POLICIES.chat.tools).not.toContain('start_sunscan_assessment');
+    expect(CHANNEL_POLICIES.chat.tools).not.toContain('get_sunscan_result');
   });
 
   it('keeps the address when the model measures the roof instead of saving it', async () => {

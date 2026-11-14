@@ -373,6 +373,43 @@ function volunteeredAddress(ctx: ToolContext, flow: ResolvedFlow, message: strin
 }
 
 /**
+ * The address in the visitor's last few messages, newest first: a whole one,
+ * or a street ("3A Downs Walk") completed by a postcode sent after it
+ * ("BN10 7SN"), or the street alone (its postcode is asked next). So a
+ * visitor who gave their address before any quote started is not asked again.
+ */
+export function addressInMessages(messages: readonly string[]): string | null {
+  const recent = messages.slice(-4);
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const message = recent[i]!;
+    const whole = addressIn(message) ?? streetThenPostcode(message);
+    if (whole) return whole;
+    const street = streetAddressIn(message);
+    if (street) {
+      const later = recent
+        .slice(i + 1)
+        .map((m) => postcodeFrom(m))
+        .find(Boolean);
+      return later && !postcodeFrom(street) ? `${street}, ${later}` : street;
+    }
+  }
+  return null;
+}
+
+/** "3A Downs Walk, BN10 7SN": a street address followed by its postcode. */
+function streetThenPostcode(message: string): string | null {
+  const postcode = postcodeFrom(message);
+  if (!postcode) return null;
+  const at = message.toUpperCase().replace(/\s+/g, ' ').indexOf(postcode);
+  const before = message
+    .replace(/\s+/g, ' ')
+    .slice(0, Math.max(0, at))
+    .replace(/[,\s]+$/, '');
+  const street = before ? streetAddressIn(before) : null;
+  return street ? `${street}, ${postcode}` : null;
+}
+
+/**
  * A message that is a street address and nothing more ("3A Downs Walk",
  * "12 Mill Lane, Norwich"): kept as the address, and its postcode asked for
  * next. Only a whole short message counts, so a number in a sentence ("we
@@ -420,8 +457,11 @@ async function captureOpeningAddress(
   roofAssessment: Awaited<ReturnType<typeof startRoofAssessment>> | null;
   homeRecords: string | null;
 }> {
+  const asksAddress = Boolean(r.flow.question('address')) && !ctx.answers['address'];
   const address =
-    volunteeredAddress(ctx, r.flow, ctx.visitorMessage ?? '') ?? (await measuredAddress(ctx, r));
+    (asksAddress
+      ? addressInMessages([...(ctx.earlierVisitorMessages ?? []), ctx.visitorMessage ?? ''])
+      : null) ?? (await measuredAddress(ctx, r));
   if (!address) return { roofAssessment: null, homeRecords: null };
   const result = await submitAnswers(depsOn(ctx, r.flow), ctx.tenant.id, ctx.sessionId, {
     proposals: [{ questionId: 'address', value: address }],

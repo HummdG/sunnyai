@@ -1264,7 +1264,9 @@ export class SunnyWidget {
       this.#suggestions.removeAttribute('role');
       this.#suggestions.removeAttribute('aria-label');
       this.#suggestions.replaceChildren(...this.#starters);
-      this.#suggestions.hidden = this.#log.childElementCount > 6;
+      // The starters open a conversation: once the visitor has said anything
+      // they are noise under a question that has no buttons of its own.
+      this.#suggestions.hidden = this.#log.querySelector('.turn.user') !== null;
       return;
     }
     const sendText = (text: string) => {

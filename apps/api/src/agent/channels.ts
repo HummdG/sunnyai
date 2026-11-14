@@ -45,8 +45,10 @@ export const CHANNEL_POLICIES: Readonly<Record<Channel, ChannelPolicy>> = {
       'recommend_packages',
       'calculate_approved_estimate',
       'estimate_savings',
-      'start_sunscan_assessment',
-      'get_sunscan_result',
+      // No SunScan tools: a workflow measures every address it saves, and the
+      // 3D roof is not shown to visitors. Given them, the model measured
+      // addresses before any quote had started, so they were never saved,
+      // and talked visitors through measurements they could not see.
       'start_workflow',
       'get_workflow_step',
       'save_workflow_answers',

@@ -541,6 +541,8 @@ export function styles(): string {
 .sources a { color: var(--sunny-accent-ink); }
 .composer .count { align-self: center; font-size: 11px; color: #5c5c5c; min-width: 0; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
+/* without this the flex above wins over [hidden], and the row never goes */
+.suggestions[hidden] { display: none; }
 .suggestions button {
   font: inherit; font-size: 12.5px; cursor: pointer;
   border: 1px solid var(--sunny-orange-soft); background: var(--sunny-pale);

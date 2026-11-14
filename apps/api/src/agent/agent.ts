@@ -318,6 +318,10 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     session,
     pagePath,
     visitorMessage: input.message,
+    earlierVisitorMessages: input.history
+      .filter((t) => t.role === 'user')
+      .slice(-3)
+      .map((t) => t.text),
   };
 
   // What the server tells the model about the workflows this turn, between the

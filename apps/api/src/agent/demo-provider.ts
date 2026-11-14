@@ -72,11 +72,12 @@ export class DemoProvider implements ChatProvider {
         );
         return;
       }
-      yield* call('save_workflow_answers', {
+      // Saving the address measures the roof too (the workflow does it).
+      const saved = yield* call('save_workflow_answers', {
         answers: [{ questionId: 'address', value: message }],
         visitorMessage: message,
       });
-      const started = yield* call('start_sunscan_assessment', { address: message });
+      const started = saved?.['roofAssessment'] as Record<string, unknown> | undefined;
       if (!started || started['ok'] === false) {
         yield text(
           `I couldn't measure that roof just now (${str(started?.['note']) || 'no result'}). ` +

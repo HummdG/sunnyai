@@ -15,7 +15,11 @@ import { JOURNEY_KEYS, journeyStatus } from '../src/journey/journey.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry } from '../src/tenants.js';
-import { completeAddress, streetAddressIn } from '../src/workflows/agent-tools.js';
+import {
+  addressInMessages,
+  completeAddress,
+  streetAddressIn,
+} from '../src/workflows/agent-tools.js';
 import { defaultWorkflowSet } from '../src/workflows/templates.js';
 import { resolvedFlowFor } from '../src/workflows/tenant.js';
 
@@ -108,6 +112,20 @@ describe('an address given without its postcode', () => {
     expect(streetAddressIn('we have 4 bedrooms on Park Road')).toBeNull();
     expect(streetAddressIn('4 bedrooms')).toBeNull();
     expect(streetAddressIn('120 pounds a month')).toBeNull();
+  });
+
+  it('finds an address across the visitor’s last few messages', () => {
+    expect(addressInMessages(['3A Dowsn Walk', 'BN10 7SN'])).toBe('3A Dowsn Walk, BN10 7SN');
+    expect(addressInMessages(['hi', '12 Mill Lane, Norwich NR4 7TJ', 'yes please'])).toBe(
+      '12 Mill Lane, Norwich NR4 7TJ',
+    );
+    expect(addressInMessages(['3A Downs Walk'])).toBe('3A Downs Walk');
+    // The newest address wins over an older one.
+    expect(addressInMessages(['12 Mill Lane, NR4 7TJ', '3A Downs Walk, BN10 7SN'])).toBe(
+      '3A Downs Walk, BN10 7SN',
+    );
+    expect(addressInMessages(['I want solar', 'BN10 7SN'])).toBeNull();
+    expect(addressInMessages(['we have 4 bedrooms', 'about £120 a month'])).toBeNull();
   });
 
   it('takes a postcode on its own as the rest of the address', () => {

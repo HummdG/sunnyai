@@ -139,6 +139,8 @@ export interface ToolContext {
    * asked for again.
    */
   visitorMessage?: string;
+  /** The visitor's previous few messages, oldest first: an address given before a workflow started. */
+  earlierVisitorMessages?: string[];
 }
 
 export interface ToolResult {
