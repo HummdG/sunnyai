@@ -253,12 +253,12 @@ async function main() {
   const answer = await call('/v1/qualification/answer', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ sessionId, questionId: 'roof_direction', value: 'south' }),
+    body: JSON.stringify({ sessionId, questionId: 'existing_system', value: 'none' }),
   });
   check('a valid answer is accepted', answer.status === 200, `got ${answer.status}`);
   check(
     'the answer comes back on the standing map',
-    answer.json?.answers?.roof_direction === 'south',
+    answer.json?.answers?.existing_system === 'none',
   );
   check('the response suggests a next question', typeof answer.json?.nextQuestionId === 'string');
 

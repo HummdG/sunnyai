@@ -278,6 +278,20 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
 
+      # Home data lookups (homedata.tf): the roof model and energy certificates.
+      dynamic "env" {
+        for_each = google_secret_manager_secret.home_data
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value.secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+
       env {
         name  = "GEMINI_SURFACE"
         value = var.gemini_surface
@@ -412,6 +426,7 @@ resource "google_cloud_run_v2_service" "api" {
     google_secret_manager_secret_iam_member.api_reads_key,
     google_secret_manager_secret_iam_member.api_reads_session_secret,
     google_secret_manager_secret_iam_member.api_reads_admin_token,
+    google_secret_manager_secret_iam_member.api_reads_home_data,
   ]
 }
 
