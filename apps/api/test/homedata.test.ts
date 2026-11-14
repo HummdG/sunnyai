@@ -832,4 +832,54 @@ describe('a visitor who opens with a street address', () => {
     expect(ctx.answers['address']).toBe('3A Downs Walk, BN10 7SN');
     expect(after.data['nextQuestionId']).toBe('ownership');
   });
+
+  it('keeps the street when the model saves another answer as the address', async () => {
+    // Seen live (1 run in about 35): on "I own it with a mortgage", sent while
+    // the postcode was being asked for, the model saved those words as the
+    // address too. The address became "I own it with a mortgage, BN10 7SN",
+    // which matched an area, and there was no photo.
+    const store = await tempStore();
+    const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    ctx.visitorMessage = '3A Downs Walk';
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    ctx.messagesRead = new Set();
+    ctx.visitorMessage = 'I own it with a mortgage';
+    const owned = await tool(
+      'save_workflow_answers',
+      {
+        answers: [
+          { questionId: 'address', value: 'I own it with a mortgage' },
+          { questionId: 'ownership', value: 'mortgage' },
+        ],
+        visitorMessage: 'I own it with a mortgage',
+      },
+      ctx,
+    );
+    expect(ctx.answers['address']).toBe('3A Downs Walk');
+    expect(ctx.answers['ownership']).toBe('mortgage');
+    expect(owned.data['nextQuestionId']).toBe('address');
+    ctx.messagesRead = new Set();
+    ctx.visitorMessage = 'BN10 7SN';
+    await tool('save_workflow_answers', { answers: [], visitorMessage: 'BN10 7SN' }, ctx);
+    expect(ctx.answers['address']).toBe('3A Downs Walk, BN10 7SN');
+
+    // A different street, or a whole address, still replaces it.
+    const ctx2 = context(await tempStore(), { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    ctx2.visitorMessage = '3A Downs Walk';
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx2);
+    ctx2.messagesRead = new Set();
+    ctx2.visitorMessage = 'Sorry, 5 Downs Walk';
+    await tool(
+      'save_workflow_answers',
+      { answers: [{ questionId: 'address', value: '5 Downs Walk' }] },
+      ctx2,
+    );
+    expect(ctx2.answers['address']).toBe('5 Downs Walk');
+    await tool(
+      'save_workflow_answers',
+      { answers: [{ questionId: 'address', value: ADDRESS }] },
+      ctx2,
+    );
+    expect(ctx2.answers['address']).toBe(ADDRESS);
+  });
 });

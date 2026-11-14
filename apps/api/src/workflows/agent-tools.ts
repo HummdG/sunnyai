@@ -368,6 +368,23 @@ export function completeAddress(ctx: ToolContext, proposals: Proposal[], message
   proposals.push({ questionId: 'address', value: `${partial.trim()}, ${postcode}` });
 }
 
+/**
+ * A street already saved, waiting for its postcode, is replaced only by
+ * something that is an address: another street, or anything with a postcode.
+ * Seen live: while the postcode was being asked for, the visitor said "I own
+ * it with a mortgage" and the model saved those words as the address as well
+ * as the ownership, so the home became "I own it with a mortgage, BN10 7SN".
+ */
+export function keepSavedStreet(ctx: ToolContext, proposals: Proposal[]): void {
+  const saved = ctx.answers['address'];
+  if (!saved || postcodeFrom(saved)) return;
+  const i = proposals.findIndex((p) => p.questionId === 'address');
+  if (i < 0) return;
+  const value = proposals[i]!.value;
+  if (postcodeFrom(value) || streetAddressIn(value)) return;
+  proposals.splice(i, 1);
+}
+
 /** An address in the visitor's words, when the running flow asks for one and has none yet. */
 function volunteeredAddress(ctx: ToolContext, flow: ResolvedFlow, message: string): string | null {
   if (!flow.question('address') || ctx.answers['address']) return null;
@@ -737,6 +754,7 @@ export const WORKFLOW_TOOLS = [
         ? null
         : volunteeredAddress(ctx, r.flow, message);
       if (volunteered) proposals.push({ questionId: 'address', value: volunteered });
+      keepSavedStreet(ctx, proposals);
       completeAddress(ctx, proposals, message);
       await keepBarePostcode(ctx, proposals, message);
       // The visitor's words answer the question this workflow just asked, which
