@@ -925,7 +925,7 @@ describe('journey without the address first (solar workflow)', () => {
     expect(view.canQuote).toBe(false);
   });
 
-  it('asks to confirm a medium-confidence roof before it can quote', () => {
+  it('never asks the visitor to judge a measured roof', () => {
     const roof = mapRoof(summary({ confidence: { roof: 'medium' } }), PANEL);
     expect(roof.confidence).toBe('medium');
     const answers = {
@@ -936,8 +936,16 @@ describe('journey without the address first (solar workflow)', () => {
       budget_band: 'skipped',
     };
     const view = journeyStatus(answers, roof, {}, flow);
-    expect(view.nextQuestionId).toBe('roof_confirmed');
-    expect(view.missing).toContain('roof_confirmed');
-    expect(view.canQuote).toBe(false);
+    // A homeowner cannot say whether a pitch or a panel count is right.
+    expect(view.nextQuestionId).not.toBe('roof_confirmed');
+    expect(view.missing).not.toContain('roof_confirmed');
+  });
+
+  it('still sets the roof aside when the visitor says it is the wrong house', () => {
+    const after = rejectRoof({
+      address: '164 Norwich Drive, Norwich NR4 7TJ',
+      roof_confidence: 'medium',
+    });
+    expect(after['roof_confidence']).toBe('low');
   });
 });

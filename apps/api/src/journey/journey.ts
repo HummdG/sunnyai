@@ -150,6 +150,11 @@ export function journeyStatus(
     // cannot be asked before there is an address.
     const hidden = new Set<string>(flow.bank.systemSet);
     if (!answers['address']) for (const id of flow.bank.followers['address'] ?? []) hidden.add(id);
+    // "Does the roof I found look right?" asks a homeowner to judge a pitch and
+    // a panel count they cannot know: the measured roof is used as it is. A
+    // visitor who says it is the wrong house is still heard (roof_confirmed
+    // "no" sets the measurement aside), they are just never asked.
+    hidden.add('roof_confirmed');
     missing = missing.filter((id) => !hidden.has(id));
   }
   // While the roof is still being assessed, its confidence is not known yet:
