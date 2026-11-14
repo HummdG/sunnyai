@@ -148,6 +148,8 @@ const ASKING_TOOLS = new Set([
   'start_workflow',
   'get_workflow_step',
   'save_workflow_answers',
+  // Saves a running workflow's address and answers with its next step.
+  'start_sunscan_assessment',
 ]);
 
 /** Said for a roof still being measured, when the model said nothing itself. */

@@ -475,6 +475,29 @@ export function addressIn(message: string): string | null {
   return address.length > postcode[0].length + 3 ? address : null;
 }
 
+/**
+ * An address given to the roof tool while a workflow still needs one: saved
+ * as the workflow's answer, exactly as save_workflow_answers would (the home
+ * lookup, the roof photo and the measurement follow from there), with the
+ * workflow's next step. Null when no running workflow is waiting for an
+ * address, so the roof tool measures on its own.
+ */
+export async function saveAddressToWorkflow(
+  ctx: ToolContext,
+  address: string,
+): Promise<ToolResult | null> {
+  const r = running(ctx);
+  if (!r || !r.flow.question('address') || ctx.answers['address']) return null;
+  const save = WORKFLOW_TOOLS.find((t) => t.name === 'save_workflow_answers')!;
+  return save.run(
+    {
+      answers: [{ questionId: 'address', value: address }],
+      ...(ctx.visitorMessage ? { visitorMessage: ctx.visitorMessage } : {}),
+    },
+    ctx,
+  );
+}
+
 export const WORKFLOW_TOOLS = [
   {
     name: 'start_workflow' as const,

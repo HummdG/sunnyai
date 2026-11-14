@@ -544,6 +544,30 @@ describe("a solar workflow with Google's roof", () => {
     expect(ctx.events.some((e) => e.kind === 'roof_image')).toBe(false);
   });
 
+  it('keeps the address when the model measures the roof instead of saving it', async () => {
+    // Seen live: the visitor typed their address, the model called the roof
+    // tool and nothing else, and the workflow asked for the address again.
+    const store = await tempStore();
+    const ctx = context(
+      store,
+      { epc: null, solar: fakeSolar(insights()) },
+      defaultWorkflowSet(NOW),
+    );
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'ownership', 'own');
+    ctx.visitorMessage = ADDRESS;
+    const measured = await tool('start_sunscan_assessment', { address: ADDRESS }, ctx);
+    expect(measured.data['saved']).toEqual([{ questionId: 'address', value: ADDRESS }]);
+    expect(measured.data['nextQuestionId']).not.toBe('address');
+    expect(measured.data['sayFirst']).toContain('about 14 panels');
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['address']).toBe(ADDRESS);
+    expect(answers['journey_home_solar']).toBeDefined();
+    // Once the workflow has its address, the tool goes back to only measuring.
+    const again = await tool('start_sunscan_assessment', { address: ADDRESS }, ctx);
+    expect(again.data['saved']).toBeUndefined();
+  });
+
   it('offers the house from above when Google has the panel positions', async () => {
     const store = await tempStore();
     const withPanels = insights();

@@ -24,7 +24,7 @@ import { CitationLedger, lexicalSearch, type PassageSearch } from './retrieval.j
 import { ESTIMATE_DISCLAIMER, estimateSavings } from './savings.js';
 import { QUOTE_TOOLS, type QuoteToolContext } from '../journey/agent-tools.js';
 import type { HomeData } from '../homedata/index.js';
-import { WORKFLOW_TOOLS } from '../workflows/agent-tools.js';
+import { saveAddressToWorkflow, WORKFLOW_TOOLS } from '../workflows/agent-tools.js';
 import { DISCOVERY_ID, complete, type WorkflowSession } from '../workflows/session.js';
 import { startRoofAssessment, sunscanResult } from './roof-assessment.js';
 
@@ -827,7 +827,13 @@ const DEFINITIONS: ToolDefinition[] = [
     },
     required: ['address'],
     async run(args, ctx) {
-      return startRoofAssessment(ctx, str(args, 'address') ?? ctx.answers['address'] ?? null);
+      const address = str(args, 'address') ?? ctx.answers['address'] ?? null;
+      // A running workflow that still needs the address keeps it as its answer
+      // (and looks it up and measures it there). Without this a model that
+      // reached for this tool instead of save_workflow_answers left the address
+      // unsaved, and the workflow asked for it again.
+      const saved = address ? await saveAddressToWorkflow(ctx, address) : null;
+      return saved ?? startRoofAssessment(ctx, address);
     },
   },
   {
