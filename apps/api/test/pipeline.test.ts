@@ -203,8 +203,10 @@ describe('the vertical slice', () => {
 
   it('streams a reply and persists both halves of the turn', async () => {
     const provider = new ScriptedProvider(() => [
-      { type: 'text', text: 'On a south-facing roof like yours, ' },
-      { type: 'text', text: 'most homes save £600–£900 a year.' },
+      // A reply reaches the visitor a sentence at a time (see ReplyGuard).
+      { type: 'text', text: 'On a south-facing roof like yours, most homes ' },
+      { type: 'text', text: 'save £600–£900 a year. Shall I work' },
+      { type: 'text', text: ' out yours?' },
       { type: 'usage', inputTokens: 120, outputTokens: 22 },
     ]);
     const { app } = await h(provider);
@@ -230,7 +232,7 @@ describe('the vertical slice', () => {
     ]);
     const finished = events.find((e) => e['type'] === 'message_finished')!;
     expect(finished['text']).toBe(
-      'On a south-facing roof like yours, most homes save £600–£900 a year.',
+      'On a south-facing roof like yours, most homes save £600–£900 a year. Shall I work out yours?',
     );
 
     // The transcript is readable afterwards, and it is a complete turn.

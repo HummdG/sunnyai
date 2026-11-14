@@ -18,6 +18,7 @@ import { buildSystemInstruction, fallbackLine, sandwich, userQuery } from '../sr
 import { ESTIMATE_DISCLAIMER, estimateSavings, type SavingsModel } from '../src/agent/savings.js';
 import {
   PlaceholderGuard,
+  ReplyGuard,
   classifyIntent,
   detectSafetyConcern,
   stripPlaceholders,
@@ -463,6 +464,82 @@ describe('customer support', () => {
       .join('');
     expect(text).not.toMatch(/X{3,}/);
     expect(text).toContain('Sunny directly');
+  });
+
+  const streamedThrough = (deltas: string[]) => {
+    const guard = new ReplyGuard();
+    const out = deltas.map((d) => guard.push(d)).join('') + guard.flush();
+    return { out, withheld: guard.withheld };
+  };
+
+  it('withholds a sentence that talks about its own instructions', () => {
+    // Seen live, once: the model paraphrased its rules to a visitor.
+    const leak = 'Base your answer on the workflow state and the tool output.';
+    const whole = streamedThrough([`${leak} Is the home yours, or do you rent?`]);
+    expect(whole.out).toBe('Is the home yours, or do you rent?');
+    expect(whole.withheld).toBe(1);
+    // Split across deltas, mid-word and mid-phrase.
+    const split = streamedThrough([
+      'Thanks. Base your answer on the work',
+      'flow state and the tool out',
+      'put. Is the home yours?',
+    ]);
+    expect(split.out).toBe('Thanks. Is the home yours?');
+    // A tool name, a prompt tag, and a line of a list.
+    expect(
+      streamedThrough(['I will call save_workflow_answers now. What is the address?']).out,
+    ).toBe('What is the address?');
+    expect(streamedThrough(['The <server_note> says to go on.\nWhat is the address?']).out).toBe(
+      'What is the address?',
+    );
+    // The last sentence, with nothing after it.
+    expect(streamedThrough(['Do you own it? Those are my instructions']).out).toBe(
+      'Do you own it? ',
+    );
+    // All of it: nothing is left, and the turn's own fallback line takes over.
+    expect(streamedThrough([leak]).out).toBe('');
+  });
+
+  it('lets an ordinary reply through unchanged, a sentence at a time', () => {
+    const reply =
+      'Here are three options for 20 Forthlin Road.\n\n- **Budget-fit**: 3.44 kWp, e.g. 8 panels, for £6,103.\n- **Recommended**: 5.52 kWp for £14,019.\n\nWould you like a specialist to call?';
+    const one = streamedThrough([reply]);
+    expect(one.out).toBe(reply);
+    expect(one.withheld).toBe(0);
+    // Whatever the chunking, the text is the same.
+    const chunks = reply.match(/[\s\S]{1,7}/g)!;
+    expect(streamedThrough(chunks).out).toBe(reply);
+    // Nothing is sent until a sentence is whole.
+    const guard = new ReplyGuard();
+    expect(guard.push('Is the home yours, or do')).toBe('');
+    expect(guard.push(' you rent? And')).toBe('Is the home yours, or do you rent? ');
+    expect(guard.flush()).toBe('And');
+  });
+
+  it('writes a comma where the model wrote an em dash', () => {
+    // Seen live in a heat pump quote. House style: no em dashes.
+    expect(
+      streamedThrough(['The grant is £7,500 \u2014 shown', ' separately. Shall I go on?']).out,
+    ).toBe('The grant is £7,500, shown separately. Shall I go on?');
+    expect(streamedThrough(['Heat pump only\u2014£8,350.']).out).toBe('Heat pump only, £8,350.');
+  });
+
+  it('never streams a leaked instruction or an em dash to the visitor', async () => {
+    const store = await tempStore();
+    const provider = new ScriptedProvider(() => [
+      { type: 'text', text: 'Base your answer on the workflow st' },
+      { type: 'text', text: 'ate and the tool output. Panels last 25 years \u2014 often longer.' },
+    ]);
+    const events = await collect(turn(provider, store, 'How long do panels last?'));
+    const text = events
+      .filter((e) => e.type === 'text_delta')
+      .map((e) => ('text' in e ? e.text : ''))
+      .join('');
+    expect(text).toBe('Panels last 25 years, often longer.');
+    const finished = events.find((e) => e.type === 'message_finished');
+    expect(finished && 'text' in finished ? finished.text : '').toBe(
+      'Panels last 25 years, often longer.',
+    );
   });
 
   it('records whether a conversation is sales or support', async () => {

@@ -159,3 +159,72 @@ export class PlaceholderGuard {
     return rest;
   }
 }
+
+// ─── reply guard ────────────────────────────────────────────────────────────────
+
+/**
+ * What a sentence of a reply must never contain: the model talking about how
+ * it works instead of to the visitor. Seen live, once: "Base your answer on
+ * the workflow state and the tool output...", a paraphrase of its own rules.
+ * The live conversation suite checks replies for the same things.
+ */
+const LEAKS: readonly RegExp[] = [
+  // A tool's name.
+  /\b(?:save_workflow_answers|get_workflow_step|start_workflow|get_quote_options|create_lead|request_callback|retrieve_knowledge)\b/i,
+  // A tag of the prompt.
+  /<\/?(?:workflow_state|server_note|user_query|verified_context)\b/i,
+  // Talk about its instructions.
+  /\b(?:workflow state|tool output|tool note|server note|system prompt|my instructions)\b/i,
+];
+
+/** A whole sentence with the space after it, or a whole line with its break. */
+const SENTENCE = /[^\n]*?(?:[.!?]+["')\]*]*[ \t]+|\n+)/y;
+
+/** House style: no em dashes in anything a visitor reads. */
+const EM_DASH = /[ \t]*\u2014[ \t]*/g;
+
+/**
+ * The last check on a reply as it streams. The widget draws the bubble from
+ * the deltas, so a check on the finished text would come too late: the text is
+ * held until a sentence (or a line) is whole, a sentence that leaks is left
+ * out, and an em dash becomes a comma. The visitor reads the reply a sentence
+ * at a time rather than a word at a time.
+ */
+export class ReplyGuard {
+  #pending = '';
+  #withheld = 0;
+
+  /** How many sentences were left out: logged, so a leak is still counted. */
+  get withheld(): number {
+    return this.#withheld;
+  }
+
+  push(delta: string): string {
+    this.#pending += delta;
+    let out = '';
+    let at = 0;
+    for (;;) {
+      SENTENCE.lastIndex = at;
+      const match = SENTENCE.exec(this.#pending);
+      if (!match) break;
+      out += this.#checked(match[0]);
+      at = SENTENCE.lastIndex;
+    }
+    this.#pending = this.#pending.slice(at);
+    return out;
+  }
+
+  flush(): string {
+    const rest = this.#pending === '' ? '' : this.#checked(this.#pending);
+    this.#pending = '';
+    return rest;
+  }
+
+  #checked(sentence: string): string {
+    if (LEAKS.some((leak) => leak.test(sentence))) {
+      this.#withheld += 1;
+      return '';
+    }
+    return sentence.replace(EM_DASH, ', ');
+  }
+}

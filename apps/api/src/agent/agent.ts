@@ -31,6 +31,7 @@ import {
 } from './prompt.js';
 import {
   PlaceholderGuard,
+  ReplyGuard,
   classifyIntent,
   detectSafetyConcern,
   safetyResponse,
@@ -401,6 +402,9 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   // No unfilled `XXXX` placeholder from a knowledge base ever reaches a visitor,
   // even split across two deltas.
   const guard = new PlaceholderGuard(input.tenant);
+  // Nor a sentence about its own instructions, nor an em dash: the reply is
+  // sent on a sentence at a time, each one checked first.
+  const replyGuard = new ReplyGuard();
 
   // A monotonic clock, not `Date.now()`.
   //
@@ -474,7 +478,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       if (chunk.type === 'text') {
         const said = sayHomeFound();
         if (said) yield { type: 'text_delta', messageId, text: said };
-        const safe = guard.push(chunk.text);
+        const safe = replyGuard.push(guard.push(chunk.text));
         text += safe;
         if (safe !== '') yield { type: 'text_delta', messageId, text: safe };
       } else if (chunk.type === 'tool_started') {
@@ -532,7 +536,14 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     }
   }
 
-  const rest = guard.flush();
+  const rest = replyGuard.push(guard.flush()) + replyGuard.flush();
+  if (replyGuard.withheld > 0) {
+    // Counted, never quoted: how often the model does this is worth knowing.
+    ctx.quote?.log?.warn(
+      { sessionId: input.sessionId, sentences: replyGuard.withheld },
+      'reply sentences withheld',
+    );
+  }
   if (rest !== '') {
     text += rest;
     yield { type: 'text_delta', messageId, text: rest };
