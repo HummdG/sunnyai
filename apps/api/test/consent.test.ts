@@ -337,7 +337,7 @@ describe('a visitor erasing their own conversation', () => {
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'roof_direction', value: 'south' },
+      payload: { sessionId, questionId: 'existing_system', value: 'solar' },
     });
     expect(answered.statusCode).toBe(200);
 
@@ -480,7 +480,7 @@ describe('an installer erasing one enquiry', () => {
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'roof_direction', value: 'south' },
+      payload: { sessionId, questionId: 'existing_system', value: 'solar' },
     });
     expect(response.statusCode).toBe(200);
   }

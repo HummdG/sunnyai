@@ -44,6 +44,7 @@ import {
   type PassageSearch,
 } from './retrieval.js';
 import { rewriteQueries, searchAll } from './query-rewrite.js';
+import type { HomeData } from '../homedata/index.js';
 import { declarationsFor, executeTool, type ToolContext, type ToolEvent } from './tools.js';
 
 // The prompt lives in `prompt.ts`; re-exported for callers that import it from here.
@@ -106,6 +107,8 @@ export interface TurnInput {
   search?: PassageSearch;
   /** The quote journey's pricing; absent turns have no quote tools to run. */
   quote?: QuoteToolContext;
+  /** Home lookups (Google roof, energy certificates); absent means none. */
+  homeData?: HomeData | null;
   /** The tenant's workflows; absent means read from the tenant now. */
   workflows?: WorkflowSet;
   /**
@@ -301,6 +304,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     search,
     ledger,
     ...(input.quote ? { quote: input.quote } : {}),
+    ...(input.homeData ? { homeData: input.homeData } : {}),
     // Read from the tenant every turn: a flow saved mid-conversation governs
     // the next turn, and the answers already given stay.
     flow: turnFlow(input, workflows, session),

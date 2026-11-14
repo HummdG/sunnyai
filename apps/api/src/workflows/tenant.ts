@@ -32,7 +32,7 @@ import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { flowForTenant } from '../flow/tenant.js';
 import type { Tenant } from '../tenants.js';
 
-import { APPENDED_BUILT_INS, V1_STEPS, defaultWorkflowSet, templateFor } from './templates.js';
+import { APPENDED_BUILT_INS, PAST_STEPS, defaultWorkflowSet, templateFor } from './templates.js';
 
 export interface TenantWorkflows {
   set: WorkflowSet;
@@ -65,18 +65,19 @@ function withBuiltIns(set: WorkflowSet): WorkflowSet {
 }
 
 /**
- * A built-in workflow still asking exactly its version 1 questions moves to the
- * current template's questions: the installer never edited them, so the
- * shorter default is theirs too. Anything they changed (a question, a prompt,
- * an effect) keeps their copy as it is. On, pages, name and triggers stay.
+ * A built-in workflow still asking exactly the questions of the version it
+ * began as moves to the current template's questions: the installer never
+ * edited them, so the shorter default is theirs too. Anything they changed (a
+ * question, a prompt, an effect) keeps their copy as it is. On, pages, name
+ * and triggers stay.
  */
 function upgradeUntouched(w: Workflow, now: string): Workflow {
-  if (w.kind === 'custom' || w.template?.id !== w.kind || w.template.version !== 1) return w;
-  const v1 = V1_STEPS[w.kind];
+  if (w.kind === 'custom' || w.template?.id !== w.kind) return w;
   const current = templateFor(w.kind, now);
-  if (!v1 || !current || current.template!.version === 1) return w;
+  if (!current || w.template.version >= current.template!.version) return w;
+  const past = PAST_STEPS[w.kind]?.[w.template.version];
   // Key order is not compared: a stored map can come back in any order.
-  if (!isDeepStrictEqual(w.steps, v1)) return w;
+  if (!past || !isDeepStrictEqual(w.steps, past)) return w;
   return { ...w, steps: current.steps, template: current.template, version: w.version + 1 };
 }
 

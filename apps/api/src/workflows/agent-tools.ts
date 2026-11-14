@@ -15,6 +15,7 @@ import type { Workflow } from '@sunny/contracts';
 import type { ToolContext, ToolResult } from '../agent/tools.js';
 import { startRoofAssessment } from '../agent/roof-assessment.js';
 import { DISCOVERY } from '../flow/banks.js';
+import { lookUpHome } from '../homedata/index.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
 import type { Proposal } from '../journey/extract.js';
@@ -299,6 +300,42 @@ async function measureNewAddress(
     : null;
 }
 
+/**
+ * Look the home up as soon as a quote workflow takes its address: Google's
+ * roof for solar, the energy certificates for a heat pump. What it finds is
+ * saved as answers, so the questions it answers are never asked. Returns the
+ * sentence for the assistant to say once, or null when nothing was found.
+ */
+async function lookUpNewAddress(
+  ctx: ToolContext,
+  r: Running,
+  result: Awaited<ReturnType<typeof submitAnswers>>,
+): Promise<string | null> {
+  const address = result.accepted.find((a) => a.questionId === 'address');
+  if (!address || !ctx.homeData || r.kind !== 'workflow') return null;
+  const outcome = r.workflow.outcome;
+  if (outcome.kind !== 'quote') return null;
+  const found = await lookUpHome(
+    ctx.homeData,
+    outcome.engine,
+    result.answers['address'] ?? address.value,
+    result.answers,
+    { warn: (object, message) => ctx.quote?.log?.warn(object, message) },
+  );
+  if (Object.keys(found.patch).length > 0 || found.removed.length > 0) {
+    const updated = await ctx.store.mergeAnswers(
+      ctx.tenant.id,
+      ctx.sessionId,
+      found.patch,
+      found.removed,
+    );
+    const answers = updated.answers ?? { ...result.answers, ...found.patch };
+    for (const key of found.removed) delete answers[key];
+    mirror(ctx, answers);
+  }
+  return found.found;
+}
+
 /** An address in the visitor's words, when the running flow asks for one and has none yet. */
 function volunteeredAddress(ctx: ToolContext, flow: ResolvedFlow, message: string): string | null {
   return flow.question('address') && !ctx.answers['address'] ? addressIn(message) : null;
@@ -312,14 +349,18 @@ function volunteeredAddress(ctx: ToolContext, flow: ResolvedFlow, message: strin
 async function captureOpeningAddress(
   ctx: ToolContext,
   r: Running,
-): Promise<Awaited<ReturnType<typeof startRoofAssessment>> | null> {
+): Promise<{
+  roofAssessment: Awaited<ReturnType<typeof startRoofAssessment>> | null;
+  homeRecords: string | null;
+}> {
   const address = volunteeredAddress(ctx, r.flow, ctx.visitorMessage ?? '');
-  if (!address) return null;
+  if (!address) return { roofAssessment: null, homeRecords: null };
   const result = await submitAnswers(depsOn(ctx, r.flow), ctx.tenant.id, ctx.sessionId, {
     proposals: [{ questionId: 'address', value: address }],
   });
   mirror(ctx, result.answers);
-  return measureNewAddress(ctx, r, result);
+  const homeRecords = await lookUpNewAddress(ctx, r, result);
+  return { roofAssessment: await measureNewAddress(ctx, r, result), homeRecords };
 }
 
 function parseProposals(args: Record<string, unknown>): Proposal[] {
@@ -412,7 +453,7 @@ export const WORKFLOW_TOOLS = [
       await saveSession(ctx, started.session);
       // The rest of this turn (labels, a lead filed now) runs on this workflow.
       ctx.flow = resolvedFlowFor(workflow);
-      const roofAssessment = await captureOpeningAddress(ctx, {
+      const { roofAssessment, homeRecords } = await captureOpeningAddress(ctx, {
         kind: 'workflow',
         workflow,
         flow: ctx.flow,
@@ -427,6 +468,7 @@ export const WORKFLOW_TOOLS = [
           ...(roofAssessment
             ? { roofAssessment: { ok: roofAssessment.ok, ...(roofAssessment.data as object) } }
             : {}),
+          ...(homeRecords ? { homeRecords: { said: homeRecords, tellTheVisitorOnce: true } } : {}),
         },
       };
     },
@@ -494,7 +536,8 @@ export const WORKFLOW_TOOLS = [
       });
       mirror(ctx, result.answers);
 
-      // A new address is measured straight away.
+      // A new address is looked up and measured straight away.
+      const homeRecords = await lookUpNewAddress(ctx, r, result);
       const roofAssessment = await measureNewAddress(ctx, r, result);
 
       const step = await stepOf(ctx, deps, r);
@@ -520,12 +563,14 @@ export const WORKFLOW_TOOLS = [
           ...(roofAssessment
             ? { roofAssessment: { ok: roofAssessment.ok, ...(roofAssessment.data as object) } }
             : {}),
+          ...(homeRecords ? { homeRecords: { said: homeRecords, tellTheVisitorOnce: true } } : {}),
           ...(r.kind === 'discovery' ? { suggest: suggestion } : {}),
           // Finished discovery is no longer running.
           ...(r.kind === 'discovery' && step.view.ready ? { active: null } : {}),
         },
         summary:
           `Saved ${saved}.` +
+          (homeRecords ? ` ${homeRecords}` : '') +
           (data['readyForQuote'] === true ? ' Ready for a quote.' : '') +
           (data['readyForLead'] === true ? ' Ready to pass on to the team.' : '') +
           (step.view.stage === 'not_suitable' ? ` ${summaryOf(r, step.view)}` : '') +

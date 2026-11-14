@@ -23,6 +23,7 @@ import { verifiedContext } from './prompt.js';
 import { CitationLedger, lexicalSearch, type PassageSearch } from './retrieval.js';
 import { ESTIMATE_DISCLAIMER, estimateSavings } from './savings.js';
 import { QUOTE_TOOLS, type QuoteToolContext } from '../journey/agent-tools.js';
+import type { HomeData } from '../homedata/index.js';
 import { WORKFLOW_TOOLS } from '../workflows/agent-tools.js';
 import { DISCOVERY_ID, complete, type WorkflowSession } from '../workflows/session.js';
 import { startRoofAssessment, sunscanResult } from './roof-assessment.js';
@@ -72,6 +73,8 @@ export interface ToolContext {
   sunscanConnected: boolean;
   /** The roof assessment service (the vendored SunScan engine), when it is on. */
   sunscan?: SunScanService;
+  /** Where a home's roof and energy certificate are looked up, when keys are set. */
+  homeData?: HomeData | null;
   /**
    * Where an effectful tool call is recorded, when the caller supplied one.
    *

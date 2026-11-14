@@ -27,7 +27,7 @@ import { FileStore } from '../src/store.js';
 import { DEMO_TENANT, TenantRegistry, type Tenant } from '../src/tenants.js';
 import { EMPTY_SESSION, cloneSession } from '../src/workflows/session.js';
 import {
-  V1_STEPS,
+  PAST_STEPS,
   defaultWorkflowSet,
   heatPumpTemplate,
   templateFor,
@@ -76,7 +76,7 @@ function setWithHeatPump(): WorkflowSet {
 /** The heat pump workflow as version 1 shipped it: every question, floor area included. */
 function setWithFullHeatPump(): WorkflowSet {
   const set = setWithHeatPump();
-  set.workflows[1]!.steps = structuredClone([...V1_STEPS.heat_pump_quote!]);
+  set.workflows[1]!.steps = structuredClone([...PAST_STEPS.heat_pump_quote![1]!]);
   return set;
 }
 
@@ -160,7 +160,7 @@ describe('the heat pump template', () => {
     expect(t.name).toBe('Heat pump quote');
     expect(t.enabled).toBe(false);
     expect(t.outcome).toEqual({ kind: 'quote', engine: 'heat_pump' });
-    expect(t.template).toEqual({ id: 'heat_pump_quote', version: 2 });
+    expect(t.template).toEqual({ id: 'heat_pump_quote', version: 3 });
     expect(t.interests).toEqual(['heating']);
     expect(t.pages).toEqual({ include: [], exclude: [] });
     expect(templateFor('heat_pump_quote', NOW)?.id).toBe('wf_heat_pump');
@@ -183,7 +183,7 @@ describe('the heat pump template', () => {
     expect(set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump', 'wf_battery']);
     expect(set.workflows[0]).toEqual(stored.workflows[0]);
     expect(set.workflows[1]!.enabled).toBe(false);
-    expect(set.workflows[1]!.template).toEqual({ id: 'heat_pump_quote', version: 2 });
+    expect(set.workflows[1]!.template).toEqual({ id: 'heat_pump_quote', version: 3 });
   });
 
   it('keeps a stored heat pump workflow as the installer left it', () => {
@@ -200,7 +200,10 @@ describe('the heat pump template', () => {
     expect(bankFor('heat_pump')).toBe(HEAT_PUMP);
     const flow = resolvedFlowFor(heatPumpOn());
     expect(flow.bank).toBe(HEAT_PUMP);
-    expect(flow.question('hp_walls')!.prompt).toBe('What are the outside walls like?');
+    expect(flow.question('hp_age')!.prompt).toBe('Roughly when was the home built?');
+    // Few homeowners know their walls, loft or glazing: never asked by default.
+    for (const id of ['hp_walls', 'hp_loft', 'hp_glazing'])
+      expect(flow.question(id)).toBeUndefined();
   });
 });
 
@@ -210,16 +213,14 @@ describe('the heat pump questions', () => {
     const ctx = context(store);
     const first = await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
     expect(first.ok).toBe(true);
-    expect(first.data['nextQuestionId']).toBe('property_type');
+    expect(first.data['nextQuestionId']).toBe('ownership');
 
     const order = [
-      'property_type',
       'ownership',
       'address',
+      'property_type',
       'hp_age',
       'hp_bedrooms',
-      'hp_walls',
-      'hp_loft',
       'hp_current_heating',
       'hp_emitters',
       'hp_hot_water',

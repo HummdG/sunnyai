@@ -1003,7 +1003,7 @@ describe('POST /v1/qualification/answer', () => {
     const { app } = await h();
     const { sessionId, token } = await openSession(app);
 
-    const response = await submit(app, token, sessionId, 'roof_direction', 'south');
+    const response = await submit(app, token, sessionId, 'existing_system', 'solar');
     expect(response.statusCode).toBe(200);
 
     const body = response.json<{
@@ -1011,8 +1011,8 @@ describe('POST /v1/qualification/answer', () => {
       answers: Record<string, string>;
       nextQuestionId: string | null;
     }>();
-    expect(body.questionId).toBe('roof_direction');
-    expect(body.answers['roof_direction']).toBe('south');
+    expect(body.questionId).toBe('existing_system');
+    expect(body.answers['existing_system']).toBe('solar');
     // The tenant has no workflow of its own, so the solar template's order applies.
     expect(body.nextQuestionId).toBe('ownership');
   });
@@ -1039,11 +1039,11 @@ describe('POST /v1/qualification/answer', () => {
     const { sessionId, token } = await openSession(app);
 
     await submit(app, token, sessionId, 'address', '1 Test Street');
-    const second = await submit(app, token, sessionId, 'roof_direction', 'west');
+    const second = await submit(app, token, sessionId, 'existing_system', 'battery');
 
     const body = second.json<{ answers: Record<string, string>; nextQuestionId: string | null }>();
     expect(body.answers['address']).toBe('1 Test Street');
-    expect(body.answers['roof_direction']).toBe('west');
+    expect(body.answers['existing_system']).toBe('battery');
     // The suggestion follows the solar template's order, which opens with ownership.
     expect(body.nextQuestionId).toBe('ownership');
   });
@@ -1052,12 +1052,12 @@ describe('POST /v1/qualification/answer', () => {
     const { app } = await h();
     const { sessionId, token } = await openSession(app);
 
-    const response = await submit(app, token, sessionId, 'roof_direction', 'sideways');
+    const response = await submit(app, token, sessionId, 'existing_system', 'sideways');
     expect(response.statusCode).toBe(400);
 
     const error = response.json<{ error: { code: string; message: string } }>().error;
     expect(error.code).toBe('bad_request');
-    expect(error.message).toContain('south');
+    expect(error.message).toContain('solar_battery');
   });
 
   it('rejects a question that does not exist, naming the real ones', async () => {
@@ -1066,7 +1066,7 @@ describe('POST /v1/qualification/answer', () => {
 
     const response = await submit(app, token, sessionId, 'roof_vibe', 'good');
     expect(response.statusCode).toBe(400);
-    expect(response.json<{ error: { message: string } }>().error.message).toContain('roof_size');
+    expect(response.json<{ error: { message: string } }>().error.message).toContain('usage_source');
   });
 
   it('suggests the follow-up the usage answer actually opened', async () => {
@@ -1085,7 +1085,7 @@ describe('POST /v1/qualification/answer', () => {
       // fallback step); a trusted mapping would ask for confirmation instead.
       ['roof_confidence', 'low'],
       ['roof_size', 'medium'],
-      ['roof_direction', 'south'],
+      ['existing_system', 'solar'],
       ['roof_shading', 'none'],
       ['property_type', 'detached'],
       ['ownership', 'own'],
@@ -1249,14 +1249,14 @@ describe('POST /v1/qualification/answer', () => {
       const { app } = await h();
       const { sessionId, token } = await openSession(app);
 
-      // `roof_direction` gates nothing and is not a gate, so changing it takes
+      // `existing_system` gates nothing and is not a gate, so changing it takes
       // nothing with it -- and the field is present as an empty array rather than
       // omitted, so a page can read it without a null check.
-      await submit(app, token, sessionId, 'roof_direction', 'south');
-      const corrected = await submit(app, token, sessionId, 'roof_direction', 'west');
+      await submit(app, token, sessionId, 'existing_system', 'solar');
+      const corrected = await submit(app, token, sessionId, 'existing_system', 'battery');
 
       const body = corrected.json<CorrectionBody>();
-      expect(body.answers['roof_direction']).toBe('west');
+      expect(body.answers['existing_system']).toBe('battery');
       expect(body.removedAnswers).toEqual([]);
     });
 
@@ -1268,7 +1268,7 @@ describe('POST /v1/qualification/answer', () => {
       // conflicting, so it stands -- and stays standing through an unrelated
       // write.
       await submit(app, token, sessionId, 'annual_kwh', '4200');
-      const other = await submit(app, token, sessionId, 'roof_direction', 'west');
+      const other = await submit(app, token, sessionId, 'existing_system', 'battery');
       expect(other.json<CorrectionBody>().answers['annual_kwh']).toBe('4200');
 
       // Then the gate is answered the other way, and the figure it settled
@@ -1315,7 +1315,7 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'roof_shading', value: 'none' },
+      payload: { sessionId, questionId: 'existing_system', value: 'none' },
     });
 
     await app.inject({
@@ -1327,7 +1327,7 @@ describe('qualification answers reach the conversation', () => {
 
     // Both, not one: the context saw the route's answer as well as the turn's.
     const [lead] = await store.listLeads('t_demo0001');
-    expect(lead?.flowAnswers?.map((a) => a.id).sort()).toEqual(['ownership', 'roof_shading']);
+    expect(lead?.flowAnswers?.map((a) => a.id).sort()).toEqual(['existing_system', 'ownership']);
   });
 
   it('keeps both answers after the turn, and records only the turn on the turn', async () => {
@@ -1351,7 +1351,7 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/qualification/answer',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, questionId: 'roof_shading', value: 'none' },
+      payload: { sessionId, questionId: 'existing_system', value: 'none' },
     });
     await app.inject({
       method: 'POST',
@@ -1373,7 +1373,7 @@ describe('qualification answers reach the conversation', () => {
     // The per-turn map is the audit trail: it says what *this* turn changed.
     expect(assistant?.answers).toEqual({ ownership: 'own' });
     const stored = await store.getConversation('t_demo0001', sessionId);
-    expect(stored?.answers).toEqual({ roof_shading: 'none', ownership: 'own' });
+    expect(stored?.answers).toEqual({ existing_system: 'none', ownership: 'own' });
   });
 
   it('records several answers from one turn, so the assistant need not ask twice', async () => {

@@ -80,6 +80,7 @@ import { brandAssetStoreFromEnv, type BrandAssetStore } from './branding/store.j
 import { registerCataloguePortalRoutes } from './routes/catalogue-portal.js';
 import { registerEmailRoutes, type EmailHooks, type EmailOverrides } from './routes/email.js';
 import type { SunScanService } from '@sunny/sunscan-adapter';
+import { homeDataFromEnv, type HomeData } from './homedata/index.js';
 import {
   createDefaultSunScan,
   registerSunScanRoutes,
@@ -125,6 +126,11 @@ export interface ServerDeps {
    * reads the environment (SUNSCAN_QUEUE=cloud-tasks); null switches it off.
    */
   sunscanTaskVerifier?: ((token: string) => Promise<boolean>) | null;
+  /**
+   * Home lookups from an address (Google's roof model, energy certificates).
+   * Absent reads the keys from the environment; null turns them off.
+   */
+  homeData?: HomeData | null;
   /** Uploaded logos. Absent reads the environment: local disk under `dataDir`, or GCS. */
   brandAssets?: BrandAssetStore;
   /** Defaults to the unconfigured provider when no key is set. */
@@ -213,6 +219,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   const quotePricing = deps.quotePricing ?? catalogueBackedPricing(store);
   const sunscan =
     deps.sunscan !== undefined ? deps.sunscan : createDefaultSunScan(store, config.dataDir);
+  // Tests that build a server get none unless they hand one in: no keys, no calls.
+  const homeData =
+    deps.homeData !== undefined
+      ? deps.homeData
+      : config.nodeEnv === 'test'
+        ? null
+        : homeDataFromEnv(process.env);
   const limiter = deps.rateLimiter ?? createRateLimiter({ now, maxKeys: config.rateLimit.maxKeys });
 
   // Built once per server, so the chunk cache survives across requests and a
@@ -755,6 +768,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           clientMessageId,
           sunscanConnected,
           ...(sunscan ? { sunscan } : {}),
+          ...(homeData ? { homeData } : {}),
           knowledge,
           audit,
           origin,

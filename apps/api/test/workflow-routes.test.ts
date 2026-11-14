@@ -775,7 +775,7 @@ describe('POST /workflows/:id/reset', () => {
     expect(reset.name).toBe('Heat pump quote');
     expect(reset.enabled).toBe(true);
     expect(reset.steps).toEqual(hp.steps);
-    expect(reset.template).toEqual({ id: 'heat_pump_quote', version: 2 });
+    expect(reset.template).toEqual({ id: 'heat_pump_quote', version: 3 });
   });
 
   it('resets the battery workflow to its template', async () => {

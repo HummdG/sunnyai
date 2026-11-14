@@ -554,7 +554,7 @@ const ROUTES: RouteSpec[] = [
     url: () => '/v1/qualification/answer',
     kind: 'visitor',
     namesSession: true,
-    payload: (ids) => ({ sessionId: ids.sessionId, questionId: 'roof_direction', value: 'south' }),
+    payload: (ids) => ({ sessionId: ids.sessionId, questionId: 'existing_system', value: 'solar' }),
   },
   {
     method: 'POST',
@@ -2129,8 +2129,8 @@ describe('data isolation', () => {
       headers: { authorization: visitorToken(ISOLATION_DEMO) },
       payload: {
         sessionId: ISOLATION_DEMO.sessionId,
-        questionId: 'roof_direction',
-        value: 'south',
+        questionId: 'existing_system',
+        value: 'solar',
       },
     });
     expect(answered.statusCode).toBe(200);

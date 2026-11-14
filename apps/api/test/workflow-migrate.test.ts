@@ -6,7 +6,7 @@ import { resolveFlow } from '../src/flow/resolve.js';
 import { flowForTenant } from '../src/flow/tenant.js';
 import { DEMO_TENANT, TenantRegistry, type Tenant } from '../src/tenants.js';
 import {
-  V1_STEPS,
+  PAST_STEPS,
   defaultWorkflowSet,
   heatPumpTemplate,
   solarTemplate,
@@ -178,13 +178,11 @@ describe('solarTemplate', () => {
     expect(w.steps.map((s) => s.id)).toEqual([
       'ownership',
       'address',
-      'roof_size',
-      'roof_shading',
       'usage_source',
       'lifestyle',
       'existing_system',
     ]);
-    expect(w.template).toEqual({ id: 'solar_quote', version: 2 });
+    expect(w.template).toEqual({ id: 'solar_quote', version: 3 });
     expect(defaultWorkflowSet(NOW).discovery.enabled).toBe(true);
   });
 
@@ -194,17 +192,17 @@ describe('solarTemplate', () => {
 });
 
 describe('an untouched version 1 built-in', () => {
-  function storedWith(steps: FlowStep[], kind: 'solar' | 'heat_pump'): Tenant {
+  function storedWith(steps: FlowStep[], kind: 'solar' | 'heat_pump', version = 1): Tenant {
     const set = defaultWorkflowSet(NOW);
     const hp = heatPumpTemplate(NOW);
     const solar = set.workflows[0]!;
     if (kind === 'solar') {
       solar.steps = steps;
-      solar.template = { id: 'solar_quote', version: 1 };
+      solar.template = { id: 'solar_quote', version };
       solar.version = 4;
     } else {
       hp.steps = steps;
-      hp.template = { id: 'heat_pump_quote', version: 1 };
+      hp.template = { id: 'heat_pump_quote', version };
       hp.enabled = true;
     }
     set.workflows.push(hp);
@@ -212,23 +210,44 @@ describe('an untouched version 1 built-in', () => {
   }
 
   it('moves to the shorter solar questions, keeping the version counting on', () => {
-    const tenant = storedWith(structuredClone([...V1_STEPS.solar_quote!]), 'solar');
+    const tenant = storedWith(structuredClone([...PAST_STEPS.solar_quote![1]!]), 'solar');
     const solar = workflowsForTenant(tenant).set.workflows[0]!;
     expect(solar.steps).toEqual(solarTemplate(NOW).steps);
-    expect(solar.template).toEqual({ id: 'solar_quote', version: 2 });
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 3 });
     expect(solar.version).toBe(5);
   });
 
+  it('moves from version 2 too, solar and heat pump alike', () => {
+    const solar = workflowsForTenant(
+      storedWith(structuredClone([...PAST_STEPS.solar_quote![2]!]), 'solar', 2),
+    ).set.workflows[0]!;
+    expect(solar.steps).toEqual(solarTemplate(NOW).steps);
+    expect(solar.steps.map((s) => s.id)).not.toContain('roof_shading');
+    const hp = workflowsForTenant(
+      storedWith(structuredClone([...PAST_STEPS.heat_pump_quote![2]!]), 'heat_pump', 2),
+    ).set.workflows.find((w) => w.id === 'wf_heat_pump')!;
+    expect(hp.steps).toEqual(heatPumpTemplate(NOW).steps);
+    expect(hp.steps.map((s) => s.id)).not.toContain('hp_walls');
+  });
+
+  it('keeps an edited version 2 copy as it is', () => {
+    const steps = structuredClone([...PAST_STEPS.solar_quote![2]!]);
+    steps.push({ kind: 'preset', id: 'tariff_type' });
+    const solar = workflowsForTenant(storedWith(steps, 'solar', 2)).set.workflows[0]!;
+    expect(solar.steps).toEqual(steps);
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 2 });
+  });
+
   it('moves to the shorter heat pump questions and stays switched on', () => {
-    const tenant = storedWith(structuredClone([...V1_STEPS.heat_pump_quote!]), 'heat_pump');
+    const tenant = storedWith(structuredClone([...PAST_STEPS.heat_pump_quote![1]!]), 'heat_pump');
     const hp = workflowsForTenant(tenant).set.workflows.find((w) => w.id === 'wf_heat_pump')!;
     expect(hp.steps).toEqual(heatPumpTemplate(NOW).steps);
     expect(hp.enabled).toBe(true);
-    expect(hp.template?.version).toBe(2);
+    expect(hp.template?.version).toBe(3);
   });
 
   it('is left alone once the installer has edited a question', () => {
-    const steps = structuredClone([...V1_STEPS.solar_quote!]);
+    const steps = structuredClone([...PAST_STEPS.solar_quote![1]!]);
     steps[1] = { kind: 'preset', id: 'property_type', prompt: 'What sort of home is it?' };
     const tenant = storedWith(steps, 'solar');
     const solar = workflowsForTenant(tenant).set.workflows[0]!;
@@ -237,15 +256,15 @@ describe('an untouched version 1 built-in', () => {
   });
 
   it('moves whatever order the stored keys come back in', () => {
-    const reordered = V1_STEPS.solar_quote!.map((step) =>
+    const reordered = PAST_STEPS.solar_quote![1]!.map((step) =>
       Object.fromEntries(Object.entries(step).reverse()),
     ) as FlowStep[];
     const solar = workflowsForTenant(storedWith(reordered, 'solar')).set.workflows[0]!;
-    expect(solar.template).toEqual({ id: 'solar_quote', version: 2 });
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 3 });
   });
 
   it('reads the same twice', () => {
-    const tenant = storedWith(structuredClone([...V1_STEPS.solar_quote!]), 'solar');
+    const tenant = storedWith(structuredClone([...PAST_STEPS.solar_quote![1]!]), 'solar');
     expect(workflowsForTenant(tenant).set).toEqual(workflowsForTenant(tenant).set);
   });
 });

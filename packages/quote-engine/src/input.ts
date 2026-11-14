@@ -9,6 +9,7 @@
 import { DEFAULT_ANNUAL_KWH, TDCV_ELECTRICITY_KWH } from './consumption.js';
 import { getIrradianceKwhPerM2, getZoneForPostcode } from './mcs.js';
 import type { RoofType } from './pricing/types.js';
+import type { GoogleSolarBuildingInsights } from './types.js';
 import type { OptionSetInput } from './recommend/optionTypes.js';
 import { DEFAULT_ENGINE_ASSUMPTIONS, type TenantPricing } from './pricing-source.js';
 import { getTariffForPostcode } from './tariff.js';
@@ -51,6 +52,12 @@ export interface QuoteAnswers {
   motivation?: string | null;
   existing?: string | null;
   budgetBandId: string | null;
+  /**
+   * Google Solar's model of this roof, when Sunny has one. Its per-panel
+   * generation already allows for shade from trees and nearby buildings, so the
+   * engine prices on it instead of the MCS irradiance and a shading guess.
+   */
+  solarInsights?: GoogleSolarBuildingInsights | null;
 }
 
 // Fallback roof-question mappings (only used when mapping confidence is low).
@@ -141,9 +148,9 @@ export function buildQuoteInput(answers: QuoteAnswers, pricing: TenantPricing): 
     roofType: answers.roof.roofType,
     pitchDeg,
     mcsOrientationDeg,
-    // Sunny's roof comes from the SunScanV2 LiDAR fit, not Google Solar, so the
-    // engine takes its MCS-irradiance path.
-    solarInsights: null,
+    // With Google's roof model the engine prices on its shade-aware generation;
+    // without one (a SunScan roof or none) it takes the MCS-irradiance path.
+    solarInsights: answers.solarInsights ?? null,
     annualKwh,
     importTariffPence: importPence,
     exportTariffPence: exportPence,

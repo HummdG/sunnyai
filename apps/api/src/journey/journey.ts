@@ -14,6 +14,7 @@
 import type { QuoteAnswers, QuoteUsage, TenantPricing } from '@sunny/quote-engine';
 
 import { resolveFlow, SKIPPED, type ResolvedFlow } from '../flow/resolve.js';
+import { insightsFromRoof, parseGoogleRoof } from '../homedata/solar.js';
 import { QUESTIONS, reconcile } from '../questionnaire.js';
 
 import { confirmationPrompt, FACING_TO_DIRECTION, type MappedRoof } from './roof.js';
@@ -23,6 +24,10 @@ export const JOURNEY_KEYS = {
   postcode: 'journey_postcode',
   /** The visitor said the mapped roof is wrong; the mapping stays untrusted. */
   roofRejected: 'journey_roof_rejected',
+  /** Google's roof model for the address (homedata/solar.ts `GoogleRoof`, JSON). */
+  homeSolar: 'journey_home_solar',
+  /** Where the energy certificate answers came from (homedata `EpcRecord`, JSON). */
+  homeEpc: 'journey_home_epc',
 } as const;
 
 export type JourneyStage =
@@ -247,7 +252,26 @@ export function quoteAnswers(
   // they do when there is no assessment at all; the size answer, when given,
   // is applied by the engine's low-confidence branch.
   const trusted = roof && confidence !== 'low' ? roof : null;
+  // Google's roof model, when the address had one (homedata/solar.ts), comes
+  // first: its panel room is measured from imagery, and its generation allows
+  // for shade, which no visitor can be asked to judge.
+  const google = parseGoogleRoof(answers[JOURNEY_KEYS.homeSolar]);
+  if (google) {
+    return {
+      ...rest(answers, usage, lifestyle, pricing),
+      postcode: view.postcode,
+      roof: {
+        pitchDeg: google.pitchDeg,
+        mcsOrientationDeg: google.mcsOrientationDeg,
+        maxPanelCount: google.usablePanels,
+        roofType: trusted?.roofType ?? (google.pitchDeg < 10 ? 'flat' : 'pitched'),
+        confidence: 'high',
+      },
+      solarInsights: insightsFromRoof(google),
+    };
+  }
   return {
+    ...rest(answers, usage, lifestyle, pricing),
     postcode: view.postcode,
     roof: {
       pitchDeg: trusted?.pitchDeg ?? 35,
@@ -263,6 +287,17 @@ export function quoteAnswers(
         answers['roof_direction'] ?? (roof?.facing ? FACING_TO_DIRECTION[roof.facing] : null),
       shading: answers['roof_shading'] ?? null,
     },
+  };
+}
+
+/** The answers a quote reads that have nothing to do with the roof. */
+function rest(
+  answers: Record<string, string>,
+  usage: QuoteUsage,
+  lifestyle: string[],
+  pricing: TenantPricing | null,
+): Omit<QuoteAnswers, 'postcode' | 'roof'> {
+  return {
     usage,
     tariffType: answers['tariff_type'] ?? null,
     lifestyle,

@@ -39,9 +39,9 @@ export const PRESET_GROUPS: Readonly<Record<string, readonly string[]>> = {
  */
 export const PRESET_WARNINGS: Readonly<Record<string, string>> = {
   roof_shading:
-    'Sunny uses this to allow for shade. Without it, quotes assume no shading, so generation and savings may be too high.',
+    "Sunny reads shade from Google's roof model when it has the home. Without that or this question, quotes allow for typical shade.",
   roof_size:
-    'Sunny uses this when it cannot map the roof. Without it, quotes assume a medium roof.',
+    "Sunny uses this only when neither Google's roof model nor the 3D measurement has the home. Without it, quotes assume a typical roof.",
   roof_direction:
     'Sunny uses this when it cannot map the roof. Without it, quotes assume a south-facing roof, so savings may be too high.',
   usage_source:

@@ -26,6 +26,7 @@ import {
 
 import { getPublishedPriceList } from '../../catalogue/price-list-service.js';
 import { SKIPPED } from '../../flow/resolve.js';
+import { HOME_KEYS, epcAssumption, parseEpcRecord } from '../../homedata/index.js';
 import type { Store } from '../../store.js';
 import type { QuoteLineItem } from '../quote.js';
 import { quotationNow, warrantiesNow, type JourneyDeps } from '../service.js';
@@ -94,6 +95,8 @@ function readAnswers(
   const postcode = heatPumpPostcode(answers);
   if (!postcode) return null;
   const assumptions: string[] = [];
+  const records = epcAssumption(parseEpcRecord(answers[HOME_KEYS.epc]));
+  if (records) assumptions.push(records);
   let ageBand = pick(answers['hp_age'], AGE_BANDS);
   if (!ageBand) {
     ageBand = '1965_1982';

@@ -21,7 +21,9 @@ import {
   KWH_PER_KWP_UK,
   resolveAnnualKwh,
   runSolarCalculations,
+  runSolarCalculationsFromGoogleData,
   SHADING_LOSS,
+  type GoogleSolarBuildingInsights,
   TIER_DEMAND_FACTOR,
   type OptionResult,
   type QuoteAnswers,
@@ -39,6 +41,7 @@ import { PRESET_TOPICS, PRESET_WARNINGS } from '../flow/presets.js';
 import type { ResolvedFlow } from '../flow/resolve.js';
 
 import type { QuotationSnapshot } from '../proposal/snapshot.js';
+import { solarTemplate } from '../workflows/templates.js';
 
 import type { MappedRoof } from './roof.js';
 
@@ -242,6 +245,19 @@ function viewOf(
   };
 }
 
+/** Yearly DC kWh per panel from Google's layout nearest this size, or null without one. */
+function googlePerPanelDc(
+  insights: GoogleSolarBuildingInsights | null | undefined,
+  count: number,
+): number | null {
+  const configs = insights?.solarPotential.solarPanelConfigs ?? [];
+  if (configs.length === 0) return null;
+  const nearest = configs.reduce((best, c) =>
+    Math.abs(c.panelsCount - count) < Math.abs(best.panelsCount - count) ? c : best,
+  );
+  return nearest.yearlyEnergyDcKwh / Math.max(1, nearest.panelsCount);
+}
+
 /** Three sizes without prices, for an installer that has not uploaded a price list. */
 function unpricedOptions(answers: QuoteAnswers): {
   basis: QuoteRecord['basis'];
@@ -282,14 +298,34 @@ function unpricedOptions(answers: QuoteAnswers): {
   // the mid-sized one (the larger one still differs by its battery)
   const distinct = tiers.filter((t) => !(t.tier === 'essential' && t.count === tiers[1]!.count));
   const options = distinct.map(({ tier, count }) => {
-    const r = runSolarCalculations(count, DEFAULT_PANEL, irradiance, annualKwh, importPence, {
+    const assumptions = {
       ...DEFAULT_ASSUMPTIONS,
       roofPitchDeg: answers.roof.pitchDeg,
       roofOrientationDeg: answers.roof.mcsOrientationDeg,
       shadingLoss: shading,
       exportTariffPencePerKwh: exportPence,
       hasBattery: tier === 'premium',
-    });
+    };
+    // Google's shade-aware generation for this roof, when Sunny has it.
+    const perPanel = googlePerPanelDc(answers.solarInsights, count);
+    const r =
+      perPanel !== null
+        ? runSolarCalculationsFromGoogleData(
+            perPanel * count,
+            count,
+            answers.solarInsights!.solarPotential.panelCapacityWatts,
+            annualKwh,
+            importPence,
+            assumptions,
+          )
+        : runSolarCalculations(
+            count,
+            DEFAULT_PANEL,
+            irradiance,
+            annualKwh,
+            importPence,
+            assumptions,
+          );
     const view: QuoteOptionView = {
       id: tier,
       label: labels[tier],
@@ -351,6 +387,14 @@ function listOf(items: string[]): string {
 const ROOF_FALLBACK = new Set(['roof_size', 'roof_direction']);
 
 /**
+ * The presets Sunny's own solar workflow asks. In a workflow, only removing
+ * one of these is the installer's choice: the rest Sunny leaves out itself
+ * (the roof's size and shade come from the roof model, or typical values), so
+ * their absence is not news to the visitor.
+ */
+const SUNNY_ASKS: ReadonlySet<string> = new Set(solarTemplate('').steps.map((s) => s.id));
+
+/**
  * The price-dependent presets the installer removed, and the sentence that
  * says so. A mapped roof (confidence not low) never needed the roof size or
  * direction questions, so their removal is not news to this visitor.
@@ -358,10 +402,17 @@ const ROOF_FALLBACK = new Set(['roof_size', 'roof_direction']);
 function estimates(
   flow: ResolvedFlow | undefined,
   roofConfidence: string,
+  roofModelled: boolean,
 ): { ids: string[]; warning: string | null } {
   const roofTrusted = roofConfidence !== 'low';
+  const workflow = flow?.bank.id === 'solar';
   const ids = (flow?.removedPresets ?? []).filter(
-    (id) => id in PRESET_WARNINGS && !(roofTrusted && ROOF_FALLBACK.has(id)),
+    (id) =>
+      id in PRESET_WARNINGS &&
+      (!workflow || SUNNY_ASKS.has(id)) &&
+      !(roofTrusted && ROOF_FALLBACK.has(id)) &&
+      // Google's roof model measured the size and the shade itself.
+      !(roofModelled && (ROOF_FALLBACK.has(id) || id === 'roof_shading')),
   );
   if (ids.length === 0) return { ids, warning: null };
   const topics = ids.map((id) => PRESET_TOPICS[id] ?? id);
@@ -390,7 +441,7 @@ export function buildQuote(input: {
   priceList?: PriceList | null;
 }): QuoteRecord {
   const { answers, roof } = input;
-  const estimated = estimates(input.flow, answers.roof.confidence);
+  const estimated = estimates(input.flow, answers.roof.confidence, Boolean(answers.solarInsights));
   const base = {
     id: input.id,
     tenantId: input.tenantId,
