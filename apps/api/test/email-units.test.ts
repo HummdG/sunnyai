@@ -258,6 +258,18 @@ describe('MIME', () => {
 });
 
 describe('the reply', () => {
+  it('leaves out citation markers written as a group', () => {
+    // The model writes "[S2, S3]" as well as "[S1]".
+    const reply = composeReply({
+      answer: 'The inverter is covered for ten years [S2, S3]. Panels for 25 [S1,S4].',
+      companyName: 'Northwind Solar',
+      senderName: 'Jo Bloggs',
+      sources: [],
+    });
+    expect(reply).not.toMatch(/\[S\d/);
+    expect(reply).toContain('covered for ten years. Panels for 25.');
+  });
+
   it('is formal, lists linked sources, signs off and always ends with the footer', () => {
     const reply = composeReply({
       answer: 'If your system appears offline, the data logger may need reconnecting. [S1]',

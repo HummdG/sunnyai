@@ -19,6 +19,8 @@
  * knowledge retrieval, or contains a figure no cited passage contains.
  */
 
+import { withoutCitations } from '../../agent/retrieval.js';
+
 import type { EmailCategory } from './category.js';
 
 export interface GroundingInput {
@@ -75,7 +77,7 @@ export function groundingConfidence(input: GroundingInput): number {
     .join('\n')
     .replace(/[,\s]/g, '');
   // Citation markers ([S1]) are not figures.
-  for (const figure of figures(input.answer.replace(/\[S\d+\]/g, ''))) {
+  for (const figure of figures(withoutCitations(input.answer))) {
     const bare = figure.replace(/^[£$€]/, '').replace(/%$/, '');
     if (!evidence.includes(bare)) return 0;
   }

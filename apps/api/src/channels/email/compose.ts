@@ -1,4 +1,5 @@
 import { EMAIL_DISCLAIMER_FOOTER } from '../../agent/channels.js';
+import { withoutCitations } from '../../agent/retrieval.js';
 
 /**
  * The email reply, in the channel matrix's "formal email template + legal
@@ -41,10 +42,8 @@ const SIGN_OFF =
   /(kind regards|best regards|regards|best wishes|many thanks|thanks|sincerely|yours)[,!.]?\s*\n?.*$/i;
 
 export function composeReply(input: ComposeInput): string {
-  let body = stripFooter(input.answer)
-    // Citation markers are for the chat widget; an email lists its sources.
-    .replace(/\s*\[S\d+\]/g, '')
-    .trim();
+  // Citation markers are for the chat widget; an email lists its sources.
+  let body = withoutCitations(stripFooter(input.answer)).trim();
   const lines: string[] = [];
   if (!GREETING.test(body)) {
     lines.push(`Hello ${firstName(input.senderName) ?? 'there'},`, '');

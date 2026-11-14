@@ -131,3 +131,12 @@ export function withWholePage(
   // The page first, in reading order; the other pages' hits after it.
   return [...pageHits, ...hits.filter((h) => h.chunk.documentId !== page)];
 }
+
+/**
+ * A reply without its citation markers, single ("[S6]") or grouped
+ * ("[S6, S7]"), for anywhere that is not the chat: the widget turns them into
+ * its sources list, and everywhere else they are noise a reader should not see.
+ */
+export function withoutCitations(text: string): string {
+  return text.replace(/\s*\[S\d+(?:\s*,\s*S\d+)*\]/g, '');
+}

@@ -1,5 +1,6 @@
 import { isEntitled } from '../../agent/channels.js';
 import type { ChatProvider } from '../../agent/provider.js';
+import { withoutCitations } from '../../agent/retrieval.js';
 import type { BatteryQuoteRecord } from '../../journey/battery/record.js';
 import { grantStatusOf, type HeatPumpQuoteRecord } from '../../journey/heat-pump/record.js';
 import type { StoredQuote } from '../../journey/quote-kinds.js';
@@ -52,7 +53,11 @@ const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 export function transcriptFor(turns: readonly ConversationTurn[], latest?: string): string {
   const lines = turns
     .slice(-MAX_TURNS)
-    .map((t) => `${t.role === 'user' ? 'Visitor' : 'Assistant'}: ${t.text.trim()}`)
+    // Citation markers mean nothing outside the chat, and the writer of the
+    // email would copy them.
+    .map(
+      (t) => `${t.role === 'user' ? 'Visitor' : 'Assistant'}: ${withoutCitations(t.text).trim()}`,
+    )
     .filter((line) => !line.endsWith(':'));
   if (latest && !turns.some((t) => t.role === 'user' && t.text.trim() === latest.trim())) {
     lines.push(`Visitor: ${latest.trim()}`);
@@ -245,7 +250,9 @@ async function writeBody(
 
 /** House style: no em dashes in anything a customer reads. */
 function tidy(text: string): string {
-  return text.replace(/\s*—\s*/g, ', ').replace(/\*\*/g, '');
+  return withoutCitations(text)
+    .replace(/\s*—\s*/g, ', ')
+    .replace(/\*\*/g, '');
 }
 
 export class LeadFollowUp {

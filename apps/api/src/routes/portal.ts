@@ -11,6 +11,7 @@ import {
   roleAtLeast,
   verifySignInProof,
 } from '../auth/index.js';
+import { withoutCitations } from '../agent/retrieval.js';
 import { issueInviteToken, verifyInviteToken } from '../auth/invite.js';
 import {
   issueSessionToken,
@@ -229,7 +230,7 @@ function conversationEscalation(
 
 function preview(c: Conversation): string {
   const lastUser = [...c.turns].reverse().find((t) => t.role === 'user');
-  const text = (lastUser ?? c.turns[c.turns.length - 1])?.text ?? '';
+  const text = withoutCitations((lastUser ?? c.turns[c.turns.length - 1])?.text ?? '');
   return text.length > 140 ? `${text.slice(0, 139)}…` : text;
 }
 

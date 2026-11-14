@@ -2,7 +2,7 @@ import type { KnowledgeChunk } from '@sunny/knowledge';
 import { describe, expect, it } from 'vitest';
 
 import { buildSystemInstruction, contactRules } from '../src/agent/prompt.js';
-import { CitationLedger } from '../src/agent/retrieval.js';
+import { CitationLedger, withoutCitations } from '../src/agent/retrieval.js';
 import { DEMO_TENANT, type Tenant } from '../src/tenants.js';
 
 /**
@@ -91,5 +91,13 @@ describe('cited sources', () => {
     );
     const cited = ledger.cited('Steps here [S2, S3]. Or [S4,S1]. And [S1].');
     expect(cited.map((p) => p.ref).sort()).toEqual(['S1', 'S2', 'S3', 'S4']);
+  });
+});
+
+describe('citation markers outside the chat', () => {
+  it('are taken out, single or grouped, with the space before them', () => {
+    expect(withoutCitations('Panels last 25 years [S1].')).toBe('Panels last 25 years.');
+    expect(withoutCitations('Covered [S2, S3] and [S4,S5] too.')).toBe('Covered and too.');
+    expect(withoutCitations('Section [A1] stays.')).toBe('Section [A1] stays.');
   });
 });

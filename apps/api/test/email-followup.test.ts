@@ -265,6 +265,17 @@ describe('lead follow-up email', () => {
     const text = transcriptFor([], 'My email is sarah@customer.example');
     expect(text).toBe('Visitor: My email is sarah@customer.example');
   });
+
+  it('leaves citation markers out of the transcript, single or grouped', () => {
+    const at = '2026-11-14T10:00:00.000Z';
+    const text = transcriptFor([
+      { role: 'user', text: 'How long do panels last?', at },
+      { role: 'assistant', text: 'About 25 years [S1]. They are guaranteed too [S2, S3].', at },
+    ] as Parameters<typeof transcriptFor>[0]);
+    expect(text).toBe(
+      'Visitor: How long do panels last?\nAssistant: About 25 years. They are guaranteed too.',
+    );
+  });
 });
 
 describe('composeReply signature', () => {
