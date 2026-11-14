@@ -610,7 +610,13 @@ export const WORKFLOW_TOOLS = [
         };
       }
       const deps = depsOn(ctx, r.flow);
-      const message = typeof args['visitorMessage'] === 'string' ? args['visitorMessage'] : '';
+      const said = typeof args['visitorMessage'] === 'string' ? args['visitorMessage'].trim() : '';
+      // Read once a turn: a second save with the same words (the model saving
+      // twice, or the roof tool then this one) would read them against the
+      // question after the one they answered.
+      const read = (ctx.messagesRead ??= new Set());
+      const message = said && !read.has(said) ? said : '';
+      if (message) read.add(message);
       const proposals = parseProposals(args);
       // An address the visitor volunteered (the answer reader leaves addresses alone).
       const volunteered = proposals.some((p) => p.questionId === 'address')

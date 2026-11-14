@@ -77,6 +77,12 @@ export interface ToolContext {
   /** Where a home's roof and energy certificate are looked up, when keys are set. */
   homeData?: HomeData | null;
   /**
+   * Visitor messages already read for answers this turn. A message is read
+   * once, against the question it answered: read again after that answer is
+   * saved, it meets the next question ("20 Forthlin Road" became a £20 bill).
+   */
+  messagesRead?: Set<string>;
+  /**
    * Where an effectful tool call is recorded, when the caller supplied one.
    *
    * Optional so that a test driving a tool directly does not need an audit store

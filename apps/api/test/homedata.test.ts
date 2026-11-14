@@ -563,6 +563,15 @@ describe("a solar workflow with Google's roof", () => {
     const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
     expect(answers['address']).toBe(ADDRESS);
     expect(answers['journey_home_solar']).toBeDefined();
+    // The model then saves the same message too: its house number is not read
+    // as an answer to the next question (a "£12" bill, say).
+    const next = measured.data['nextQuestionId'];
+    const resaved = await save(ctx, 'address', ADDRESS);
+    await tool('save_workflow_answers', { answers: [], visitorMessage: ADDRESS }, ctx);
+    expect(resaved.data['nextQuestionId']).toBe(next);
+    const after = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(after['usage_source']).toBeUndefined();
+    expect(after['monthly_cost']).toBeUndefined();
     // Once the workflow has its address, the tool goes back to only measuring.
     const again = await tool('start_sunscan_assessment', { address: ADDRESS }, ctx);
     expect(again.data['saved']).toBeUndefined();
