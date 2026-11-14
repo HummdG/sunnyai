@@ -413,16 +413,16 @@ export function styles(): string {
 .turn.assistant a { color: var(--sunny-accent-ink); text-decoration: underline;
   text-underline-offset: 2px; overflow-wrap: anywhere; }
 .turn.assistant a:focus-visible { outline: 2px solid var(--sunny-accent-ink); outline-offset: 2px; }
-/* (i) beside a question: why Sunny asks it, opened on tap */
-.turn.assistant .why { display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px; margin-left: 6px; padding: 0; vertical-align: -3px;
-  border-radius: 50%; border: 1px solid var(--sunny-accent-ink); background: transparent;
-  color: var(--sunny-accent-ink); font: italic 700 11px/1 Georgia, serif; cursor: pointer; }
-.turn.assistant .why[aria-expanded="true"] { background: var(--sunny-accent-ink); color: #fff; }
-.turn.assistant .why:focus-visible { outline: 2px solid var(--sunny-accent-ink); outline-offset: 2px; }
-.turn.assistant .why-text { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px;
-  background: var(--sunny-pale); font-size: 13px; line-height: 1.45;
-  color: var(--sunny-ink); }
+/* "Why I ask" under a question: a quiet text button, like the roof bar's */
+.turn.assistant .why { display: inline-flex; align-items: center; gap: 5px; margin: 6px 0 0 -8px;
+  padding: 3px 8px; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
+  font: inherit; font-size: 12.5px; color: var(--sunny-muted); }
+.turn.assistant .why svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.turn.assistant .why:hover, .turn.assistant .why[aria-expanded="true"] {
+  background: rgba(23,23,23,.05); color: var(--sunny-ink); }
+.turn.assistant .why:focus-visible { outline: 2px solid var(--sunny-accent); outline-offset: 1px; }
+.turn.assistant .why-text { margin: 4px 0 0; font-size: 13px; line-height: 1.45;
+  color: var(--sunny-muted); }
 .turn.system { align-self: center; font-size: 12.5px; color: var(--sunny-muted);
   background: transparent; text-align: center; max-width: 100%; }
 .turn.error { align-self: stretch; max-width: 100%; font-size: 13px;

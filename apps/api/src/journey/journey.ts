@@ -175,7 +175,7 @@ export function journeyStatus(
   if (nextId === 'address')
     prompt = 'What is the address, including the postcode, you would like a quote for?';
   if (needsPostcode && (nextId === null || !legacy)) {
-    prompt = 'What is the postcode of the property?';
+    prompt = `What is the postcode for ${answers['address']!.trim()}?`;
   }
 
   const canQuote = missing.length === 0 && !roofPending && postcode !== null;

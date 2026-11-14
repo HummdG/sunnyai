@@ -19,7 +19,8 @@ import { lookUpHome } from '../homedata/index.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
 import type { Proposal } from '../journey/extract.js';
-import { postcodeFrom } from '../journey/journey.js';
+import { JOURNEY_KEYS, postcodeFrom } from '../journey/journey.js';
+import { toRoofAssessmentSummary } from '@sunny/sunscan-adapter';
 import { quoteKind } from '../journey/quote-kinds.js';
 import {
   loadJourney,
@@ -365,7 +366,44 @@ export function completeAddress(ctx: ToolContext, proposals: Proposal[], message
 
 /** An address in the visitor's words, when the running flow asks for one and has none yet. */
 function volunteeredAddress(ctx: ToolContext, flow: ResolvedFlow, message: string): string | null {
-  return flow.question('address') && !ctx.answers['address'] ? addressIn(message) : null;
+  if (!flow.question('address') || ctx.answers['address']) return null;
+  return addressIn(message) ?? streetAddressIn(message);
+}
+
+/**
+ * A message that is a street address and nothing more ("3A Downs Walk",
+ * "12 Mill Lane, Norwich"): kept as the address, and its postcode asked for
+ * next. Only a whole short message counts, so a number in a sentence ("we
+ * have 4 bedrooms on Park Road") is never taken for a house.
+ */
+export function streetAddressIn(message: string): string | null {
+  const text = message
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.!]+$/, '');
+  if (text.length > 80) return null;
+  const match =
+    /^(?:(?:my address is|it'?s|address:?)\s+)?(\d+[a-z]?,?\s+[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,3}(?:,\s*[a-z][a-z' -]{1,30})?)$/i.exec(
+      text,
+    );
+  const address = match?.[1];
+  return address && STREET.test(address) ? address : null;
+}
+
+/**
+ * The address the roof was already measured for in this conversation, before
+ * the workflow began (a visitor who opened with their address): with the
+ * postcode the measurement found, so it is not asked for again.
+ */
+async function measuredAddress(ctx: ToolContext, r: Running): Promise<string | null> {
+  const id = ctx.answers[JOURNEY_KEYS.assessmentId];
+  if (!id || !ctx.sunscan || !r.flow.question('address') || ctx.answers['address']) return null;
+  const record = await ctx.sunscan.getAssessment(ctx.tenant.id, id);
+  if (!record || record.sessionId !== ctx.sessionId || record.status === 'failed') return null;
+  const address = (record.target.address ?? '').trim();
+  if (!address) return null;
+  const postcode = toRoofAssessmentSummary(record)?.postcode ?? null;
+  return postcode && !postcodeFrom(address) ? `${address}, ${postcode}` : address;
 }
 
 /**
@@ -380,7 +418,8 @@ async function captureOpeningAddress(
   roofAssessment: Awaited<ReturnType<typeof startRoofAssessment>> | null;
   homeRecords: string | null;
 }> {
-  const address = volunteeredAddress(ctx, r.flow, ctx.visitorMessage ?? '');
+  const address =
+    volunteeredAddress(ctx, r.flow, ctx.visitorMessage ?? '') ?? (await measuredAddress(ctx, r));
   if (!address) return { roofAssessment: null, homeRecords: null };
   const result = await submitAnswers(depsOn(ctx, r.flow), ctx.tenant.id, ctx.sessionId, {
     proposals: [{ questionId: 'address', value: address }],

@@ -618,3 +618,22 @@ describe('what the lookup found, in a chat turn', () => {
     expect(JSON.stringify(result)).not.toContain('sayFirst');
   });
 });
+
+describe('a visitor who opens with a street address', () => {
+  it('is asked for its postcode next, and the postcode alone completes it', async () => {
+    const store = await tempStore();
+    const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    ctx.visitorMessage = '3A Downs Walk';
+    const started = await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    expect(started.data['nextQuestionId']).toBe('address');
+    expect(started.data['ask']).toBe('What is the postcode for 3A Downs Walk?');
+    ctx.visitorMessage = 'BN10 7SN';
+    const after = await tool(
+      'save_workflow_answers',
+      { answers: [], visitorMessage: 'BN10 7SN' },
+      ctx,
+    );
+    expect(ctx.answers['address']).toBe('3A Downs Walk, BN10 7SN');
+    expect(after.data['nextQuestionId']).toBe('ownership');
+  });
+});

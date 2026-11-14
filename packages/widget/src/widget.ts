@@ -1535,18 +1535,14 @@ export class SunnyWidget {
    * reason is the server's, shown as text only.
    */
   #addWhy(turn: HTMLElement, why: string): void {
-    const last = turn.lastElementChild;
-    const target = last && last.tagName === 'P' ? last : turn;
     const id = `why-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const button = el('button', {
       type: 'button',
       class: 'why',
-      text: 'i',
-      title: 'Why I ask',
-      'aria-label': 'Why I ask this',
       'aria-expanded': 'false',
       'aria-controls': id,
     });
+    button.append(infoIcon(), el('span', { text: 'Why I ask' }));
     const note = el('p', { class: 'why-text', id, text: why });
     note.hidden = true;
     button.addEventListener('click', () => {
@@ -1555,8 +1551,7 @@ export class SunnyWidget {
       button.setAttribute('aria-expanded', String(open));
       if (open && turn === this.#log.lastElementChild) this.#log.scrollTop = this.#log.scrollHeight;
     });
-    target.append(button);
-    turn.append(note);
+    turn.append(el('div', {}, [button]), note);
   }
 
   /**
@@ -1953,4 +1948,29 @@ function fileAsBase64(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('The file could not be read on this device.'));
     reader.readAsDataURL(file);
   });
+}
+
+/** A small line-drawn info mark, in the text colour. */
+function infoIcon(): SVGSVGElement {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  const circle = document.createElementNS(NS, 'circle');
+  circle.setAttribute('cx', '8');
+  circle.setAttribute('cy', '8');
+  circle.setAttribute('r', '6.25');
+  const stem = document.createElementNS(NS, 'path');
+  stem.setAttribute('d', 'M8 7.25v4');
+  const dot = document.createElementNS(NS, 'circle');
+  dot.setAttribute('cx', '8');
+  dot.setAttribute('cy', '5');
+  dot.setAttribute('r', '0.6');
+  dot.setAttribute('fill', 'currentColor');
+  svg.append(circle, stem, dot);
+  return svg;
 }

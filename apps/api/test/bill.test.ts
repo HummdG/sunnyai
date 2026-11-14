@@ -15,7 +15,7 @@ import { JOURNEY_KEYS, journeyStatus } from '../src/journey/journey.js';
 import { buildServer } from '../src/server.js';
 import { FileStore } from '../src/store.js';
 import { TenantRegistry } from '../src/tenants.js';
-import { completeAddress } from '../src/workflows/agent-tools.js';
+import { completeAddress, streetAddressIn } from '../src/workflows/agent-tools.js';
 import { defaultWorkflowSet } from '../src/workflows/templates.js';
 import { resolvedFlowFor } from '../src/workflows/tenant.js';
 
@@ -98,7 +98,16 @@ describe('an address given without its postcode', () => {
     const flow = resolvedFlowFor(defaultWorkflowSet('2026-11-14T00:00:00.000Z').workflows[0]!);
     const view = journeyStatus({ ownership: 'own', address: '3A Downs Walk' }, null, {}, flow);
     expect(view.nextQuestionId).toBe('address');
-    expect(view.prompt).toBe('What is the postcode of the property?');
+    expect(view.prompt).toBe('What is the postcode for 3A Downs Walk?');
+  });
+
+  it('takes a message that is only a street address as the address', () => {
+    expect(streetAddressIn('3A Downs Walk')).toBe('3A Downs Walk');
+    expect(streetAddressIn('12 Mill Lane, Norwich.')).toBe('12 Mill Lane, Norwich');
+    expect(streetAddressIn('my address is 164 Norwich Drive')).toBe('164 Norwich Drive');
+    expect(streetAddressIn('we have 4 bedrooms on Park Road')).toBeNull();
+    expect(streetAddressIn('4 bedrooms')).toBeNull();
+    expect(streetAddressIn('120 pounds a month')).toBeNull();
   });
 
   it('takes a postcode on its own as the rest of the address', () => {
