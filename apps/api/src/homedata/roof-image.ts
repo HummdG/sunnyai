@@ -36,7 +36,7 @@ export interface RoofPicture {
   /** The cropped photo, as a JPEG data URL. */
   image: string;
   imageryYear: number | null;
-  /** Faces with panels on them, the most panels first. */
+  /** South, east and west faces with panels on them, the sunniest first. */
   faces: PictureFace[];
 }
 
@@ -91,15 +91,18 @@ export async function pictureFromGeoTiff(
   const epsg = Number(image.getGeoKeys()?.ProjectedCSTypeGeoKey);
   const definition = utmDefinition(epsg);
   if (!definition) return null;
-  const [originE, originN] = image.getOrigin() as [number, number];
-  const [resX, resY] = image.getResolution() as [number, number];
   const fullW = image.getWidth();
   const fullH = image.getHeight();
-  const metresPerPx = Math.abs(resX);
+  // From the image's bounds, not its resolution's sign: geotiff.js reports a
+  // positive y resolution for Google's north-up files, which would put every
+  // point above the image. Pixels run east from the west edge and south from
+  // the north edge.
+  const [minE, , maxE, maxN] = image.getBoundingBox() as [number, number, number, number];
+  const metresPerPx = (maxE - minE) / fullW;
 
   const project = (p: LatLngPoint): [number, number] => {
     const [e, n] = proj4<[number, number]>('WGS84', definition, [p.lng, p.lat]);
-    return [(e - originE) / resX, (n - originN) / resY];
+    return [(e - minE) / metresPerPx, (maxN - n) / metresPerPx];
   };
 
   // The building's box, its four corners in pixels, with the margin round it.
@@ -140,7 +143,9 @@ export async function pictureFromGeoTiff(
   const byFace = new Map<number, PictureFace['panels']>();
   for (const [lat, lng, faceIndex, portrait] of view.panels) {
     const face = view.faces[faceIndex];
-    if (!face) continue;
+    // Only the faces Sunny counts (south, east and west: `usablePanels`), so
+    // the photo agrees with the panel count the visitor was just told.
+    if (!face || fromSouth(face.azimuthDeg) > USABLE_FROM_SOUTH_DEG) continue;
     const [x, y] = project({ lat, lng });
     // Seen from above, a panel's length up the slope shrinks by the pitch.
     const slope = Math.cos((face.pitchDeg * Math.PI) / 180);
@@ -158,7 +163,11 @@ export async function pictureFromGeoTiff(
   }
 
   const faces = [...byFace.entries()]
-    .sort((a, b) => b[1].length - a[1].length)
+    .sort(
+      (a, b) =>
+        fromSouth(view.faces[a[0]]!.azimuthDeg) - fromSouth(view.faces[b[0]]!.azimuthDeg) ||
+        b[1].length - a[1].length,
+    )
     .map(([index, panels], i): PictureFace => {
       const face = view.faces[index]!;
       return {
@@ -181,6 +190,11 @@ export async function pictureFromGeoTiff(
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Degrees a face turns away from due south (the MCS orientation). */
+const fromSouth = (azimuthDeg: number) => Math.abs((((azimuthDeg % 360) + 360) % 360) - 180);
+/** The quote engine's limit for a usable face (`usableGoogleSolarPanelCount`). */
+const USABLE_FROM_SOUTH_DEG = 112.5;
 
 /** Recent pictures, so a reopened chat or a second instance's retry is not another paid call. */
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
