@@ -555,6 +555,58 @@ describe("a solar workflow with Google's roof", () => {
     expect(view.prompt).toBe('What is the postcode for 3A Downs Walk?');
   });
 
+  it('keeps no answer the model made up on the message that started the quote', async () => {
+    // Seen live: "Solar quote please", and the model saved ownership.
+    const store = await tempStore();
+    const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    ctx.visitorMessage = 'Solar quote please';
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    const made = await tool(
+      'save_workflow_answers',
+      {
+        answers: [{ questionId: 'ownership', value: 'own' }],
+        visitorMessage: 'Solar quote please',
+      },
+      ctx,
+    );
+    expect(made.data['nextQuestionId']).toBe('ownership');
+    // Said in their own words, it stands.
+    const ctx2 = context(await tempStore(), { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    ctx2.visitorMessage = 'Solar quote please, I own my home';
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx2);
+    const said = await tool(
+      'save_workflow_answers',
+      {
+        answers: [{ questionId: 'ownership', value: 'own' }],
+        visitorMessage: 'Solar quote please, I own my home',
+      },
+      ctx2,
+    );
+    expect(said.data['nextQuestionId']).toBe('address');
+  });
+
+  it('takes the answer reader’s value when the model’s is not a valid one', async () => {
+    // Seen live: "about £120 a month" saved as the usage source was refused,
+    // and the reader's correct "monthly cost" was dropped with it.
+    const store = await tempStore();
+    const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'ownership', 'own');
+    await save(ctx, 'address', ADDRESS);
+    const result = await tool(
+      'save_workflow_answers',
+      {
+        answers: [{ questionId: 'usage_source', value: '£120 a month' }],
+        visitorMessage: 'about £120 a month',
+      },
+      ctx,
+    );
+    expect(result.data['nextQuestionId']).not.toBe('usage_source');
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['usage_source']).toBe('monthly_cost');
+    expect(answers['monthly_cost']).toBe('120');
+  });
+
   it('keeps a postcode given on its own, and joins it to the street that follows', async () => {
     // Seen live: "BN10 7SN" alone was saved as the address, measured as "an
     // area", and the house was never asked for.

@@ -369,28 +369,41 @@ describe("Sunny's chat on the installer's flow", () => {
 
   it('a chat turn reads the flow from the tenant it is given', async () => {
     const store = await tempStore();
-    const provider = new ScriptedProvider(() => [
-      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
-      { type: 'text', text: 'Lovely.' },
-    ]);
-    const events: TurnEvent[] = [];
-    for await (const event of runTurn({
-      tenant: tenantWith(FLOW),
-      provider,
-      store,
-      sessionId: SESSION,
-      conversationId: null,
-      history: [],
-      message: 'can I get a quote?',
-      clientMessageId: 'c_1',
-      sunscanConnected: false,
-    })) {
-      events.push(event);
-    }
+    let turns = 0;
+    const provider = new ScriptedProvider(() =>
+      turns++ === 0
+        ? [
+            {
+              type: 'tool_started',
+              call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } },
+            },
+            { type: 'text', text: 'Lovely.' },
+          ]
+        : [{ type: 'text', text: 'Thanks.' }],
+    );
+    const turn = async (message: string, clientMessageId: string) => {
+      const events: TurnEvent[] = [];
+      for await (const event of runTurn({
+        tenant: tenantWith(FLOW),
+        provider,
+        store,
+        sessionId: SESSION,
+        conversationId: null,
+        history: [],
+        message,
+        clientMessageId,
+        sunscanConnected: false,
+      })) {
+        events.push(event);
+      }
+      return events;
+    };
+    const events = await turn('can I get a quote?', 'c_1');
     const finished = events.find((e) => e.type === 'tool_finished');
     expect(finished).toBeDefined();
+    // A later turn: the installer's own question is one this workflow accepts.
+    await turn('yes', 'c_2');
     const request = provider.lastRequest!;
-    // The installer's own question is one this turn's workflow accepts.
     const result = (await request.execute({
       name: 'save_workflow_answers',
       args: { answers: [{ questionId: 'c_evcharger1', value: 'yes' }] },

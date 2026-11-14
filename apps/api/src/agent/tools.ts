@@ -82,6 +82,8 @@ export interface ToolContext {
    * saved, it meets the next question ("20 Forthlin Road" became a £20 bill).
    */
   messagesRead?: Set<string>;
+  /** The visitor message a workflow was started on: none of its questions had been asked. */
+  workflowStartedOn?: string;
   /**
    * Where an effectful tool call is recorded, when the caller supplied one.
    *

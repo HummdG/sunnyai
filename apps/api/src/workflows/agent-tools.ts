@@ -19,7 +19,7 @@ import { HOME_KEYS, lookUpHome } from '../homedata/index.js';
 import { parseGoogleRoof } from '../homedata/solar.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
-import type { Proposal } from '../journey/extract.js';
+import { extractAnswers, type Proposal } from '../journey/extract.js';
 import { JOURNEY_KEYS, postcodeFrom } from '../journey/journey.js';
 import { toRoofAssessmentSummary } from '@sunny/sunscan-adapter';
 import { quoteKind } from '../journey/quote-kinds.js';
@@ -399,6 +399,27 @@ export function addressInMessages(messages: readonly string[]): string | null {
 }
 
 /**
+ * The model's answers that the visitor actually gave. Seen live: on "Solar
+ * quote please" the model saved an ownership answer nobody had given, and the
+ * question was never asked. On the turn a workflow starts none of its
+ * questions has been asked, so a model answer then is kept only for the
+ * address (free text the reader leaves alone) or where the deterministic
+ * reader finds the same question in the visitor's words. Later turns trust
+ * the model as before: it reads answers the reader cannot.
+ */
+export function supported(
+  ctx: ToolContext,
+  flow: ResolvedFlow,
+  proposals: Proposal[],
+  current: string | null,
+): Proposal[] {
+  const opening = ctx.workflowStartedOn;
+  if (opening === undefined || ctx.visitorMessage !== opening) return proposals;
+  const read = extractAnswers(opening, current, flow).map((p) => p.questionId);
+  return proposals.filter((p) => p.questionId === 'address' || read.includes(p.questionId));
+}
+
+/**
  * A postcode on its own is not an address: measured, it "matches an area",
  * and saved as the address it skipped the house. It is kept as the postcode,
  * and the address question stays for the house number and street. A street
@@ -631,6 +652,8 @@ export const WORKFLOW_TOOLS = [
       await saveSession(ctx, started.session);
       // The rest of this turn (labels, a lead filed now) runs on this workflow.
       ctx.flow = resolvedFlowFor(workflow);
+      // Nothing of it has been asked on this message: see `supported`.
+      if (ctx.visitorMessage !== undefined) ctx.workflowStartedOn = ctx.visitorMessage;
       const { roofAssessment, homeRecords } = await captureOpeningAddress(ctx, {
         kind: 'workflow',
         workflow,
@@ -704,7 +727,9 @@ export const WORKFLOW_TOOLS = [
       const read = (ctx.messagesRead ??= new Set());
       const message = said && !read.has(said) ? said : '';
       if (message) read.add(message);
-      const proposals = parseProposals(args);
+      // The question the workflow is on: the one the visitor was just asked.
+      const current = (await stepOf(ctx, deps, r)).view.nextQuestionId;
+      const proposals = supported(ctx, r.flow, parseProposals(args), current);
       // An address the visitor volunteered (the answer reader leaves addresses alone).
       const volunteered = proposals.some((p) => p.questionId === 'address')
         ? null
@@ -714,7 +739,7 @@ export const WORKFLOW_TOOLS = [
       await keepBarePostcode(ctx, proposals, message);
       // The visitor's words answer the question this workflow just asked, which
       // can be an optional one the quote journey alone would not name.
-      const asked = message ? (await stepOf(ctx, deps, r)).view.nextQuestionId : null;
+      const asked = message ? current : null;
       const result = await submitAnswers(deps, ctx.tenant.id, ctx.sessionId, {
         proposals,
         ...(message ? { current: asked } : {}),

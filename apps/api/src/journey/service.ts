@@ -176,11 +176,17 @@ export async function submitAnswers(
       ? input.current
       : journeyStatus(before.answers, before.roof, { roofPending: before.pending }, flow)
           .nextQuestionId;
-  const proposals: Proposal[] = [
-    ...(input.proposals ?? []),
-    ...(input.text ? extractAnswers(input.text, current, flow) : []),
-  ];
-  // An explicit answer wins over one read from the same message.
+  const read = input.text ? extractAnswers(input.text, current, flow) : [];
+  // An explicit answer wins over one read from the same message, unless it is
+  // not a valid answer at all: seen live, the model saved "£120 a month" as
+  // the usage source, it was refused, and the reader's correct "monthly cost"
+  // for the same question was dropped, so the question was asked again.
+  const explicit = (input.proposals ?? []).filter(
+    (p) =>
+      !read.some((q) => q.questionId === p.questionId) ||
+      flow.validate(p.questionId, p.value, before.answers).ok,
+  );
+  const proposals: Proposal[] = [...explicit, ...read];
   const unique = proposals.filter(
     (p, i) => proposals.findIndex((q) => q.questionId === p.questionId) === i,
   );

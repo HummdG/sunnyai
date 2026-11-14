@@ -353,7 +353,7 @@ describe('the vertical slice', () => {
       method: 'POST',
       url: '/v1/chat/stream',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, clientMessageId: 'c1', text: 'Where is the pricing?' },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I own my home. Where is the pricing?' },
     });
 
     const events = parseSse(response.body);
@@ -1322,7 +1322,7 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/chat/stream',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, clientMessageId: 'c1', text: 'To cut my bills' },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I own my home and want to cut my bills' },
     });
 
     // Both, not one: the context saw the route's answer as well as the turn's.
@@ -1357,7 +1357,7 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/chat/stream',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, clientMessageId: 'c1', text: 'To cut my bills' },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I own my home and want to cut my bills' },
     });
 
     const conversation = await app.inject({
@@ -1425,7 +1425,7 @@ describe('qualification answers reach the conversation', () => {
       method: 'POST',
       url: '/v1/chat/stream',
       headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, clientMessageId: 'c1', text: 'I enter kWh; about 4200 a year' },
+      payload: { sessionId, clientMessageId: 'c1', text: 'I use about 4200 kWh a year' },
     });
 
     // Both tools ran, and the second saw the first's answer -- it could not have
@@ -1463,18 +1463,31 @@ describe('qualification answers reach the conversation', () => {
     // the turn's "what changed" diff has to notice a key that vanished as well as
     // ones that appeared -- otherwise the store keeps an answer the visitor has
     // just withdrawn, and only the chat path does.
-    const provider = new ScriptedProvider(() => [
-      { type: 'tool_started', call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } } },
-      {
-        type: 'tool_started',
-        call: {
-          id: 'call_1',
-          name: 'save_workflow_answers',
-          args: { answers: [{ questionId: 'usage_source', value: 'household' }] },
-        },
-      },
-      { type: 'text', text: 'Changed that to a household estimate.' },
-    ]);
+    // The quote starts on one turn and the correction comes on the next (on
+    // the opening turn no question has been asked, so a model answer there
+    // needs the visitor's words behind it).
+    let turns = 0;
+    const provider = new ScriptedProvider(() =>
+      turns++ === 0
+        ? [
+            {
+              type: 'tool_started',
+              call: { name: 'start_workflow', args: { workflowId: 'wf_solar' } },
+            },
+            { type: 'text', text: 'Happy to help.' },
+          ]
+        : [
+            {
+              type: 'tool_started',
+              call: {
+                id: 'call_1',
+                name: 'save_workflow_answers',
+                args: { answers: [{ questionId: 'usage_source', value: 'household' }] },
+              },
+            },
+            { type: 'text', text: 'Changed that to a household estimate.' },
+          ],
+    );
 
     const { app, store } = await h(provider);
     const { sessionId, token } = await openSession(app);
@@ -1492,12 +1505,17 @@ describe('qualification answers reach the conversation', () => {
       });
     }
 
-    await app.inject({
-      method: 'POST',
-      url: '/v1/chat/stream',
-      headers: { authorization: `Bearer ${token}` },
-      payload: { sessionId, clientMessageId: 'c1', text: 'Actually, just use household size' },
-    });
+    for (const [id, text] of [
+      ['c0', 'A solar quote please'],
+      ['c1', 'Actually, just use household size'],
+    ] as const) {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/chat/stream',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { sessionId, clientMessageId: id, text },
+      });
+    }
 
     const conversation = await store.getConversation('t_demo0001', sessionId);
     expect(conversation?.answers).toEqual({ usage_source: 'household' });
