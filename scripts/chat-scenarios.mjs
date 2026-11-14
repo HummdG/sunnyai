@@ -150,8 +150,25 @@ const SCENARIOS = [
 
 // ── running them ─────────────────────────────────────────────────────────────
 
+/**
+ * A request that waits out the deployment's rate limit (production allows a
+ * visitor 20 chat messages a minute, and one pass of the suite sends more):
+ * a 429 is the limit working, not the chat failing, so it is retried after
+ * the window, up to three times.
+ */
+async function polite(url, init) {
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 || attempt === 3) return response;
+    const after = Number(response.headers.get('retry-after'));
+    const wait = Number.isFinite(after) && after > 0 ? after * 1000 : 60_000;
+    console.log(`  ..   rate limited; waiting ${Math.round(wait / 1000)}s`);
+    await new Promise((resolve) => setTimeout(resolve, wait + 1000));
+  }
+}
+
 async function session() {
-  const response = await fetch(`${base}/v1/widget/session`, {
+  const response = await polite(`${base}/v1/widget/session`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN },
     body: JSON.stringify({ publicId: PUBLIC_ID, origin: ORIGIN }),
@@ -161,7 +178,7 @@ async function session() {
 }
 
 async function turn(s, text) {
-  const response = await fetch(`${base}/v1/chat/stream`, {
+  const response = await polite(`${base}/v1/chat/stream`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${s.sessionToken}`,
@@ -217,7 +234,7 @@ function checkTurn(step, got) {
 }
 
 async function picture(s) {
-  const response = await fetch(`${base}/v1/quote/roof-picture`, {
+  const response = await polite(`${base}/v1/quote/roof-picture`, {
     headers: { authorization: `Bearer ${s.sessionToken}`, origin: ORIGIN },
   });
   if (!response.ok) return `GET roof-picture answered ${response.status}`;
