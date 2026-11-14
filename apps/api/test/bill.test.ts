@@ -20,6 +20,7 @@ import {
   completeAddress,
   streetAddressIn,
 } from '../src/workflows/agent-tools.js';
+import { EMPTY_SESSION, cloneSession } from '../src/workflows/session.js';
 import { defaultWorkflowSet } from '../src/workflows/templates.js';
 import { resolvedFlowFor } from '../src/workflows/tenant.js';
 
@@ -318,6 +319,55 @@ describe('POST /v1/bill', () => {
       (await store.getConversation('t_demo0001', sessionId))!.answers![JOURNEY_KEYS.bill]!,
     ) as { told: boolean };
     expect(record.told).toBe(true);
+  });
+
+  it('keeps no answer the model made up on the message that follows the upload', async () => {
+    // Seen live: after the upload the model answered the next question
+    // (lifestyle) for the visitor on "I have uploaded my bill.", and it was
+    // never asked.
+    const lifestyle = (value: string, visitorMessage: string): ChatChunk[] => [
+      {
+        type: 'tool_started',
+        call: {
+          name: 'save_workflow_answers',
+          args: { answers: [{ questionId: 'lifestyle', value }], visitorMessage },
+        },
+      },
+      { type: 'text', text: 'Thanks.' },
+    ];
+    const provider = new BillReadingProvider(
+      { isElectricityBill: true, estimatedAnnualKwh: 3100, unitRatePence: 25 },
+      (request) =>
+        request.message.includes('home all day')
+          ? lifestyle('home_daytime', 'We are home all day')
+          : lifestyle('none', 'I have uploaded my bill.'),
+    );
+    const { app, store, sessionId, token } = await harness(provider);
+    await store.saveWorkflowState('t_demo0001', sessionId, {
+      ...cloneSession(EMPTY_SESSION),
+      active: { workflowId: 'wf_solar', startedAt: '2026-11-14T10:00:00.000Z' },
+    });
+    await store.mergeAnswers('t_demo0001', sessionId, {
+      ownership: 'own',
+      address: '12 Mill Lane, Norwich NR4 7TJ',
+    });
+    await upload(app, token, { sessionId, mimeType: 'application/pdf', data: PDF });
+    const turn = (text: string, id: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/chat/stream',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { sessionId, clientMessageId: id, text },
+      });
+    const answers = async () =>
+      (await store.getConversation('t_demo0001', sessionId))?.answers ?? {};
+
+    await turn('I have uploaded my bill.', 'c1');
+    expect((await answers())['annual_kwh']).toBe('3100');
+    expect((await answers())['lifestyle']).toBe(undefined);
+    // Said in their own words on the next message, it stands.
+    await turn('We are home all day', 'c2');
+    expect((await answers())['lifestyle']).toContain('home_daytime');
   });
 
   it('tells the model when the bill could not be read, and saves no usage', async () => {

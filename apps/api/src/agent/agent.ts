@@ -357,6 +357,10 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       ? `The visitor uploaded their bill and their usage is saved. They have already been told: "${billSaid}" Do not repeat it: go on to the next question.`
       : billProblem(bill);
     if (note) state = [state, `<server_note>${note}</server_note>`].filter(Boolean).join('\n');
+    // The upload answered the usage question outside the chat, so the question
+    // the workflow is on now has not been asked: the model does not answer it
+    // for the visitor (seen live, with the lifestyle question).
+    ctx.notYetAskedOn = input.message;
     const told = JSON.stringify({ ...bill, told: true });
     ctx.answers = { ...ctx.answers, [JOURNEY_KEYS.bill]: told };
     await input.store.mergeAnswers(input.tenant.id, input.sessionId, { [JOURNEY_KEYS.bill]: told });

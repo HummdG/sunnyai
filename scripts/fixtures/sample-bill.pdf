@@ -1,0 +1,75 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1086 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 56 780 Tm
+(Brightside Energy \(sample supplier\)) Tj
+/F1 11 Tf
+1 0 0 1 56 746 Tm
+(This is a made-up bill used to test Sunny. It is not a real account.) Tj
+/F1 14 Tf
+1 0 0 1 56 719 Tm
+(Electricity bill) Tj
+/F1 11 Tf
+1 0 0 1 56 689 Tm
+(Account holder: Sam Example) Tj
+/F1 11 Tf
+1 0 0 1 56 662 Tm
+(Supply address: 1 Example Street, Sampletown, ZZ1 1ZZ) Tj
+/F1 11 Tf
+1 0 0 1 56 635 Tm
+(Bill date: 1 October 2026) Tj
+/F1 11 Tf
+1 0 0 1 56 608 Tm
+(Bill period: 1 September 2026 to 30 September 2026) Tj
+/F1 11 Tf
+1 0 0 1 56 581 Tm
+(Tariff: Standard Variable, single rate) Tj
+/F1 11 Tf
+1 0 0 1 56 554 Tm
+(Electricity used this period: 265 kWh) Tj
+/F1 11 Tf
+1 0 0 1 56 527 Tm
+(Unit rate: 25.73p per kWh    Standing charge: 53.68p per day) Tj
+/F1 11 Tf
+1 0 0 1 56 500 Tm
+(Total electricity charges this period: 84.29 GBP \(including VAT at 5%\)) Tj
+/F1 14 Tf
+1 0 0 1 56 473 Tm
+(Your annual electricity usage) Tj
+/F1 12 Tf
+1 0 0 1 56 443 Tm
+(Estimated annual usage: 3,180 kWh) Tj
+/F1 11 Tf
+1 0 0 1 56 415 Tm
+(Your personal projection for the next 12 months: 818.21 GBP) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001378 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1448
+%%EOF

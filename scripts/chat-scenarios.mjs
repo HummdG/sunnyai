@@ -10,7 +10,10 @@
  *
  *   - which question the server is asking now (the `quick_replies` event's
  *     questionId: the workflow's own next question, whatever the model said);
- *   - which events the turn carried (`roof_image` after an address lookup);
+ *   - which events the turn carried (`roof_image` after an address lookup,
+ *     `quote` with its prices and budget ladder, `lead_saved`);
+ *   - what the routes beside the chat did: a bill upload, a package chosen,
+ *     the conversation (and its lead) deleted;
  *   - that the reply is safe to show: not empty, no tool names, tags, prompt
  *     or SunScan talk, no em dashes.
  *
@@ -29,7 +32,12 @@
  * Each turn is a real model call and the address scenarios make real Google
  * Solar calls (a lookup and a photo), so this is a post-deploy check, not
  * part of every smoke run. Exit code 1 when anything failed.
+ *
+ * The lead scenario files a real lead with made-up details and deletes it
+ * (with its conversation) before it ends, so the installer's list stays clean.
  */
+
+import { readFileSync } from 'node:fs';
 
 const base = (process.argv[2] ?? process.env.BASE ?? '').replace(/\/$/, '');
 const ORIGIN = process.env.SCENARIO_ORIGIN ?? '';
@@ -59,15 +67,33 @@ const NEVER = [
 
 // ── the conversations ────────────────────────────────────────────────────────
 //
-// A turn: { say, asks?, asksNot?, events?, noEvents?, matches?, picture? }
+// A turn: { say, asks?, asksNot?, events?, noEvents?, matches?, picture?,
+//           tools?, quote?, lead? }
 //   asks      the question the server must be asking after the turn (an id,
 //             or a list of acceptable ids)
 //   asksNot   ids it must not be asking
 //   events    event types the turn must carry; noEvents, ones it must not
 //   matches   a pattern the reply must match
 //   picture   after this turn, GET /v1/quote/roof-picture must answer 200
+//   tools     tools the turn must have used
+//   quote     the turn must carry a quote card: { kind?, priced?, budget? }
+//             (budget: true wants the budget slider's ladder on it)
+//   lead      the turn must save a lead
+//
+// Steps that are not a chat message, as the widget makes them:
+//   { upload: <base64 | file URL>, mime, read }   POST /v1/bill; `read` is
+//                                    whether the bill must be readable
+//   { choose: true }         choose the last quote's recommended package
+//   { cleanup: { leads } }   delete the conversation; it must take that many
+//                            leads with it
 
 const FULL = '20 Forthlin Road, Liverpool L18 9TN';
+/** What the widget says for the visitor once a bill is uploaded. */
+const UPLOADED = 'I have uploaded my bill.';
+/** A made-up bill: 3,180 kWh a year. */
+const BILL = new URL('./fixtures/sample-bill.pdf', import.meta.url);
+/** A file that is not a bill: an empty PDF. */
+const NOT_A_BILL = 'JVBERi0xLjQKJSVFT0YK';
 
 const SCENARIOS = [
   {
@@ -146,15 +172,76 @@ const SCENARIOS = [
       { say: 'about £120 a month', asksNot: ['usage_source', 'address', 'ownership'] },
     ],
   },
+  {
+    name: 'a solar quote to the end, a package chosen, details left',
+    turns: [
+      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: 'I own it', asks: 'address' },
+      { say: FULL, asks: 'usage_source' },
+      { say: 'about £120 a month', asks: 'lifestyle' },
+      { say: "We're mostly out at work in the day", asks: 'existing_system' },
+      {
+        say: 'No, nothing yet',
+        quote: { priced: true, budget: true },
+        tools: ['get_quote_options'],
+      },
+      { choose: true },
+      {
+        say: "Yes please pass my details to the installer. I'm Sam Example, sam@example.test, 07700 900123. I'm happy to be contacted.",
+        lead: true,
+        tools: ['create_lead'],
+      },
+      { cleanup: { leads: 1 } },
+    ],
+  },
+  {
+    name: 'a heat pump quote to the end',
+    turns: [
+      { say: 'How much is a heat pump?', asks: 'ownership' },
+      { say: 'I own it', asks: 'address' },
+      { say: FULL, asks: 'property_type' },
+      { say: 'Terraced', asks: 'hp_bedrooms' },
+      { say: '3 bedrooms', asks: 'hp_current_heating' },
+      { say: 'Mains gas', asks: 'hp_emitters' },
+      { say: 'Radiators', asks: 'hp_hot_water' },
+      {
+        say: 'A hot water cylinder',
+        quote: { kind: 'heat_pump', priced: true },
+        tools: ['get_quote_options'],
+      },
+    ],
+  },
+  {
+    // Seen live: after the upload the next question (lifestyle) was answered
+    // by the model for the visitor and never asked.
+    name: 'a bill upload is read, and the next question is still asked',
+    turns: [
+      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: 'I own it', asks: 'address' },
+      { say: FULL, asks: 'usage_source' },
+      { upload: BILL, mime: 'application/pdf', read: true },
+      { say: UPLOADED, asks: 'lifestyle', matches: /about [\d,]+ kWh/i },
+    ],
+  },
+  {
+    name: 'a file that is not a bill asks for the usage another way',
+    turns: [
+      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: 'I own it', asks: 'address' },
+      { say: FULL, asks: 'usage_source' },
+      { upload: NOT_A_BILL, mime: 'application/pdf', read: false },
+      { say: UPLOADED, asks: ['usage_source', 'annual_kwh', 'monthly_cost'] },
+    ],
+  },
 ];
 
 // ── running them ─────────────────────────────────────────────────────────────
 
 /**
- * A request that waits out the deployment's rate limit (production allows a
- * visitor 20 chat messages a minute, and one pass of the suite sends more):
- * a 429 is the limit working, not the chat failing, so it is retried after
- * the window, up to three times.
+ * A request that waits out the deployment's rate limit (production allows
+ * one address 20 chat messages in 10 minutes, and one pass of the suite sends
+ * more): a 429 is the limit working, not the chat failing, so it is retried
+ * after the window, up to three times.
  */
 async function polite(url, init) {
   for (let attempt = 0; ; attempt++) {
@@ -199,6 +286,8 @@ async function turn(s, text) {
   const finished = frames.find((f) => f.type === 'message_finished');
   const replies = frames.filter((f) => f.type === 'quick_replies').at(-1);
   return {
+    quote: frames.find((f) => f.type === 'quote')?.quote ?? null,
+    lead: frames.find((f) => f.type === 'lead_saved')?.leadId ?? null,
     text: finished?.text ?? '',
     tools: finished?.tools ?? [],
     events: [...new Set(frames.map((f) => f.type))],
@@ -230,7 +319,114 @@ function checkTurn(step, got) {
   if (step.matches && !step.matches.test(got.text)) {
     problems.push(`the reply does not match ${step.matches}`);
   }
+  for (const tool of step.tools ?? []) {
+    if (!got.tools.includes(tool)) problems.push(`${tool} was not used`);
+  }
+  if (step.quote) problems.push(...checkQuote(step.quote, got.quote));
+  if (step.lead && !got.lead) problems.push('no lead was saved');
   return problems;
+}
+
+function checkQuote(wanted, quote) {
+  if (!quote) return ['no quote card'];
+  const problems = [];
+  if (wanted.kind !== undefined && quote.kind !== wanted.kind) {
+    problems.push(`the quote is ${quote.kind ?? 'solar'}, wanted ${wanted.kind}`);
+  }
+  if (!Array.isArray(quote.options) || quote.options.length === 0) {
+    problems.push('the quote has no options');
+  }
+  if (wanted.priced !== undefined) {
+    if (quote.priced !== wanted.priced) problems.push(`the quote's priced is ${quote.priced}`);
+    const anyPrice = (quote.options ?? []).some((o) => typeof o.priceGbp === 'number');
+    if (wanted.priced && !anyPrice) problems.push('no option has a price');
+  }
+  if (wanted.budget) {
+    const b = quote.budget;
+    if (!b || !Array.isArray(b.steps) || b.steps.length < 2) {
+      problems.push('the quote has no budget ladder');
+    } else if (!(b.minGbp <= b.initialGbp && b.initialGbp <= b.maxGbp)) {
+      problems.push(`the budget starts at ${b.initialGbp}, outside ${b.minGbp} to ${b.maxGbp}`);
+    }
+  }
+  return problems;
+}
+
+/** POST /v1/bill, as the widget's upload button does. */
+async function upload(s, step) {
+  const data =
+    step.upload instanceof URL ? readFileSync(step.upload).toString('base64') : step.upload;
+  const response = await polite(`${base}/v1/bill`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${s.sessionToken}`,
+      origin: ORIGIN,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ sessionId: s.sessionId, mimeType: step.mime, data }),
+  });
+  if (!response.ok) {
+    return { said: `HTTP ${response.status}`, problems: [`bill: HTTP ${response.status}`] };
+  }
+  const body = await response.json();
+  const problems = [];
+  if (body.read !== step.read)
+    problems.push(`the bill's read is ${body.read}, wanted ${step.read}`);
+  if (step.read && !(body.annualKwh > 0)) problems.push('the bill gave no yearly kWh');
+  return { said: JSON.stringify(body), problems };
+}
+
+/** The widget's Choose button: the recommended package of the last quote. */
+async function choose(s, quote) {
+  if (!quote) return { said: '-', problems: ['no quote to choose from'] };
+  const option = quote.options.find((o) => o.isRecommended) ?? quote.options[0];
+  const headers = { authorization: `Bearer ${s.sessionToken}`, origin: ORIGIN };
+  const response = await polite(`${base}/v1/quote/${quote.quoteId}/choose`, {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: s.sessionId, optionId: option.id }),
+  });
+  if (!response.ok) return { said: option.id, problems: [`choose: HTTP ${response.status}`] };
+  const saved = await polite(`${base}/v1/quote/${quote.quoteId}`, { headers });
+  const record = saved.ok ? await saved.json() : {};
+  return {
+    said: option.id,
+    problems:
+      record.chosenOptionId === option.id
+        ? []
+        : [`the quote's chosen package is ${record.chosenOptionId}, wanted ${option.id}`],
+  };
+}
+
+/** Deletes the conversation and whatever leads it filed. */
+async function forget(s) {
+  const response = await polite(`${base}/v1/conversation`, {
+    method: 'DELETE',
+    headers: {
+      authorization: `Bearer ${s.sessionToken}`,
+      origin: ORIGIN,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ sessionId: s.sessionId }),
+  });
+  if (!response.ok) throw new Error(`delete conversation: HTTP ${response.status}`);
+  return response.json();
+}
+
+/** A step that is not a chat message: an upload, a choice, or the clean-up. */
+async function aside(s, step, state) {
+  if (step.upload !== undefined) return { what: 'bill upload', ...(await upload(s, step)) };
+  if (step.choose) return { what: 'choose', ...(await choose(s, state.quote)) };
+  const body = await forget(s);
+  state.leadFiled = false;
+  return {
+    what: 'delete conversation',
+    said: JSON.stringify(body),
+    problems:
+      body.leadsDeleted === step.cleanup.leads
+        ? []
+        : [`${body.leadsDeleted} leads were deleted, wanted ${step.cleanup.leads}`],
+  };
 }
 
 async function picture(s) {
@@ -246,9 +442,27 @@ async function picture(s) {
 
 async function runScenario(scenario) {
   const s = await session();
+  const state = { quote: null, leadFiled: false };
+  try {
+    return await runSteps(scenario, s, state);
+  } finally {
+    // A lead left behind by a run that failed part-way is still removed.
+    if (state.leadFiled) await forget(s).catch(() => {});
+  }
+}
+
+async function runSteps(scenario, s, state) {
   const log = [];
   for (const step of scenario.turns) {
+    if (step.say === undefined) {
+      const did = await aside(s, step, state);
+      log.push(`    * ${did.what}: ${did.said.slice(0, 220)}`);
+      if (did.problems.length > 0) return { ok: false, problems: did.problems, log };
+      continue;
+    }
     const got = await turn(s, step.say);
+    if (got.quote) state.quote = got.quote;
+    if (got.lead) state.leadFiled = true;
     const problems = checkTurn(step, got);
     if (step.picture) {
       const problem = await picture(s);

@@ -82,8 +82,14 @@ export interface ToolContext {
    * saved, it meets the next question ("20 Forthlin Road" became a £20 bill).
    */
   messagesRead?: Set<string>;
-  /** The visitor message a workflow was started on: none of its questions had been asked. */
-  workflowStartedOn?: string;
+  /**
+   * The visitor message that came before the workflow's current question was
+   * put to them: the one a workflow was started on, or the one that follows a
+   * bill upload (the upload answered the usage question, so the next one has
+   * not been asked yet). A model answer on it is kept only where the visitor's
+   * own words give it: see `supported`.
+   */
+  notYetAskedOn?: string;
   /**
    * Where an effectful tool call is recorded, when the caller supplied one.
    *

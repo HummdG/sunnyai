@@ -401,8 +401,10 @@ export function addressInMessages(messages: readonly string[]): string | null {
 /**
  * The model's answers that the visitor actually gave. Seen live: on "Solar
  * quote please" the model saved an ownership answer nobody had given, and the
- * question was never asked. On the turn a workflow starts none of its
- * questions has been asked, so a model answer then is kept only for the
+ * question was never asked; and on "I have uploaded my bill." it answered the
+ * question after the usage one the same way. On the turn a workflow starts,
+ * and on the one that follows a bill upload, the current question has not
+ * been put to the visitor, so a model answer then is kept only for the
  * address (free text the reader leaves alone) or where the deterministic
  * reader finds the same question in the visitor's words. Later turns trust
  * the model as before: it reads answers the reader cannot.
@@ -413,7 +415,7 @@ export function supported(
   proposals: Proposal[],
   current: string | null,
 ): Proposal[] {
-  const opening = ctx.workflowStartedOn;
+  const opening = ctx.notYetAskedOn;
   if (opening === undefined || ctx.visitorMessage !== opening) return proposals;
   const read = extractAnswers(opening, current, flow).map((p) => p.questionId);
   return proposals.filter((p) => p.questionId === 'address' || read.includes(p.questionId));
@@ -653,7 +655,7 @@ export const WORKFLOW_TOOLS = [
       // The rest of this turn (labels, a lead filed now) runs on this workflow.
       ctx.flow = resolvedFlowFor(workflow);
       // Nothing of it has been asked on this message: see `supported`.
-      if (ctx.visitorMessage !== undefined) ctx.workflowStartedOn = ctx.visitorMessage;
+      if (ctx.visitorMessage !== undefined) ctx.notYetAskedOn = ctx.visitorMessage;
       const { roofAssessment, homeRecords } = await captureOpeningAddress(ctx, {
         kind: 'workflow',
         workflow,
