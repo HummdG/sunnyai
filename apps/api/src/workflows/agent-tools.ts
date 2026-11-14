@@ -19,6 +19,7 @@ import { lookUpHome } from '../homedata/index.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
 import type { Proposal } from '../journey/extract.js';
+import { postcodeFrom } from '../journey/journey.js';
 import { quoteKind } from '../journey/quote-kinds.js';
 import {
   loadJourney,
@@ -315,13 +316,12 @@ async function lookUpNewAddress(
   if (!address || !ctx.homeData || r.kind !== 'workflow') return null;
   const outcome = r.workflow.outcome;
   if (outcome.kind !== 'quote') return null;
-  const found = await lookUpHome(
-    ctx.homeData,
-    outcome.engine,
-    result.answers['address'] ?? address.value,
-    result.answers,
-    { warn: (object, message) => ctx.quote?.log?.warn(object, message) },
-  );
+  const full = result.answers['address'] ?? address.value;
+  // A street without its postcode can match another town's: wait for it.
+  if (!postcodeFrom(full)) return null;
+  const found = await lookUpHome(ctx.homeData, outcome.engine, full, result.answers, {
+    warn: (object, message) => ctx.quote?.log?.warn(object, message),
+  });
   if (Object.keys(found.patch).length > 0 || found.removed.length > 0) {
     const updated = await ctx.store.mergeAnswers(
       ctx.tenant.id,
@@ -333,7 +333,34 @@ async function lookUpNewAddress(
     for (const key of found.removed) delete answers[key];
     mirror(ctx, answers);
   }
+  // Where the 3D measurement runs, its card already shows the roof: a second
+  // panel count from Google would only contradict it. The quote still uses
+  // Google's roof.
+  if (outcome.engine === 'solar' && ctx.sunscan) return null;
   return found.found;
+}
+
+/**
+ * A postcode given on its own ("BN10 7SN") completes an address saved without
+ * one ("3A Downs Walk"), whether the model saved it as the address, as a
+ * "postcode", or not at all. A whole new address (a house and a postcode) is
+ * left alone: it replaces the old one.
+ */
+export function completeAddress(ctx: ToolContext, proposals: Proposal[], message: string): void {
+  const partial = ctx.answers['address'];
+  if (!partial || postcodeFrom(partial)) return;
+  const offered = proposals.find((p) => p.questionId === 'address');
+  if (offered && addressIn(offered.value)) return;
+  const postcode =
+    postcodeFrom(offered?.value) ??
+    postcodeFrom(proposals.find((p) => p.questionId === 'postcode')?.value) ??
+    postcodeFrom(message);
+  if (!postcode) return;
+  for (let i = proposals.length - 1; i >= 0; i--) {
+    const id = proposals[i]!.questionId;
+    if (id === 'address' || id === 'postcode') proposals.splice(i, 1);
+  }
+  proposals.push({ questionId: 'address', value: `${partial.trim()}, ${postcode}` });
 }
 
 /** An address in the visitor's words, when the running flow asks for one and has none yet. */
@@ -526,6 +553,7 @@ export const WORKFLOW_TOOLS = [
         ? null
         : volunteeredAddress(ctx, r.flow, message);
       if (volunteered) proposals.push({ questionId: 'address', value: volunteered });
+      completeAddress(ctx, proposals, message);
       // The visitor's words answer the question this workflow just asked, which
       // can be an optional one the quote journey alone would not name.
       const asked = message ? (await stepOf(ctx, deps, r)).view.nextQuestionId : null;

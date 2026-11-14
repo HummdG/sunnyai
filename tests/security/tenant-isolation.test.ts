@@ -521,6 +521,19 @@ const ROUTES: RouteSpec[] = [
     payload: (ids) => ({ sessionId: ids.sessionId, clientMessageId: 'sec-1', text: 'Hello.' }),
   },
   {
+    // A visitor's bill, read for its usage: the session's own, like a chat turn.
+    method: 'POST',
+    pattern: '/v1/bill',
+    url: () => '/v1/bill',
+    kind: 'visitor',
+    namesSession: true,
+    payload: (ids) => ({
+      sessionId: ids.sessionId,
+      mimeType: 'application/pdf',
+      data: 'JVBERi0xLjQKJSVFT0YK',
+    }),
+  },
+  {
     method: 'GET',
     pattern: '/v1/conversation',
     url: () => '/v1/conversation',

@@ -1466,7 +1466,10 @@ export class SunnyWidget {
     } else {
       buttons = event.replies.map((r) => {
         const b = el('button', { type: 'button', text: r.label });
-        b.addEventListener('click', () => sendText(r.label));
+        // "Upload a bill" picks a file rather than sending words.
+        b.addEventListener('click', () =>
+          r.value === BILL_REPLY ? this.#pickBill() : sendText(r.label),
+        );
         return b;
       });
     }
@@ -1525,6 +1528,86 @@ export class SunnyWidget {
     this.#currentTurn.append(dots);
 
     await this.#chat.send(text, this.#clientMessageId);
+  }
+
+  /**
+   * An (i) at the end of the question, which opens why Sunny asks it. The
+   * reason is the server's, shown as text only.
+   */
+  #addWhy(turn: HTMLElement, why: string): void {
+    const last = turn.lastElementChild;
+    const target = last && last.tagName === 'P' ? last : turn;
+    const id = `why-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const button = el('button', {
+      type: 'button',
+      class: 'why',
+      text: 'i',
+      title: 'Why I ask',
+      'aria-label': 'Why I ask this',
+      'aria-expanded': 'false',
+      'aria-controls': id,
+    });
+    const note = el('p', { class: 'why-text', id, text: why });
+    note.hidden = true;
+    button.addEventListener('click', () => {
+      const open = note.hidden;
+      note.hidden = !open;
+      button.setAttribute('aria-expanded', String(open));
+      if (open && turn === this.#log.lastElementChild) this.#log.scrollTop = this.#log.scrollHeight;
+    });
+    target.append(button);
+    turn.append(note);
+  }
+
+  /**
+   * The visitor's bill, picked from their device and sent to be read. The
+   * reading is passed on by the next message, so Sunny says what it found.
+   */
+  #pickBill(): void {
+    if (this.#pending || !this.#chat) return;
+    const input = el('input', { type: 'file', accept: BILL_ACCEPT });
+    input.hidden = true;
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (file) void this.#uploadBill(file);
+    });
+    this.#root.append(input);
+    input.click();
+  }
+
+  async #uploadBill(file: File): Promise<void> {
+    const chat = this.#chat;
+    if (!chat) return;
+    const mimeType = billMimeType(file);
+    if (!mimeType) {
+      this.#appendTurn('error', 'Please upload a PDF or a photo of your bill.');
+      return;
+    }
+    if (file.size > BILL_MAX_BYTES) {
+      this.#appendTurn('error', 'That file is over 10 MB. A photo of the bill is enough.');
+      return;
+    }
+    this.#setPending(true);
+    if (this.#repliesShown) this.#suggestions.hidden = true;
+    const reading = this.#appendTurn('system', 'Reading your bill...');
+    try {
+      const data = await fileAsBase64(file);
+      await chat.uploadBill({ data, mimeType });
+    } catch (error) {
+      reading.remove();
+      this.#setPending(false);
+      if (this.#repliesShown) this.#suggestions.hidden = false;
+      this.#appendTurn(
+        'error',
+        error instanceof Error ? error.message : 'The bill could not be uploaded.',
+      );
+      return;
+    }
+    reading.remove();
+    this.#setPending(false);
+    this.#composer.value = 'I have uploaded my bill.';
+    await this.#submit();
   }
 
   #setPending(pending: boolean): void {
@@ -1665,6 +1748,8 @@ export class SunnyWidget {
         this.#appendTurn('error', 'I did not get a reply. Please try asking again.');
       }
     }
+    if (turn?.isConnected && this.#pendingReplies?.why)
+      this.#addWhy(turn, this.#pendingReplies.why);
     this.#currentTurn = null;
     this.#setPending(false);
     this.#showReplies(this.#pendingReplies);
@@ -1831,4 +1916,41 @@ function themeFrom(primaryColor: string): SunnyTheme {
     body: primaryColor,
     ray: primaryColor,
   };
+}
+
+/** The reply value that opens the bill picker instead of sending words. */
+const BILL_REPLY = 'bill_ocr';
+/** What the picker offers: a PDF or a photo (phones take HEIC). */
+const BILL_ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif';
+/** The API refuses anything larger; checked here first so nothing is sent. */
+const BILL_MAX_BYTES = 10 * 1024 * 1024;
+
+/** The bill's type as the API names it, from the browser or the file name. */
+function billMimeType(file: File): string | null {
+  const allowed = BILL_ACCEPT.split(',');
+  if (allowed.includes(file.type)) return file.type;
+  const ext = file.name.toLowerCase().split('.').pop() ?? '';
+  const byExt: Record<string, string> = {
+    pdf: 'application/pdf',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    heif: 'image/heif',
+  };
+  return byExt[ext] ?? null;
+}
+
+/** A file's bytes as base64, without the data-URL prefix. */
+function fileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = typeof reader.result === 'string' ? reader.result : '';
+      resolve(url.slice(url.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(new Error('The file could not be read on this device.'));
+    reader.readAsDataURL(file);
+  });
 }

@@ -106,7 +106,10 @@ import {
   type KnowledgePipelineOptions,
 } from './routes/knowledge-ingest.js';
 import { loadPortalConfig, type PortalConfig } from './routes/portal-config.js';
+import { z } from 'zod';
 import { registerAdminRoutes } from './routes/admin.js';
+import { BILL_MAX_BYTES, BILL_MIME_TYPES, billRecord, readBill } from './bill/read.js';
+import { JOURNEY_KEYS } from './journey/journey.js';
 import { FirestoreStore } from './firestore-store.js';
 import { FileOpsLedger, FirestoreOpsLedger, type OpsLedger } from './ops/ledger.js';
 import { createTelemetry, instrumentStore, loggerHooks } from './ops/telemetry.js';
@@ -182,6 +185,20 @@ const SSE_HEADERS: Readonly<Record<string, string>> = {
   // live stream into one delivery at the end.
   'x-accel-buffering': 'no',
 };
+
+/** A bill upload: the file as base64, which is a third larger than the file. */
+const BILL_BODY_LIMIT = Math.ceil((BILL_MAX_BYTES * 4) / 3) + 64 * 1024;
+const billUploadSchema = z.object({
+  sessionId: z.string().min(1).max(128),
+  mimeType: z.enum(BILL_MIME_TYPES),
+  data: z
+    .string()
+    .min(16)
+    .max(BILL_BODY_LIMIT)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/),
+});
+/** Per session: a visitor has one bill, and a retry or two. */
+const BILL_RULE = { limit: 5, windowMs: 10 * 60_000 };
 
 /** A day in milliseconds, for turning the dashboard's `days` into a window. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -814,6 +831,54 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   });
 
   // ─── conversation ──────────────────────────────────────────────────────────
+
+  /**
+   * A visitor's electricity bill, read for their usage (bill/read.ts).
+   *
+   * The file is read once by the model and dropped: it is never stored or
+   * logged, and only the figures are kept with the session, as the answer to
+   * the usage question. The next chat turn passes the result on.
+   */
+  app.post('/v1/bill', { bodyLimit: BILL_BODY_LIMIT }, async (request, reply) => {
+    const claims = verifySessionToken(bearer(request), config.sessionSecret, now());
+    if (!claims) throw new ApiError('unauthorized', 'A valid session token is required.');
+    const body = billUploadSchema.safeParse(request.body);
+    if (!body.success) {
+      throw new ApiError('bad_request', 'Upload a PDF or a photo of the bill (up to 10 MB).');
+    }
+    if (body.data.sessionId !== claims.sessionId) {
+      throw new ApiError('forbidden', 'That session token is for a different session.');
+    }
+    // Each read is a model call on a multi-megabyte file.
+    enforceRateLimit(request, reply, 'bill', claims.sessionId, BILL_RULE);
+    if (Math.floor((body.data.data.length * 3) / 4) > BILL_MAX_BYTES) {
+      throw new ApiError('bad_request', 'That file is over 10 MB. A photo of the bill is enough.');
+    }
+    const model = await getProvider();
+    const reading = model.readBill
+      ? await readBill(
+          { readBill: (file, signal) => model.readBill!(file, signal) },
+          { data: body.data.data, mimeType: body.data.mimeType },
+          { warn: (object, message) => request.log.warn(object, message) },
+        )
+      : ({ status: 'unreadable', reason: 'failed' } as const);
+    const record = billRecord(reading);
+    await store.mergeAnswers(
+      claims.tenantId,
+      claims.sessionId,
+      reading.status === 'read'
+        ? {
+            usage_source: 'bill_ocr',
+            annual_kwh: String(reading.annualKwh),
+            [JOURNEY_KEYS.bill]: JSON.stringify(record),
+          }
+        : { [JOURNEY_KEYS.bill]: JSON.stringify(record) },
+      reading.status === 'read' ? ['monthly_cost', 'household_size'] : [],
+    );
+    return reading.status === 'read'
+      ? { read: true, annualKwh: reading.annualKwh }
+      : { read: false, reason: reading.reason };
+  });
 
   app.get('/v1/conversation', async (request) => {
     const claims = verifySessionToken(bearer(request), config.sessionSecret, now());

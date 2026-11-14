@@ -223,7 +223,10 @@ export const BATTERY_QUESTIONS: Readonly<Record<string, Question>> = {
 };
 
 export const QUESTIONS: Readonly<Record<string, Question>> = {
-  address: { step: 'address', prompt: 'What is the address you would like assessed?' },
+  address: {
+    step: 'address',
+    prompt: 'What is the full address of the property, including the postcode?',
+  },
   // SunScan's roof confidence is how sure the *mapping* is, not the visitor:
   // the quote journey sets it from the 3D roof assessment (journey/roof.ts),
   // and `low` -- no assessment, an unreliable fit, or a visitor who says the
@@ -269,12 +272,13 @@ export const QUESTIONS: Readonly<Record<string, Question>> = {
   },
   ownership: {
     step: 'property',
-    prompt: 'Do you own the property?',
+    prompt: 'Is the home yours, or do you rent?',
     options: ['own', 'mortgage', 'rent', 'social', 'landlord', 'other'],
   },
   usage_source: {
     step: 'usage',
-    prompt: 'How would you like to tell me about your electricity use?',
+    prompt:
+      'How much electricity do you use? Tell me your yearly kWh or roughly what you pay each month, or upload a recent bill.',
     options: ['bill_ocr', 'manual_kwh', 'monthly_cost', 'household'],
   },
   // The usage branch. SunScan asks a different follow-up per source, and requires
@@ -546,7 +550,7 @@ export const OPTION_LABELS: Readonly<Record<string, string>> = {
   bill_ocr: 'Upload a bill',
   manual_kwh: 'I know my yearly kWh',
   monthly_cost: 'My monthly bill',
-  household: 'How many people live here',
+  household: "I'm not sure",
   home_daytime: 'Home in the daytime',
   evening_use: 'Mostly evening use',
   ev_now: 'An electric car',

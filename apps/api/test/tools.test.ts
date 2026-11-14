@@ -11,6 +11,7 @@ import { fixturePricingSource } from '../src/journey/pricing.js';
 import { optionLabel } from '../src/questionnaire.js';
 import { FileStore } from '../src/store.js';
 import { DEMO_TENANT, TenantRegistry } from '../src/tenants.js';
+import { whyFor } from '../src/flow/why.js';
 import {
   BATTERY,
   DEMO_TENANT_ID,
@@ -511,7 +512,15 @@ describe('quick replies for the survey', () => {
     // the first question is the address, which has no options
     await executeTool({ name: 'get_quote_journey', args: {} }, ctx);
     expect(events.filter((e) => e.kind === 'quick_replies')).toEqual([
-      { kind: 'quick_replies', detail: { questionId: 'address', multi: false, replies: [] } },
+      {
+        kind: 'quick_replies',
+        detail: {
+          questionId: 'address',
+          multi: false,
+          replies: [],
+          why: whyFor('address', null),
+        },
+      },
     ]);
   });
 });

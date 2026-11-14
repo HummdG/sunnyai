@@ -197,7 +197,7 @@ describe('the vertical slice', () => {
       .filter((e) => e['type'] === 'text_delta')
       .map((e) => e['text'])
       .join('');
-    expect(said).toBe('Do you own the property?');
+    expect(said).toBe('Is the home yours, or do you rent?');
     expect(events.find((e) => e['type'] === 'message_finished')?.['text']).toBe(said);
   });
 

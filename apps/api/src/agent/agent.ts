@@ -45,6 +45,8 @@ import {
 } from './retrieval.js';
 import { rewriteQueries, searchAll } from './query-rewrite.js';
 import type { HomeData } from '../homedata/index.js';
+import { billProblem, billSentence, parseBillRecord } from '../bill/read.js';
+import { JOURNEY_KEYS } from '../journey/journey.js';
 import { declarationsFor, executeTool, type ToolContext, type ToolEvent } from './tools.js';
 
 // The prompt lives in `prompt.ts`; re-exported for callers that import it from here.
@@ -182,6 +184,7 @@ export type TurnEvent =
       questionId: string | null;
       multi: boolean;
       replies: { value: string; label: string }[];
+      why?: string | null;
     }
   | {
       type: 'message_finished';
@@ -336,6 +339,22 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
     });
   }
 
+  // A bill uploaded since the last turn: what it showed is said by the server
+  // ahead of the reply (as an address lookup's finding is), and an unreadable
+  // one is left to the model to explain. Either way, once.
+  let billSaid: string | null = null;
+  const bill = parseBillRecord(ctx.answers[JOURNEY_KEYS.bill]);
+  if (bill && !bill.told) {
+    billSaid = billSentence(bill);
+    const note = billSaid
+      ? `The visitor uploaded their bill and their usage is saved. They have already been told: "${billSaid}" Do not repeat it: go on to the next question.`
+      : billProblem(bill);
+    if (note) state = [state, `<server_note>${note}</server_note>`].filter(Boolean).join('\n');
+    const told = JSON.stringify({ ...bill, told: true });
+    ctx.answers = { ...ctx.answers, [JOURNEY_KEYS.bill]: told };
+    await input.store.mergeAnswers(input.tenant.id, input.sessionId, { [JOURNEY_KEYS.bill]: told });
+  }
+
   let text = '';
   let usage: { inputTokens: number; outputTokens: number } | undefined;
   // What the tools said comes next, for a turn the model ends without a word.
@@ -350,7 +369,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   };
   // What an address lookup found (a workflow tool's `sayFirst`), and whether it
   // has gone out: it leads the next text the model writes, once.
-  let homeFound: string | null = null;
+  let homeFound: string | null = billSaid;
   let homeSaid = false;
   const sayHomeFound = (): string | null => {
     if (!homeFound || homeSaid) return null;
@@ -696,6 +715,7 @@ function drain(events: ToolEvent[], messageId: string): TurnEvent[] {
         questionId: string | null;
         multi: boolean;
         replies: { value: string; label: string }[];
+        why?: string | null;
       };
       out.push({ type: 'quick_replies', messageId, ...detail });
     } else if (event.kind === 'recommendation_ready') {

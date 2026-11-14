@@ -76,6 +76,12 @@ export interface ChatProvider {
    * a provider without it suggests nothing (flow/suggest.ts).
    */
   priceSuggestions?(prompt: string, signal?: AbortSignal): Promise<unknown>;
+  /**
+   * The electricity figures on an uploaded bill, as the model's parsed JSON
+   * (bill/read.ts checks it). Optional: a provider without it cannot read
+   * bills, and the widget is told so.
+   */
+  readBill?(file: { data: string; mimeType: string }, signal?: AbortSignal): Promise<unknown>;
 }
 
 export class ProviderUnavailableError extends Error {
@@ -289,6 +295,43 @@ export class GeminiProvider implements ChatProvider {
             },
           },
           required: ['choices'],
+        },
+        ...(signal ? { abortSignal: signal } : {}),
+      },
+    });
+    return JSON.parse(response.text ?? '{}') as unknown;
+  }
+
+  async readBill(file: { data: string; mimeType: string }, signal?: AbortSignal): Promise<unknown> {
+    const { Type } = await import('@google/genai');
+    const { BILL_PROMPT } = await import('../bill/read.js');
+    const ai = await this.#client();
+    const number = { type: Type.NUMBER, nullable: true };
+    const response = await ai.models.generateContent({
+      model: this.model,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { inlineData: { data: file.data, mimeType: file.mimeType } },
+            { text: BILL_PROMPT },
+          ],
+        },
+      ],
+      config: {
+        temperature: 0,
+        maxOutputTokens: 256,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isElectricityBill: { type: Type.BOOLEAN },
+            estimatedAnnualKwh: number,
+            periodKwh: number,
+            periodDays: number,
+            unitRatePence: number,
+          },
+          required: ['isElectricityBill'],
         },
         ...(signal ? { abortSignal: signal } : {}),
       },

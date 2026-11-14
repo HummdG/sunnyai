@@ -289,6 +289,8 @@ export const chatStreamEventSchema = z.discriminatedUnion('type', [
     replies: z
       .array(z.object({ value: z.string().min(1).max(64), label: z.string().min(1).max(80) }))
       .max(12),
+    // Why Sunny asks the question, for the widget to show behind an (i).
+    why: z.string().min(1).max(400).nullable().optional(),
   }),
   // A turn can fail after the stream has already opened. The client needs to be
   // told in-band, because it can no longer rely on the HTTP status.

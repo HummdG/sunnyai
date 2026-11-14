@@ -1008,15 +1008,18 @@ describe('question banks', () => {
 
   it('keeps the default flow identical (recorded before the change)', () => {
     expect(resolveFlow(null).questions.map((q) => [q.id, q.prompt])).toEqual([
-      ['address', 'What is the address you would like assessed?'],
+      ['address', 'What is the full address of the property, including the postcode?'],
       ['roof_confidence', 'How confident are you about your roof details?'],
       ['roof_confirmed', 'Does the roof I found look right to you?'],
       ['roof_size', 'Roughly how much roof space is available?'],
       ['roof_direction', 'Which way does the main roof face?'],
       ['roof_shading', 'Is the roof shaded by trees or buildings?'],
       ['property_type', 'What kind of property is it?'],
-      ['ownership', 'Do you own the property?'],
-      ['usage_source', 'How would you like to tell me about your electricity use?'],
+      ['ownership', 'Is the home yours, or do you rent?'],
+      [
+        'usage_source',
+        'How much electricity do you use? Tell me your yearly kWh or roughly what you pay each month, or upload a recent bill.',
+      ],
       ['annual_kwh', 'Roughly how many kWh do you use in a year?'],
       ['monthly_cost', 'Roughly what is your typical monthly electricity cost, in pounds?'],
       [

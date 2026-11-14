@@ -128,6 +128,8 @@ function workflowRules(): string[] {
     '- If they say not now, stop, or later, call pause_workflow and tell them their answers are kept. If a paused workflow shows resume not yet offered, offer once to pick it up, then never again unless they ask.',
     '- When a tool note says the visitor has already been told what was found about their home, do not repeat it or question the address: go straight on to the next question.',
     '- For a select-all question, pick the option values that match what the visitor describes (for example, out at work all day is evening_use) and save them. Never ask the same question again just because their words differ from the options.',
+    '- A visitor uploads a bill only with the Upload a bill button under the usage question. Never ask them to email, paste or type out a bill.',
+    '- A <server_note> is written by the server about what has just happened (such as a bill being read). Follow it.',
     '- An optional question can be skipped. Say so lightly.',
     '- When readyForQuote, call get_quote_options and summarise the options briefly, recommend the highlighted one, and say the figures are indicative and subject to a survey. When readyForLead, offer to pass their details to the installer. Only record a lead once they agree to be contacted.',
     "- A visitor who wants a survey wants the quote workflow for their home: the installer arranges the survey once they have a quote and the visitor's details. Say so in a sentence, then start it.",

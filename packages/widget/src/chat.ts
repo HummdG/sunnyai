@@ -198,6 +198,35 @@ export class ChatClient {
   }
 
   /**
+   * Upload an electricity bill to be read for its usage. The file goes to the
+   * API once and is not kept; the next message tells the assistant it is in.
+   * Resolves with whether the usage could be read; rejects with a message to
+   * show when the upload itself failed (too large, too many, offline).
+   */
+  async uploadBill(file: { data: string; mimeType: string }): Promise<{ read: boolean }> {
+    const response = await fetch(`${this.#options.apiUrl}/v1/bill`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${this.#options.sessionToken}`,
+      },
+      body: JSON.stringify({ sessionId: this.#options.sessionId, ...file }),
+    });
+    let body: { read?: unknown; error?: { message?: string } } = {};
+    try {
+      body = (await response.json()) as typeof body;
+    } catch {
+      /* the status says enough */
+    }
+    if (!response.ok) {
+      throw new Error(
+        body.error?.message ?? `The bill could not be uploaded (${response.status}).`,
+      );
+    }
+    return { read: body.read === true };
+  }
+
+  /**
    * Send a message and stream the reply.
    *
    * `clientMessageId` is the idempotency key: a retry after a dropped

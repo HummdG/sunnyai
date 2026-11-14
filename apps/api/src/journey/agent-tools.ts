@@ -15,6 +15,7 @@ import { BATTERY_RETROFIT_VAT_PERCENT, type PricingSource } from '@sunny/quote-e
 
 import type { ToolContext, ToolResult } from '../agent/tools.js';
 import { SKIPPED, type ResolvedFlow } from '../flow/resolve.js';
+import { whyFor, type WhyEngine } from '../flow/why.js';
 import { optionLabel } from '../questionnaire.js';
 import { DISCOVERY_ID, available, complete } from '../workflows/session.js';
 
@@ -148,8 +149,9 @@ export async function linkAssessmentFromTool(
 }
 
 /**
- * Options as offered in chat. Reading a bill needs an upload the chat does not
- * have, so that route is not offered here (the visitor can type kWh instead).
+ * Options as the assistant sees them. A bill is uploaded with the widget's
+ * button (buttonOptions), never answered in words, so the model is not offered
+ * that value.
  */
 export function chatOptions(options: readonly string[] | null): readonly string[] | null {
   return options ? options.filter((o) => o !== 'bill_ocr') : null;
@@ -167,12 +169,37 @@ export function offerReplies(
   multi: boolean,
   opts: { flow?: ResolvedFlow; optional?: boolean } = {},
 ): void {
-  const offered = chatOptions(options) ?? [];
+  const offered = buttonOptions(questionId, options) ?? [];
   const label = labelOf(opts.flow ?? ctx.flow, questionId);
   const replies = offered.map((value) => ({ value, label: label(value) }));
   // An optional question can be passed over with one tap.
   if (opts.optional && questionId) replies.push({ value: SKIPPED, label: 'Skip' });
-  ctx.events.push({ kind: 'quick_replies', detail: { questionId, multi, replies } });
+  const why = whyFor(questionId, engineOf(ctx));
+  ctx.events.push({ kind: 'quick_replies', detail: { questionId, multi, replies, why } });
+}
+
+/**
+ * The buttons under a question. The usage question is answered by typing a
+ * figure (kWh or a monthly bill), so its buttons are the two things a figure
+ * cannot say: a bill to upload, and "not sure" (the household size instead).
+ */
+export function buttonOptions(
+  questionId: string | null,
+  options: readonly string[] | null,
+): readonly string[] | null {
+  if (questionId === 'usage_source' && options) {
+    return USAGE_BUTTONS.filter((o) => options.includes(o));
+  }
+  return chatOptions(options);
+}
+
+const USAGE_BUTTONS = ['bill_ocr', 'household'] as const;
+
+/** The quote the running workflow builds, for a question's reason. */
+function engineOf(ctx: ToolContext): WhyEngine | null {
+  const id = ctx.session?.active?.workflowId;
+  const workflow = id ? ctx.workflows?.workflows.find((w) => w.id === id) : undefined;
+  return workflow?.outcome.kind === 'quote' ? workflow.outcome.engine : null;
 }
 
 /** How an answer to a question reads to the visitor: the installer's label, else Sunny's. */

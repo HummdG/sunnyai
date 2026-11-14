@@ -241,11 +241,24 @@ export function extractAnswers(
       if (n) add(current, n.replace(/,/g, ''));
     }
     if (current === 'usage_source') {
-      if (has(text, /\bkwh\b|\bunits\b|\bmeter reading\b/)) add(current, 'manual_kwh');
-      else if (has(text, /\b(bill|monthly|a month|per month|cost|spend|pay)\b|£/))
+      // The question asks for the figure itself, so the figure answers both
+      // halves: how they know it, and what it is. A bare number is read by its
+      // size: a few hundred is pounds a month, a few thousand is kWh a year.
+      const figure = /£?\s*(\d[\d,]*(?:\.\d+)?)\s*(k\b)?/.exec(text);
+      const n = figure ? Number(figure[1]!.replace(/,/g, '')) * (figure[2] ? 1000 : 1) : NaN;
+      const kwh = has(text, /\bkwh\b|\bunits\b|\bmeter reading\b/);
+      const money = has(text, /\b(bill|monthly|a month|per month|cost|spend|pay|pounds|quid)\b|£/);
+      const household = has(
+        text,
+        /\b(people|household|family|of us|how many live|live here|not sure|no idea|don'?t know|dunno|unsure)\b/,
+      );
+      if (kwh || (!money && !household && Number.isFinite(n) && n >= 600)) {
+        add(current, 'manual_kwh');
+        if (Number.isFinite(n) && n > 0) add('annual_kwh', String(Math.round(n)));
+      } else if (money || (!household && Number.isFinite(n) && n > 0)) {
         add(current, 'monthly_cost');
-      else if (has(text, /\b(people|household|family|how many live|live here)\b/))
-        add(current, 'household');
+        if (Number.isFinite(n) && n > 0) add('monthly_cost', String(n));
+      } else if (household) add(current, 'household');
     }
     if (current === 'ownership' && p === 'yes') add(current, 'own');
     // Budgets arrive as figures ("about £9k", "£8,000 to £10,000"); a range is

@@ -28,6 +28,8 @@ export const JOURNEY_KEYS = {
   homeSolar: 'journey_home_solar',
   /** Where the energy certificate answers came from (homedata `EpcRecord`, JSON). */
   homeEpc: 'journey_home_epc',
+  /** The figures read from an uploaded bill (bill/read.ts `BillRecord`, JSON). */
+  bill: 'journey_bill',
 } as const;
 
 export type JourneyStage =
@@ -155,16 +157,24 @@ export function journeyStatus(
   const askable = roofPending
     ? missing.filter((id) => QUESTIONS[id]?.step !== 'roof' || id === 'roof_shading')
     : missing;
-  if (!postcode && answers['address']) missing.unshift('postcode');
+  const needsPostcode = !postcode && Boolean(answers['address']);
+  if (needsPostcode) missing.unshift('postcode');
 
+  // A workflow asks for a missing postcode straight away: the roof and the
+  // home records are looked up from the full address, so nothing else is
+  // worth asking until it is in. The legacy order keeps it for last.
   const nextId =
-    legacy && !answers['address'] ? 'address' : (askable.find((id) => id !== 'postcode') ?? null);
+    legacy && !answers['address']
+      ? 'address'
+      : !legacy && needsPostcode
+        ? 'address'
+        : (askable.find((id) => id !== 'postcode') ?? null);
   const question = nextId ? flow.question(nextId) : undefined;
   let prompt = question?.prompt ?? null;
   if (nextId === 'roof_confirmed' && roof) prompt = confirmationPrompt(roof);
   if (nextId === 'address')
     prompt = 'What is the address, including the postcode, you would like a quote for?';
-  if (!postcode && answers['address'] && nextId === null) {
+  if (needsPostcode && (nextId === null || !legacy)) {
     prompt = 'What is the postcode of the property?';
   }
 
@@ -218,6 +228,17 @@ export function budgetBandFor(
   return pricing.budgetBands.find((b) => b.maxGbp === max)?.id ?? null;
 }
 
+/** The unit rate an uploaded bill showed, pence per kWh, or null. */
+function billRateOf(raw: string | undefined): number | null {
+  if (!raw) return null;
+  try {
+    const rate = (JSON.parse(raw) as { unitRatePence?: unknown }).unitRatePence;
+    return typeof rate === 'number' && rate > 0 ? rate : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Everything the engine needs from the answers, or null if anything is missing. */
 export function quoteAnswers(
   answers: Record<string, string>,
@@ -231,11 +252,13 @@ export function quoteAnswers(
   // An optional question the visitor skipped reads as unanswered.
   answers = Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== SKIPPED));
   const usageSource = answers['usage_source'] ?? null;
+  // A bill read for its kWh is a typed kWh to the engine, with the bill's own
+  // unit rate when it shows one.
+  const bill = usageSource === 'bill_ocr' ? billRateOf(answers[JOURNEY_KEYS.bill]) : null;
   const usage: QuoteUsage = {
-    // A bill upload is not something a chat can do; its kWh is typed instead.
     source: usageSource === 'bill_ocr' ? 'manual_kwh' : usageSource,
     annualKwh: numberOf(answers['annual_kwh']),
-    unitRatePence: null,
+    unitRatePence: bill,
     exportTariffPence: null,
     monthlyCostGbp: numberOf(answers['monthly_cost']),
     householdSize: numberOf(answers['household_size']),
