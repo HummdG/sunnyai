@@ -34,6 +34,9 @@ import {
   type Store,
 } from '../store.js';
 import { JOURNEY_KEYS } from '../journey/journey.js';
+import type { HomeData } from '../homedata/index.js';
+import { roofPicture, type RoofPicture } from '../homedata/roof-image.js';
+import { parseGoogleRoof } from '../homedata/solar.js';
 import { ONBOARDING_STEPS, type Tenant, type TenantRegistry } from '../tenants.js';
 import { isStaleJob } from '../ingest/sync.js';
 import {
@@ -77,6 +80,8 @@ export interface PortalDeps {
   knowledgeSync?: KnowledgeSyncConnector;
   /** The SunScan service, for the installer's 3D view of a lead's roof. */
   sunscan?: SunScanService | null;
+  /** Google's roof data, for the aerial photo of a lead's house. */
+  homeData?: HomeData | null;
   fetch?: typeof fetch;
   /** Where uploaded logos live, to check a saved choice against what was uploaded. */
   brandAssets: BrandAssetStore;
@@ -864,6 +869,33 @@ export function registerPortalRoutes(app: FastifyInstance, deps: PortalDeps): vo
       // The 3D view needs the model description; the GLB is the download.
       modelAvailable: deps.sunscan != null && record.artefacts.includes('spec.json'),
     };
+  });
+
+  /**
+   * The lead's house from above, with Google's panels on each roof face, as
+   * the visitor saw it (homedata/roof-image.ts). Tenant-scoped through the
+   * lead; any miss is `not_found`.
+   */
+  app.get('/v1/portal/tenants/:tenantId/leads/:leadId/roof-picture', async (request, reply) => {
+    const { tenant } = await member(request, 'viewer');
+    const { leadId } = request.params as { leadId: string };
+    const lead = (await store.listAllLeads(tenant.id)).find((l) => l.id === leadId);
+    const answers = lead
+      ? ((await store.getConversation(tenant.id, lead.sessionId))?.answers ?? {})
+      : {};
+    let picture: RoofPicture | null = null;
+    try {
+      picture = await roofPicture(
+        deps.homeData?.solar,
+        parseGoogleRoof(answers[JOURNEY_KEYS.homeSolar]),
+        deps.now(),
+      );
+    } catch (error) {
+      request.log.warn({ err: error }, 'roof picture failed');
+    }
+    if (!picture) throw new ApiError('not_found', 'No roof picture for this lead.');
+    void reply.header('cache-control', 'private, max-age=3600');
+    return picture;
   });
 
   /**

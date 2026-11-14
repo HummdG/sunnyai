@@ -22,6 +22,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import { pinBrandAssets } from '../branding/meta.js';
+import type { HomeData } from '../homedata/index.js';
+import { roofPicture, type RoofPicture } from '../homedata/roof-image.js';
+import { parseGoogleRoof } from '../homedata/solar.js';
+import { JOURNEY_KEYS } from '../journey/journey.js';
 import { chosenPackage } from '../journey/choose.js';
 import { createBatteryQuote, publishedBatteryPricing } from '../journey/battery/service.js';
 import { BATTERY_NOT_SUITABLE, batteryNotSuitable } from '../journey/battery/status.js';
@@ -51,6 +55,8 @@ export interface QuoteRouteDeps {
   pricing: PricingSource;
   /** The assessment `assessmentId`, if it belongs to this tenant and session. */
   roof: RoofLookupFn;
+  /** Google's roof data, for the aerial photo of the visitor's house. */
+  homeData?: HomeData | null;
 }
 
 const answersRequestSchema = z.object({
@@ -132,6 +138,26 @@ export function registerQuoteRoutes(app: FastifyInstance, deps: QuoteRouteDeps):
   app.get('/v1/quote/journey', async (request) => {
     const who = caller(request);
     return journeyView(journey, who.tenantId, who.sessionId);
+  });
+
+  /**
+   * The visitor's house from above, with Google's panels on each roof face
+   * (homedata/roof-image.ts). 404 when there is nothing to show: no Google
+   * roof for the session's address, or no imagery for it.
+   */
+  app.get('/v1/quote/roof-picture', async (request, reply) => {
+    const who = caller(request);
+    const answers = (await deps.store.getConversation(who.tenantId, who.sessionId))?.answers ?? {};
+    const roof = parseGoogleRoof(answers[JOURNEY_KEYS.homeSolar]);
+    let picture: RoofPicture | null = null;
+    try {
+      picture = await roofPicture(deps.homeData?.solar, roof, deps.now());
+    } catch (error) {
+      request.log.warn({ err: error }, 'roof picture failed; the chat carries on without it');
+    }
+    if (!picture) throw new ApiError('not_found', 'No roof picture for this address.');
+    void reply.header('cache-control', 'private, max-age=3600');
+    return picture;
   });
 
   app.post('/v1/quote/journey/answers', async (request) => {

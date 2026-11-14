@@ -540,6 +540,45 @@ describe("a solar workflow with Google's roof", () => {
     expect(stored.basis.roofConfidence).toBe('high');
     expect(stored.estimatedFrom).toEqual([]);
     expect(stored.warnings.join(' ')).not.toMatch(/does not ask/);
+    // No panel positions in this model, so no photo to offer.
+    expect(ctx.events.some((e) => e.kind === 'roof_image')).toBe(false);
+  });
+
+  it('offers the house from above when Google has the panel positions', async () => {
+    const store = await tempStore();
+    const withPanels = insights();
+    Object.assign(withPanels, {
+      boundingBox: {
+        sw: { latitude: POINT.lat - 0.00005, longitude: POINT.lng - 0.00008 },
+        ne: { latitude: POINT.lat + 0.00005, longitude: POINT.lng + 0.00008 },
+      },
+    });
+    Object.assign(withPanels.solarPotential, {
+      panelWidthMeters: 1.045,
+      panelHeightMeters: 1.879,
+      solarPanels: [
+        {
+          center: { latitude: POINT.lat - 0.00002, longitude: POINT.lng },
+          orientation: 'PORTRAIT',
+          segmentIndex: 0,
+          yearlyEnergyDcKwh: 400,
+        },
+      ],
+    });
+    (withPanels.solarPotential.roofSegmentStats as unknown as { stats: object }[]).forEach((s) =>
+      Object.assign(s.stats, { areaMeters2: 30 }),
+    );
+    const ctx = context(
+      store,
+      { epc: null, solar: fakeSolar(withPanels) },
+      defaultWorkflowSet(NOW),
+    );
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'ownership', 'own');
+    await save(ctx, 'address', ADDRESS);
+    expect(ctx.events.filter((e) => e.kind === 'roof_image')).toHaveLength(1);
+    const saved = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(JSON.parse(saved['journey_home_solar']!).view.panels).toHaveLength(1);
   });
 
   it('still quotes on typical values when Google has no model', async () => {

@@ -32,6 +32,7 @@ export function parseStreamEvent(value: unknown): ChatStreamEvent | null {
   switch (e['type']) {
     case 'message_started':
     case 'done':
+    case 'roof_image':
       break;
     case 'text_delta':
       if (!isStr(e['text'])) return null;

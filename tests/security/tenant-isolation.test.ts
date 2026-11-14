@@ -875,6 +875,14 @@ const ROUTES: RouteSpec[] = [
   },
   {
     method: 'GET',
+    pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/roof-picture',
+    url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/roof-picture`,
+    kind: 'installer',
+    minRole: 'viewer',
+    namesRecord: true,
+  },
+  {
+    method: 'GET',
     pattern: '/v1/portal/tenants/:tenantId/leads/:leadId/assessment/model.glb',
     url: (ids) => `/v1/portal/tenants/${ids.tenantId}/leads/lead_placeholder/assessment/model.glb`,
     kind: 'installer',
@@ -1561,6 +1569,15 @@ const ROUTES: RouteSpec[] = [
 
   // ─── the quote journey (routes/quote.ts) ──────────────────────────────────
   { method: 'GET', pattern: '/v1/quote/journey', url: () => '/v1/quote/journey', kind: 'visitor' },
+  {
+    // The session's own roof, read from its own answers: no field names another.
+    // The sweep's session has no Google roof, so the allowed caller gets 404.
+    method: 'GET',
+    pattern: '/v1/quote/roof-picture',
+    url: () => '/v1/quote/roof-picture',
+    kind: 'visitor',
+    namesRecord: true,
+  },
   {
     method: 'POST',
     pattern: '/v1/quote/journey/answers',

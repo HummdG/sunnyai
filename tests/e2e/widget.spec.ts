@@ -509,127 +509,50 @@ test('offers the answers to Sunny’s question as buttons, and a tap sends one',
   await expect.poll(() => sent).toEqual(['I want solar', 'Semi-detached']);
 });
 
-test('docks the 3D roof in the conversation, compact as it moves on, big again on request', async ({
-  page,
-}) => {
-  const summary = {
-    address: '3A Downs Walk, Peacehaven BN10 7SN',
-    postcode: 'BN10 7SN',
-    reliable: true,
-    label: 'Indicative, subject to an on-site survey',
-    usableRoofAreaM2: 52,
-    estimatedMaxPanels: 21,
-    bestFacing: 'S',
-    roofPlanes: [
-      {
-        id: 0,
-        facing: 'S',
-        pitchDeg: 45,
-        areaM2: 67,
-        usableAreaM2: 52,
-        maxPanels: 21,
-        suitable: true,
-      },
-      {
-        id: 1,
-        facing: 'N',
-        pitchDeg: 19,
-        areaM2: 143,
-        usableAreaM2: 0,
-        maxPanels: 0,
-        suitable: false,
-      },
-    ],
-  };
-  let turns = 0;
-  await page.route('**/v1/chat/stream', (route) =>
-    route.fulfill({
-      status: 200,
-      headers: { 'content-type': 'text/event-stream' },
-      body:
-        turns++ === 0
-          ? streamOf(
-              { type: 'message_started' },
-              { type: 'sunscan', assessmentId: 'ss_e2e', status: 'succeeded', summary },
-              { type: 'text_delta', text: 'Your main roof faces south. Does that look right?' },
-              { type: 'message_finished' },
-              { type: 'done', messageId: 'done' },
-            )
-          : streamOf(
-              { type: 'message_started' },
-              { type: 'text_delta', text: 'Is the roof shaded by trees or buildings?' },
-              { type: 'message_finished' },
-              { type: 'done', messageId: 'done' },
-            ),
-    }),
-  );
-  // the model itself is not under test here
-  await page.route('**/v1/sunscan/assessments/**', (route) => route.fulfill({ status: 503 }));
-  await openWidget(page);
-  const panel = page.locator(HOST).locator(PANEL);
-  // layout width, not the on-screen box: the opening animation scales the panel
-  const width = () => panel.evaluate((e) => (e as HTMLElement).offsetWidth);
-  const before = await width();
-  // sent from the keyboard, so the message box has focus when the roof arrives
-  await panel.locator('.composer-input').fill('3A Downs Walk, BN10 7SN');
-  await panel.locator('.composer-input').press('Enter');
+/** GET /v1/quote/roof-picture: a 1×1 JPEG stands in for Google's photo. */
+const ROOF_PICTURE = {
+  width: 180,
+  height: 160,
+  image:
+    'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
+  imageryYear: 2023,
+  faces: [
+    {
+      facing: 'south',
+      pitchDeg: 35,
+      areaM2: 40,
+      panelCount: 2,
+      colour: '#f2a93b',
+      panels: [
+        [80, 110, 10.5, 15.4, 180],
+        [92, 110, 10.5, 15.4, 180],
+      ],
+    },
+    {
+      facing: 'west',
+      pitchDeg: 30,
+      areaM2: 20,
+      panelCount: 1,
+      colour: '#4f86c6',
+      panels: [[50, 70, 10.5, 16.3, 270]],
+    },
+  ],
+};
 
-  // it opens by itself, inside the conversation rather than over it
-  const roof = panel.getByRole('region', { name: /3D model of 3A Downs Walk/ });
-  await expect(roof).toBeVisible();
-  await expect(panel).toContainText('Does that look right?');
-  await expect(panel.locator('.composer-input')).toBeVisible();
-  // and opening by itself does not take the visitor's place in the message box
-  await expect(panel.locator('.composer-input')).toBeFocused();
-  await expect.poll(width).toBeGreaterThan(before + 100);
-
-  const stageHeight = () =>
-    roof.locator('.roof-stage').evaluate((e) => (e as HTMLElement).offsetHeight);
-  // measured once the panel has finished growing round it
-  await page.waitForTimeout(450);
-  const big = await stageHeight();
-  await expect(roof.getByRole('button', { name: 'Make bigger' })).toBeHidden();
-
-  // the conversation moves on: the roof steps back to a strip, still in view
-  await panel.locator('.composer-input').fill('Yes');
-  await panel.locator('.composer-input').press('Enter');
-  await expect(panel).toContainText('Is the roof shaded');
-  await expect.poll(stageHeight).toBeLessThanOrEqual(90);
-  // compact is a real step down, even on a laptop screen
-  expect(big).toBeGreaterThan(140);
-  await expect(roof).toBeVisible();
-
-  // and the visitor asks for it big again
-  await roof.getByRole('button', { name: 'Make bigger' }).click();
-  await expect.poll(stageHeight).toBeGreaterThan(140);
-  await expect(roof.getByRole('button', { name: 'Make bigger' })).toBeHidden();
-
-  await roof.getByRole('button', { name: 'Close the 3D view' }).click();
-  await expect(roof).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: 'See your roof in 3D' })).toBeVisible();
-});
-
-test('says so when the 3D roof cannot load, and loads it when asked again', async ({ page }) => {
-  // What an installer's site did before the roof file carried a CORS header:
-  // the import failed and the button did nothing, with no word to the visitor.
-  let blocked = true;
-  await page.route('**/widget/sunny-roof.js', (route) =>
-    blocked ? route.abort('failed') : route.continue(),
-  );
-  await page.route('**/v1/sunscan/assessments/**', (route) => route.fulfill({ status: 503 }));
+test('shows the house from above with its roof faces, and no 3D roof', async ({ page }) => {
   await page.route('**/v1/chat/stream', (route) =>
     route.fulfill({
       status: 200,
       headers: { 'content-type': 'text/event-stream' },
       body: streamOf(
         { type: 'message_started' },
+        // SunScan still measures the roof on the server; the widget shows none of it.
         {
           type: 'sunscan',
-          assessmentId: 'ss_blocked',
+          assessmentId: 'ss_e2e',
           status: 'succeeded',
           summary: {
             address: '3A Downs Walk, Peacehaven BN10 7SN',
-            postcode: 'BN10 7SN',
             reliable: true,
             label: 'Indicative, subject to an on-site survey',
             usableRoofAreaM2: 52,
@@ -638,34 +561,77 @@ test('says so when the 3D roof cannot load, and loads it when asked again', asyn
             roofPlanes: [],
           },
         },
-        { type: 'text_delta', text: 'Does that look right?' },
+        { type: 'roof_image' },
+        { type: 'text_delta', text: 'Thanks. How do you use electricity at home?' },
         { type: 'message_finished' },
         { type: 'done', messageId: 'done' },
       ),
     }),
   );
+  let auth = '';
+  await page.route('**/v1/quote/roof-picture', (route) => {
+    auth = route.request().headers()['authorization'] ?? '';
+    return route.fulfill({ status: 200, json: ROOF_PICTURE });
+  });
+  let sunscanCalls = 0;
+  await page.route('**/v1/sunscan/assessments/**', (route) => {
+    sunscanCalls++;
+    return route.fulfill({ status: 503 });
+  });
+  let roofScript = 0;
+  await page.route('**/widget/sunny-roof.js', (route) => {
+    roofScript++;
+    return route.continue();
+  });
   await openWidget(page);
   const panel = page.locator(HOST).locator(PANEL);
   await panel.locator('.composer-input').fill('3A Downs Walk, BN10 7SN');
   await panel.locator('.composer-input').press('Enter');
 
-  // It tried to open by itself and could not: the card says so, the
-  // measurements stay, and the panel is not left half grown round nothing.
-  const card = panel.locator('.roof');
-  const note = card.getByRole('status');
-  await expect(note).toHaveText(/3D view could not load/);
-  await expect(card).toContainText('about 52 m² usable');
+  const picture = panel.locator('figure.roof-pic');
+  await expect(picture).toBeVisible();
+  expect(auth).toMatch(/^Bearer /);
+  await expect(picture.getByRole('img', { name: 'Your house from above' })).toBeVisible();
+  await expect(picture).toContainText('room for about 3 panels across 2 faces');
+  await expect(picture.locator('.roof-pic-key li')).toHaveText([
+    'South-facing, 35° pitch, 2 panels',
+    'West-facing, 30° pitch, 1 panel',
+  ]);
+  await expect(picture.locator('.roof-pic-panels rect')).toHaveCount(3);
+  await expect(picture).toContainText('Aerial imagery: Google, 2023');
+
+  // No 3D: no view, no button, no roof card, and the three.js file never loads.
+  await expect(panel.getByRole('region', { name: /3D model of/ })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'See your roof in 3D' })).toHaveCount(0);
+  await expect(panel.locator('.roof')).toHaveCount(0);
   await expect(panel).not.toHaveClass(/roof-open/);
+  expect(sunscanCalls).toBe(0);
+  expect(roofScript).toBe(0);
+});
 
-  // Asked again, still failing: one note, not one per press.
-  await card.getByRole('button', { name: 'See your roof in 3D' }).click();
-  await expect(note).toHaveCount(1);
-
-  // And once the file arrives, the same button opens it and the note goes.
-  blocked = false;
-  await card.getByRole('button', { name: 'See your roof in 3D' }).click();
-  await expect(panel.getByRole('region', { name: /3D model of 3A Downs Walk/ })).toBeVisible();
-  await expect(note).toHaveCount(0);
+test('shows nothing when there is no picture of the roof', async ({ page }) => {
+  await page.route('**/v1/chat/stream', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: streamOf(
+        { type: 'message_started' },
+        { type: 'roof_image' },
+        { type: 'text_delta', text: 'Thanks. How do you use electricity at home?' },
+        { type: 'message_finished' },
+        { type: 'done', messageId: 'done' },
+      ),
+    }),
+  );
+  await page.route('**/v1/quote/roof-picture', (route) =>
+    route.fulfill({ status: 404, json: { error: { code: 'not_found' } } }),
+  );
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  await panel.locator('.composer-input').fill('3A Downs Walk, BN10 7SN');
+  await panel.locator('.composer-input').press('Enter');
+  await expect(panel).toContainText('How do you use electricity');
+  await expect(panel.locator('figure.roof-pic')).toHaveCount(0);
 });
 
 test('takes the whole screen on a phone, and the × gives the page back', async ({ page }) => {
@@ -712,7 +678,7 @@ for (const [w, h] of [
   [1920, 1080],
   [390, 844],
 ] as const) {
-  test(`keeps the message box and the conversation in view with the roof docked (${w}x${h})`, async ({
+  test(`keeps the message box and the conversation in view with the roof photo (${w}x${h})`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: w, height: h });
@@ -722,39 +688,7 @@ for (const [w, h] of [
         headers: { 'content-type': 'text/event-stream' },
         body: streamOf(
           { type: 'message_started' },
-          {
-            type: 'sunscan',
-            assessmentId: 'ss_fit',
-            status: 'succeeded',
-            summary: {
-              address: '3A Downs Walk, Peacehaven BN10 7SN',
-              reliable: true,
-              label: 'Indicative, subject to an on-site survey',
-              usableRoofAreaM2: 52,
-              estimatedMaxPanels: 21,
-              bestFacing: 'S',
-              roofPlanes: [
-                {
-                  id: 0,
-                  facing: 'S',
-                  pitchDeg: 45,
-                  areaM2: 67,
-                  usableAreaM2: 52,
-                  maxPanels: 21,
-                  suitable: true,
-                },
-                {
-                  id: 1,
-                  facing: 'N',
-                  pitchDeg: 19,
-                  areaM2: 143,
-                  usableAreaM2: 0,
-                  maxPanels: 0,
-                  suitable: false,
-                },
-              ],
-            },
-          },
+          { type: 'roof_image' },
           { type: 'text_delta', text: 'Your main roof faces south. Does that look right?' },
           {
             type: 'quick_replies',
@@ -770,12 +704,14 @@ for (const [w, h] of [
         ),
       }),
     );
-    await page.route('**/v1/sunscan/assessments/**', (route) => route.fulfill({ status: 503 }));
+    await page.route('**/v1/quote/roof-picture', (route) =>
+      route.fulfill({ status: 200, json: ROOF_PICTURE }),
+    );
     await openWidget(page);
     const panel = page.locator(HOST).locator(PANEL);
     await panel.locator('.composer-input').fill('3A Downs Walk');
     await panel.locator('.composer-input').press('Enter');
-    await expect(panel.getByRole('region', { name: /3D model of/ })).toBeVisible();
+    await expect(panel.locator('figure.roof-pic')).toBeVisible();
     await expect(panel.getByRole('button', { name: 'Yes' })).toBeVisible();
     // the panel has finished growing
     await page.waitForTimeout(500);
@@ -880,3 +816,94 @@ for (const [w, h] of [
     }
   });
 }
+
+const step = (priceGbp: number, panelCount: number, batteryKwh: number, savings: number) => ({
+  priceGbp,
+  panelCount,
+  systemKwp: Math.round(panelCount * 43) / 100,
+  batteryKwh,
+  annualGenerationKwh: panelCount * 380,
+  annualSavingsGbp: savings,
+  paybackYears: Math.round((priceGbp / savings) * 10) / 10,
+  twentyFiveYearSavingsGbp: savings * 25,
+});
+
+const PRICED_QUOTE = {
+  ...QUOTE,
+  quoteId: 'q_budget',
+  priced: true,
+  options: QUOTE.options.map((o, i) => ({
+    ...o,
+    priceGbp: [5200, 7400, 14800][i],
+    priceLabel: 'Indicative price',
+  })),
+  budget: {
+    minGbp: 5200,
+    maxGbp: 14800,
+    initialGbp: 7500,
+    fromAnswer: true,
+    steps: [
+      step(5200, 8, 0, 420),
+      step(7400, 12, 0, 610),
+      step(9900, 12, 5.2, 820),
+      step(14800, 16, 10.4, 1100),
+    ],
+  },
+};
+
+test('a budget slider changes what the quote shows, as it moves', async ({ page }) => {
+  await page.route('**/v1/chat/stream', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: streamOf(
+        { type: 'message_started' },
+        { type: 'text_delta', text: 'Here are three options for your home.' },
+        { type: 'quote', quote: PRICED_QUOTE },
+        { type: 'message_finished' },
+        { type: 'done', messageId: 'done' },
+      ),
+    }),
+  );
+  let requests = 0;
+  page.on('request', (r) => {
+    if (r.url().includes('/v1/quote')) requests++;
+  });
+  await openWidget(page);
+  const panel = page.locator(HOST).locator(PANEL);
+  await panel.locator('.composer-input').fill('Show me my options');
+  await panel.locator('.composer-send').click();
+
+  const slider = panel.getByRole('slider', { name: 'Try a different budget' });
+  await expect(slider).toBeVisible();
+  const budget = panel.locator('.budget');
+  // Starts at their own budget: the 12 panel system fits, the battery one does not.
+  await expect(budget.locator('.budget-amount')).toHaveText('£7,500');
+  await expect(budget.locator('.budget-system')).toHaveText('12 panels (5.16 kWp), for £7,400');
+  const cards = panel.getByRole('list', { name: 'Your quote options' }).locator(':scope > li');
+  await expect(cards.nth(2)).toHaveClass(/beyond-budget/);
+
+  const slide = (value: number) =>
+    slider.evaluate((input, v) => {
+      (input as HTMLInputElement).value = String(v);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, value);
+
+  await slide(10_000);
+  await expect(budget.locator('.budget-amount')).toHaveText('£10,000');
+  await expect(budget.locator('.budget-system')).toHaveText(
+    '12 panels (5.16 kWp) with a 5.2 kWh battery, for £9,900',
+  );
+  await expect(budget.locator('.budget-stats')).toContainText('£820');
+
+  await slide(15_000);
+  await expect(budget.locator('.budget-system')).toContainText('16 panels');
+  await expect(cards.nth(2)).not.toHaveClass(/beyond-budget/);
+
+  await slide(5_000);
+  await expect(budget.locator('.budget-system')).toHaveText(
+    'The smallest system is 8 panels (3.44 kWp), at £5,200',
+  );
+  // Every figure came with the quote: sliding asks the server nothing.
+  expect(requests).toBe(0);
+});

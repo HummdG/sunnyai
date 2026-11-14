@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { ConversationFlow } from '@sunny/contracts';
+import { budgetLadderSchema, type ConversationFlow } from '@sunny/contracts';
 
 import { getPublishedPriceList, publishExample } from '../src/catalogue/price-list-service.js';
 import { catalogueBackedPricing, pricingFromPriceList } from '../src/journey/catalogue-pricing.js';
@@ -20,6 +20,7 @@ import { SOLAR } from '../src/flow/banks.js';
 import { resolveFlow } from '../src/flow/resolve.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import { buildQuote } from '../src/journey/quote.js';
+import { toQuoteCard } from '../src/journey/service.js';
 import {
   confirmationPrompt,
   mapRoof,
@@ -348,6 +349,19 @@ describe('the quote', () => {
     }
     expect(quote.disclaimer).toMatch(/non-binding/);
     expect(quote.basis).toMatchObject({ mcsZone: expect.any(String), roofConfidence: 'high' });
+
+    // The budget slider: priced systems along the range, starting at their budget.
+    const budget = quote.budget!;
+    expect(budgetLadderSchema.safeParse(budget).success).toBe(true);
+    expect(budget.fromAnswer).toBe(true);
+    expect(budget.steps.length).toBeGreaterThanOrEqual(2);
+    expect(budget.initialGbp).toBeGreaterThanOrEqual(budget.minGbp);
+    expect(budget.initialGbp).toBeLessThanOrEqual(budget.maxGbp);
+    const prices = budget.steps.map((s) => s.priceGbp);
+    expect(prices).toEqual([...prices].sort((a, b) => a - b));
+    // Outcomes only: no kit, SKUs or line items reach the browser.
+    expect(JSON.stringify(budget)).not.toMatch(/sku|lineItems|config/i);
+    expect(toQuoteCard(quote)).toMatchObject({ budget });
   });
 
   it('without a price list, sizes and savings but no prices', () => {

@@ -275,14 +275,6 @@ export function styles(): string {
      address, so it eases rather than jumps. */
   transition: width 340ms cubic-bezier(.2, .8, .2, 1), height 340ms cubic-bezier(.2, .8, .2, 1);
 }
-/* Roof mode: the 3D roof docks at the top of the conversation and the panel
-   grows to give it room, so the visitor answers the survey looking at their
-   own roof. As the conversation moves on the roof turns compact (below), and
-   the visitor makes it big again. */
-.panel.roof-open {
-  width: min(720px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
-  height: min(880px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
-}
 .panel.quote-wide {
   width: min(940px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
   height: min(880px, calc(100vh - 140px - var(--sunny-safe-top) - var(--sunny-safe-bottom)));
@@ -439,14 +431,39 @@ export function styles(): string {
 /* ── suggestions and composer ───────────────────────────────────────────── */
 
 .sources { font-size: 11.5px; color: #5c5c5c; margin: -4px 0 8px 4px; }
-/* SunScan roof card, and the 3D view it docks at the top of the panel (roof.ts). */
-.roof { margin: 4px 0 10px; padding: 10px 12px; border-radius: 14px; background: var(--sunny-pale);
-  border: 1px solid var(--sunny-orange-soft); font-size: 13px; }
-.roof p { margin: 0 0 6px; }
-.roof .roof-label { font-size: 11.5px; color: #5c5c5c; }
-.roof .roof-note { margin: 8px 0 0; font-size: 12.5px; color: #5c5c5c; }
-.roof button { font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 999px; padding: 6px 12px;
-  border: 0; background: var(--sunny-accent-ink); color: #fff; }
+/* "Try a different budget" under a solar quote (budget-slider.ts). */
+.budget { margin: 10px 0 6px; padding: 10px 12px; border-radius: 14px; background: var(--sunny-pale);
+  border: 1px solid var(--sunny-orange-soft); font-size: 12.5px; }
+.budget-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.budget-head label { font-weight: 600; font-size: 13px; }
+.budget-amount { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.budget input[type="range"] { width: 100%; margin: 8px 0 2px; accent-color: var(--sunny-accent-ink); }
+.budget input[type="range"]:focus-visible { outline: 2px solid var(--sunny-accent); outline-offset: 2px; }
+.budget-range { display: flex; justify-content: space-between; font-size: 11px; color: #5c5c5c; }
+.budget-system { margin: 8px 0 6px; font-weight: 600; }
+.budget-stats { list-style: none; margin: 0; padding: 0; display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.budget-stats li { display: flex; flex-direction: column; padding: 6px 8px; border-radius: 10px;
+  background: var(--sunny-warm-white); }
+.budget-stats b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.budget-stats span { font-size: 11px; color: #5c5c5c; }
+.budget-note { margin: 6px 0 0; font-size: 11px; color: #5c5c5c; }
+.quote-option { transition: opacity 160ms ease; }
+.quote-option.beyond-budget { opacity: .5; }
+/* The house from above (roof-image.ts): Google's photo, the panels over it, a key. */
+.roof-pic { margin: 4px 0 10px; padding: 8px; border-radius: 14px; background: var(--sunny-pale);
+  border: 1px solid var(--sunny-orange-soft); font-size: 12.5px; }
+.roof-pic-frame { position: relative; border-radius: 10px; overflow: hidden; line-height: 0;
+  max-width: 360px; margin: 0 auto; }
+.roof-pic-frame img { display: block; width: 100%; height: auto; }
+.roof-pic-panels { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.roof-pic figcaption { padding: 8px 4px 0; }
+.roof-pic-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.roof-pic-key { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 3px; }
+.roof-pic-key li { display: flex; align-items: center; gap: 8px; }
+.roof-pic-swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(23,23,23,.25); }
+.roof-pic-credit { margin: 0; font-size: 11px; color: #5c5c5c; }
 .panel { position: relative; }
 /* Quote options: three across, the best lifted in the middle; a swipe row when narrow. */
 .quote { margin: 4px 0 10px; container-type: inline-size; }
@@ -515,47 +532,8 @@ export function styles(): string {
   border-radius: 10px; border: 1px solid rgba(23,23,23,.2); }
 .quote-email label { font-size: 12px; color: #3a3a3a; }
 .quote-status { font-size: 11.5px; color: #3a3a3a; margin: 4px 4px 0; min-height: 1em; }
-.roof-dock { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column;
-  border-bottom: 1px solid rgba(23,23,23,.08); background: var(--sunny-warm-white); }
-/* the roof gives way before the conversation does: at most a little over half
-   the panel, so the question, its answers and the message box always fit */
-.panel.roof-open .roof-dock { max-height: 56%; }
-/* and the transcript takes the room that is left, and scrolls: never less than
-   enough to read the question being asked */
-.panel.roof-open .log { flex: 1 1 0; min-height: 120px; }
-/* past the roof the conversation is under way: the starter questions step aside,
-   and only the answers to the question being asked show here */
-.panel.roof-open .suggestions:not(.replies) { display: none; }
-.roof-bar, .roof-controls, .roof-note { flex: 0 0 auto; }
 /* what the visitor types into never gives way */
 .composer, .suggestions, .footnote { flex: 0 0 auto; }
-.roof-dock[hidden] { display: none; }
-.roof-view { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; font-size: 12.5px; }
-.roof-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; background: var(--sunny-pale); }
-.roof-bar strong { flex: 1 1 auto; font-size: 13px; font-weight: 650; }
-.roof-bar button { border: 0; background: transparent; cursor: pointer; color: #3a3a3a; font: inherit;
-  border-radius: 999px; padding: 4px 10px; }
-.roof-bar button:hover { background: rgba(23,23,23,.06); }
-.roof-bar button:focus-visible { outline: 2px solid var(--sunny-accent); }
-.roof-close { font-size: 20px !important; line-height: 1; padding: 2px 8px !important; color: #5c5c5c !important; }
-.roof-stage { position: relative; flex: 1 1 auto; min-height: 110px; height: clamp(180px, 34vh, 360px); }
-.roof-stage canvas { display: block; width: 100%; height: 100%; }
-.roof-status { padding: 14px; }
-/* sun and roof faces share one row under the model, so the conversation keeps the room */
-.roof-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 14px 0; }
-.roof-time { display: flex; gap: 8px; align-items: center; flex: 1 1 200px; min-width: 0; }
-.roof-time input { flex: 1; min-width: 80px; accent-color: var(--sunny-accent-ink); }
-.roof-planes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.roof-planes button { font: inherit; font-size: 11.5px; border: 1px solid var(--sunny-orange-soft);
-  background: #fff; border-radius: 999px; padding: 3px 8px; cursor: pointer; }
-.roof-note { margin: 4px 14px 8px; font-size: 11px; color: #5c5c5c; }
-.roof-stage { transition: height 320ms cubic-bezier(.2, .8, .2, 1); }
-/* compact: still the live model, as a strip; the sun and faces wait until it is big again */
-.roof-view.compact .roof-stage { height: 88px; min-height: 0; cursor: zoom-in; }
-.roof-view.compact .roof-controls, .roof-view.compact .roof-note { display: none; }
-.roof-bigger[hidden] { display: none; }
-/* while the roof is docked above, the card's own way to open it is not needed */
-.panel.roof-open .roof > button { display: none; }
 /* Quick replies: the answers to the question Sunny just asked, as buttons. */
 .suggestions.replies button[aria-pressed="true"] { background: var(--sunny-accent-ink); color: #fff; }
 .suggestions.replies .send-replies { background: var(--sunny-accent-ink); color: #fff; border-color: transparent; }
@@ -691,7 +669,7 @@ export function styles(): string {
    pointed at. Applied by the widget adding an attribute, styled by the host's
    own stylesheet if it wants to; this is the fallback. */
 @media (prefers-reduced-motion: reduce) {
-  .launcher, .panel, .panel.opening, .panel.closing, .launcher.pop, .roof-stage, .quote-option,
+  .launcher, .panel, .panel.opening, .panel.closing, .launcher.pop, .quote-option,
   .panel.opening .header .avatar { animation: none !important;
     transition: none !important; }
   .panel.opening .header .avatar { opacity: 1; transform: none; }
@@ -707,8 +685,6 @@ export function styles(): string {
     --sunny-gutter-x: 12px;
     --sunny-gutter-y: 12px;
   }
-  .roof-view.compact .roof-stage { height: 72px; }
-  .roof-stage { height: 28vh; }
   .launcher { width: 60px; height: 60px; }
 }
 ${PHONE_FULL_SCREEN}

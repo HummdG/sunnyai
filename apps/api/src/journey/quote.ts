@@ -23,12 +23,15 @@ import {
   runSolarCalculations,
   runSolarCalculationsFromGoogleData,
   SHADING_LOSS,
+  type BudgetLadder,
   type GoogleSolarBuildingInsights,
   TIER_DEMAND_FACTOR,
   type OptionResult,
   type QuoteAnswers,
   type TenantPricing,
 } from '@sunny/quote-engine';
+
+import type { BudgetLadderCard } from '@sunny/contracts';
 
 import type { PriceList } from '../catalogue/price-list.js';
 import {
@@ -148,6 +151,11 @@ export interface QuoteRecord {
   quotation?: QuotationSnapshot;
   /** Why an item is on the quote, by line-item sku; absent on older quotes. */
   reasons?: Record<string, string>;
+  /**
+   * The budget slider: systems priced along a range of budgets. Absent on an
+   * unpriced quote and on quotes made before the slider.
+   */
+  budget?: BudgetLadderCard;
   /**
    * Warranty years by line-item sku, from the catalogue when the quote was
    * made (proposal/warranties.ts); absent on older quotes, which print none.
@@ -422,6 +430,39 @@ function estimates(
   };
 }
 
+/**
+ * The engine's budget ladder, cut down to what the slider shows: each step's
+ * price and outcome, never its configuration or line items. Empty when the
+ * ladder has nothing to slide between.
+ */
+export function budgetCard(
+  ladder: BudgetLadder | undefined,
+  fromAnswer: boolean,
+): { budget?: BudgetLadderCard } {
+  if (!ladder || ladder.steps.length < 2) return {};
+  return {
+    budget: {
+      minGbp: round(ladder.minGbp),
+      maxGbp: round(ladder.maxGbp),
+      initialGbp: round(ladder.initialGbp),
+      fromAnswer,
+      steps: ladder.steps.slice(0, 16).map((s) => ({
+        priceGbp: round(s.priceGbp),
+        panelCount: s.panelCount,
+        systemKwp: round(s.systemKwp, 2),
+        batteryKwh: round(s.hasBattery ? s.batteryKwh : 0, 1),
+        annualGenerationKwh: round(s.results.annualGenerationKwh),
+        annualSavingsGbp: round(s.results.annualSavingsPounds),
+        paybackYears:
+          s.results.paybackYears >= 99 || s.results.paybackYears <= 0
+            ? null
+            : round(s.results.paybackYears, 1),
+        twentyFiveYearSavingsGbp: round(s.results.twentyFiveYearSavings.at(-1)?.cumulative ?? 0),
+      })),
+    },
+  };
+}
+
 export function buildQuote(input: {
   id: string;
   tenantId: string;
@@ -541,6 +582,7 @@ export function buildQuote(input: {
         : view;
     }),
     recommendedId: set.recommendedId,
+    ...budgetCard(set.ladder, answers.budgetBandId !== null),
     warnings: [
       ...set.warnings,
       ...effectWarnings,

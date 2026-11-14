@@ -8,7 +8,7 @@ import { batteryPaybackText, batteryPriceText, batterySavingsText } from './batt
 import { heatPumpGrantText, heatPumpSavingsText, money } from './heat-pump-lead-text.js';
 import { SkeletonRows } from './kit.js';
 import { usePortal } from './portal.js';
-import { RoofViewer3D } from './roof-viewer.js';
+import { RoofPhoto } from './roof-photo.js';
 import { Card, Chip, formatDate } from './ui.js';
 
 interface QuoteOption {
@@ -229,7 +229,7 @@ export function LeadDetail({
 }: {
   lead: LeadRow;
   onClose: () => void;
-  /** On its own page the 3D view is shown open; inline it waits to be asked for. */
+  /** On its own page, so there is no link to the full lead page. */
   fullPage?: boolean;
 }) {
   const { tenant } = usePortal();
@@ -238,7 +238,6 @@ export function LeadDetail({
     { assessment: RoofSummary | null; status: string | null; modelAvailable?: boolean } | undefined
   >(undefined);
   const [proposal, setProposal] = useState(false);
-  const [show3d, setShow3d] = useState(fullPage);
   const base = tenantPath(tenant.id, `/leads/${encodeURIComponent(lead.id)}`);
 
   useEffect(() => {
@@ -485,10 +484,7 @@ export function LeadDetail({
                 Low confidence: confirm the roof on the survey.
               </p>
             ) : null}
-            {/* The 3D view lists the same planes, interactively; one list is enough. */}
-            {!(show3d && roof.modelAvailable) &&
-            roof.assessment.roofPlanes &&
-            roof.assessment.roofPlanes.length > 0 ? (
+            {roof.assessment.roofPlanes && roof.assessment.roofPlanes.length > 0 ? (
               <ul className="chip-row" aria-label="Roof planes">
                 {roof.assessment.roofPlanes.map((plane) => (
                   <li key={plane.id}>
@@ -501,22 +497,10 @@ export function LeadDetail({
               </ul>
             ) : null}
             <p className="small muted">Indicative, subject to an on-site survey.</p>
-            {roof.modelAvailable ? (
-              show3d ? (
-                <RoofViewer3D
-                  basePath={`${base}/assessment`}
-                  address={roof.assessment.address ?? lead.postcode}
-                  planes={roof.assessment.roofPlanes ?? []}
-                  reliable={roof.assessment.reliable !== false}
-                />
-              ) : (
-                <button type="button" className="button secondary" onClick={() => setShow3d(true)}>
-                  See the roof in 3D
-                </button>
-              )
-            ) : null}
           </>
         )}
+        {/* The 3D model is kept on the server but not shown for now; the photo is. */}
+        <RoofPhoto basePath={base} />
       </section>
     </Card>
   );

@@ -178,6 +178,7 @@ export type TurnEvent =
       summary: AssessmentSummary | null;
     }
   | { type: 'quote'; messageId: string; quote: QuoteCard }
+  | { type: 'roof_image'; messageId: string }
   | {
       type: 'quick_replies';
       messageId: string;
@@ -710,6 +711,8 @@ function drain(events: ToolEvent[], messageId: string): TurnEvent[] {
       out.push({ type: 'sunscan', messageId, ...detail });
     } else if (event.kind === 'quote') {
       out.push({ type: 'quote', messageId, quote: event.detail['quote'] as QuoteCard });
+    } else if (event.kind === 'roof_image') {
+      out.push({ type: 'roof_image', messageId });
     } else if (event.kind === 'quick_replies') {
       const detail = event.detail as {
         questionId: string | null;

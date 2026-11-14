@@ -2155,6 +2155,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     pricing: quotePricing,
     roof: sunscanRoofLookup(sunscan),
+    homeData,
   });
 
   // Account emails from the company's own mailbox (routes/account-email.ts).
@@ -2207,6 +2208,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     now,
     knowledgeSync: deps.knowledgeSync ?? knowledgePipeline.connector,
     sunscan,
+    homeData,
     brandAssets,
   });
 

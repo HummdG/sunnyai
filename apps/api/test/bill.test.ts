@@ -141,6 +141,26 @@ describe('why a question is asked', () => {
     expect(whyFor('c_custom12345', 'solar')).toBeNull();
     expect(whyFor(null, 'solar')).toBeNull();
   });
+
+  it('gives no reason where the question explains itself', () => {
+    for (const id of [
+      'household_size',
+      'property_type',
+      'hp_age',
+      'hp_bedrooms',
+      'lifestyle',
+      'tariff_type',
+      'existing_system',
+      'annual_kwh',
+      'monthly_cost',
+    ]) {
+      expect(whyFor(id, 'solar')).toBeNull();
+      expect(whyFor(id, 'heat_pump')).toBeNull();
+    }
+    expect(whyFor('budget_band', 'solar')).not.toBeNull();
+    expect(whyFor('usage_source', 'solar')).not.toBeNull();
+    expect(whyFor('hp_emitters', 'heat_pump')).not.toBeNull();
+  });
 });
 
 // ── the upload route and the turn after it ────────────────────────────────────

@@ -134,11 +134,42 @@ const quoteCardBase = {
   emailAvailable: z.boolean().optional(),
 };
 
+/**
+ * One point on the budget slider: a system already priced and modelled on the
+ * server, so the slider moves without a request and no price list reaches the
+ * browser.
+ */
+export const budgetStepSchema = z.object({
+  priceGbp: z.number().nonnegative(),
+  panelCount: z.number().int().nonnegative(),
+  systemKwp: z.number().nonnegative(),
+  batteryKwh: z.number().nonnegative(),
+  annualGenerationKwh: z.number().nonnegative(),
+  annualSavingsGbp: z.number(),
+  paybackYears: z.number().positive().nullable(),
+  twentyFiveYearSavingsGbp: z.number(),
+});
+
+/** The budget slider under a priced solar quote. */
+export const budgetLadderSchema = z.object({
+  minGbp: z.number().nonnegative(),
+  maxGbp: z.number().nonnegative(),
+  /** Where the slider starts: the visitor's own budget, within the range. */
+  initialGbp: z.number().nonnegative(),
+  /** True when the start is the visitor's own answer rather than a default. */
+  fromAnswer: z.boolean(),
+  /** Ascending by price. */
+  steps: z.array(budgetStepSchema).min(1).max(16),
+});
+
+export type BudgetLadderCard = z.infer<typeof budgetLadderSchema>;
+
 /** A solar quote card; cards from before quotes came in kinds have no `kind`. */
 export const solarQuoteCardSchema = z.object({
   kind: z.literal('solar').optional(),
   ...quoteCardBase,
   options: z.array(quoteOptionCardSchema).max(3),
+  budget: budgetLadderSchema.optional(),
 });
 
 /** A heat pump quote card. */
@@ -277,6 +308,13 @@ export const chatStreamEventSchema = z.discriminatedUnion('type', [
     type: z.literal('quote'),
     ...base,
     quote: quoteCardSchema,
+  }),
+  // Google has the visitor's roof and an aerial photo of it: the client fetches
+  // the picture (GET /v1/quote/roof-picture, with the session token) and shows
+  // the house from above with each roof face's panels marked.
+  z.object({
+    type: z.literal('roof_image'),
+    ...base,
   }),
   // The question the assistant ends its turn on, with its answers as buttons
   // (from the quote journey's options, in the visitor's words). Empty replies

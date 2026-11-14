@@ -56,7 +56,8 @@ export interface ToolEvent {
     | 'estimate_disclaimer'
     | 'sunscan'
     | 'quote'
-    | 'quick_replies';
+    | 'quick_replies'
+    | 'roof_image';
   detail: Record<string, unknown>;
 }
 

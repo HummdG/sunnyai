@@ -26,6 +26,9 @@ import {
 const TIMEOUT_MS = 4000;
 const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 const INSIGHTS_URL = 'https://solar.googleapis.com/v1/buildingInsights:findClosest';
+const DATA_LAYERS_URL = 'https://solar.googleapis.com/v1/dataLayers:get';
+/** The photo is fetched after the reply, off the conversation's path, so it may take longer. */
+const IMAGE_TIMEOUT_MS = 10_000;
 
 /** The furthest Google's building may sit from the address's rooftop point. */
 const MAX_BUILDING_DISTANCE_M = 40;
@@ -40,6 +43,12 @@ export interface SolarClient {
   geocode(address: string): Promise<LatLngPoint | null>;
   /** The building nearest a point, or null when Google has no roof model there. */
   buildingInsights(point: LatLngPoint): Promise<GoogleSolarBuildingInsights | null>;
+  /**
+   * Google's aerial photo around a point, as the bytes of its RGB GeoTIFF, or
+   * null when Google has no imagery there. Optional: a client without it shows
+   * no photo.
+   */
+  aerialImage?(point: LatLngPoint, radiusM: number): Promise<ArrayBuffer | null>;
 }
 
 /** Google over HTTP. A 404 from the Solar API means no model here, not an error. */
@@ -82,6 +91,29 @@ export function httpSolarClient(apiKey: string, fetchFn: typeof fetch = fetch): 
       if (!response.ok) throw new Error(`Solar API answered ${response.status}`);
       return (await response.json()) as GoogleSolarBuildingInsights;
     },
+    async aerialImage(point, radiusM) {
+      const q = new URLSearchParams({
+        'location.latitude': String(point.lat),
+        'location.longitude': String(point.lng),
+        radiusMeters: String(Math.round(radiusM)),
+        view: 'IMAGERY_LAYERS',
+        requiredQuality: 'MEDIUM',
+        pixelSizeMeters: '0.1',
+        key: apiKey,
+      });
+      const layers = await fetchFn(`${DATA_LAYERS_URL}?${q}`, {
+        signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
+      });
+      if (layers.status === 404) return null;
+      if (!layers.ok) throw new Error(`Solar API data layers answered ${layers.status}`);
+      const { rgbUrl } = (await layers.json()) as { rgbUrl?: string };
+      if (!rgbUrl) return null;
+      const url = new URL(rgbUrl);
+      url.searchParams.set('key', apiKey);
+      const tiff = await fetchFn(url, { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) });
+      if (!tiff.ok) throw new Error(`Solar API imagery answered ${tiff.status}`);
+      return tiff.arrayBuffer();
+    },
   };
 }
 
@@ -98,6 +130,59 @@ export interface GoogleRoof {
   imageryYear: number | null;
   /** Google's layouts as [panels, yearly DC kWh], smallest first. */
   layouts: Array<[number, number]>;
+  /**
+   * Where the building and its panels sit, for the aerial photo the visitor
+   * is shown (`roof-image.ts`). Absent on roofs saved before it existed.
+   */
+  view?: RoofView;
+}
+
+/** The building, its roof faces and Google's largest panel layout, by position. */
+export interface RoofView {
+  centre: LatLngPoint;
+  box: { sw: LatLngPoint; ne: LatLngPoint };
+  /** Panel size in metres, as laid out on the roof (before the pitch). */
+  panelWidthM: number;
+  panelHeightM: number;
+  /** Roof faces in Google's order (a panel's `face` is an index into this). */
+  faces: Array<{ pitchDeg: number; azimuthDeg: number; areaM2: number }>;
+  /** Panels as [lat, lng, face, portrait ? 1 : 0], Google's best first. */
+  panels: Array<[number, number, number, 0 | 1]>;
+}
+
+/** Google's panels are many; the photo needs only enough to show the layout. */
+const MAX_VIEW_PANELS = 160;
+
+/** The view of a building Google modelled, or undefined without panels or a box. */
+export function roofViewOf(insights: GoogleSolarBuildingInsights): RoofView | undefined {
+  const potential = insights.solarPotential;
+  const box = insights.boundingBox;
+  const panels = potential?.solarPanels ?? [];
+  if (!box || !insights.center || panels.length === 0) return undefined;
+  const round = (n: number) => Math.round(n * 1e7) / 1e7;
+  const point = (p: { latitude: number; longitude: number }): LatLngPoint => ({
+    lat: round(p.latitude),
+    lng: round(p.longitude),
+  });
+  return {
+    centre: point(insights.center),
+    box: { sw: point(box.sw), ne: point(box.ne) },
+    panelWidthM: potential.panelWidthMeters,
+    panelHeightM: potential.panelHeightMeters,
+    faces: potential.roofSegmentStats.map((s) => ({
+      pitchDeg: Math.round(s.pitchDegrees * 10) / 10,
+      azimuthDeg: Math.round(s.azimuthDegrees * 10) / 10,
+      areaM2: Math.round(s.stats.areaMeters2 * 10) / 10,
+    })),
+    panels: panels
+      .slice(0, MAX_VIEW_PANELS)
+      .map((p) => [
+        round(p.center.latitude),
+        round(p.center.longitude),
+        p.segmentIndex,
+        p.orientation === 'PORTRAIT' ? 1 : 0,
+      ]),
+  };
 }
 
 /** Metres between two points (equirectangular: fine at a building's scale). */
@@ -117,7 +202,9 @@ export function compactInsights(insights: GoogleSolarBuildingInsights): GoogleRo
   const layouts = configs
     .map((c): [number, number] => [c.panelsCount, Math.round(c.yearlyEnergyDcKwh)])
     .sort((a, b) => a[0] - b[0]);
+  const view = roofViewOf(insights);
   return {
+    ...(view ? { view } : {}),
     source: 'google',
     usablePanels: usableGoogleSolarPanelCount(insights),
     pitchDeg: geometry.pitchDeg,

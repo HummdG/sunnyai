@@ -1,13 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * The installer sees a lead's house in 3D.
+ * The installer sees a lead's roof assessment.
  *
  * The real path end to end: a visitor on the installer's site gives an address
  * in the chat (the scripted demo assistant drives the same tools a model would,
  * against SunScan in replay mode -- the 20 Forthlin Road fixture, no network),
  * agrees to be contacted, and the installer opens the lead's page in the
- * dashboard, where the SunScan viewer draws the model.
+ * dashboard. SunScan still builds the 3D model, but the dashboard does not
+ * show it for now.
  *
  * Needs the API with SUNNY_DEMO_ASSISTANT=1, SUNSCAN_HTTP_MODE=replay and
  * SUNNY_DEV_AUTH=1 (see playwright.lead-roof.config.ts).
@@ -25,7 +26,10 @@ test.setTimeout(240_000);
 // SunScan; the main suite's API has neither.
 test.skip(process.env.LEAD_ROOF_E2E !== '1', 'needs playwright.lead-roof.config.ts');
 
-test("the lead page draws the visitor's roof in 3D", async ({ page, request }) => {
+test('the lead page shows the roof, with its 3D model kept on the server', async ({
+  page,
+  request,
+}) => {
   // The installer, created through the API with a dev sign-in.
   const login = await request.post(`${API}/v1/portal/dev-login`, { data: { email: OWNER } });
   const token = ((await login.json()) as { token: string }).token;
@@ -89,23 +93,14 @@ test("the lead page draws the visitor's roof in 3D", async ({ page, request }) =
   await page.goto(`${SITE}/dashboard/leads/${leadId}`);
 
   await expect(page.getByRole('heading', { name: 'Roof assessment' })).toBeVisible();
-  const stage = page.locator('.roof-3d-stage');
-  await expect(stage).toBeVisible({ timeout: 60_000 });
-  const canvas = stage.locator('canvas');
-  await expect(canvas).toHaveCount(1);
-
-  // Something was drawn: the canvas is not one flat colour.
-  await expect
-    .poll(
-      async () => {
-        const shot = await canvas.screenshot();
-        return new Set(shot.subarray(200, 20_000)).size;
-      },
-      { timeout: 30_000 },
-    )
-    .toBeGreaterThan(20);
-
   await expect(page.getByRole('list', { name: 'Roof planes' })).toBeVisible();
   await expect(page.getByText(/Indicative, subject to an on-site survey/).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Download the 3D model (GLB)' })).toBeVisible();
+  // The 3D model is still built (above) and served, but not shown for now.
+  await expect(page.locator('.roof-3d-stage')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'See the roof in 3D' })).toHaveCount(0);
+  const spec = await request.get(
+    `${API}/v1/portal/tenants/${tenant.id}/leads/${leadId}/assessment/spec.json`,
+    { headers: auth },
+  );
+  expect(spec.ok()).toBe(true);
 });

@@ -15,7 +15,8 @@ import type { Workflow } from '@sunny/contracts';
 import type { ToolContext, ToolResult } from '../agent/tools.js';
 import { startRoofAssessment } from '../agent/roof-assessment.js';
 import { DISCOVERY } from '../flow/banks.js';
-import { lookUpHome } from '../homedata/index.js';
+import { HOME_KEYS, lookUpHome } from '../homedata/index.js';
+import { parseGoogleRoof } from '../homedata/solar.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
 import type { Proposal } from '../journey/extract.js';
@@ -334,10 +335,11 @@ async function lookUpNewAddress(
     for (const key of found.removed) delete answers[key];
     mirror(ctx, answers);
   }
-  // Where the 3D measurement runs, its card already shows the roof: a second
-  // panel count from Google would only contradict it. The quote still uses
-  // Google's roof.
-  if (outcome.engine === 'solar' && ctx.sunscan) return null;
+  // Google has the roof and where its panels go: the widget shows the house
+  // from above with each face marked (GET /v1/quote/roof-picture).
+  if (outcome.engine === 'solar' && parseGoogleRoof(found.patch[HOME_KEYS.solar])?.view) {
+    ctx.events.push({ kind: 'roof_image', detail: {} });
+  }
   return found.found;
 }
 

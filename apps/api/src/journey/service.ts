@@ -304,6 +304,7 @@ export function toQuoteCard(
     // Every stored quote renders as a PDF proposal (routes/proposal.ts).
     proposalAvailable: true,
     emailAvailable: options.emailAvailable ?? proposalEmailConfigured(),
+    ...(quote.priced && quote.budget ? { budget: quote.budget } : {}),
     options: quote.options.map((o) => ({
       id: o.id,
       label: o.label,

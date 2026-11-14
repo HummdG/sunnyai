@@ -35,8 +35,9 @@ import { batteryCardOrder, batteryCardText } from './battery-card.js';
 import { gbp, heatPumpCardText } from './heat-pump-card.js';
 import { optionArt } from './quote-art.js';
 import { renderRich } from './rich.js';
+import { parseRoofPicture, roofPictureCard } from './roof-image.js';
+import { budgetSlider, parseBudgetLadder } from './budget-slider.js';
 import type * as LogoModule from './logo.js';
-import type * as RoofModule from './roof.js';
 import { declareFontFaces, preloadFontFaces, releaseFontFaces } from './fonts.js';
 import { styles } from './styles.js';
 import { turnstileToken } from './turnstile.js';
@@ -130,12 +131,6 @@ export class SunnyWidget {
   #currentTurn: HTMLElement | null = null;
   /** The raw reply behind each streamed assistant bubble (it shows formatted). */
   #replyText = new WeakMap<HTMLElement, string>();
-  /** Assessments whose 3D roof has already opened by itself. */
-  readonly #roofsShown = new Set<string>();
-  /** Closes the docked 3D roof, when one is open. */
-  #closeRoof: (() => void) | null = null;
-  /** Makes the docked roof compact (as the conversation moves on) or big again. */
-  #compactRoof: ((compact: boolean) => void) | null = null;
   /** The answers to the question this turn ends on, shown as buttons when it finishes. */
   #pendingReplies: Extract<ChatStreamEvent, { type: 'quick_replies' }> | null = null;
   /** Whether the buttons under the conversation are answers rather than the starters. */
@@ -158,8 +153,6 @@ export class SunnyWidget {
   #send!: HTMLButtonElement;
   #suggestions!: HTMLElement;
   #liveRegion!: HTMLElement;
-  /** Where the 3D roof docks: between the header and the conversation. */
-  #roofDock!: HTMLElement;
 
   /**
    * The option set already on screen, so an unchanged answer is not re-rendered.
@@ -170,9 +163,6 @@ export class SunnyWidget {
    * because the renderer replaces the list rather than patching it.
    */
   #renderedOptionId = '';
-
-  /** The last finished roof assessment, so a chosen package can be shown on it. */
-  #lastRoof: { id: string; base: string; summary: RoofSummary } | null = null;
 
   constructor(host: HTMLElement, options: MountOptions) {
     this.#host = host;
@@ -260,7 +250,6 @@ export class SunnyWidget {
       tabindex: '0',
     });
     this.#suggestions = el('div', { class: 'suggestions' });
-    this.#roofDock = el('div', { class: 'roof-dock', hidden: true });
     this.#optionsHost = el('div', { class: 'options-host', hidden: true });
     this.#liveRegion = el('div', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
 
@@ -323,15 +312,7 @@ export class SunnyWidget {
     this.#panel = el(
       'div',
       { class: 'panel', role: 'dialog', 'aria-label': 'Solar assistant', hidden: true },
-      [
-        header,
-        this.#roofDock,
-        this.#log,
-        this.#optionsHost,
-        this.#suggestions,
-        composer,
-        this.#liveRegion,
-      ],
+      [header, this.#log, this.#optionsHost, this.#suggestions, composer, this.#liveRegion],
     );
     this.#panel.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') this.close();
@@ -867,74 +848,23 @@ export class SunnyWidget {
    * emits markup renders as those characters, which is the whole defence against
    * injecting into the customer's page from the transcript.
    */
-  // ── roof assessment (SunScan) ─────────────────────────────────────────────
+  // ── the house from above (Google Solar) ───────────────────────────────────
 
   /**
-   * A roof card for an assessment the assistant started: progress while it runs
-   * (polled with the visitor's own session token), then the summary and, on
-   * request, the 3D model -- which lives in `sunny-roof.js` beside this script,
-   * so nobody downloads three.js unless they ask to see their roof.
+   * Fetch the aerial photo of the visitor's roof, with each face's panels
+   * marked, and put it in the conversation. One card at a time: a new address
+   * replaces the old one's. Nothing is shown when there is no picture.
    */
-  #showRoof(id: string, status: string, summary: RoofSummary | null, polls = 0): void {
-    let card = this.#log.querySelector<HTMLElement>(`.roof[data-id="${CSS.escape(id)}"]`);
-    if (!card) {
-      card = el('div', { class: 'roof', 'data-id': id });
-      this.#log.append(card);
-    }
-    const base = `/v1/sunscan/assessments/${encodeURIComponent(id)}`;
-    if (status === 'queued' || status === 'running') {
-      card.replaceChildren(el('p', { text: 'Measuring your roof from open map and LiDAR data…' }));
-      if (polls < 60 && this.#sessionToken !== '') {
-        setTimeout(() => {
-          void fetch(`${this.#options.apiUrl}${base}`, {
-            headers: { authorization: `Bearer ${this.#sessionToken}` },
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .then(
-              (
-                a: {
-                  status: string;
-                  summary: RoofSummary | null;
-                  error: { message: string } | null;
-                } | null,
-              ) => {
-                if (!a) return;
-                if (a.status === 'failed') this.#roofFailed(card, a.error?.message);
-                else this.#showRoof(id, a.status, a.summary, polls + 1);
-              },
-            )
-            .catch(() => undefined);
-        }, 2000);
-      }
-    } else if (status === 'failed' || !summary) {
-      this.#roofFailed(card);
-    } else {
-      const where = summary.bestFacing ? `, best facing ${summary.bestFacing}` : '';
-      const panels =
-        summary.estimatedMaxPanels > 0
-          ? `, with room for up to ${summary.estimatedMaxPanels} panels (estimate)`
-          : '';
-      this.#lastRoof = { id, base, summary };
-      const button = el('button', { type: 'button', text: 'See your roof in 3D' });
-      button.addEventListener(
-        'click',
-        () => void this.#openRoof(id, base, summary, undefined, true),
-      );
-      card.replaceChildren(
-        el('p', {
-          text: `${summary.reliable ? 'Your roof' : 'Your roof (low-confidence measurement)'}: about ${Math.round(summary.usableRoofAreaM2)} m² usable${where}${panels}.`,
-        }),
-        el('p', { class: 'roof-label', text: summary.label }),
-        button,
-      );
-      this.#animator.dispatch({ type: 'impress' }, performance.now());
-      // The 3D roof is the payoff of giving an address: show it as soon as it
-      // is ready, once per assessment (the button reopens it).
-      if (!this.#roofsShown.has(id)) {
-        this.#roofsShown.add(id);
-        void this.#openRoof(id, base, summary);
-      }
-    }
+  async #showRoofPicture(): Promise<void> {
+    const response = await fetch(`${this.#options.apiUrl}/v1/quote/roof-picture`, {
+      headers: { authorization: `Bearer ${this.#sessionToken}` },
+    }).catch(() => null);
+    if (!response?.ok) return;
+    const picture = parseRoofPicture(await response.json().catch(() => null));
+    if (!picture || picture.faces.length === 0) return;
+    this.#log.querySelector('.roof-pic')?.remove();
+    this.#log.append(roofPictureCard(picture));
+    this.#animator.dispatch({ type: 'impress' }, performance.now());
     this.#scrollToEnd();
   }
 
@@ -1008,12 +938,23 @@ export class SunnyWidget {
     });
 
     const unpriced = quote.options.every((o) => o.priceGbp === null);
+    // The budget slider: a card the budget does not reach steps back.
+    const ladder = unpriced ? null : parseBudgetLadder(quote.budget);
+    const slider = ladder
+      ? budgetSlider(ladder, (budget) => {
+          ordered.forEach((o, i) => {
+            const beyond = o.priceGbp !== null && o.priceGbp > budget;
+            cards[i]?.classList.toggle('beyond-budget', beyond);
+          });
+        })
+      : null;
     this.#presentQuote(
       quote,
       cards,
       ordered.map((o) => o.label),
       best ? ordered.indexOf(best) : 0,
       unpriced,
+      slider ? [slider] : [],
     );
   }
 
@@ -1120,6 +1061,8 @@ export class SunnyWidget {
     labels: string[],
     centred: number,
     unpriced: boolean,
+    /** Shown under the options (the budget slider). */
+    extra: HTMLElement[] = [],
   ): void {
     const list = el('ul', { class: 'quote-options', 'aria-label': 'Your quote options' }, cards);
     // On a narrow panel the options are a row to swipe through; the dots say
@@ -1153,6 +1096,7 @@ export class SunnyWidget {
       el('div', { class: 'quote', 'data-id': quote.quoteId }, [
         list,
         dots,
+        ...extra,
         el('p', {
           class: 'quote-disclaimer',
           text: unpriced
@@ -1194,9 +1138,8 @@ export class SunnyWidget {
   }
 
   /**
-   * The visitor picked a package: record it, mark the card, have Sunny say so,
-   * and play the savings simulation on their 3D roof (or give the totals in
-   * words when there is no roof to play it on).
+   * The visitor picked a package: record it, mark the card, and have Sunny say
+   * so with what it could save, in words.
    */
   async #choose(quoteId: string, optionId: string, button: HTMLButtonElement): Promise<void> {
     const response = await fetch(
@@ -1235,22 +1178,12 @@ export class SunnyWidget {
     const chosen = body;
     const t = chosen.timeline;
     this.#animator.dispatch({ type: 'celebrate' }, performance.now());
-    const roof = this.#lastRoof;
     this.#appendTurn(
       'assistant',
-      roof
-        ? `Great choice: the ${chosen.option.label} package. Let's watch what it could save you, month by month, on your roof.`
-        : `Great choice: the ${chosen.option.label} package. In its first year it could save you about ${gbp(t.year1TotalGbp)}, and about ${gbp(t.twentyFiveYearTotalGbp)} over 25 years (indicative).`,
+      `Great choice: the ${chosen.option.label} package. In its first year it could save you about ${gbp(t.year1TotalGbp)}, and about ${gbp(t.twentyFiveYearTotalGbp)} over 25 years (indicative).`,
     );
     if (chosen.sentinelNote) this.#appendTurn('system', chosen.sentinelNote);
     this.#appendTurn('assistant', survey);
-    if (roof) {
-      await this.#openRoof(roof.id, roof.base, roof.summary, {
-        panelCount: chosen.option.panelCount,
-        timeline: t,
-        onComplete: () => this.#animator.dispatch({ type: 'celebrate' }, performance.now()),
-      });
-    }
   }
 
   /** "Download your quote (PDF)" and, when outbound email is set up, "Email it to me". */
@@ -1317,103 +1250,6 @@ export class SunnyWidget {
       actions.append(open, form);
     }
     return [actions, status];
-  }
-
-  #roofFailed(card: HTMLElement, message?: string): void {
-    card.replaceChildren(el('p', { text: message ?? 'The roof could not be measured this time.' }));
-  }
-
-  /**
-   * Dock the 3D roof at the top of the conversation and grow the panel round it
-   * (roof mode). `focus` moves focus into it: when the visitor asked for it,
-   * not when it opened by itself mid-conversation.
-   *
-   * If the 3D view cannot load (the file is blocked, the network drops), the
-   * roof's card says so and the panel stays as it was. Before this, a failed
-   * import was swallowed and the button simply did nothing.
-   */
-  async #openRoof(
-    id: string,
-    base: string,
-    summary: RoofSummary,
-    simulation?: RoofModule.OpenRoofOptions['simulation'],
-    focus = false,
-  ): Promise<void> {
-    const dir = this.#options.fontDirectoryUrl;
-    let roof: typeof RoofModule;
-    try {
-      if (!dir) throw new Error('the widget script has no directory to load from');
-      roof = (await import(
-        /* @vite-ignore */ new URL('sunny-roof.js', dir).href
-      )) as typeof RoofModule;
-    } catch {
-      this.#roofNote(id, true);
-      return;
-    }
-    // A roof that opens by itself while the docked one is compact (the
-    // conversation has moved on) stays compact: a re-measure or a late result
-    // must not take the panel back from the question being answered.
-    const stayCompact =
-      !focus && !simulation && this.#roofDock.querySelector('.roof-view.compact') !== null;
-    this.#closeRoof?.();
-    this.#roofDock.replaceChildren();
-    this.#roofDock.hidden = false;
-    this.#panel.classList.add('roof-open');
-    // the panel has grown, so the newest message is no longer at the bottom
-    window.setTimeout(() => this.#scrollToEnd(), 360);
-    let view: Awaited<ReturnType<typeof roof.openRoofView>>;
-    try {
-      view = await roof.openRoofView(this.#roofDock, {
-        apiUrl: this.#options.apiUrl,
-        token: this.#sessionToken,
-        specUrl: `${base}/spec.json`,
-        address: summary.address,
-        planes: summary.roofPlanes,
-        label: summary.label,
-        reliable: summary.reliable,
-        ...(simulation ? { simulation } : {}),
-        focus,
-        onClose: () => {
-          this.#roofClosed();
-          this.#composer.focus();
-        },
-      });
-    } catch {
-      this.#roofClosed();
-      this.#roofNote(id, true);
-      return;
-    }
-    this.#roofNote(id, false);
-    this.#closeRoof = () => {
-      view.close();
-      this.#roofClosed();
-    };
-    this.#compactRoof = view.setCompact;
-    if (stayCompact) view.setCompact(true);
-  }
-
-  /** The roof card's "could not load" line: one at most, gone once the view opens. */
-  #roofNote(id: string, failed: boolean): void {
-    const card = this.#log.querySelector<HTMLElement>(`.roof[data-id="${CSS.escape(id)}"]`);
-    if (!card) return;
-    card.querySelector('.roof-note')?.remove();
-    if (!failed) return;
-    card.append(
-      el('p', {
-        class: 'roof-note',
-        role: 'status',
-        text: 'The 3D view could not load just now. The measurements still stand; press the button to try again.',
-      }),
-    );
-  }
-
-  /** Back from roof mode: the dock empties and the panel eases back to its size. */
-  #roofClosed(): void {
-    this.#closeRoof = null;
-    this.#compactRoof = null;
-    this.#roofDock.hidden = true;
-    this.#roofDock.replaceChildren();
-    this.#panel.classList.remove('roof-open');
   }
 
   /**
@@ -1517,8 +1353,6 @@ export class SunnyWidget {
     this.#setPending(true);
     // the buttons belong to the question just answered
     this.#pendingReplies = null;
-    // the conversation is moving on: the roof steps back to give it the room
-    this.#compactRoof?.(true);
     if (this.#repliesShown) this.#suggestions.hidden = true;
     this.#appendTurn('user', text);
     this.#animator.dispatch({ type: 'turn_started' }, performance.now());
@@ -1665,7 +1499,12 @@ export class SunnyWidget {
         this.#appendTurn('system', event.text);
         break;
       case 'sunscan':
-        this.#showRoof(event.assessmentId, event.status, event.summary);
+        // SunScan's 3D roof still measures the roof for the quote and the PDF,
+        // but is not shown to visitors for now: the roof photo (`roof_image`)
+        // is what they see.
+        break;
+      case 'roof_image':
+        void this.#showRoofPicture();
         break;
       case 'quote':
         this.#showQuote(event.quote);
@@ -1863,25 +1702,9 @@ interface ChosenHeatPump {
 interface ChosenPackage {
   chosenOptionId: string;
   option: { id: string; label: string; panelCount: number };
-  timeline: RoofModule.SavingsTimelineLike;
+  /** The savings timeline; the widget reads only its totals. */
+  timeline: { year1TotalGbp: number; twentyFiveYearTotalGbp: number };
   sentinelNote: string | null;
-}
-
-/** The parts of a SunScan summary the roof card reads (see @sunny/contracts' sunscan schemas). */
-interface RoofSummary {
-  address: string;
-  roofPlanes: readonly {
-    id: number;
-    facing: string;
-    pitchDeg: number;
-    areaM2: number;
-    suitable: boolean;
-  }[];
-  usableRoofAreaM2: number;
-  estimatedMaxPanels: number;
-  bestFacing: string | null;
-  reliable: boolean;
-  label: string;
 }
 
 /** A screen narrow enough that the open panel is full screen; the breakpoint in styles.ts. */
