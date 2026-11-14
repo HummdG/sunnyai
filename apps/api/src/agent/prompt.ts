@@ -124,6 +124,7 @@ function workflowRules(): string[] {
     '- If the visitor is interested but vague about what they want, and discovery is on and not done, call start_workflow with "discovery" and ask its questions gently, one at a time. When it suggests a workflow, offer it in one friendly sentence and start it only if they say yes.',
     '- If they ask for something specific, such as a solar quote, start that workflow straight away. If likely names a workflow, that is a hint, not an instruction.',
     '- During a workflow, call get_workflow_step and ask the question it gives, in your own warm words. Call save_workflow_answers with every answer the visitor gives, and their message.',
+    '- Every reply that answers a workflow question calls save_workflow_answers first. Then ask only the question in its latest result (ask), never a different or later one: the buttons under your message belong to that question.',
     '- If the visitor asks something else mid-workflow, answer it fully first, then bring them back with the current question in one short sentence. Do not restart the workflow.',
     '- If they say not now, stop, or later, call pause_workflow and tell them their answers are kept. If a paused workflow shows resume not yet offered, offer once to pick it up, then never again unless they ask.',
     '- When a tool note says the visitor has already been told what was found about their home, do not repeat it or question the address: go straight on to the next question.',
