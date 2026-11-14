@@ -126,6 +126,8 @@ function workflowRules(): string[] {
     '- During a workflow, call get_workflow_step and ask the question it gives, in your own warm words. Call save_workflow_answers with every answer the visitor gives, and their message.',
     '- If the visitor asks something else mid-workflow, answer it fully first, then bring them back with the current question in one short sentence. Do not restart the workflow.',
     '- If they say not now, stop, or later, call pause_workflow and tell them their answers are kept. If a paused workflow shows resume not yet offered, offer once to pick it up, then never again unless they ask.',
+    '- When a workflow tool result has sayFirst, it is what the server found out about the home from its address. Open your reply with it in one short sentence, in your own words, then ask the next question. Say it only that once.',
+    '- For a select-all question, pick the option values that match what the visitor describes (for example, out at work all day is evening_use) and save them. Never ask the same question again just because their words differ from the options.',
     '- An optional question can be skipped. Say so lightly.',
     '- When readyForQuote, call get_quote_options and summarise the options briefly, recommend the highlighted one, and say the figures are indicative and subject to a survey. When readyForLead, offer to pass their details to the installer. Only record a lead once they agree to be contacted.',
     "- A visitor who wants a survey wants the quote workflow for their home: the installer arranges the survey once they have a quote and the visitor's details. Say so in a sentence, then start it.",

@@ -176,6 +176,8 @@ export function extractAnswers(
 ): Proposal[] {
   const text = ` ${message.toLowerCase().replace(/\s+/g, ' ').trim()} `;
   const out: Proposal[] = [];
+  // Options a select-all reply names, joined below with what it describes.
+  const namedTags: string[] = [];
   const add = (questionId: string, value: string) => {
     // Never a question this conversation does not ask (a removed preset).
     if (!flow.question(questionId)) return;
@@ -259,7 +261,8 @@ export function extractAnswers(
         const labels = new Set([optionLabel(o), asked?.label(o) ?? optionLabel(o)]);
         return [...labels].some((label) => names(text, label, strict));
       });
-      if (named.length === 1 && named[0]) add(current, named[0]);
+      if (current === 'lifestyle') namedTags.push(...named.filter((o) => o !== 'none'));
+      else if (named.length === 1 && named[0]) add(current, named[0]);
     }
     // A reply that is exactly one of the options ("semi", "smart_tou").
     const exact = q.options?.find((o) => text.trim() === o.replace(/_/g, ' ') || text.trim() === o);
@@ -322,10 +325,20 @@ export function extractAnswers(
   if (has(text, /\bheat ?pump\b/) && !has(text, /\bno heat ?pump\b/)) {
     tags.push(planned('heat ?pump') ? 'heatpump_planned' : 'heatpump_now');
   }
-  if (has(text, /\b(work from home|wfh|home (all|during the) day|at home in the day|retired)\b/))
+  if (
+    has(text, /\b(work from home|wfh|home (all|during the) day|at home in the day|retired)\b/) &&
+    !has(text, /\b(nobody|no one|no-one|not)(?:'s| is)? (at )?home\b/)
+  )
     tags.push('home_daytime');
-  if (has(text, /\b(evenings?|out (all|during the) day|at work all day)\b/))
+  if (
+    has(
+      text,
+      /\b(evenings?|out (all|most of the|during the|in the) day|(out )?at work (all|during the|in the) day|out at work|(out|away) (at|for) work|(both|we) work( full[- ]time)?\b|nobody(?:'s| is)? (home|in) (in|during) the day|(empty|no one home) (in|during) the day)\b/,
+    ) &&
+    !tags.includes('home_daytime')
+  )
     tags.push('evening_use');
+  for (const tag of namedTags) if (!tags.includes(tag)) tags.push(tag);
   if (tags.length > 0) add('lifestyle', tags.join(','));
 
   if (has(text, /\beconomy ?7\b|\be7\b/)) add('tariff_type', 'economy7');

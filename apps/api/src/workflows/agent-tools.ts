@@ -461,6 +461,8 @@ export const WORKFLOW_TOOLS = [
       const step = await currentStep(ctx);
       return {
         ...step,
+        summary:
+          (homeRecords ? `Say first, in your own words: "${homeRecords}" ` : '') + step.summary,
         data: {
           ...(step.data as Record<string, unknown>),
           pausedOther: fromDiscovery ? null : started.pausedOther,
@@ -468,7 +470,7 @@ export const WORKFLOW_TOOLS = [
           ...(roofAssessment
             ? { roofAssessment: { ok: roofAssessment.ok, ...(roofAssessment.data as object) } }
             : {}),
-          ...(homeRecords ? { homeRecords: { said: homeRecords, tellTheVisitorOnce: true } } : {}),
+          ...(homeRecords ? { sayFirst: homeRecords } : {}),
         },
       };
     },
@@ -563,14 +565,14 @@ export const WORKFLOW_TOOLS = [
           ...(roofAssessment
             ? { roofAssessment: { ok: roofAssessment.ok, ...(roofAssessment.data as object) } }
             : {}),
-          ...(homeRecords ? { homeRecords: { said: homeRecords, tellTheVisitorOnce: true } } : {}),
+          ...(homeRecords ? { sayFirst: homeRecords } : {}),
           ...(r.kind === 'discovery' ? { suggest: suggestion } : {}),
           // Finished discovery is no longer running.
           ...(r.kind === 'discovery' && step.view.ready ? { active: null } : {}),
         },
         summary:
+          (homeRecords ? `Say first, in your own words: "${homeRecords}" ` : '') +
           `Saved ${saved}.` +
-          (homeRecords ? ` ${homeRecords}` : '') +
           (data['readyForQuote'] === true ? ' Ready for a quote.' : '') +
           (data['readyForLead'] === true ? ' Ready to pass on to the team.' : '') +
           (step.view.stage === 'not_suitable' ? ` ${summaryOf(r, step.view)}` : '') +

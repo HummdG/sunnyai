@@ -447,10 +447,10 @@ describe('a heat pump workflow with the energy certificates', () => {
     await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
-    expect(after.data['homeRecords']).toEqual({
-      said: "The home's 2014 energy certificate shows filled cavity walls, a well insulated loft and double glazing.",
-      tellTheVisitorOnce: true,
-    });
+    const said =
+      "The home's 2014 energy certificate shows filled cavity walls, a well insulated loft and double glazing.";
+    expect(after.data['sayFirst']).toBe(said);
+    expect(after.summary.startsWith(`Say first, in your own words: "${said}"`)).toBe(true);
     // Type, age, floor area (so no bedrooms), heating, radiators, hot water: all known.
     expect(after.data['readyForQuote']).toBe(true);
     const quote = await tool('get_quote_options', {}, ctx);
@@ -499,7 +499,7 @@ describe('a heat pump workflow with the energy certificates', () => {
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
     expect(after.data['nextQuestionId']).toBe('property_type');
-    expect(after.data['homeRecords']).toBeUndefined();
+    expect(after.data['sayFirst']).toBeUndefined();
     const second = await save(ctx, 'property_type', 'semi');
     expect(second.data['nextQuestionId']).toBe('hp_age');
   });
@@ -518,7 +518,7 @@ describe("a solar workflow with Google's roof", () => {
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
-    expect((after.data['homeRecords'] as { said: string }).said).toContain('about 14 panels');
+    expect(after.data['sayFirst']).toContain('about 14 panels');
     const asked: string[] = [];
     let next = after.data['nextQuestionId'] as string | null;
     const values: Record<string, string> = {
