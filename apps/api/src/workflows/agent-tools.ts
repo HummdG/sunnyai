@@ -398,6 +398,51 @@ export function addressInMessages(messages: readonly string[]): string | null {
   return null;
 }
 
+/**
+ * A postcode on its own is not an address: measured, it "matches an area",
+ * and saved as the address it skipped the house. It is kept as the postcode,
+ * and the address question stays for the house number and street. A street
+ * given later without a postcode gets this one.
+ */
+export async function keepBarePostcode(
+  ctx: ToolContext,
+  proposals: Proposal[],
+  message = '',
+): Promise<void> {
+  const bare = (text: string) => {
+    const postcode = postcodeFrom(text);
+    return postcode && text.replace(/[\s,.]/g, '').toUpperCase() === postcode.replace(/\s/g, '')
+      ? postcode
+      : null;
+  };
+  let i = proposals.findIndex((p) => p.questionId === 'address');
+  // A message that is only a postcode, when the model proposed no address.
+  if (i < 0 && !ctx.answers['address'] && bare(message.trim())) {
+    proposals.push({ questionId: 'address', value: message.trim() });
+    i = proposals.length - 1;
+  }
+  const proposal = proposals[i];
+  if (!proposal) return;
+  const value = proposal.value.trim();
+  const postcode = postcodeFrom(value);
+  const kept = ctx.answers[JOURNEY_KEYS.postcode];
+  const only = bare(value);
+  if (only) {
+    proposals.splice(i, 1);
+    // A lone postcode never replaces a whole address already saved (a partial
+    // one was completed above, by completeAddress).
+    if (ctx.answers['address']) return;
+    await ctx.store.mergeAnswers(ctx.tenant.id, ctx.sessionId, {
+      [JOURNEY_KEYS.postcode]: only,
+    });
+    ctx.answers = { ...ctx.answers, [JOURNEY_KEYS.postcode]: only };
+    return;
+  }
+  if (!postcode && kept && !ctx.answers['address']) {
+    proposals[i] = { questionId: 'address', value: `${value}, ${kept}` };
+  }
+}
+
 /** "3A Downs Walk, BN10 7SN": a street address followed by its postcode. */
 function streetThenPostcode(message: string): string | null {
   const postcode = postcodeFrom(message);
@@ -666,6 +711,7 @@ export const WORKFLOW_TOOLS = [
         : volunteeredAddress(ctx, r.flow, message);
       if (volunteered) proposals.push({ questionId: 'address', value: volunteered });
       completeAddress(ctx, proposals, message);
+      await keepBarePostcode(ctx, proposals, message);
       // The visitor's words answer the question this workflow just asked, which
       // can be an optional one the quote journey alone would not name.
       const asked = message ? (await stepOf(ctx, deps, r)).view.nextQuestionId : null;
@@ -675,6 +721,21 @@ export const WORKFLOW_TOOLS = [
         ...(message ? { text: message.slice(0, 500) } : {}),
       });
       mirror(ctx, result.answers);
+      // What was proposed and what stuck, by question id only (never the
+      // visitor's answers): the trail for a turn that skipped or repeated a
+      // question.
+      ctx.quote?.log?.info?.(
+        {
+          sessionId: ctx.sessionId,
+          asked,
+          proposed: proposals.map((p) => p.questionId),
+          accepted: result.accepted.map((a) => a.questionId),
+          refused: result.rejected.map((x) => `${x.questionId}: ${x.reason}`),
+          readMessage: Boolean(message),
+          repeatMessage: Boolean(said) && !message,
+        },
+        'workflow answers saved',
+      );
 
       // A new address is looked up and measured straight away.
       const homeRecords = await lookUpNewAddress(ctx, r, result);

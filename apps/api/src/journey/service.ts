@@ -66,7 +66,10 @@ export interface JourneyDeps {
    */
   pinBrandAssets?: (tenantId: string, ids: string[]) => Promise<void>;
   /** Where non-fatal problems are noted. Absent: they are not logged. */
-  log?: { warn: (object: object, message: string) => void };
+  log?: {
+    warn: (object: object, message: string) => void;
+    info?: (object: object, message: string) => void;
+  };
 }
 
 function flowOf(deps: JourneyDeps, tenantId: string): ResolvedFlow {

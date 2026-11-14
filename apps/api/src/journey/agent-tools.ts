@@ -38,7 +38,10 @@ export interface QuoteToolContext {
   pricing: PricingSource;
   /** Pins the brand assets a new quote's PDF prints (see JourneyDeps). */
   pinBrandAssets?: (tenantId: string, ids: string[]) => Promise<void>;
-  log?: { warn: (object: object, message: string) => void };
+  log?: {
+    warn: (object: object, message: string) => void;
+    info?: (object: object, message: string) => void;
+  };
 }
 
 export function depsFor(ctx: ToolContext): JourneyDeps | null {

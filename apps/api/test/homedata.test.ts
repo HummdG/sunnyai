@@ -555,6 +555,44 @@ describe("a solar workflow with Google's roof", () => {
     expect(view.prompt).toBe('What is the postcode for 3A Downs Walk?');
   });
 
+  it('keeps a postcode given on its own, and joins it to the street that follows', async () => {
+    // Seen live: "BN10 7SN" alone was saved as the address, measured as "an
+    // area", and the house was never asked for.
+    const store = await tempStore();
+    const ctx = context(
+      store,
+      { epc: null, solar: fakeSolar(insights()) },
+      defaultWorkflowSet(NOW),
+    );
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'ownership', 'own');
+    ctx.messagesRead = new Set();
+    const afterPostcode = await tool(
+      'save_workflow_answers',
+      { answers: [{ questionId: 'address', value: 'BN10 7SN' }], visitorMessage: 'BN10 7SN' },
+      ctx,
+    );
+    expect(afterPostcode.data['nextQuestionId']).toBe('address');
+    expect(afterPostcode.data['ask']).toBe('What is the house number and street for BN10 7SN?');
+    let answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['address']).toBeUndefined();
+    expect(answers['journey_home_solar']).toBeUndefined();
+
+    ctx.messagesRead = new Set();
+    const afterStreet = await tool(
+      'save_workflow_answers',
+      {
+        answers: [{ questionId: 'address', value: '3A Downs Walk' }],
+        visitorMessage: '3A Downs Walk',
+      },
+      ctx,
+    );
+    answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['address']).toBe('3A Downs Walk, BN10 7SN');
+    expect(answers['journey_home_solar']).toBeDefined();
+    expect(afterStreet.data['nextQuestionId']).not.toBe('address');
+  });
+
   it('keeps a street and postcode given before the quote started', async () => {
     // Seen live: "3A Downs Walk", then "BN10 7SN", then the quote began and
     // asked for the address again.

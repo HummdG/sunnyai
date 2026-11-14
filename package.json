@@ -47,7 +47,8 @@
     "test:auth-emulator": "node scripts/ensure-jre.mjs && node scripts/auth-emulator.mjs",
     "test:e2e:auth-firebase": "playwright test --config tests/e2e/auth-firebase.config.ts",
     "test:e2e:conversation-flow": "playwright test -c playwright.conversation-flow.config.ts",
-    "test:perf": "node scripts/test-perf.mjs"
+    "test:perf": "node scripts/test-perf.mjs",
+    "scenarios": "node scripts/chat-scenarios.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

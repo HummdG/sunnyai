@@ -73,10 +73,9 @@ export function prefillFromRoof(
   answers: Record<string, string>,
   roof: MappedRoof,
 ): Record<string, string> {
+  // Not the measurement's postcode: the postcode is the visitor's (see
+  // journeyStatus), and a measurement of a partial address finds a guess.
   const patch: Record<string, string> = { [JOURNEY_KEYS.assessmentId]: roof.assessmentId };
-  if (roof.postcode && !answers[JOURNEY_KEYS.postcode]) {
-    patch[JOURNEY_KEYS.postcode] = roof.postcode;
-  }
   const rejected =
     answers[JOURNEY_KEYS.roofRejected] === 'yes' || answers['roof_confirmed'] === 'no';
   if (
@@ -185,7 +184,10 @@ export function journeyStatus(
   let prompt = question?.prompt ?? null;
   if (nextId === 'roof_confirmed' && roof) prompt = confirmationPrompt(roof);
   if (nextId === 'address')
-    prompt = 'What is the address, including the postcode, you would like a quote for?';
+    prompt =
+      !answers['address'] && answers[JOURNEY_KEYS.postcode]
+        ? `What is the house number and street for ${answers[JOURNEY_KEYS.postcode]}?`
+        : 'What is the address, including the postcode, you would like a quote for?';
   if (needsPostcode && (nextId === null || !legacy)) {
     prompt = `What is the postcode for ${answers['address']!.trim()}?`;
   }
