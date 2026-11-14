@@ -348,6 +348,17 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
       measuring = d['status'] === 'queued' || d['status'] === 'running';
     }
   };
+  // What an address lookup found (a workflow tool's `sayFirst`), and whether it
+  // has gone out: it leads the next text the model writes, once.
+  let homeFound: string | null = null;
+  let homeSaid = false;
+  const sayHomeFound = (): string | null => {
+    if (!homeFound || homeSaid) return null;
+    homeSaid = true;
+    const said = text.trim() === '' ? `${homeFound} ` : ` ${homeFound} `;
+    text += said;
+    return said;
+  };
   const toolsUsed: string[] = [];
   // Whether the visitor was given the current question's buttons, or the quote
   // cards, this turn: either way there is nothing for the server to re-offer.
@@ -402,7 +413,19 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
         }
         const result = await executeTool(call, ctx);
         noteForSilence(call.name, result.data);
-        return { ok: result.ok, ...(result.data as object), note: result.summary };
+        // What an address lookup found is said by the server, word for word,
+        // ahead of the model's reply: left to the model it was skipped, or
+        // said a turn late with a stray citation. The model is told it is said.
+        const { sayFirst, ...data } = (result.data ?? {}) as Record<string, unknown>;
+        if (typeof sayFirst === 'string' && sayFirst !== '' && !homeSaid) {
+          homeFound = sayFirst;
+          return {
+            ok: result.ok,
+            ...data,
+            note: `${result.summary} The visitor has already been told: "${sayFirst}" Do not repeat it.`,
+          };
+        }
+        return { ok: result.ok, ...data, note: result.summary };
       },
       ...(input.signal ? { signal: input.signal } : {}),
     });
@@ -419,6 +442,8 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
         yield event;
       }
       if (chunk.type === 'text') {
+        const said = sayHomeFound();
+        if (said) yield { type: 'text_delta', messageId, text: said };
         const safe = guard.push(chunk.text);
         text += safe;
         if (safe !== '') yield { type: 'text_delta', messageId, text: safe };
@@ -486,7 +511,14 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   // measurement): the turn says the next step itself, in the survey's own words,
   // rather than leave the visitor with nothing to answer.
   if (text.trim() === '') {
-    const fallback = [measuring ? MEASURING_LINE : '', nextAsk ?? ''].filter(Boolean).join(' ');
+    const fallback = [
+      homeFound && !homeSaid ? homeFound : '',
+      measuring ? MEASURING_LINE : '',
+      nextAsk ?? '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    homeSaid = true;
     if (fallback !== '') {
       text = fallback;
       yield { type: 'text_delta', messageId, text: fallback };

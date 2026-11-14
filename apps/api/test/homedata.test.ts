@@ -8,6 +8,7 @@ import type { WorkflowSet } from '@sunny/contracts';
 import { EMPTY_KNOWLEDGE } from '@sunny/knowledge';
 import type { GoogleSolarBuildingInsights } from '@sunny/quote-engine';
 
+import { runTurn, type TurnEvent } from '../src/agent/agent.js';
 import { executeTool, type ToolContext, type ToolEvent } from '../src/agent/tools.js';
 import {
   ageBandOf,
@@ -44,6 +45,7 @@ import { FileStore } from '../src/store.js';
 import { DEMO_TENANT } from '../src/tenants.js';
 import { EMPTY_SESSION, cloneSession } from '../src/workflows/session.js';
 import { defaultWorkflowSet, heatPumpTemplate } from '../src/workflows/templates.js';
+import { ScriptedProvider } from './scripted-provider.js';
 import { resolvedFlowFor } from '../src/workflows/tenant.js';
 
 const SESSION = 'sess_homedata';
@@ -450,7 +452,6 @@ describe('a heat pump workflow with the energy certificates', () => {
     const said =
       "The home's 2014 energy certificate shows filled cavity walls, a well insulated loft and double glazing.";
     expect(after.data['sayFirst']).toBe(said);
-    expect(after.summary.startsWith(`Say first, in your own words: "${said}"`)).toBe(true);
     // Type, age, floor area (so no bedrooms), heating, radiators, hot water: all known.
     expect(after.data['readyForQuote']).toBe(true);
     const quote = await tool('get_quote_options', {}, ctx);
@@ -559,5 +560,61 @@ describe("a solar workflow with Google's roof", () => {
     const stored = (await store.listQuotes(DEMO_TENANT.id, SESSION))[0] as QuoteRecord;
     expect(stored.basis.roofConfidence).toBe('low');
     expect(stored.estimatedFrom).toEqual([]);
+  });
+});
+
+describe('what the lookup found, in a chat turn', () => {
+  beforeEach(() => clearHomeDataCache());
+
+  it('is said once by the server, ahead of the reply, and the model is told so', async () => {
+    const store = await tempStore();
+    const workflows = setWithHeatPump();
+    await store.saveWorkflowState(DEMO_TENANT.id, SESSION, {
+      ...cloneSession(EMPTY_SESSION),
+      active: { workflowId: 'wf_heat_pump', startedAt: NOW },
+    });
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { ownership: 'own' });
+    const epc = fakeEpc([row('c1', '12 Mill Lane', '2014-05-04')], { c1: RDSAP_20 });
+    const notes: string[] = [];
+    const provider = new ScriptedProvider(() => [
+      {
+        type: 'tool_started',
+        call: {
+          name: 'save_workflow_answers',
+          args: { answers: [{ questionId: 'address', value: ADDRESS }] },
+        },
+      },
+      { type: 'text', text: 'How many bedrooms does it have?' },
+    ]);
+    const events: TurnEvent[] = [];
+    for await (const event of runTurn({
+      tenant: { ...DEMO_TENANT, config: { ...DEMO_TENANT.config, workflows } },
+      provider,
+      store,
+      sessionId: SESSION,
+      conversationId: null,
+      history: [],
+      message: ADDRESS,
+      clientMessageId: 'c_1',
+      sunscanConnected: false,
+      homeData: { epc, solar: null },
+      quote: { pricing: { forTenant: () => Promise.resolve(demoPricing()) } },
+    })) {
+      events.push(event);
+      if (event.type === 'tool_finished') notes.push(String(event.tool));
+    }
+    const finished = events.find(
+      (e): e is Extract<TurnEvent, { type: 'message_finished' }> => e.type === 'message_finished',
+    );
+    const said =
+      "The home's 2014 energy certificate shows filled cavity walls, a well insulated loft and double glazing.";
+    expect(finished?.text).toBe(`${said} How many bedrooms does it have?`);
+    expect(finished?.text.split(said)).toHaveLength(2);
+    // The model saw the note, and not the field to repeat.
+    const result = await provider.lastRequest!.execute({
+      name: 'get_workflow_step',
+      args: {},
+    });
+    expect(JSON.stringify(result)).not.toContain('sayFirst');
   });
 });
