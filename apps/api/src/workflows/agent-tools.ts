@@ -298,8 +298,10 @@ async function measureNewAddress(
   result: Awaited<ReturnType<typeof submitAnswers>>,
 ): Promise<Awaited<ReturnType<typeof startRoofAssessment>> | null> {
   const address = result.accepted.find((a) => a.questionId === 'address');
-  return address && ctx.sunscan && !isNonSolarQuote(r)
-    ? startRoofAssessment(ctx, result.answers['address'] ?? address.value)
+  const full = result.answers['address'] ?? address?.value;
+  // Only a whole address: a street on its own can match one in another town.
+  return address && full && postcodeFrom(full) && ctx.sunscan && !isNonSolarQuote(r)
+    ? startRoofAssessment(ctx, full)
     : null;
 }
 

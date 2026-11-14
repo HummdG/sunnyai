@@ -39,7 +39,7 @@ import {
   type SolarClient,
 } from '../src/homedata/solar.js';
 import type { HeatPumpQuoteRecord } from '../src/journey/heat-pump/record.js';
-import { quoteAnswers } from '../src/journey/journey.js';
+import { journeyStatus, quoteAnswers } from '../src/journey/journey.js';
 import { demoPricing } from '../src/journey/pricing.js';
 import type { QuoteRecord } from '../src/journey/quote.js';
 import { FileStore } from '../src/store.js';
@@ -543,6 +543,16 @@ describe("a solar workflow with Google's roof", () => {
     expect(stored.warnings.join(' ')).not.toMatch(/does not ask/);
     // No panel positions in this model, so no photo to offer.
     expect(ctx.events.some((e) => e.kind === 'roof_image')).toBe(false);
+  });
+
+  it('asks for the postcode of a street given alone, whatever a measurement guessed', () => {
+    // Seen live: "3A Downs Walk", then ownership, then the usage question: a
+    // measurement of the street alone had found some Downs Walk's postcode.
+    const flow = resolvedFlowFor(defaultWorkflowSet(NOW).workflows[0]!);
+    const guessed = { postcode: 'BN10 7SN' } as unknown as Parameters<typeof journeyStatus>[1];
+    const view = journeyStatus({ ownership: 'own', address: '3A Downs Walk' }, guessed, {}, flow);
+    expect(view.nextQuestionId).toBe('address');
+    expect(view.prompt).toBe('What is the postcode for 3A Downs Walk?');
   });
 
   it('keeps a street and postcode given before the quote started', async () => {

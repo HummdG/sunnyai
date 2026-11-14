@@ -126,13 +126,20 @@ export function journeyStatus(
   options: { roofPending?: boolean; quoted?: boolean } = {},
   flow: ResolvedFlow = resolveFlow(null),
 ): JourneyView {
+  const legacy = flow.bank.id === 'legacy_solar';
+  // The postcode is the visitor's: in what they typed, or a postcode answer.
+  // Never the one a measurement found. Measured from "3A Downs Walk" alone,
+  // SunScan picks some Downs Walk somewhere, and taking its postcode skipped
+  // the visitor's and could quote another house. (The legacy flow keeps its
+  // old behaviour.)
   const postcode =
-    answers[JOURNEY_KEYS.postcode] ?? roof?.postcode ?? postcodeFrom(answers['address']);
+    answers[JOURNEY_KEYS.postcode] ??
+    postcodeFrom(answers['address']) ??
+    (legacy ? (roof?.postcode ?? null) : null);
   const roofPending = options.roofPending === true && roof === null;
 
   // With no assessment and none running, the mapping is absent: SunScan treats
   // that as low confidence and asks the visitor about the roof.
-  const legacy = flow.bank.id === 'legacy_solar';
   const effective =
     roof || roofPending || answers['roof_confidence']
       ? !legacy && roof && !answers['roof_confidence'] && answers['address']
