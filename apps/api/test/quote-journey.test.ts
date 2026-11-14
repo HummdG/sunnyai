@@ -359,6 +359,16 @@ describe('the quote', () => {
     expect(budget.initialGbp).toBeLessThanOrEqual(budget.maxGbp);
     const prices = budget.steps.map((s) => s.priceGbp);
     expect(prices).toEqual([...prices].sort((a, b) => a - b));
+    // Seen live: the slider stopped at £10,861 under a £14,019 recommended
+    // package. It reaches every package shown, each with its own outcome.
+    for (const option of quote.options) {
+      expect(budget.maxGbp).toBeGreaterThanOrEqual(option.priceGbp!);
+    }
+    const dearest = quote.options.reduce((a, o) => (o.priceGbp! > a.priceGbp! ? o : a));
+    const top = budget.steps.findLast((s) => s.priceGbp <= dearest.priceGbp!)!;
+    expect(top.priceGbp).toBe(dearest.priceGbp);
+    expect(top.panelCount).toBe(dearest.panelCount);
+    expect(top.annualSavingsGbp).toBe(Math.round(dearest.annualSavingsGbp));
     // Outcomes only: no kit, SKUs or line items reach the browser.
     expect(JSON.stringify(budget)).not.toMatch(/sku|lineItems|config/i);
     expect(toQuoteCard(quote)).toMatchObject({ budget });

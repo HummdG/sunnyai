@@ -434,31 +434,60 @@ function estimates(
  * The engine's budget ladder, cut down to what the slider shows: each step's
  * price and outcome, never its configuration or line items. Empty when the
  * ladder has nothing to slide between.
+ *
+ * The ladder alone stops at its own best-value system, which can cost less
+ * than a package on the card (seen live: a slider ending at £10,861 under a
+ * £14,019 recommended package). So the packages shown that cost more than the
+ * ladder's top are added as its last steps: the slider reaches everything the
+ * visitor was offered. Without a stated budget it starts on the recommended
+ * package when that is one of them.
  */
 export function budgetCard(
   ladder: BudgetLadder | undefined,
   fromAnswer: boolean,
+  shown: readonly OptionResult[] = [],
+  statedBudgetGbp: number | null = null,
 ): { budget?: BudgetLadderCard } {
   if (!ladder || ladder.steps.length < 2) return {};
+  const outcome = (s: {
+    priceGbp: number;
+    panelCount: number;
+    systemKwp: number;
+    batteryKwh: number;
+    results: OptionResult['results'];
+  }) => ({
+    priceGbp: round(s.priceGbp),
+    panelCount: s.panelCount,
+    systemKwp: round(s.systemKwp, 2),
+    batteryKwh: round(s.batteryKwh, 1),
+    annualGenerationKwh: round(s.results.annualGenerationKwh),
+    annualSavingsGbp: round(s.results.annualSavingsPounds),
+    paybackYears:
+      s.results.paybackYears >= 99 || s.results.paybackYears <= 0
+        ? null
+        : round(s.results.paybackYears, 1),
+    twentyFiveYearSavingsGbp: round(s.results.twentyFiveYearSavings.at(-1)?.cumulative ?? 0),
+  });
+  const above = shown
+    .filter((o) => round(o.priceGbp) > round(ladder.maxGbp))
+    .sort((a, b) => a.priceGbp - b.priceGbp);
+  const steps = [
+    ...ladder.steps
+      .slice(0, 16 - above.length)
+      .map((s) => outcome({ ...s, batteryKwh: s.hasBattery ? s.batteryKwh : 0 })),
+    ...above.map((o) => outcome({ ...o, batteryKwh: o.batteryCapacityKwh })),
+  ].filter((step, i, all) => i === 0 || step.priceGbp > all[i - 1]!.priceGbp);
+  const minGbp = round(ladder.minGbp);
+  const maxGbp = steps.at(-1)!.priceGbp;
+  const recommended = above.find((o) => o.isRecommended);
+  const start = statedBudgetGbp ?? (recommended ? recommended.priceGbp : ladder.initialGbp);
   return {
     budget: {
-      minGbp: round(ladder.minGbp),
-      maxGbp: round(ladder.maxGbp),
-      initialGbp: round(ladder.initialGbp),
+      minGbp,
+      maxGbp,
+      initialGbp: Math.min(maxGbp, Math.max(minGbp, round(start))),
       fromAnswer,
-      steps: ladder.steps.slice(0, 16).map((s) => ({
-        priceGbp: round(s.priceGbp),
-        panelCount: s.panelCount,
-        systemKwp: round(s.systemKwp, 2),
-        batteryKwh: round(s.hasBattery ? s.batteryKwh : 0, 1),
-        annualGenerationKwh: round(s.results.annualGenerationKwh),
-        annualSavingsGbp: round(s.results.annualSavingsPounds),
-        paybackYears:
-          s.results.paybackYears >= 99 || s.results.paybackYears <= 0
-            ? null
-            : round(s.results.paybackYears, 1),
-        twentyFiveYearSavingsGbp: round(s.results.twentyFiveYearSavings.at(-1)?.cumulative ?? 0),
-      })),
+      steps,
     },
   };
 }
@@ -582,7 +611,12 @@ export function buildQuote(input: {
         : view;
     }),
     recommendedId: set.recommendedId,
-    ...budgetCard(set.ladder, answers.budgetBandId !== null),
+    ...budgetCard(
+      set.ladder,
+      answers.budgetBandId !== null,
+      set.options,
+      answers.budgetBandId ? derived.budgetMaxGbp : null,
+    ),
     warnings: [
       ...set.warnings,
       ...effectWarnings,
