@@ -75,6 +75,7 @@ const NEVER = [
 //   events    event types the turn must carry; noEvents, ones it must not
 //   matches   a pattern the reply must match
 //   picture   after this turn, GET /v1/quote/roof-picture must answer 200
+//   matchesNot  a pattern the reply must not match
 //   tools     tools the turn must have used
 //   quote     the turn must carry a quote card: { kind?, priced?, budget? }
 //             (budget: true wants the budget slider's ladder on it)
@@ -208,6 +209,8 @@ const SCENARIOS = [
         say: 'A hot water cylinder',
         quote: { kind: 'heat_pump', priced: true },
         tools: ['get_quote_options'],
+        // Seen live: the solar sentence ("structural and shading survey").
+        matchesNot: /shading|structural/i,
       },
     ],
   },
@@ -319,6 +322,9 @@ function checkTurn(step, got) {
   if (step.matches && !step.matches.test(got.text)) {
     problems.push(`the reply does not match ${step.matches}`);
   }
+  if (step.matchesNot && step.matchesNot.test(got.text)) {
+    problems.push(`the reply matches ${step.matchesNot}`);
+  }
   for (const tool of step.tools ?? []) {
     if (!got.tools.includes(tool)) problems.push(`${tool} was not used`);
   }
@@ -347,6 +353,12 @@ function checkQuote(wanted, quote) {
       problems.push('the quote has no budget ladder');
     } else if (!(b.minGbp <= b.initialGbp && b.initialGbp <= b.maxGbp)) {
       problems.push(`the budget starts at ${b.initialGbp}, outside ${b.minGbp} to ${b.maxGbp}`);
+    } else {
+      // Seen live: a slider that ended below the recommended package's price.
+      const dearest = Math.max(...quote.options.map((o) => o.priceGbp ?? 0));
+      if (b.maxGbp < dearest) {
+        problems.push(`the budget slider ends at ${b.maxGbp}, below a package at ${dearest}`);
+      }
     }
   }
   return problems;

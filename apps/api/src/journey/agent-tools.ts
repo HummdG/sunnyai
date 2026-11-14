@@ -283,8 +283,10 @@ async function heatPumpOptions(
       warnings: quote.warnings,
     },
     summary:
-      `Presented ${quote.options.length} heat pump options. The figures are indicative and ` +
-      'subject to a survey, and the Boiler Upgrade Scheme grant is shown separately from the price.',
+      `Presented ${quote.options.length} heat pump options. The figures are indicative: say ` +
+      'that the installer confirms the heat loss with a room-by-room survey before a final ' +
+      'price (not the structural and shading survey, which is for solar). The Boiler Upgrade ' +
+      'Scheme grant is shown separately from the price.',
   };
 }
 
@@ -348,7 +350,8 @@ async function batteryOptions(
     },
     summary:
       `Presented ${quote.options.length} battery options. The figures are indicative and ` +
-      'subject to a survey of the existing solar system.',
+      'subject to a survey of the existing solar system (say that, not the structural and ' +
+      'shading survey, which is for new solar).',
   };
 }
 

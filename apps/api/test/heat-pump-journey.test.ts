@@ -329,6 +329,11 @@ describe('the heat pump quote', () => {
     expect(result.ok).toBe(true);
     expect(result.summary).toMatch(/indicative/);
     expect(result.summary).toMatch(/survey/);
+    // Seen live: the reply said "structural and shading survey", which is the
+    // solar sentence. The note gives the model the heat pump one to say.
+    expect(result.summary).toMatch(/heat loss/);
+    expect(result.summary).toMatch(/room-by-room survey/);
+    expect(result.summary).toMatch(/not the structural and shading survey/);
     expect(result.summary).toMatch(/grant/);
     expect(card?.kind).toBe('heat_pump');
     expect(quote?.kind).toBe('heat_pump');

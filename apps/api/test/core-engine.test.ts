@@ -555,6 +555,17 @@ describe('customer support', () => {
     expect(conversation!.turns.every((t) => t.channel === 'chat')).toBe(true);
   });
 
+  it('keeps the roof survey sentence for solar figures', () => {
+    // Seen live: a heat pump quote was said to need a "shading survey".
+    const instruction = buildSystemInstruction(demo(), 'chat', 1);
+    expect(instruction).toMatch(
+      /Whenever you give a solar one, say: "This is a non-binding estimate/,
+    );
+    expect(instruction).toMatch(
+      /heat pump or battery quote.*never the structural and shading sentence/,
+    );
+  });
+
   it('tells the model the support rules, including the manufacturer rule', () => {
     const instruction = buildSystemInstruction(demo(), 'chat', 1);
     expect(instruction).toMatch(/Never apply one brand's procedure to another brand/);
