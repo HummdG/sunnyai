@@ -423,8 +423,9 @@ export function addressInMessages(messages: readonly string[]): string | null {
  * and on the one that follows a bill upload, the current question has not
  * been put to the visitor, so a model answer then is kept only for the
  * address (free text the reader leaves alone) or where the deterministic
- * reader finds the same question in the visitor's words. Later turns trust
- * the model as before: it reads answers the reader cannot.
+ * reader finds the same question in the visitor's words. The same goes for a
+ * message that is a question of the visitor's own. Other turns trust the
+ * model as before: it reads answers the reader cannot.
  */
 export function supported(
   ctx: ToolContext,
@@ -432,9 +433,15 @@ export function supported(
   proposals: Proposal[],
   current: string | null,
 ): Proposal[] {
-  const opening = ctx.notYetAskedOn;
-  if (opening === undefined || ctx.visitorMessage !== opening) return proposals;
-  const read = extractAnswers(opening, current, flow).map((p) => p.questionId);
+  const message = ctx.visitorMessage;
+  if (message === undefined) return proposals;
+  // A message that is itself a question ("How long do solar panels last?")
+  // is held to the same rule: seen live, the model answered the ownership
+  // question for the visitor while answering theirs. An answer that ends in a
+  // question ("I own it, is that ok?") is found by the reader and stands.
+  const asking = message.trim().endsWith('?');
+  if (message !== ctx.notYetAskedOn && !asking) return proposals;
+  const read = extractAnswers(message, current, flow).map((p) => p.questionId);
   return proposals.filter((p) => p.questionId === 'address' || read.includes(p.questionId));
 }
 

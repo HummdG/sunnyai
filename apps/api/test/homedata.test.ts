@@ -585,6 +585,41 @@ describe("a solar workflow with Google's roof", () => {
     expect(said.data['nextQuestionId']).toBe('address');
   });
 
+  it('keeps no answer the model made up when the visitor asked a question', async () => {
+    // Seen live on production: asked whether they own the home, the visitor
+    // asked "How long do solar panels last?" and the model saved an ownership
+    // answer with its reply, so the question was never asked again.
+    const store = await tempStore();
+    const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    ctx.visitorMessage = "I'd like a solar quote please";
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    ctx.messagesRead = new Set();
+    ctx.visitorMessage = 'How long do solar panels last?';
+    const made = await tool(
+      'save_workflow_answers',
+      {
+        answers: [{ questionId: 'ownership', value: 'own' }],
+        visitorMessage: 'How long do solar panels last?',
+      },
+      ctx,
+    );
+    expect(ctx.answers['ownership']).toBe(undefined);
+    expect(made.data['nextQuestionId']).toBe('ownership');
+    // An answer that ends in a question of its own still stands.
+    ctx.messagesRead = new Set();
+    ctx.visitorMessage = 'I own it with a mortgage, is that ok?';
+    const said = await tool(
+      'save_workflow_answers',
+      {
+        answers: [{ questionId: 'ownership', value: 'mortgage' }],
+        visitorMessage: 'I own it with a mortgage, is that ok?',
+      },
+      ctx,
+    );
+    expect(ctx.answers['ownership']).toBe('mortgage');
+    expect(said.data['nextQuestionId']).toBe('address');
+  });
+
   it('takes the answer reader’s value when the model’s is not a valid one', async () => {
     // Seen live: "about £120 a month" saved as the usage source was refused,
     // and the reader's correct "monthly cost" was dropped with it.
