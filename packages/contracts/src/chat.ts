@@ -311,10 +311,13 @@ export const chatStreamEventSchema = z.discriminatedUnion('type', [
   }),
   // Google has the visitor's roof and an aerial photo of it: the client fetches
   // the picture (GET /v1/quote/roof-picture, with the session token) and shows
-  // the house from above with each roof face's panels marked.
+  // the house from above with each roof face marked, for the visitor to say
+  // whether it is theirs. With `remove`, they said it is not: the client takes
+  // the picture off the screen.
   z.object({
     type: z.literal('roof_image'),
     ...base,
+    remove: z.boolean().optional(),
   }),
   // The question the assistant ends its turn on, with its answers as buttons
   // (from the quote journey's options, in the visitor's words). Empty replies

@@ -16,11 +16,12 @@ import type { ToolContext, ToolResult } from '../agent/tools.js';
 import { startRoofAssessment } from '../agent/roof-assessment.js';
 import { DISCOVERY } from '../flow/banks.js';
 import { HOME_KEYS, lookUpHome } from '../homedata/index.js';
+import { roofPicture } from '../homedata/roof-image.js';
 import { parseGoogleRoof } from '../homedata/solar.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
 import { extractAnswers, type Proposal } from '../journey/extract.js';
-import { JOURNEY_KEYS, postcodeFrom } from '../journey/journey.js';
+import { HOME_CHECK, JOURNEY_KEYS, postcodeFrom } from '../journey/journey.js';
 import { toRoofAssessmentSummary } from '@sunny/sunscan-adapter';
 import { quoteKind } from '../journey/quote-kinds.js';
 import {
@@ -337,10 +338,23 @@ async function lookUpNewAddress(
     for (const key of found.removed) delete answers[key];
     mirror(ctx, answers);
   }
-  // Google has the roof and where its panels go: the widget shows the house
-  // from above with each face marked (GET /v1/quote/roof-picture).
-  if (outcome.engine === 'solar' && parseGoogleRoof(found.patch[HOME_KEYS.solar])?.view) {
-    ctx.events.push({ kind: 'roof_image', detail: {} });
+  // Google has the roof: the widget shows the house from above with each roof
+  // face marked (GET /v1/quote/roof-picture), and the visitor is asked whether
+  // it is theirs. The photo is made now, so the question is only ever asked
+  // with a photo to look at.
+  const roof = outcome.engine === 'solar' ? parseGoogleRoof(found.patch[HOME_KEYS.solar]) : null;
+  if (roof?.view) {
+    const picture = await roofPicture(ctx.homeData.solar, roof).catch((error: unknown) => {
+      ctx.quote?.log?.warn({ err: error }, 'roof picture failed; the chat carries on without it');
+      return null;
+    });
+    if (picture) {
+      const updated = await ctx.store.mergeAnswers(ctx.tenant.id, ctx.sessionId, {
+        [JOURNEY_KEYS.homePhoto]: 'yes',
+      });
+      mirror(ctx, updated.answers ?? { ...ctx.answers, [JOURNEY_KEYS.homePhoto]: 'yes' });
+      ctx.events.push({ kind: 'roof_image', detail: {} });
+    }
   }
   return found.found;
 }
@@ -564,6 +578,10 @@ async function captureOpeningAddress(
   const homeRecords = await lookUpNewAddress(ctx, r, result);
   return { roofAssessment: await measureNewAddress(ctx, r, result), homeRecords };
 }
+
+/** Said once by the server when the visitor says the photo is not their house. */
+const NOT_THEIR_HOUSE =
+  'Sorry about that, I will leave that photo out. A specialist will check your roof at the survey instead.';
 
 function parseProposals(args: Record<string, unknown>): Proposal[] {
   const raw = Array.isArray(args['answers']) ? (args['answers'] as unknown[]) : [];
@@ -804,6 +822,12 @@ export const WORKFLOW_TOOLS = [
         suggestion = found ? { workflowId: found.id, name: found.name } : null;
       }
 
+      // "No" to the photo: it is taken off the screen, and Sunny says so.
+      const notTheirHouse = result.accepted.some(
+        (a) => a.questionId === HOME_CHECK && a.value === 'no',
+      );
+      if (notTheirHouse) ctx.events.push({ kind: 'roof_image', detail: { remove: true } });
+
       const data = present(ctx, r, step);
       const saved = result.accepted.map((a) => a.questionId).join(', ') || 'nothing';
       return {
@@ -817,6 +841,7 @@ export const WORKFLOW_TOOLS = [
             ? { roofAssessment: { ok: roofAssessment.ok, ...(roofAssessment.data as object) } }
             : {}),
           ...(homeRecords ? { sayFirst: homeRecords } : {}),
+          ...(notTheirHouse ? { sayFirst: NOT_THEIR_HOUSE } : {}),
           ...(r.kind === 'discovery' ? { suggest: suggestion } : {}),
           // Finished discovery is no longer running.
           ...(r.kind === 'discovery' && step.view.ready ? { active: null } : {}),

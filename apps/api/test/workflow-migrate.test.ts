@@ -176,13 +176,14 @@ describe('solarTemplate', () => {
     expect(w.updatedAt).toBe(NOW);
     expect(w.outcome).toEqual({ kind: 'quote', engine: 'solar' });
     expect(w.steps.map((s) => s.id)).toEqual([
+      'motivation',
       'ownership',
       'address',
       'usage_source',
       'lifestyle',
       'existing_system',
     ]);
-    expect(w.template).toEqual({ id: 'solar_quote', version: 3 });
+    expect(w.template).toEqual({ id: 'solar_quote', version: 4 });
     expect(defaultWorkflowSet(NOW).discovery.enabled).toBe(true);
   });
 
@@ -213,7 +214,7 @@ describe('an untouched version 1 built-in', () => {
     const tenant = storedWith(structuredClone([...PAST_STEPS.solar_quote![1]!]), 'solar');
     const solar = workflowsForTenant(tenant).set.workflows[0]!;
     expect(solar.steps).toEqual(solarTemplate(NOW).steps);
-    expect(solar.template).toEqual({ id: 'solar_quote', version: 3 });
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 4 });
     expect(solar.version).toBe(5);
   });
 
@@ -243,7 +244,7 @@ describe('an untouched version 1 built-in', () => {
     const hp = workflowsForTenant(tenant).set.workflows.find((w) => w.id === 'wf_heat_pump')!;
     expect(hp.steps).toEqual(heatPumpTemplate(NOW).steps);
     expect(hp.enabled).toBe(true);
-    expect(hp.template?.version).toBe(3);
+    expect(hp.template?.version).toBe(4);
   });
 
   it('is left alone once the installer has edited a question', () => {
@@ -260,7 +261,7 @@ describe('an untouched version 1 built-in', () => {
       Object.fromEntries(Object.entries(step).reverse()),
     ) as FlowStep[];
     const solar = workflowsForTenant(storedWith(reordered, 'solar')).set.workflows[0]!;
-    expect(solar.template).toEqual({ id: 'solar_quote', version: 3 });
+    expect(solar.template).toEqual({ id: 'solar_quote', version: 4 });
   });
 
   it('reads the same twice', () => {

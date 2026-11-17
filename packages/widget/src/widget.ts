@@ -861,7 +861,7 @@ export class SunnyWidget {
     }).catch(() => null);
     if (!response?.ok) return;
     const picture = parseRoofPicture(await response.json().catch(() => null));
-    if (!picture || picture.faces.length === 0) return;
+    if (!picture) return;
     this.#log.querySelector('.roof-pic')?.remove();
     this.#log.append(roofPictureCard(picture));
     this.#animator.dispatch({ type: 'impress' }, performance.now());
@@ -894,17 +894,32 @@ export class SunnyWidget {
     const rest = bySize.filter((o) => o !== best);
     const ordered = best ? [...rest.slice(0, 1), best, ...rest.slice(1)] : bySize;
 
-    const stat = (value: string, label: string) =>
-      el('li', {}, [el('b', { text: value }), el('span', { text: label })]);
     const cards = ordered.map((o) => {
       const priced = o.priceGbp !== null;
+      // What a term means opens under the figures, one at a time: a visitor
+      // need not know what a panel count, a battery or an inverter is.
+      const explain = el('p', { class: 'quote-info' });
+      explain.id = `qi-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      explain.hidden = true;
+      const info = (term: keyof typeof QUOTE_TERMS) => infoButton(QUOTE_TERMS[term], explain);
+      const stat = (value: string, label: string, term: keyof typeof QUOTE_TERMS) =>
+        el('li', {}, [
+          el('b', { text: value }),
+          el('span', { class: 'quote-stat-label' }, [label, info(term)]),
+        ]);
       const stats = [
-        stat(String(o.panelCount), 'panels'),
-        stat(gbp(o.annualSavingsGbp), 'saved a year'),
+        stat(String(o.panelCount), 'panels', 'panels'),
+        stat(gbp(o.annualSavingsGbp), 'saved a year', 'savings'),
         ...(o.batteryType
-          ? [stat(o.batteryCapacityKwh > 0 ? `${o.batteryCapacityKwh} kWh` : 'Yes', 'battery')]
+          ? [
+              stat(
+                o.batteryCapacityKwh > 0 ? `${o.batteryCapacityKwh} kWh` : 'Yes',
+                'battery',
+                'battery',
+              ),
+            ]
           : o.paybackYears !== null
-            ? [stat(`${o.paybackYears} yrs`, 'to pay back')]
+            ? [stat(`${o.paybackYears} yrs`, 'to pay back', 'payback')]
             : []),
       ];
       const notes = [
@@ -932,6 +947,8 @@ export class SunnyWidget {
           }),
         ]),
         el('ul', { class: 'quote-stats' }, stats),
+        el('p', { class: 'quote-includes' }, ['Inverter included', info('inverter')]),
+        explain,
         ...(notes.length > 0 ? [el('p', { class: 'quote-note', text: notes.join(' · ') })] : []),
         this.#chooseButton(quote.quoteId, o.id, o.label),
       ]);
@@ -1506,7 +1523,8 @@ export class SunnyWidget {
         // is what they see.
         break;
       case 'roof_image':
-        void this.#showRoofPicture();
+        if (event.remove) this.#log.querySelector('.roof-pic')?.remove();
+        else void this.#showRoofPicture();
         break;
       case 'quote':
         this.#showQuote(event.quote);
@@ -1773,6 +1791,55 @@ function fileAsBase64(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('The file could not be read on this device.'));
     reader.readAsDataURL(file);
   });
+}
+
+/** What each term on a solar package means, in a sentence or two. */
+const QUOTE_TERMS = {
+  panels: {
+    name: 'panels',
+    text: 'Solar panels turn daylight into electricity. More panels make more of your own power, so you buy less from the grid.',
+  },
+  savings: {
+    name: 'saved a year',
+    text: 'What this package should take off your energy costs in a year: the solar power you use yourself, plus what you are paid for the power you send back to the grid.',
+  },
+  battery: {
+    name: 'battery',
+    text: 'A battery stores the solar power you do not use in the day, so you can use it in the evening instead of buying from the grid. The kWh figure is how much it holds.',
+  },
+  payback: {
+    name: 'to pay back',
+    text: 'How many years of savings it takes to cover the price.',
+  },
+  inverter: {
+    name: 'inverter',
+    text: 'The inverter turns the power the panels make into the kind your home uses. Every solar system needs one, so it is part of every package.',
+  },
+} as const;
+
+/**
+ * An (i) beside a term: it opens what the term means in `note`, the card's
+ * one explanation line, and closes it again. Opening another replaces it.
+ */
+function infoButton(term: { name: string; text: string }, note: HTMLElement): HTMLButtonElement {
+  const button = el('button', {
+    type: 'button',
+    class: 'quote-info-button',
+    'aria-label': `What does "${term.name}" mean?`,
+    'aria-expanded': 'false',
+    'aria-controls': note.id,
+  });
+  button.append(infoIcon());
+  button.addEventListener('click', () => {
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    for (const other of note.parentElement?.querySelectorAll('.quote-info-button') ?? []) {
+      other.setAttribute('aria-expanded', 'false');
+    }
+    button.setAttribute('aria-expanded', String(open));
+    note.textContent = open ? term.text : '';
+    note.hidden = !open;
+  });
+  return button;
 }
 
 /** A small line-drawn info mark, in the text colour. */

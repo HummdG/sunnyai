@@ -161,13 +161,16 @@ describe('workflows in a chat turn', () => {
       ],
       { message: 'I want a solar quote' },
     );
-    expect(replies(events).at(-1)?.questionId).toBe('ownership');
+    expect(replies(events).at(-1)?.questionId).toBe('motivation');
   });
 
   it('re-offers the current question after an FAQ answered without a tool', async () => {
     const store = await tempStore();
     await withSession(store, solarActive);
-    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { ownership: 'own' });
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, {
+      motivation: 'reduce_bills',
+      ownership: 'own',
+    });
     const { events, message } = await turn(
       store,
       [{ type: 'text', text: 'Panels last about 25 years. Now, what is the address?' }],

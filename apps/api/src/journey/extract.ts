@@ -89,6 +89,12 @@ const LONE_ASSENT = /^(ok|okay|right|sure)( (please|thanks|thank you))?$/;
  * "right" is how people start a question of their own ("ok, so what does a
  * charger cost?"), so it only counts as yes when it is the whole reply.
  */
+/** A plain yes or no in the visitor's reply, or null when it is neither. */
+export function yesOrNo(message: string): 'yes' | 'no' | null {
+  const p = polarity(` ${message.toLowerCase().replace(/\s+/g, ' ').trim()} `);
+  return p === 'yes' || p === 'no' ? p : null;
+}
+
 function polarity(text: string, strict = false): 'yes' | 'no' | 'unsure' | null {
   if (has(text, /\b(not sure|unsure|don'?t know|no idea|dunno|maybe|not certain)\b/))
     return 'unsure';

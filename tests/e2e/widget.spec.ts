@@ -591,14 +591,13 @@ test('shows the house from above with its roof faces, and no 3D roof', async ({ 
   const picture = panel.locator('figure.roof-pic');
   await expect(picture).toBeVisible();
   expect(auth).toMatch(/^Bearer /);
-  await expect(picture.getByRole('img', { name: 'Your house from above' })).toBeVisible();
-  await expect(picture).toContainText('room for about 3 panels across 2 faces');
-  await expect(picture.locator('.roof-pic-key li')).toHaveText([
-    'South-facing, 35° pitch, 2 panels',
-    'West-facing, 30° pitch, 1 panel',
-  ]);
-  await expect(picture.locator('.roof-pic-panels rect')).toHaveCount(3);
+  await expect(picture.getByRole('img', { name: /The address from above/ })).toBeVisible();
   await expect(picture).toContainText('Aerial imagery: Google, 2023');
+  // The photo is there to ask "is this your house?": no panels, no counts, no key.
+  await expect(picture).not.toContainText(/panel/i);
+  await expect(picture.locator('svg, li')).toHaveCount(0);
+  const frame = (await picture.locator('.roof-pic-frame').boundingBox())!;
+  expect(frame.width).toBeLessThanOrEqual(320);
 
   // No 3D: no view, no button, no roof card, and the three.js file never loads.
   await expect(panel.getByRole('region', { name: /3D model of/ })).toHaveCount(0);
@@ -689,7 +688,9 @@ test('stays a floating card beside the launcher on a desktop', async ({ page }) 
   await openWidget(page);
   await page.waitForTimeout(600);
   const p = (await page.locator(HOST).locator(PANEL).boundingBox())!;
-  expect(p.width).toBeLessThanOrEqual(440);
+  // Wide enough to read comfortably, still a card in the corner.
+  expect(p.width).toBeGreaterThanOrEqual(560);
+  expect(p.width).toBeLessThanOrEqual(600);
   expect(p.x).toBeGreaterThan(0);
   await expect(page.locator(HOST).locator(LAUNCHER)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('');
@@ -807,6 +808,16 @@ for (const [w, h] of [
     const cards = options.locator(':scope > li');
     await expect(cards).toHaveCount(3);
     await expect(cards.nth(1)).toContainText('Best for you');
+    // Each term has an (i) that says what it means, one explanation at a time.
+    const best = cards.nth(1);
+    await expect(best.locator('.quote-info')).toBeHidden();
+    await best.getByRole('button', { name: 'What does "panels" mean?' }).click();
+    await expect(best.locator('.quote-info')).toContainText('turn daylight into electricity');
+    await best.getByRole('button', { name: 'What does "inverter" mean?' }).click();
+    await expect(best.locator('.quote-info')).toContainText('the kind your home uses');
+    await expect(best.locator('.quote-info')).not.toContainText('daylight');
+    await best.getByRole('button', { name: 'What does "inverter" mean?' }).click();
+    await expect(best.locator('.quote-info')).toBeHidden();
     await expect(cards.nth(1)).toContainText('Mid-sized system');
     await expect(cards.locator('svg.quote-art')).toHaveCount(3);
     await page.waitForTimeout(500); // the panel finishes widening

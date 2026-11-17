@@ -199,13 +199,17 @@ async function solarLookup(solar: SolarClient, address: string, now: number): Pr
   const roof = await cached<GoogleRoof | null>(`solar:${normalised(address)}`, now, () =>
     lookUpGoogleRoof(solar, address),
   );
-  if (!roof) return { patch: {}, removed: [HOME_KEYS.solar], found: null };
+  // A new address: whatever was said about the last one's photo no longer holds.
+  const photo = [JOURNEY_KEYS.homePhoto, JOURNEY_KEYS.homeConfirmed];
+  if (!roof) return { patch: {}, removed: [HOME_KEYS.solar, ...photo], found: null };
   return {
     patch: { [HOME_KEYS.solar]: JSON.stringify(roof) },
-    removed: [],
+    removed: photo,
+    // How many panels fit is Sunny's sum to do, and means little to a visitor
+    // at this point: nothing is said of it. Only a roof with no sunny face is.
     found:
       roof.usablePanels > 0
-        ? `Google's roof model shows room for about ${roof.usablePanels} panels on the sunnier faces, and it allows for shade.`
+        ? null
         : "Google's roof model shows no south, east or west facing roof space, so a specialist will need to look.",
   };
 }

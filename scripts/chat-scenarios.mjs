@@ -96,48 +96,61 @@ const BILL = new URL('./fixtures/sample-bill.pdf', import.meta.url);
 /** A file that is not a bill: an empty PDF. */
 const NOT_A_BILL = 'JVBERi0xLjQKJSVFT0YK';
 
+/** An answer to the opening question: what the visitor wants from it. */
+const WANT = 'To cut my energy bills';
+/** "Yes" to the photo of the address from above. */
+const MINE = "Yes, that's my house";
+
 const SCENARIOS = [
   {
     name: 'asks for a quote, then answers in order',
     turns: [
-      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: "I'd like a solar quote please", asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'I own it', asks: 'address' },
       {
         say: FULL,
-        asks: 'usage_source',
+        asks: 'home_confirmed',
         events: ['roof_image'],
-        matches: /about \d+ panels/i,
+        // The photo is for "is this your house?": no panel count is said.
+        matchesNot: /\d+ panels/i,
         picture: true,
       },
+      { say: MINE, asks: 'usage_source', matchesNot: /\d+ panels/i },
     ],
   },
   {
     // Seen live: the house number was read as a £20 monthly bill.
     name: 'a house number is not read as a bill',
     turns: [
-      { say: 'Solar quote please', asks: 'ownership' },
+      { say: 'Solar quote please', asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'Yes I own it', asks: 'address' },
-      { say: FULL, asks: 'usage_source', asksNot: ['lifestyle', 'household_size'] },
+      { say: FULL, asks: 'home_confirmed' },
+      { say: MINE, asks: 'usage_source', asksNot: ['lifestyle', 'household_size'] },
     ],
   },
   {
     // Seen live: the address given before anything else was lost.
     name: 'opens with a whole address',
-    turns: [{ say: FULL, asks: 'ownership', events: ['roof_image'], picture: true }],
+    turns: [
+      { say: FULL, asks: 'home_confirmed', events: ['roof_image'], picture: true },
+      { say: MINE, asks: 'motivation' },
+    ],
   },
   {
     // Seen live (the screenshot): street, then postcode, before any quote.
     name: 'opens with a street, then its postcode',
     turns: [
       { say: '3A Downs Walk', asks: 'address', matches: /postcode/i, noEvents: ['roof_image'] },
-      { say: 'BN10 7SN', asks: 'ownership', events: ['roof_image'], picture: true },
+      { say: 'BN10 7SN', asks: 'home_confirmed', events: ['roof_image'], picture: true },
     ],
   },
   {
     name: 'a typo in the street',
     turns: [
       { say: '3A Dowsn Walk', asks: 'address', matches: /postcode/i },
-      { say: 'BN10 7SN', asks: 'ownership', events: ['roof_image'] },
+      { say: 'BN10 7SN', asks: 'home_confirmed', events: ['roof_image'] },
     ],
   },
   {
@@ -146,13 +159,14 @@ const SCENARIOS = [
     turns: [
       { say: '3A Downs Walk', asks: 'address', matches: /postcode/i },
       { say: 'I own it with a mortgage', asks: 'address', matches: /postcode/i },
-      { say: 'BN10 7SN', asks: 'usage_source', events: ['roof_image'], picture: true },
+      { say: 'BN10 7SN', asks: 'home_confirmed', events: ['roof_image'], picture: true },
     ],
   },
   {
     name: 'a postcode on its own asks for the house',
     turns: [
-      { say: 'Solar quote please', asks: 'ownership' },
+      { say: 'Solar quote please', asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'I own it', asks: 'address' },
       { say: 'BN10 7SN', asks: 'address', noEvents: ['roof_image'] },
     ],
@@ -160,25 +174,42 @@ const SCENARIOS = [
   {
     name: 'a question mid-quote is answered and the quote carries on',
     turns: [
-      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: "I'd like a solar quote please", asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'How long do solar panels last?', asks: 'ownership' },
+    ],
+  },
+  {
+    // The owner's ask: a quote eases in (what do you want from it?) before
+    // anything about the house, and the photo is only "is this your house?".
+    name: 'the photo is not their house: it is set aside and the quote carries on',
+    turns: [
+      { say: "I'd like a solar quote please", asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
+      { say: 'I own it', asks: 'address' },
+      { say: FULL, asks: 'home_confirmed', events: ['roof_image'], picture: true },
+      { say: "No, that's not my house", asks: 'usage_source', matches: /specialist/i },
     ],
   },
   {
     name: 'usage given as a monthly bill moves on',
     turns: [
-      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: "I'd like a solar quote please", asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'I own it', asks: 'address' },
-      { say: FULL, asks: 'usage_source' },
+      { say: FULL, asks: 'home_confirmed' },
+      { say: MINE, asks: 'usage_source' },
       { say: 'about £120 a month', asksNot: ['usage_source', 'address', 'ownership'] },
     ],
   },
   {
     name: 'a solar quote to the end, a package chosen, details left',
     turns: [
-      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: "I'd like a solar quote please", asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'I own it', asks: 'address' },
-      { say: FULL, asks: 'usage_source' },
+      { say: FULL, asks: 'home_confirmed' },
+      { say: MINE, asks: 'usage_source' },
       { say: 'about £120 a month', asks: 'lifestyle' },
       { say: "We're mostly out at work in the day", asks: 'existing_system' },
       {
@@ -198,7 +229,8 @@ const SCENARIOS = [
   {
     name: 'a heat pump quote to the end',
     turns: [
-      { say: 'How much is a heat pump?', asks: 'ownership' },
+      { say: 'How much is a heat pump?', asks: 'motivation' },
+      { say: 'Lower heating bills', asks: 'ownership' },
       { say: 'I own it', asks: 'address' },
       { say: FULL, asks: 'property_type' },
       { say: 'Terraced', asks: 'hp_bedrooms' },
@@ -219,9 +251,11 @@ const SCENARIOS = [
     // by the model for the visitor and never asked.
     name: 'a bill upload is read, and the next question is still asked',
     turns: [
-      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: "I'd like a solar quote please", asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'I own it', asks: 'address' },
-      { say: FULL, asks: 'usage_source' },
+      { say: FULL, asks: 'home_confirmed' },
+      { say: MINE, asks: 'usage_source' },
       { upload: BILL, mime: 'application/pdf', read: true },
       { say: UPLOADED, asks: 'lifestyle', matches: /about [\d,]+ kWh/i },
     ],
@@ -229,9 +263,11 @@ const SCENARIOS = [
   {
     name: 'a file that is not a bill asks for the usage another way',
     turns: [
-      { say: "I'd like a solar quote please", asks: 'ownership' },
+      { say: "I'd like a solar quote please", asks: 'motivation' },
+      { say: WANT, asks: 'ownership' },
       { say: 'I own it', asks: 'address' },
-      { say: FULL, asks: 'usage_source' },
+      { say: FULL, asks: 'home_confirmed' },
+      { say: MINE, asks: 'usage_source' },
       { upload: NOT_A_BILL, mime: 'application/pdf', read: false },
       { say: UPLOADED, asks: ['usage_source', 'annual_kwh', 'monthly_cost'] },
     ],
@@ -447,9 +483,11 @@ async function picture(s) {
   });
   if (!response.ok) return `GET roof-picture answered ${response.status}`;
   const body = await response.json();
-  return Array.isArray(body.faces) && body.faces.length > 0
-    ? null
-    : 'the picture has no roof faces';
+  if (typeof body.image !== 'string' || !body.image.startsWith('data:image/jpeg;base64,')) {
+    return 'the picture has no photo';
+  }
+  // Each roof face is washed in its own colour, from Google's height model.
+  return body.facesMarked === true ? null : 'the roof faces are not marked on the photo';
 }
 
 async function runScenario(scenario) {

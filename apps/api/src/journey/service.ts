@@ -20,8 +20,15 @@ import { warrantiesFor } from '../proposal/warranties.js';
 import type { Store } from '../store.js';
 import type { Tenant } from '../tenants.js';
 
-import { applyProposals, extractAnswers, type AppliedAnswers, type Proposal } from './extract.js';
 import {
+  applyProposals,
+  extractAnswers,
+  yesOrNo,
+  type AppliedAnswers,
+  type Proposal,
+} from './extract.js';
+import {
+  HOME_CHECK,
   JOURNEY_KEYS,
   journeyStatus,
   prefillFromRoof,
@@ -181,9 +188,16 @@ export async function submitAnswers(
   // not a valid answer at all: seen live, the model saved "£120 a month" as
   // the usage source, it was refused, and the reader's correct "monthly cost"
   // for the same question was dropped, so the question was asked again.
+  // "Is this your house?" is the journey's own question, not the flow's.
+  const homeSaid =
+    before.answers[JOURNEY_KEYS.homePhoto] === 'yes'
+      ? ((input.proposals ?? []).find(
+          (p) => p.questionId === HOME_CHECK && (p.value === 'yes' || p.value === 'no'),
+        )?.value ?? (current === HOME_CHECK && input.text ? yesOrNo(input.text) : null))
+      : null;
   const explicit = (input.proposals ?? []).filter(
     (p) =>
-      !read.some((q) => q.questionId === p.questionId) ||
+      (p.questionId !== HOME_CHECK && !read.some((q) => q.questionId === p.questionId)) ||
       flow.validate(p.questionId, p.value, before.answers).ok,
   );
   const proposals: Proposal[] = [...explicit, ...read];
@@ -195,6 +209,23 @@ export async function submitAnswers(
   if (result.answers['roof_confirmed'] === 'no') {
     // "That's not my roof": stop trusting the mapping and ask the roof questions.
     result = { ...result, answers: flow.reconcile(rejectRoof(result.answers)).answers };
+  }
+  if (homeSaid) {
+    const answers: Record<string, string> = {
+      ...result.answers,
+      [JOURNEY_KEYS.homeConfirmed]: homeSaid,
+    };
+    if (homeSaid === 'no') {
+      // Another house's roof must not size this quote: the photo and Google's
+      // model of it are set aside, and the quote falls back on typical values.
+      delete answers[JOURNEY_KEYS.homeSolar];
+      delete answers[JOURNEY_KEYS.homePhoto];
+    }
+    result = {
+      ...result,
+      answers,
+      accepted: [...result.accepted, { questionId: HOME_CHECK, value: homeSaid }],
+    };
   }
   const removed = Object.keys(before.answers).filter((k) => !(k in result.answers));
   const patch = Object.fromEntries(

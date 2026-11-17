@@ -2,6 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { writeArrayBuffer } from 'geotiff';
+import proj4 from 'proj4';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkflowSet } from '@sunny/contracts';
@@ -32,6 +34,7 @@ import {
   lookUpHome,
   type HomeData,
 } from '../src/homedata/index.js';
+import { clearRoofPictureCache, utmDefinition } from '../src/homedata/roof-image.js';
 import {
   compactInsights,
   lookUpGoogleRoof,
@@ -345,6 +348,63 @@ function fakeSolar(found: GoogleSolarBuildingInsights | null, point = POINT): So
   };
 }
 
+/**
+ * A 40 m square RGB GeoTIFF centred on the house (Norwich: UTM zone 31N), as
+ * Google's aerial layer sends one.
+ */
+function aerialTiff(): ArrayBuffer {
+  const [e, n] = proj4<[number, number]>('WGS84', utmDefinition(32631)!, [POINT.lng, POINT.lat]);
+  const size = 400;
+  const res = 0.1;
+  return writeArrayBuffer(new Uint8Array(size * size * 3).fill(120), {
+    width: size,
+    height: size,
+    SamplesPerPixel: 3,
+    BitsPerSample: [8, 8, 8],
+    PhotometricInterpretation: 2,
+    ModelPixelScale: [res, res, 0],
+    ModelTiepoint: [0, 0, 0, e - 20, n + 20, 0],
+    GTModelTypeGeoKey: 1,
+    GTRasterTypeGeoKey: 1,
+    ProjectedCSTypeGeoKey: 32631,
+  });
+}
+
+/** Google's roof with one panel's position on it, so there is a house to show from above. */
+function insightsWithPanels(): GoogleSolarBuildingInsights {
+  const withPanels = insights();
+  Object.assign(withPanels, {
+    boundingBox: {
+      sw: { latitude: POINT.lat - 0.00005, longitude: POINT.lng - 0.00008 },
+      ne: { latitude: POINT.lat + 0.00005, longitude: POINT.lng + 0.00008 },
+    },
+  });
+  Object.assign(withPanels.solarPotential, {
+    panelWidthMeters: 1.045,
+    panelHeightMeters: 1.879,
+    solarPanels: [
+      {
+        center: { latitude: POINT.lat - 0.00002, longitude: POINT.lng },
+        orientation: 'PORTRAIT',
+        segmentIndex: 0,
+        yearlyEnergyDcKwh: 400,
+      },
+    ],
+  });
+  (withPanels.solarPotential.roofSegmentStats as unknown as { stats: object }[]).forEach((s) =>
+    Object.assign(s.stats, { areaMeters2: 30 }),
+  );
+  return withPanels;
+}
+
+/** A solar client with that roof and an aerial photo of it. */
+function fakeSolarWithPhoto(): SolarClient {
+  return {
+    ...fakeSolar(insightsWithPanels()),
+    aerialImage: vi.fn(() => Promise.resolve(aerialTiff())),
+  };
+}
+
 describe("Google's roof", () => {
   beforeEach(() => clearHomeDataCache());
 
@@ -373,6 +433,7 @@ describe("Google's roof", () => {
   it('prices on the roof model: room for the usable panels, no roof questions', () => {
     const roof = compactInsights(insights())!;
     const answers = {
+      motivation: 'reduce_bills',
       ownership: 'own',
       address: ADDRESS,
       usage_source: 'household',
@@ -448,6 +509,7 @@ describe('a heat pump workflow with the energy certificates', () => {
     const epc = fakeEpc([row('c1', '12 Mill Lane', '2014-05-04')], { c1: RDSAP_20 });
     const ctx = context(store, { epc, solar: null });
     await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
     const said =
@@ -469,6 +531,7 @@ describe('a heat pump workflow with the energy certificates', () => {
     );
     const ctx = context(store, { epc, solar: null });
     await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
     // The age came from the street; the type and the household's own choices are asked.
@@ -498,6 +561,7 @@ describe('a heat pump workflow with the energy certificates', () => {
     const store = await tempStore();
     const ctx = context(store, { epc: fakeEpc([], {}), solar: null });
     await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
     expect(after.data['nextQuestionId']).toBe('property_type');
@@ -508,7 +572,10 @@ describe('a heat pump workflow with the energy certificates', () => {
 });
 
 describe("a solar workflow with Google's roof", () => {
-  beforeEach(() => clearHomeDataCache());
+  beforeEach(() => {
+    clearHomeDataCache();
+    clearRoofPictureCache();
+  });
 
   it('quotes on the roof model without asking about the roof', async () => {
     const store = await tempStore();
@@ -518,9 +585,11 @@ describe("a solar workflow with Google's roof", () => {
       defaultWorkflowSet(NOW),
     );
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
-    expect(after.data['sayFirst']).toContain('about 14 panels');
+    // How many panels fit is Sunny's sum to do: nothing is said of it.
+    expect(after.data['sayFirst']).toBeUndefined();
     const asked: string[] = [];
     let next = after.data['nextQuestionId'] as string | null;
     const values: Record<string, string> = {
@@ -560,6 +629,7 @@ describe("a solar workflow with Google's roof", () => {
     const store = await tempStore();
     const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
     ctx.visitorMessage = 'Solar quote please';
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { motivation: 'reduce_bills' });
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     const made = await tool(
       'save_workflow_answers',
@@ -571,7 +641,9 @@ describe("a solar workflow with Google's roof", () => {
     );
     expect(made.data['nextQuestionId']).toBe('ownership');
     // Said in their own words, it stands.
-    const ctx2 = context(await tempStore(), { epc: null, solar: null }, defaultWorkflowSet(NOW));
+    const store2 = await tempStore();
+    await store2.mergeAnswers(DEMO_TENANT.id, SESSION, { motivation: 'reduce_bills' });
+    const ctx2 = context(store2, { epc: null, solar: null }, defaultWorkflowSet(NOW));
     ctx2.visitorMessage = 'Solar quote please, I own my home';
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx2);
     const said = await tool(
@@ -592,6 +664,7 @@ describe("a solar workflow with Google's roof", () => {
     const store = await tempStore();
     const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
     ctx.visitorMessage = "I'd like a solar quote please";
+    await store.mergeAnswers(DEMO_TENANT.id, SESSION, { motivation: 'reduce_bills' });
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     ctx.messagesRead = new Set();
     ctx.visitorMessage = 'How long do solar panels last?';
@@ -626,6 +699,7 @@ describe("a solar workflow with Google's roof", () => {
     const store = await tempStore();
     const ctx = context(store, { epc: null, solar: null }, defaultWorkflowSet(NOW));
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
     await save(ctx, 'address', ADDRESS);
     const result = await tool(
@@ -652,6 +726,7 @@ describe("a solar workflow with Google's roof", () => {
       defaultWorkflowSet(NOW),
     );
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
     ctx.messagesRead = new Set();
     const afterPostcode = await tool(
@@ -713,12 +788,13 @@ describe("a solar workflow with Google's roof", () => {
       defaultWorkflowSet(NOW),
     );
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
     ctx.visitorMessage = ADDRESS;
     const measured = await tool('start_sunscan_assessment', { address: ADDRESS }, ctx);
     expect(measured.data['saved']).toEqual([{ questionId: 'address', value: ADDRESS }]);
     expect(measured.data['nextQuestionId']).not.toBe('address');
-    expect(measured.data['sayFirst']).toContain('about 14 panels');
+    expect(measured.data['sayFirst']).toBeUndefined();
     const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
     expect(answers['address']).toBe(ADDRESS);
     expect(answers['journey_home_solar']).toBeDefined();
@@ -738,39 +814,50 @@ describe("a solar workflow with Google's roof", () => {
 
   it('offers the house from above when Google has the panel positions', async () => {
     const store = await tempStore();
-    const withPanels = insights();
-    Object.assign(withPanels, {
-      boundingBox: {
-        sw: { latitude: POINT.lat - 0.00005, longitude: POINT.lng - 0.00008 },
-        ne: { latitude: POINT.lat + 0.00005, longitude: POINT.lng + 0.00008 },
-      },
-    });
-    Object.assign(withPanels.solarPotential, {
-      panelWidthMeters: 1.045,
-      panelHeightMeters: 1.879,
-      solarPanels: [
-        {
-          center: { latitude: POINT.lat - 0.00002, longitude: POINT.lng },
-          orientation: 'PORTRAIT',
-          segmentIndex: 0,
-          yearlyEnergyDcKwh: 400,
-        },
-      ],
-    });
-    (withPanels.solarPotential.roofSegmentStats as unknown as { stats: object }[]).forEach((s) =>
-      Object.assign(s.stats, { areaMeters2: 30 }),
-    );
-    const ctx = context(
-      store,
-      { epc: null, solar: fakeSolar(withPanels) },
-      defaultWorkflowSet(NOW),
-    );
+    const ctx = context(store, { epc: null, solar: fakeSolarWithPhoto() }, defaultWorkflowSet(NOW));
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
     await save(ctx, 'ownership', 'own');
-    await save(ctx, 'address', ADDRESS);
+    const after = await save(ctx, 'address', ADDRESS);
     expect(ctx.events.filter((e) => e.kind === 'roof_image')).toHaveLength(1);
     const saved = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
     expect(JSON.parse(saved['journey_home_solar']!).view.panels).toHaveLength(1);
+    expect(saved['journey_home_photo']).toBe('yes');
+    // With the photo on screen, the visitor says whether it is their house.
+    expect(after.data['nextQuestionId']).toBe('home_confirmed');
+    expect(after.data['ask']).toBe('Here is the address from above. Is this your house?');
+    const confirmed = await save(ctx, 'home_confirmed', 'yes');
+    expect(confirmed.data['nextQuestionId']).toBe('usage_source');
+    expect(confirmed.data['sayFirst']).toBeUndefined();
+    const kept = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(kept['journey_home_confirmed']).toBe('yes');
+    expect(kept['journey_home_solar']).toBeDefined();
+    expect(ctx.events.filter((e) => e.kind === 'roof_image')).toHaveLength(1);
+  });
+
+  it('takes the photo away when the visitor says it is not their house', async () => {
+    const store = await tempStore();
+    const ctx = context(store, { epc: null, solar: fakeSolarWithPhoto() }, defaultWorkflowSet(NOW));
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
+    await save(ctx, 'ownership', 'own');
+    const after = await save(ctx, 'address', ADDRESS);
+    expect(after.data['nextQuestionId']).toBe('home_confirmed');
+    const denied = await save(ctx, 'home_confirmed', 'no');
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['journey_home_confirmed']).toBe('no');
+    expect(answers['journey_home_solar']).toBeUndefined();
+    expect(answers['journey_home_photo']).toBeUndefined();
+    expect(answers['address']).toBe(ADDRESS);
+    // The photo comes off the screen, and Sunny says so once.
+    const pictures = ctx.events.filter((e) => e.kind === 'roof_image');
+    expect(pictures).toHaveLength(2);
+    expect(pictures[1]!.detail).toEqual({ remove: true });
+    expect(denied.data['sayFirst']).toBe(
+      'Sorry about that, I will leave that photo out. A specialist will check your roof at the survey instead.',
+    );
+    // And the questions carry on.
+    expect(denied.data['nextQuestionId']).toBe('usage_source');
   });
 
   it('still quotes on typical values when Google has no model', async () => {
@@ -778,6 +865,7 @@ describe("a solar workflow with Google's roof", () => {
     const ctx = context(store, { epc: null, solar: fakeSolar(null) }, defaultWorkflowSet(NOW));
     await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     await store.mergeAnswers(DEMO_TENANT.id, SESSION, {
+      motivation: 'reduce_bills',
       ownership: 'own',
       usage_source: 'household',
       household_size: '3',
@@ -865,7 +953,7 @@ describe('a visitor who opens with a street address', () => {
       ctx,
     );
     expect(ctx.answers['address']).toBe('3A Downs Walk, BN10 7SN');
-    expect(after.data['nextQuestionId']).toBe('ownership');
+    expect(after.data['nextQuestionId']).toBe('motivation');
   });
 
   it('keeps the street when the model saves another answer as the address', async () => {

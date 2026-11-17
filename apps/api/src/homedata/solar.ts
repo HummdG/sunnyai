@@ -29,6 +29,8 @@ const INSIGHTS_URL = 'https://solar.googleapis.com/v1/buildingInsights:findClose
 const DATA_LAYERS_URL = 'https://solar.googleapis.com/v1/dataLayers:get';
 /** The photo is fetched after the reply, off the conversation's path, so it may take longer. */
 const IMAGE_TIMEOUT_MS = 10_000;
+/** Google's layer links last an hour; the answer is shared for a while less. */
+const LAYERS_TTL_MS = 10 * 60 * 1000;
 
 /** The furthest Google's building may sit from the address's rooftop point. */
 const MAX_BUILDING_DISTANCE_M = 40;
@@ -49,11 +51,22 @@ export interface SolarClient {
    * no photo.
    */
   aerialImage?(point: LatLngPoint, radiusM: number): Promise<ArrayBuffer | null>;
+  /**
+   * Google's height model round the same point and, when it has one, its mask
+   * of which pixels are building (both GeoTIFFs), for marking each roof face
+   * on the photo. Optional, and null without one: the photo is then shown plain.
+   */
+  roofHeights?(point: LatLngPoint, radiusM: number): Promise<RoofHeights | null>;
+}
+
+export interface RoofHeights {
+  dsm: ArrayBuffer;
+  mask: ArrayBuffer | null;
 }
 
 /** Google over HTTP. A 404 from the Solar API means no model here, not an error. */
 export function httpSolarClient(apiKey: string, fetchFn: typeof fetch = fetch): SolarClient {
-  return {
+  const client: SolarClient = {
     async geocode(address) {
       const q = new URLSearchParams({
         address,
@@ -92,6 +105,33 @@ export function httpSolarClient(apiKey: string, fetchFn: typeof fetch = fetch): 
       return (await response.json()) as GoogleSolarBuildingInsights;
     },
     async aerialImage(point, radiusM) {
+      const found = await layers(point, radiusM);
+      return found?.rgbUrl ? download(found.rgbUrl) : null;
+    },
+    async roofHeights(point, radiusM) {
+      const found = await layers(point, radiusM);
+      if (!found?.dsmUrl) return null;
+      const [dsm, mask] = await Promise.all([
+        download(found.dsmUrl),
+        found.maskUrl ? download(found.maskUrl).catch(() => null) : Promise.resolve(null),
+      ]);
+      return { dsm, mask };
+    },
+  };
+  return client;
+
+  /**
+   * One `dataLayers` request answers for the photo, the heights and the
+   * building mask (it is the request that is billed, not the downloads), so
+   * it is made once per place and shared for as long as its links last.
+   */
+  type Layers = { rgbUrl?: string; dsmUrl?: string; maskUrl?: string };
+  const recent = new Map<string, { at: number; found: Promise<Layers | null> }>();
+  function layers(point: LatLngPoint, radiusM: number): Promise<Layers | null> {
+    const key = `${point.lat},${point.lng},${Math.round(radiusM)}`;
+    const hit = recent.get(key);
+    if (hit && Date.now() - hit.at < LAYERS_TTL_MS) return hit.found;
+    const found = (async () => {
       const q = new URLSearchParams({
         'location.latitude': String(point.lat),
         'location.longitude': String(point.lng),
@@ -101,20 +141,26 @@ export function httpSolarClient(apiKey: string, fetchFn: typeof fetch = fetch): 
         pixelSizeMeters: '0.1',
         key: apiKey,
       });
-      const layers = await fetchFn(`${DATA_LAYERS_URL}?${q}`, {
+      const response = await fetchFn(`${DATA_LAYERS_URL}?${q}`, {
         signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
       });
-      if (layers.status === 404) return null;
-      if (!layers.ok) throw new Error(`Solar API data layers answered ${layers.status}`);
-      const { rgbUrl } = (await layers.json()) as { rgbUrl?: string };
-      if (!rgbUrl) return null;
-      const url = new URL(rgbUrl);
-      url.searchParams.set('key', apiKey);
-      const tiff = await fetchFn(url, { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) });
-      if (!tiff.ok) throw new Error(`Solar API imagery answered ${tiff.status}`);
-      return tiff.arrayBuffer();
-    },
-  };
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`Solar API data layers answered ${response.status}`);
+      return (await response.json()) as Layers;
+    })();
+    if (recent.size >= 20) recent.delete(recent.keys().next().value!);
+    recent.set(key, { at: Date.now(), found });
+    // A failure is not kept: the next ask tries again.
+    found.catch(() => recent.delete(key));
+    return found;
+  }
+  async function download(layerUrl: string): Promise<ArrayBuffer> {
+    const url = new URL(layerUrl);
+    url.searchParams.set('key', apiKey);
+    const tiff = await fetchFn(url, { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) });
+    if (!tiff.ok) throw new Error(`Solar API imagery answered ${tiff.status}`);
+    return tiff.arrayBuffer();
+  }
 }
 
 /** What the session keeps of Google's roof. */
@@ -145,7 +191,20 @@ export interface RoofView {
   panelWidthM: number;
   panelHeightM: number;
   /** Roof faces in Google's order (a panel's `face` is an index into this). */
-  faces: Array<{ pitchDeg: number; azimuthDeg: number; areaM2: number }>;
+  faces: Array<{
+    pitchDeg: number;
+    azimuthDeg: number;
+    areaM2: number;
+    /**
+     * Where the face's plane sits: its centre as [lat, lng], its height there
+     * in metres, and its box as [south, west, north, east]. With these and
+     * Google's height model each face can be marked on the photo. Absent on
+     * roofs saved before they were kept.
+     */
+    centre?: [number, number];
+    heightM?: number;
+    box?: [number, number, number, number];
+  }>;
   /** Panels as [lat, lng, face, portrait ? 1 : 0], Google's best first. */
   panels: Array<[number, number, number, 0 | 1]>;
 }
@@ -173,6 +232,18 @@ export function roofViewOf(insights: GoogleSolarBuildingInsights): RoofView | un
       pitchDeg: Math.round(s.pitchDegrees * 10) / 10,
       azimuthDeg: Math.round(s.azimuthDegrees * 10) / 10,
       areaM2: Math.round(s.stats.areaMeters2 * 10) / 10,
+      ...(s.center && s.boundingBox && typeof s.planeHeightAtCenterMeters === 'number'
+        ? {
+            centre: [round(s.center.latitude), round(s.center.longitude)] as [number, number],
+            heightM: Math.round(s.planeHeightAtCenterMeters * 100) / 100,
+            box: [
+              round(s.boundingBox.sw.latitude),
+              round(s.boundingBox.sw.longitude),
+              round(s.boundingBox.ne.latitude),
+              round(s.boundingBox.ne.longitude),
+            ] as [number, number, number, number],
+          }
+        : {}),
     })),
     panels: panels
       .slice(0, MAX_VIEW_PANELS)

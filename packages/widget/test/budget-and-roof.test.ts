@@ -74,13 +74,16 @@ describe('the roof picture', () => {
     expect(parseRoofPicture(picture)).not.toBeNull();
   });
 
-  it('refuses anything that is not a JPEG data URL or a plain colour', () => {
+  it('refuses anything that is not a JPEG data URL, and reads only the photo', () => {
     expect(parseRoofPicture({ ...picture, image: 'https://evil.example/x.jpg' })).toBeNull();
-    expect(
-      parseRoofPicture({ ...picture, faces: [{ ...picture.faces[0], colour: 'red;x' }] }),
-    ).toBeNull();
-    expect(
-      parseRoofPicture({ ...picture, faces: [{ ...picture.faces[0], panels: [[1, 2, 3]] }] }),
-    ).toBeNull();
+    expect(parseRoofPicture({ ...picture, width: 0 })).toBeNull();
+    // The panels are the dashboard's: the visitor's card keeps none of them.
+    expect(parseRoofPicture(picture)).toEqual({
+      width: 180,
+      height: 160,
+      image: 'data:image/jpeg;base64,AAAA',
+      imageryYear: 2023,
+    });
+    expect(parseRoofPicture({ ...picture, faces: undefined, imageryYear: null })).not.toBeNull();
   });
 });

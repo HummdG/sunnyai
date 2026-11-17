@@ -181,7 +181,7 @@ export type TurnEvent =
       summary: AssessmentSummary | null;
     }
   | { type: 'quote'; messageId: string; quote: QuoteCard }
-  | { type: 'roof_image'; messageId: string }
+  | { type: 'roof_image'; messageId: string; remove?: boolean }
   | {
       type: 'quick_replies';
       messageId: string;
@@ -733,7 +733,11 @@ function drain(events: ToolEvent[], messageId: string): TurnEvent[] {
     } else if (event.kind === 'quote') {
       out.push({ type: 'quote', messageId, quote: event.detail['quote'] as QuoteCard });
     } else if (event.kind === 'roof_image') {
-      out.push({ type: 'roof_image', messageId });
+      out.push({
+        type: 'roof_image',
+        messageId,
+        ...(event.detail['remove'] === true ? { remove: true } : {}),
+      });
     } else if (event.kind === 'quick_replies') {
       const detail = event.detail as {
         questionId: string | null;

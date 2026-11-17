@@ -146,11 +146,11 @@ describe('start_workflow', () => {
     const ctx = context(store);
     const result = await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
     expect(result.ok).toBe(true);
-    expect(result.data['nextQuestionId']).toBe('ownership');
+    expect(result.data['nextQuestionId']).toBe('motivation');
     expect(result.data['workflow']).toEqual({ id: 'wf_solar', name: 'Solar quote' });
     expect(result.data['pausedOther']).toBeNull();
     expect(result.data['resumed']).toBe(false);
-    expect(lastReplies(ctx.events)?.questionId).toBe('ownership');
+    expect(lastReplies(ctx.events)?.questionId).toBe('motivation');
     expect(lastReplies(ctx.events)!.replies.length).toBeGreaterThan(1);
     const stored = await store.getWorkflowState(DEMO_TENANT.id, SESSION);
     expect(stored.active?.workflowId).toBe('wf_solar');
@@ -251,7 +251,7 @@ describe('save_workflow_answers', () => {
     expect(ctx.answers['address']).toContain('164 Norwich Drive');
     expect(sunscan.started).toHaveBeenCalledTimes(1);
     expect(result.data['roofAssessment']).toBeDefined();
-    expect(result.data['nextQuestionId']).toBe('ownership');
+    expect(result.data['nextQuestionId']).toBe('motivation');
   });
 
   it('goes from discovery to a suggestion, and the suggestion skips what was answered', async () => {
@@ -620,7 +620,7 @@ describe('the session across turns', () => {
     }
     expect(results).toHaveLength(2);
     expect(results[1]?.['active']).toBe('wf_solar');
-    expect(results[1]?.['nextQuestionId']).toBe('ownership');
+    expect(results[1]?.['nextQuestionId']).toBe('motivation');
   });
 });
 

@@ -255,7 +255,7 @@ export function styles(): string {
 /* ── the panel ──────────────────────────────────────────────────────────── */
 
 .panel {
-  width: min(440px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
+  width: min(600px, calc(100vw - 40px - var(--sunny-safe-left) - var(--sunny-safe-right)));
   /* Taller than the conversation-only panel was. The options are a second
      surface inside the same frame, so the panel has to hold a transcript and a
      card list at once -- and a card that cannot be read without scrolling is a
@@ -450,20 +450,19 @@ export function styles(): string {
 .budget-note { margin: 6px 0 0; font-size: 11px; color: #5c5c5c; }
 .quote-option { transition: opacity 160ms ease; }
 .quote-option.beyond-budget { opacity: .5; }
-/* The house from above (roof-image.ts): Google's photo, the panels over it, a key. */
+/* The house from above (roof-image.ts): Google's photo with the roof faces marked. */
 .roof-pic { margin: 4px 0 10px; padding: 8px; border-radius: 14px; background: var(--sunny-pale);
   border: 1px solid var(--sunny-orange-soft); font-size: 12.5px; }
 .roof-pic-frame { position: relative; border-radius: 10px; overflow: hidden; line-height: 0;
-  max-width: 360px; margin: 0 auto; }
+  max-width: 320px; margin: 0 auto; }
 .roof-pic-frame img { display: block; width: 100%; height: auto; }
-.roof-pic-panels { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-.roof-pic figcaption { padding: 8px 4px 0; }
-.roof-pic-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
-.roof-pic-key { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 3px; }
-.roof-pic-key li { display: flex; align-items: center; gap: 8px; }
-.roof-pic-swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto;
-  box-shadow: inset 0 0 0 1px rgba(23,23,23,.25); }
+.roof-pic figcaption { padding: 6px 4px 0; text-align: center; }
 .roof-pic-credit { margin: 0; font-size: 11px; color: #5c5c5c; }
+/* On a phone the photo is a glance, not the screen: the question stays in view. */
+@media (max-width: 640px) {
+  .roof-pic { align-self: flex-start; }
+  .roof-pic-frame { max-width: 200px; }
+}
 .panel { position: relative; }
 /* Quote options: three across, the best lifted in the middle; a swipe row when narrow. */
 .quote { margin: 4px 0 10px; container-type: inline-size; }
@@ -489,6 +488,18 @@ export function styles(): string {
   border-top: 1px dashed rgba(23,23,23,.18); display: flex; justify-content: space-around; gap: 6px; }
 .quote-stats li { display: flex; flex-direction: column; font-size: 11px; color: #5c5c5c; line-height: 1.25; }
 .quote-stats b { font-size: 14px; color: var(--sunny-ink); }
+.quote-stat-label { display: inline-flex; align-items: center; justify-content: center; gap: 1px; }
+/* The (i) beside a term: small to look at, 24 px to tap. */
+.quote-info-button { display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin: -5px -5px -5px -2px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--sunny-muted); cursor: pointer; flex: 0 0 auto; }
+.quote-info-button svg { width: 13px; height: 13px; }
+.quote-info-button:hover, .quote-info-button[aria-expanded="true"] { color: var(--sunny-accent-ink); }
+.quote-info-button:focus-visible { outline: 2px solid var(--sunny-accent); outline-offset: -2px; }
+.quote-includes { margin: 4px 0 0; display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; color: #5c5c5c; }
+.quote-info { margin: 4px 0 0; padding: 7px 9px; border-radius: 10px; background: rgba(23,23,23,.05);
+  font-size: 12px; line-height: 1.4; color: var(--sunny-ink); text-align: left; }
 .quote-note { margin: 4px 0 0; font-size: 11.5px; color: #8a3b00; }
 .quote-size { margin: 0; font-size: 12px; color: #3a3a3a; }
 .quote-headline { margin: 0; font-size: 12px; line-height: 1.35; color: #3a3a3a; }

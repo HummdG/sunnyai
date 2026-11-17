@@ -30,7 +30,20 @@ export const JOURNEY_KEYS = {
   homeEpc: 'journey_home_epc',
   /** The figures read from an uploaded bill (bill/read.ts `BillRecord`, JSON). */
   bill: 'journey_bill',
+  /** 'yes' once the photo of the address from above is ready to show the visitor. */
+  homePhoto: 'journey_home_photo',
+  /** The visitor's answer to "Is this your house?" about that photo: 'yes' or 'no'. */
+  homeConfirmed: 'journey_home_confirmed',
 } as const;
+
+/**
+ * "Is this your house?", asked about the photo from above as soon as an
+ * address has one. Not a question of the flow (the installer cannot remove or
+ * reword it, and it is only asked when there is a photo): the journey asks it
+ * itself, as it asks for a missing postcode.
+ */
+export const HOME_CHECK = 'home_confirmed';
+const HOME_CHECK_PROMPT = 'Here is the address from above. Is this your house?';
 
 export type JourneyStage =
   | 'address' // nothing to assess yet
@@ -170,6 +183,16 @@ export function journeyStatus(
     : missing;
   const needsPostcode = !postcode && Boolean(answers['address']);
   if (needsPostcode) missing.unshift('postcode');
+  // The photo of the address is on the visitor's screen: before anything
+  // else is asked, they say whether it is their house.
+  const needsHomeCheck =
+    !legacy &&
+    !needsPostcode &&
+    !options.quoted &&
+    Boolean(answers['address']) &&
+    answers[JOURNEY_KEYS.homePhoto] === 'yes' &&
+    !answers[JOURNEY_KEYS.homeConfirmed];
+  if (needsHomeCheck) missing.unshift(HOME_CHECK);
 
   // A workflow asks for a missing postcode straight away: the roof and the
   // home records are looked up from the full address, so nothing else is
@@ -179,10 +202,13 @@ export function journeyStatus(
       ? 'address'
       : !legacy && needsPostcode
         ? 'address'
-        : (askable.find((id) => id !== 'postcode') ?? null);
+        : needsHomeCheck
+          ? HOME_CHECK
+          : (askable.find((id) => id !== 'postcode' && id !== HOME_CHECK) ?? null);
   const question = nextId ? flow.question(nextId) : undefined;
   let prompt = question?.prompt ?? null;
   if (nextId === 'roof_confirmed' && roof) prompt = confirmationPrompt(roof);
+  if (nextId === HOME_CHECK) prompt = HOME_CHECK_PROMPT;
   if (nextId === 'address')
     prompt =
       !answers['address'] && answers[JOURNEY_KEYS.postcode]
@@ -207,7 +233,7 @@ export function journeyStatus(
     stage,
     nextQuestionId: nextId ?? (!postcode && answers['address'] ? 'postcode' : null),
     prompt,
-    options: question?.options ?? null,
+    options: nextId === HOME_CHECK ? ['yes', 'no'] : (question?.options ?? null),
     multi: question?.multi === true,
     roof,
     roofPending,

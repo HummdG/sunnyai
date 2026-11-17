@@ -12,8 +12,8 @@ import {
   type WorkflowSet,
 } from '@sunny/contracts';
 
-export const SOLAR_TEMPLATE_VERSION = 3;
-export const HEAT_PUMP_TEMPLATE_VERSION = 3;
+export const SOLAR_TEMPLATE_VERSION = 4;
+export const HEAT_PUMP_TEMPLATE_VERSION = 4;
 export const BATTERY_TEMPLATE_VERSION = 1;
 
 function preset(id: string, extra: { prompt?: string; optional?: boolean } = {}): FlowStep {
@@ -21,7 +21,10 @@ function preset(id: string, extra: { prompt?: string; optional?: boolean } = {})
 }
 
 /**
- * The default solar questions: only what a homeowner knows. The roof's size,
+ * The default solar questions. The first one eases the visitor in: what they
+ * want solar to do for them, before anything about the house (version 4; the
+ * quote opened on "Is the home yours?", which read as a sales form). The rest
+ * is only what a homeowner knows. The roof's size,
  * direction and shade come from Google's roof model of the address (or the 3D
  * measurement, or typical values), never from the visitor. Earlier versions
  * also asked motivation, property type, tariff, budget, finance (version 1),
@@ -30,6 +33,7 @@ function preset(id: string, extra: { prompt?: string; optional?: boolean } = {})
  * SunScan's fixed legacy order.
  */
 const SOLAR_STEPS: readonly FlowStep[] = [
+  preset('motivation', { prompt: 'First, what would you most like solar to do for you?' }),
   preset('ownership'),
   preset('address'),
   preset('usage_source'),
@@ -45,6 +49,7 @@ const SOLAR_STEPS: readonly FlowStep[] = [
  * values. What is left to ask is what a homeowner knows.
  */
 const HEAT_PUMP_STEPS: readonly FlowStep[] = [
+  preset('motivation', { prompt: 'First, what would you most like from a new heating system?' }),
   preset('ownership'),
   preset('address'),
   preset('property_type'),
@@ -88,6 +93,13 @@ export const PAST_STEPS: Readonly<
       preset('lifestyle'),
       preset('existing_system'),
     ],
+    3: [
+      preset('ownership'),
+      preset('address'),
+      preset('usage_source'),
+      preset('lifestyle'),
+      preset('existing_system'),
+    ],
   },
   heat_pump_quote: {
     1: [
@@ -119,6 +131,16 @@ export const PAST_STEPS: Readonly<
       preset('hp_bedrooms'),
       preset('hp_walls'),
       preset('hp_loft'),
+      preset('hp_current_heating'),
+      preset('hp_emitters'),
+      preset('hp_hot_water'),
+    ],
+    3: [
+      preset('ownership'),
+      preset('address'),
+      preset('property_type'),
+      preset('hp_age'),
+      preset('hp_bedrooms'),
       preset('hp_current_heating'),
       preset('hp_emitters'),
       preset('hp_hot_water'),

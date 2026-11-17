@@ -197,7 +197,7 @@ describe('the vertical slice', () => {
       .filter((e) => e['type'] === 'text_delta')
       .map((e) => e['text'])
       .join('');
-    expect(said).toBe('Is the home yours, or do you rent?');
+    expect(said).toBe('First, what would you most like solar to do for you?');
     expect(events.find((e) => e['type'] === 'message_finished')?.['text']).toBe(said);
   });
 
@@ -1016,7 +1016,7 @@ describe('POST /v1/qualification/answer', () => {
     expect(body.questionId).toBe('existing_system');
     expect(body.answers['existing_system']).toBe('solar');
     // The tenant has no workflow of its own, so the solar template's order applies.
-    expect(body.nextQuestionId).toBe('ownership');
+    expect(body.nextQuestionId).toBe('motivation');
   });
 
   it('does not write the answer into the transcript', async () => {
@@ -1046,8 +1046,8 @@ describe('POST /v1/qualification/answer', () => {
     const body = second.json<{ answers: Record<string, string>; nextQuestionId: string | null }>();
     expect(body.answers['address']).toBe('1 Test Street');
     expect(body.answers['existing_system']).toBe('battery');
-    // The suggestion follows the solar template's order, which opens with ownership.
-    expect(body.nextQuestionId).toBe('ownership');
+    // The suggestion follows the solar template's order, which opens with what the visitor wants from solar.
+    expect(body.nextQuestionId).toBe('motivation');
   });
 
   it('rejects a value that is not one of the options, naming them', async () => {

@@ -160,7 +160,7 @@ describe('the heat pump template', () => {
     expect(t.name).toBe('Heat pump quote');
     expect(t.enabled).toBe(false);
     expect(t.outcome).toEqual({ kind: 'quote', engine: 'heat_pump' });
-    expect(t.template).toEqual({ id: 'heat_pump_quote', version: 3 });
+    expect(t.template).toEqual({ id: 'heat_pump_quote', version: 4 });
     expect(t.interests).toEqual(['heating']);
     expect(t.pages).toEqual({ include: [], exclude: [] });
     expect(templateFor('heat_pump_quote', NOW)?.id).toBe('wf_heat_pump');
@@ -183,7 +183,7 @@ describe('the heat pump template', () => {
     expect(set.workflows.map((w) => w.id)).toEqual(['wf_solar', 'wf_heat_pump', 'wf_battery']);
     expect(set.workflows[0]).toEqual(stored.workflows[0]);
     expect(set.workflows[1]!.enabled).toBe(false);
-    expect(set.workflows[1]!.template).toEqual({ id: 'heat_pump_quote', version: 3 });
+    expect(set.workflows[1]!.template).toEqual({ id: 'heat_pump_quote', version: 4 });
   });
 
   it('keeps a stored heat pump workflow as the installer left it', () => {
@@ -213,9 +213,10 @@ describe('the heat pump questions', () => {
     const ctx = context(store);
     const first = await tool('start_workflow', { workflowId: 'wf_heat_pump' }, ctx);
     expect(first.ok).toBe(true);
-    expect(first.data['nextQuestionId']).toBe('ownership');
+    expect(first.data['nextQuestionId']).toBe('motivation');
 
     const order = [
+      'motivation',
       'ownership',
       'address',
       'property_type',

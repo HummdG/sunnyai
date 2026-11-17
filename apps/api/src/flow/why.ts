@@ -39,6 +39,8 @@ const WHY: Readonly<Record<string, Why>> = {
     'Heat pumps run cooler than boilers, so some radiators may need upgrading to keep rooms warm.',
   hp_hot_water:
     'Heat pumps heat water into a tank, so a home with a combi boiler needs a hot water cylinder.',
+  home_confirmed:
+    'I size the quote from this roof, so I want to be sure I am looking at the right house.',
   budget_band: 'It lets me show the options that fit, and flag any that go over.',
 };
 
