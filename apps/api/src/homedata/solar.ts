@@ -118,7 +118,6 @@ export function httpSolarClient(apiKey: string, fetchFn: typeof fetch = fetch): 
       return { dsm, mask };
     },
   };
-  return client;
 
   /**
    * One `dataLayers` request answers for the photo, the heights and the
@@ -161,6 +160,8 @@ export function httpSolarClient(apiKey: string, fetchFn: typeof fetch = fetch): 
     if (!tiff.ok) throw new Error(`Solar API imagery answered ${tiff.status}`);
     return tiff.arrayBuffer();
   }
+
+  return client;
 }
 
 /** What the session keeps of Google's roof. */

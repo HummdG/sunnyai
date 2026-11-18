@@ -12,6 +12,7 @@ import {
   utmDefinition,
 } from '../src/homedata/roof-image.js';
 import {
+  httpSolarClient,
   roofViewOf,
   type GoogleRoof,
   type RoofView,
@@ -242,5 +243,34 @@ describe('the roof faces on the photo', () => {
         box: [52.61995, 1.24992, 52.62, 1.25008],
       },
     ]);
+  });
+});
+
+describe("Google's imagery over HTTP", () => {
+  it('fetches the photo and the heights from one layers request', async () => {
+    const calls: string[] = [];
+    const fetchFn = vi.fn((input: string | URL) => {
+      const url = String(input);
+      calls.push(url.split('?')[0]!);
+      if (url.includes('dataLayers:get')) {
+        return Promise.resolve(
+          Response.json({
+            rgbUrl: 'https://solar.googleapis.com/v1/geoTiff:get?id=rgb',
+            dsmUrl: 'https://solar.googleapis.com/v1/geoTiff:get?id=dsm',
+            maskUrl: 'https://solar.googleapis.com/v1/geoTiff:get?id=mask',
+          }),
+        );
+      }
+      return Promise.resolve(new Response(new Uint8Array([1, 2, 3])));
+    }) as unknown as typeof fetch;
+    const client = httpSolarClient('key', fetchFn);
+    const image = await client.aerialImage!(CENTRE, 20);
+    expect(image?.byteLength).toBe(3);
+    const heights = await client.roofHeights!(CENTRE, 20);
+    expect(heights?.dsm.byteLength).toBe(3);
+    expect(heights?.mask?.byteLength).toBe(3);
+    // One billed layers request, three downloads.
+    expect(calls.filter((u) => u.endsWith('dataLayers:get'))).toHaveLength(1);
+    expect(calls.filter((u) => u.endsWith('geoTiff:get'))).toHaveLength(3);
   });
 });
