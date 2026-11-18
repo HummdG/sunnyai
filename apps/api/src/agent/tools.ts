@@ -91,6 +91,11 @@ export interface ToolContext {
    */
   notYetAskedOn?: string;
   /**
+   * The photo of the address came up on this turn, so "Is this your house?"
+   * has not been put to the visitor yet: nothing the model saves answers it.
+   */
+  photoShownThisTurn?: boolean;
+  /**
    * Where an effectful tool call is recorded, when the caller supplied one.
    *
    * Optional so that a test driving a tool directly does not need an audit store

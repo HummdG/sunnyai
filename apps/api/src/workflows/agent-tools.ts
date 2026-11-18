@@ -20,7 +20,7 @@ import { roofPicture } from '../homedata/roof-image.js';
 import { parseGoogleRoof } from '../homedata/solar.js';
 import { resolveFlow, type ResolvedFlow } from '../flow/resolve.js';
 import { chatOptions, depsFor, labelsFor, mirror, offerReplies } from '../journey/agent-tools.js';
-import { extractAnswers, type Proposal } from '../journey/extract.js';
+import { extractAnswers, yesOrNo, type Proposal } from '../journey/extract.js';
 import { HOME_CHECK, JOURNEY_KEYS, postcodeFrom } from '../journey/journey.js';
 import { toRoofAssessmentSummary } from '@sunny/sunscan-adapter';
 import { quoteKind } from '../journey/quote-kinds.js';
@@ -354,6 +354,7 @@ async function lookUpNewAddress(
       });
       mirror(ctx, updated.answers ?? { ...ctx.answers, [JOURNEY_KEYS.homePhoto]: 'yes' });
       ctx.events.push({ kind: 'roof_image', detail: {} });
+      ctx.photoShownThisTurn = true;
     }
   }
   return found.found;
@@ -579,6 +580,33 @@ async function captureOpeningAddress(
   return { roofAssessment: await measureNewAddress(ctx, r, result), homeRecords };
 }
 
+/**
+ * A plain yes or no to "Is this your house?", taken by the server before the
+ * model runs: seen live, on a "no" the model saved nothing and asked for the
+ * address again. Null when that is not the question, or the message is not a
+ * plain yes or no (the model then reads it, as it reads any answer). On a
+ * "no" the photo comes off the screen, and `say` is what Sunny says of it.
+ */
+export async function answerHomeCheck(
+  ctx: ToolContext,
+  message: string,
+): Promise<{ value: 'yes' | 'no'; say: string | null } | null> {
+  const r = running(ctx);
+  if (!r || r.kind !== 'workflow' || !isSolarQuote(r)) return null;
+  const value = yesOrNo(message);
+  if (!value) return null;
+  const deps = depsOn(ctx, r.flow);
+  if ((await stepOf(ctx, deps, r)).view.nextQuestionId !== HOME_CHECK) return null;
+  const result = await submitAnswers(deps, ctx.tenant.id, ctx.sessionId, {
+    proposals: [{ questionId: HOME_CHECK, value }],
+  });
+  mirror(ctx, result.answers);
+  // The message is spent: it is not read again against the next question.
+  (ctx.messagesRead ??= new Set()).add(message.trim());
+  if (value === 'no') ctx.events.push({ kind: 'roof_image', detail: { remove: true } });
+  return { value, say: value === 'no' ? NOT_THEIR_HOUSE : null };
+}
+
 /** Said once by the server when the visitor says the photo is not their house. */
 const NOT_THEIR_HOUSE =
   'Sorry about that, I will leave that photo out. A specialist will check your roof at the survey instead.';
@@ -773,7 +801,11 @@ export const WORKFLOW_TOOLS = [
       if (message) read.add(message);
       // The question the workflow is on: the one the visitor was just asked.
       const current = (await stepOf(ctx, deps, r)).view.nextQuestionId;
-      const proposals = supported(ctx, r.flow, parseProposals(args), current);
+      // "Is this your house?" cannot be answered on the turn its photo came
+      // up: seen live, the model saved a "yes" of its own with the address.
+      const proposals = supported(ctx, r.flow, parseProposals(args), current).filter(
+        (p) => p.questionId !== HOME_CHECK || !ctx.photoShownThisTurn,
+      );
       // An address the visitor volunteered (the answer reader leaves addresses alone).
       const volunteered = proposals.some((p) => p.questionId === 'address')
         ? null
@@ -787,7 +819,10 @@ export const WORKFLOW_TOOLS = [
       const asked = message ? current : null;
       const result = await submitAnswers(deps, ctx.tenant.id, ctx.sessionId, {
         proposals,
-        ...(message ? { current: asked } : {}),
+        // The house question is never read from the words the model passes
+        // on (it has passed on a "yes" nobody said): the turn reads the
+        // visitor's own message for it, before the model runs (`answerHomeCheck`).
+        ...(message ? { current: asked === HOME_CHECK ? null : asked } : {}),
         ...(message ? { text: message.slice(0, 500) } : {}),
       });
       mirror(ctx, result.answers);

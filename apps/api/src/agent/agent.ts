@@ -16,7 +16,7 @@ import {
   settle,
   type WorkflowSession,
 } from '../workflows/session.js';
-import { activeStep, offerCurrentStep } from '../workflows/agent-tools.js';
+import { activeStep, answerHomeCheck, offerCurrentStep } from '../workflows/agent-tools.js';
 import { resolvedFlowFor, workflowsForTenant } from '../workflows/tenant.js';
 import type { QuoteToolContext } from '../journey/agent-tools.js';
 import type { Tenant } from '../tenants.js';
@@ -330,6 +330,9 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   // offered is marked offered once the turn is done, so the offer is made once.
   let state: string | undefined;
   const resumeOffered: string[] = [];
+  // A plain yes or no to "Is this your house?" is the server's to take, before
+  // the workflow's state is read: the model then sees the question after it.
+  const house = workflowsOn ? await answerHomeCheck(ctx, input.message) : null;
   if (workflowsOn) {
     const open = available(workflows, pagePath);
     const paused = ctx.session.paused.flatMap((p) => {
@@ -350,6 +353,16 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   // A bill uploaded since the last turn: what it showed is said by the server
   // ahead of the reply (as an address lookup's finding is), and an unreadable
   // one is left to the model to explain. Either way, once.
+  if (house) {
+    const note =
+      (house.value === 'yes'
+        ? 'The visitor said the photo is their house, and that is saved.'
+        : `The visitor said the photo is not their house. That is saved, the address is kept, and they have already been told: "${house.say}" Do not repeat it, and do not ask for the address again.`) +
+      ' Go on to the question in the workflow state.';
+    state = [state, `<server_note>${note}</server_note>`].filter(Boolean).join('\n');
+    // The question the workflow is on now has not been asked yet.
+    ctx.notYetAskedOn = input.message;
+  }
   let billSaid: string | null = null;
   const bill = parseBillRecord(ctx.answers[JOURNEY_KEYS.bill]);
   if (bill && !bill.told) {
@@ -381,7 +394,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<TurnEvent> {
   };
   // What an address lookup found (a workflow tool's `sayFirst`), and whether it
   // has gone out: it leads the next text the model writes, once.
-  let homeFound: string | null = billSaid;
+  let homeFound: string | null = billSaid ?? house?.say ?? null;
   let homeSaid = false;
   const sayHomeFound = (): string | null => {
     if (!homeFound || homeSaid) return null;

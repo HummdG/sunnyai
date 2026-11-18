@@ -826,6 +826,8 @@ describe("a solar workflow with Google's roof", () => {
     // With the photo on screen, the visitor says whether it is their house.
     expect(after.data['nextQuestionId']).toBe('home_confirmed');
     expect(after.data['ask']).toBe('Here is the address from above. Is this your house?');
+    // The visitor's next message: a new turn.
+    ctx.photoShownThisTurn = false;
     const confirmed = await save(ctx, 'home_confirmed', 'yes');
     expect(confirmed.data['nextQuestionId']).toBe('usage_source');
     expect(confirmed.data['sayFirst']).toBeUndefined();
@@ -843,6 +845,8 @@ describe("a solar workflow with Google's roof", () => {
     await save(ctx, 'ownership', 'own');
     const after = await save(ctx, 'address', ADDRESS);
     expect(after.data['nextQuestionId']).toBe('home_confirmed');
+    // The visitor's next message: a new turn.
+    ctx.photoShownThisTurn = false;
     const denied = await save(ctx, 'home_confirmed', 'no');
     const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
     expect(answers['journey_home_confirmed']).toBe('no');
@@ -858,6 +862,91 @@ describe("a solar workflow with Google's roof", () => {
     );
     // And the questions carry on.
     expect(denied.data['nextQuestionId']).toBe('usage_source');
+  });
+
+  it('does not let the model answer for the house on the turn the photo appears', async () => {
+    // Seen on staging: the address message brought the photo up, and the model
+    // saved again with a "yes" it made up, so the visitor was never asked.
+    const store = await tempStore();
+    const ctx = context(store, { epc: null, solar: fakeSolarWithPhoto() }, defaultWorkflowSet(NOW));
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
+    await save(ctx, 'ownership', 'own');
+    ctx.visitorMessage = ADDRESS;
+    await save(ctx, 'address', ADDRESS);
+    const proposed = await save(ctx, 'home_confirmed', 'yes');
+    expect(proposed.data['nextQuestionId']).toBe('home_confirmed');
+    const worded = await tool(
+      'save_workflow_answers',
+      { answers: [], visitorMessage: "Yes, that's my house" },
+      ctx,
+    );
+    expect(worded.data['nextQuestionId']).toBe('home_confirmed');
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['journey_home_confirmed']).toBeUndefined();
+  });
+
+  it.each([
+    ["No, that's not my house", 'no'],
+    ["Yes, that's my house", 'yes'],
+  ])('takes "%s" itself, whatever the model does with it', async (message, value) => {
+    // Seen on staging: on a "no" the model saved nothing and asked for the
+    // address again.
+    const store = await tempStore();
+    const workflows = defaultWorkflowSet(NOW);
+    const homeData = { epc: null, solar: fakeSolarWithPhoto() };
+    const ctx = context(store, homeData, workflows);
+    await tool('start_workflow', { workflowId: 'wf_solar' }, ctx);
+    await save(ctx, 'motivation', 'reduce_bills');
+    await save(ctx, 'ownership', 'own');
+    await save(ctx, 'address', ADDRESS);
+
+    // The model calls no tool at all.
+    const provider = new ScriptedProvider(() => [
+      { type: 'text', text: 'How much electricity do you use?' },
+    ]);
+    const events: TurnEvent[] = [];
+    for await (const event of runTurn({
+      tenant: { ...DEMO_TENANT, config: { ...DEMO_TENANT.config, workflows } },
+      provider,
+      store,
+      sessionId: SESSION,
+      conversationId: null,
+      history: [],
+      message,
+      clientMessageId: 'c_house',
+      sunscanConnected: false,
+      homeData,
+      quote: { pricing: { forTenant: () => Promise.resolve(demoPricing()) } },
+    })) {
+      events.push(event);
+    }
+    const answers = (await store.getConversation(DEMO_TENANT.id, SESSION))?.answers ?? {};
+    expect(answers['journey_home_confirmed']).toBe(value);
+    const finished = events.find(
+      (e): e is Extract<TurnEvent, { type: 'message_finished' }> => e.type === 'message_finished',
+    );
+    const removed = events.filter((e) => e.type === 'roof_image' && e.remove === true);
+    const replies = events.find(
+      (e): e is Extract<TurnEvent, { type: 'quick_replies' }> => e.type === 'quick_replies',
+    );
+    // The buttons under the reply are the next question's.
+    expect(replies?.questionId).toBe('usage_source');
+    if (value === 'no') {
+      expect(answers['journey_home_solar']).toBeUndefined();
+      expect(removed).toHaveLength(1);
+      expect(finished?.text).toBe(
+        'Sorry about that, I will leave that photo out. A specialist will check your roof at the survey instead. How much electricity do you use?',
+      );
+    } else {
+      expect(answers['journey_home_solar']).toBeDefined();
+      expect(removed).toHaveLength(0);
+      expect(finished?.text).toBe('How much electricity do you use?');
+    }
+    // The model was told the answer is in, and what comes next.
+    expect(provider.lastRequest!.systemInstruction + provider.lastRequest!.message).toContain(
+      'usage_source',
+    );
   });
 
   it('still quotes on typical values when Google has no model', async () => {
